@@ -1,0 +1,2756 @@
+#!/bin/bash
+# =~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~
+# Author: Arafat Ali Email: arafat@sofibox.com
+# Version 0.3.2.7-beta
+# This is an initial server hardening script for general server using CentOS and Debian.
+# Compatible 100% with Directadmin. Supported OS: CentOS + Debian (Planned on FreeBSD)
+# Read the code to know what the scripts offer.
+# In DA, it will setup Directadmin from scratch, install firewall, secure username, auto link IP, set SSL and more
+# At the end of installation, you will get a secured DA control panel without needed to tweak more
+# TODO enable --dry-run (that will simulate testing for this script)
+# shellcheck source=/dev/null
+# =~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~
+# This function is used to handle exit trap
+
+_trap_with_args() {
+  local func
+  func="$1"
+  shift
+  for sig; do
+    trap "${func} ${sig}" "${sig}"
+  done
+}
+
+function cleanup() {
+  # echo "Trapped: $1"
+  ((CTRL_C_COUNT++))
+  if [ -d "${LOCK_DIR}" ]; then
+    rm -rf "${LOCK_DIR}"
+    echo ""
+    echo "[${SCRIPT_NAME}]: OK, locked flag removed from ${LOCK_DIR}"
+  fi
+  if [[ $CTRL_C_COUNT == 1 ]]; then
+    echo ""
+    if [ "$1" == "INT" ]; then
+      echo "[${SCRIPT_NAME}]: *** Warning, this script has been terminated by user: ${USER}! ***"
+    else
+      echo "[${SCRIPT_NAME}]: This script has been terminated with signal: ${1}"
+    fi
+    echo "-------------------------------END-----------------------------------------"
+  fi
+
+  exit 1
+}
+# This function get the OS ID and version number
+function get_linux_os() {
+  local arg distro_id distro_version
+  arg="${1}"
+  # Check OS distribution version
+  # any new Linux distribution must have this (it is a standard file os checking for linux)
+  if [ -e /etc/os-release ]; then
+    distro_id=$(awk -F= '$1 == "ID" {print $2}' /etc/os-release | LC_ALL=C tr '[:upper:]' '[:lower:]' | tr -d "\"")
+    distro_version=$(awk -F= '$1 == "VERSION_ID" {print $2}' /etc/os-release | tr -d "\"")
+  # but just in case (small case) if it doesn't have this then we can use lsb_release command
+  elif type lsb_release >/dev/null 2>&1; then
+    distro_id=$(lsb_release -si | LC_ALL=C tr '[:upper:]' '[:lower:]')
+    distro_version=$(lsb_release -sr)
+  # or if that doesn't exist at all, we use the standard checking version format: "Linux <version>"
+  else
+    # But using this we should terminate this script because we only need single distribution ID (eg: debian)
+    distro_id=$(uname -s)
+    distro_version=$(uname -r)
+  fi
+
+  if [ "${arg}" == "id" ]; then
+    echo "${distro_id}"
+  elif [ "${arg}" == "version" ]; then
+    echo "${distro_version}"
+  fi
+
+}
+
+# Pause terminal without exit
+function _pause() {
+  read -r -s -n 1 -p "[${SCRIPT_NAME}]: Press any key to continue . . ." 2>&1 | tee -a "${REPORT_FILE}"
+  echo ""
+}
+# Pause terminal with exit return code
+# Use _ symbol to not override exit function
+function _exit() {
+  read -r -s -n 1 -p "[${SCRIPT_NAME}]: Press any key to exit . . ." 2>&1 | tee -a "${REPORT_FILE}"
+  echo ""
+  exit "$1"
+}
+
+function _reboot() {
+  echo "[${SCRIPT_NAME}]: Rebooting system ..." 2>&1 | tee -a "${REPORT_FILE}"
+  shutdown -r now
+}
+function script_time() {
+  local spent_secs hrs mins secs
+  spent_secs=${SECONDS}
+  hrs=$((spent_secs / 3600))
+  mins=$(((spent_secs - hrs * 3600) / 60))
+  secs=$((spent_secs - hrs * 3600 - mins * 60))
+  printf "[${SCRIPT_NAME}]: Time spent: %02d H:%02d M :%02d S\n" ${hrs} ${mins} ${secs} 2>&1 | tee -a "${REPORT_FILE}"
+}
+function cd_to_path() {
+  local TO_PATH="$1"
+  echo "[${SCRIPT_NAME}]: Entering directory ${TO_PATH} ..." 2>&1 | tee -a "${REPORT_FILE}"
+  cd "${TO_PATH}" || {
+    echo "Failed to enter into directory" 2>&1 | tee -a "${REPORT_FILE}"
+    _exit 1
+  }
+}
+
+# This function allows DA to restart quickly but we don't take priority on other tasks.
+# this is a very important script to run before restarting DA.
+# without this, you will notice few errors because we disturb task.queue
+function restart_da() {
+  if [ ! -s /usr/local/directadmin/data/task.queue ]; then
+    echo "[${SCRIPT_NAME}]: Restarting Directadmin ..." 2>&1 | tee -a "${REPORT_FILE}"
+    echo "action=directadmin&value=restart" >>/usr/local/directadmin/data/task.queue
+    /usr/local/directadmin/dataskq d2000
+    # Better to restart DA with task.queue (this is what most documentation do) because DA needs to respect task.queue process
+    # [deprecated]:
+    # service directadmin restart 2>&1 | tee -a "${REPORT_FILE}"
+  else
+    echo "[${SCRIPT_NAME}]: Warning, Directadmin task.queue still has pending task(s) to be executed. Waiting 10 seconds to finish the pending task(s) ..." 2>&1 | tee -a "${REPORT_FILE}"
+    sleep 10
+    # Recursive function call again until condition satisfied
+    restart_da
+  fi
+}
+# da_api_admin <action> <action-option-arguments>
+# da_api_admin "create" "admin2" "admin2@sofibox.com" "x12321aa"
+# da_api_admin add-ip 12.12.12.12 255.255.255.0
+# TODO transform this into beautiful options: da_api_admin "create-admin-account" --username admin2 --email admin2@sofibox.com --password "x12321aa"
+function da_api_admin() {
+  local api_username api_password
+  local command data method input decoded_status
+  local action username email password
+  local ip netmask ssl admin_new_list admin_ori_list
+
+  admin_new_list=$(head -1 "/usr/local/directadmin/data/admin/admin.list")
+  admin_ori_list="/usr/local/directadmin/scripts/setup.txt"
+  action="$1"
+
+  if [[ "${SETUP_DA_HOST_SSL}" == "yes" && -f "${CONF_PATH}/enable_da_ssl_executed" ]]; then
+    ssl="https"
+  else
+    ssl="http"
+  fi
+  # If the admin.list file has a new admin username, we use that authentication
+  if [ "${admin_new_list}" == "${DA_OWNER_USERNAME}" ]; then
+    api_username=${DA_OWNER_USERNAME}
+    api_password=${DA_OWNER_USERPASS}
+  else
+    # else we use the original authentication generated by DA during installation
+    api_username=$(sed -n 's/^adminname=//p' ${admin_ori_list})
+    api_password=$(sed -n 's/^adminpass=//p' ${admin_ori_list})
+  fi
+  if [ "${action}" == "create-admin-account" ]; then
+    # da_api_admin "create-admin-account" "admin2" "admin2@sofibox.com" "12321"
+    shift
+    username="$1"
+    email="$2"
+    password="$3"
+    command="CMD_API_ACCOUNT_ADMIN"
+    method="POST"
+    echo "SSL: ${ssl} | Action: ${action} | username: ${username} | email: ${email} | password: ${password}"
+    #exit 1
+    data="action=create&add=submit&username=${username}&email=${email}&passwd=${password}&passwd2=${password}&notify=yes"
+    echo "Executing: ${action}" 2>&1 | tee -a "${REPORT_FILE}"
+  elif [ "${action}" == "delete-users" ]; then
+    # da_api_admin "delete-users" "admin2"
+    shift
+    username="$1"
+    command="CMD_API_SELECT_USERS"
+    method="POST"
+    data="confirmed=Confirm&delete=yes&select0=${username}"
+    echo "SSL: ${ssl} | Action: ${action} | username: ${username}"
+    #exit 1
+    echo "Executing: ${action}" 2>&1 | tee -a "${REPORT_FILE}"
+  elif [ "${action}" == "add-ip" ]; then
+    # da_api_admin "add-ip" "2400:1234:0000:0000:123c:1234:fe05:6cb1" "/64"
+    # da_api_admin "add-ip" "12.12.12.12" "255.255.255.0"
+    shift
+    ip="$1"
+    netmask="$2"
+    command="CMD_API_IP_MANAGER"
+    data="action=add&ip=${ip}&netmask=${netmask}&device=yes&add_to_device_aware=yes"
+    method="POST"
+    echo "SSL: ${ssl} | Action: ${action} | IP: ${ip} | netmask: ${netmask}"
+    #exit 1
+    echo "Executing: ${action}" 2>&1 | tee -a "${REPORT_FILE}"
+  fi
+  # Executing API via curl based on command above
+  input=$(curl --request "${method}" --user "${api_username}":"${api_password}" --data "${data}" "${ssl}://${BOX_HOSTNAME_FQDN}:${DA_PORT}/${command}")
+  decoded_status=$(printf '%b' "${input//%/\\x}")
+  echo "---" 2>&1 | tee -a "${REPORT_FILE}"
+  echo "[${SCRIPT_NAME}]: Status: ${decoded_status} | status=0 means success" 2>&1 | tee -a "${REPORT_FILE}"
+  #exit 1
+}
+
+# This will check if system needs to reboot based on /var/run/reboot-required file
+function check_finish_reboot() {
+  local FUNC_NAME="$1"
+  cat /dev/null >"${CONF_PATH}/${FUNC_NAME}_executed"
+  if [ -f /var/run/reboot-required ]; then
+    if [ "${ENABLE_SETUP_REBOOT}" == "auto" ]; then
+      echo "[${SCRIPT_NAME}]: [Notice]: *** System reboot required. Rebooting in 30 seconds (ctrl+c to cancel) ..." 2>&1 | tee -a "${REPORT_FILE}"
+      sleep 30
+      # TODO optional feature: since reboot is requested, we need to automatically resume installation after user login
+      _reboot
+    elif [ "${ENABLE_SETUP_REBOOT}" == "interactive" ]; then
+      read -r -s -n 1 -p "[${SCRIPT_NAME}]: [Notice]: *** System reboot required. Press any key to reboot (ctrl+c to cancel) ..." 2>&1 | tee -a "${REPORT_FILE}"
+      # TODO optional feature: since reboot is requested, we need to automatically resume installation after user login
+      _reboot
+    elif [ "${ENABLE_SETUP_REBOOT}" == "disabled" ]; then
+      read -r -s -n 1 -p "[${SCRIPT_NAME}]: [Notice]: *** Warning, system reboot required, but ENABLE_SETUP_REBOOT setting is disabled!" 2>&1 | tee -a "${REPORT_FILE}"
+    fi
+    echo ""
+    _exit 0
+  else
+    echo "[${SCRIPT_NAME}]: [OK]: ${FUNC_NAME} has been executed" 2>&1 | tee -a "${REPORT_FILE}"
+    # This sleep is for debugging, when finish developing this script, I should remove this sleep to speed up the script
+    sleep 1
+  fi
+
+}
+# Deprecated
+# This function will check service error and try to repair it using common solutions like log error information
+# check_fix_service <service_name>
+function check_fix_service() {
+  local service_name="$1"
+  local gc retval
+  echo "[${SCRIPT_NAME}]: Checking ${service_name} status ..." 2>&1 | tee -a "${REPORT_FILE}"
+  sleep 2
+  if [ "${service_name}" == "csf" ]; then
+    # Fix that here
+    service csf status
+    retval=$?
+    if [ "${retval}" -ne 0 ]; then
+      echo "[${SCRIPT_NAME}]: Warning, unable to start CSF service properly. Please check what is going on" 2>&1 | tee -a "${REPORT_FILE}"
+      _exit 1
+    else
+      echo "[${SCRIPT_NAME}]: OK, CSF service is running with status 0" 2>&1 | tee -a "${REPORT_FILE}"
+
+    fi
+  fi
+
+  if [ "${service_name}" == "lfd" ]; then
+    service lfd status
+    retval=$?
+    if [ "${retval}" -ne 0 ]; then
+      echo "[${SCRIPT_NAME}]: Warning, unable to start LFD service properly. Trying to solve this based on common problems ..." 2>&1 | tee -a "${REPORT_FILE}"
+      sleep 1
+      gc=$(grep -ic 'you may need to install the IO::Socket::INET6 module' /var/log/lfd.log)
+      if [ "${gc}" -ne 0 ]; then
+        echo "[${SCRIPT_NAME}]: Found missing perl IO::Socket::INET6 module. Installing libio-socket-inet6-perl for Debian" 2>&1 | tee -a "${REPORT_FILE}"
+        apt-get -y install libio-socket-inet6-perl 2>&1 | tee -a "${REPORT_FILE}"
+        echo "[${SCRIPT_NAME}]: Starting lfd for the second time ..." 2>&1 | tee -a "${REPORT_FILE}"
+        service lfd restart
+        retval=$?
+        if [ "${retval}" -ne 0 ]; then
+          echo "[${SCRIPT_NAME}]: Warning, unable to start LFD service properly for the second time. Inspect this problem right now" 2>&1 | tee -a "${REPORT_FILE}"
+          _exit 1
+        else
+          echo "[${SCRIPT_NAME}]: OK, LFD has not started with status 0" 2>&1 | tee -a "${REPORT_FILE}"
+        fi
+        # End service_name = lfd
+      else
+        echo "[${SCRIPT_NAME}]: Error, unable to understand why lfd cannot be started. Check /var/log/lfd.log for more hints" 2>&1 | tee -a "${REPORT_FILE}"
+        _exit 1
+      fi
+      echo "[${SCRIPT_NAME}]: OK, LFD has not started with status 0" 2>&1 | tee -a "${REPORT_FILE}"
+    fi
+  fi
+}
+
+function restart_da_web_server() {
+  if [ "${CB_WEB_SERVER_SOFTWARE}" == "nginx_apache" ]; then
+    echo "[${SCRIPT_NAME}]: Restarting httpd for new httpd config ..." 2>&1 | tee -a "${REPORT_FILE}"
+    systemctl restart httpd
+    echo "[${SCRIPT_NAME}]: Restarting nginx ..." 2>&1 | tee -a "${REPORT_FILE}"
+    systemctl restart nginx
+  elif [ "${CB_WEB_SERVER_SOFTWARE}" == "nginx" ]; then
+    echo "[${SCRIPT_NAME}]: Restarting nginx ..." 2>&1 | tee -a "${REPORT_FILE}"
+    systemctl restart nginx
+  elif [ "${CB_WEB_SERVER_SOFTWARE}" == "apache" ]; then
+    echo "[${SCRIPT_NAME}]: Restarting httpd for new httpd config ..." 2>&1 | tee -a "${REPORT_FILE}"
+    systemctl restart httpd
+  else
+    :
+  fi
+}
+
+function pre_setup() {
+  if [ ! -f "${CONF_PATH}/${FUNCNAME[0]}_executed" ]; then
+    echo "[${SCRIPT_NAME}]: Executing ${FUNCNAME[0]} ..." 2>&1 | tee -a "${REPORT_FILE}"
+    if [ "${DISTRO_ID}" == "centos" ]; then
+      echo "[${SCRIPT_NAME}]: Current OS distro ID is centos. Disabling SELinux policy ..." 2>&1 | tee -a "${REPORT_FILE}"
+      sleep 1
+      setenforce 0
+      if [ -e /etc/selinux/config ]; then
+        sed -i s/^SELINUX=.*$/SELINUX=disabled/ /etc/selinux/config
+      fi
+      if [ -e /usr/sbin/setenforce ]; then
+        /usr/sbin/setenforce 0
+      fi
+      check_finish_reboot "${FUNCNAME[0]}"
+    elif [ "${DISTRO_ID}" == "debian" ]; then
+      # psmisc = pstree util needed by maxigpg script from maxicode
+      apt-get -y install screen nmap psmisc 2>&1 | tee -a "${REPORT_FILE}"
+    else
+      echo "[${SCRIPT_NAME}]: Error, unknown value for distribution ID ${DISTRO_ID}" 2>&1 | tee -a "${REPORT_FILE}"
+      _exit 1
+    fi
+
+    check_finish_reboot "${FUNCNAME[0]}"
+  else
+    echo "[${SCRIPT_NAME}]: [Skipped]: ${FUNCNAME[0]} has ran before" 2>&1 | tee -a "${REPORT_FILE}"
+    sleep 1
+  fi
+
+}
+# Get the latest scripts from private repo gitlab (need to have private token defined in ENV)
+# This private repo contains lots of security scripts for Linux (c) by Arafat Ali (aka MaXi32)
+# can re-run this to re-clone (update latest codes)
+clone_git_setup() {
+  #if [ ! -f "${CONF_PATH}/${FUNCNAME[0]}_executed" ]; then
+  echo "[${SCRIPT_NAME}]: Executing ${FUNCNAME[0]} ..." 2>&1 | tee -a "${REPORT_FILE}"
+  if [ "${DISTRO_ID}" == "centos" ]; then
+    echo "[${SCRIPT_NAME}]: Downloading git for centos ..." 2>&1 | tee -a "${REPORT_FILE}"
+    dnf -y install git 2>&1 | tee -a "${REPORT_FILE}"
+  elif [ "${DISTRO_ID}" == "debian" ]; then
+    echo "[${SCRIPT_NAME}]: Downloading git for debian ..." 2>&1 | tee -a "${REPORT_FILE}"
+    apt-get -y install git 2>&1 | tee -a "${REPORT_FILE}"
+  else
+    echo "[${SCRIPT_NAME}]: Error, unknown value for distribution ID ${DISTRO_ID}" 2>&1 | tee -a "${REPORT_FILE}"
+    _exit 1
+  fi
+  # This one work for both CentOS and Debian
+  local GIT_ASKPASS ORI_PATH
+  echo "[${SCRIPT_NAME}]: Setting up temporary git authentication for private repository ..." 2>&1 | tee -a "${REPORT_FILE}"
+  cat /dev/null >"${HOME}/.git-askpass"
+  echo "#!/bin/bash" >>"${HOME}/.git-askpass"
+  echo "echo ${GIT_TOKEN}" >>"${HOME}/.git-askpass"
+  chmod +x "${HOME}/.git-askpass"
+  export GIT_ASKPASS="${HOME}/.git-askpass"
+  cd_to_path "${DATA_PATH}"
+  echo "[${SCRIPT_NAME}]: Removing existing local repository ..." 2>&1 | tee -a "${REPORT_FILE}"
+  # remove existing setup
+  rm -rf "${DATA_PATH}/maxisetup"
+  echo "[${SCRIPT_NAME}]: Cloning main repository ..." 2>&1 | tee -a "${REPORT_FILE}"
+  git clone "${SETUP_GIT_URL}" 2>&1 | tee -a "${REPORT_FILE}"
+  # Now we have setup folder.
+  # Delete these files for security
+  echo "[${SCRIPT_NAME}]: Removing git authentication and destroying its environment variable ..." 2>&1 | tee -a "${REPORT_FILE}"
+  rm -f "${HOME}/.git-askpass"
+  unset GIT_ASKPASS
+  check_finish_reboot "${FUNCNAME[0]}"
+  #else
+  #  echo "[${SCRIPT_NAME}]: [Skipped]: ${FUNCNAME[0]} has ran before" 2>&1 | tee -a "${REPORT_FILE}"
+  #  sleep 1
+  #fi
+}
+
+# Basic security hardening for Linux
+function secure_box() {
+  if [ ! -f "${CONF_PATH}/${FUNCNAME[0]}_executed" ]; then
+    echo "[${SCRIPT_NAME}]: Executing ${FUNCNAME[0]} ..." 2>&1 | tee -a "${REPORT_FILE}"
+    local find_au
+    echo "[${SCRIPT_NAME}]: Securing ${BOX_HOSTNAME_FQDN} ..." 2>&1 | tee -a "${REPORT_FILE}"
+    sleep 1
+    echo "[${SCRIPT_NAME}]: Changing root password ..." 2>&1 | tee -a "${REPORT_FILE}"
+
+    if [ "${DISTRO_ID}" == "centos" ]; then
+      echo "${ROOT_USERPASS}" | passwd --stdin "${ROOT_USERNAME}" 2>&1 | tee -a "${REPORT_FILE}"
+    elif [ "${DISTRO_ID}" == "debian" ]; then
+      echo "${ROOT_USERNAME}:${ROOT_USERPASS}" | chpasswd
+    else
+      echo "[${SCRIPT_NAME}]: Error, unknown value for distribution ID ${DISTRO_ID}" 2>&1 | tee -a "${REPORT_FILE}"
+      _exit 1
+    fi
+    echo "[${SCRIPT_NAME}]: Setting hostname to ${BOX_HOSTNAME_FQDN} ..." 2>&1 | tee -a "${REPORT_FILE}"
+    hostnamectl set-hostname "${BOX_HOSTNAME_FQDN}" 2>&1 | tee -a "${REPORT_FILE}"
+    echo "[${SCRIPT_NAME}]: [Testing]: hostname is $(hostname)" 2>&1 | tee -a "${REPORT_FILE}"
+    echo "[${SCRIPT_NAME}]: Setting timezone to ${BOX_TIMEZONE} ..." 2>&1 | tee -a "${REPORT_FILE}"
+    timedatectl set-timezone "${BOX_TIMEZONE}" 2>&1 | tee -a "${REPORT_FILE}"
+    echo "[${SCRIPT_NAME}]: [Testing]: Current date is $(date)" 2>&1 | tee -a "${REPORT_FILE}"
+
+    if [ "${DISTRO_ID}" == "centos" ]; then
+      echo "[${SCRIPT_NAME}]: Creating a username ${SSH_USERNAME} ..." 2>&1 | tee -a "${REPORT_FILE}"
+      adduser "${SSH_USERNAME}" 2>&1 | tee -a "${REPORT_FILE}"
+      echo "[${SCRIPT_NAME}]: Setting password for ${SSH_USERNAME} ..." 2>&1 | tee -a "${REPORT_FILE}"
+      echo "${SSH_USERPASS}" | passwd --stdin "${SSH_USERNAME}" 2>&1 | tee -a "${REPORT_FILE}"
+      echo "[${SCRIPT_NAME}]: Adding user ${SSH_USERNAME} to the highest privilege group ..." 2>&1 | tee -a "${REPORT_FILE}"
+      gpasswd -a "${SSH_USERNAME}" wheel 2>&1 | tee -a "${REPORT_FILE}"
+    elif [ "${DISTRO_ID}" == "debian" ]; then
+      echo "[${SCRIPT_NAME}]: Creating a username ${SSH_USERNAME} ..." 2>&1 | tee -a "${REPORT_FILE}"
+      useradd "${SSH_USERNAME}" -s /bin/bash -m 2>&1 | tee -a "${REPORT_FILE}"
+      echo "[${SCRIPT_NAME}]: Setting password for ${SSH_USERNAME} ..." 2>&1 | tee -a "${REPORT_FILE}"
+      echo "${SSH_USERNAME}:${SSH_USERPASS}" | chpasswd
+      echo "[${SCRIPT_NAME}]: Adding user ${SSH_USERNAME} to the highest privilege group ..." 2>&1 | tee -a "${REPORT_FILE}"
+      usermod -aG sudo "${SSH_USERNAME}" 2>&1 | tee -a "${REPORT_FILE}"
+    else
+      echo "[${SCRIPT_NAME}]: Error, unknown value for distribution ID ${DISTRO_ID}" 2>&1 | tee -a "${REPORT_FILE}"
+      _exit 1
+    fi
+    echo "[${SCRIPT_NAME}]: Testing ${SSH_USERNAME} log in ..." 2>&1 | tee -a "${REPORT_FILE}"
+    echo "[${SCRIPT_NAME}]: =~=~=~=~=~=~=~=~=~=~=~=~=~=" 2>&1 | tee -a "${REPORT_FILE}"
+    sudo -H -u "${SSH_USERNAME}" bash -c 'echo "[Testing]: Hello, I am ${USER}, with uid ${UID}"' 2>&1 | tee -a "${REPORT_FILE}"
+    echo "[${SCRIPT_NAME}]: =~=~=~=~=~=~=~=~=~=~=~=~=~=" 2>&1 | tee -a "${REPORT_FILE}"
+    # TIP: To remove this user we can do this:
+    # userdel -r "${SSH_USERNAME}" , where -r will also delete home directory
+
+    echo "[${SCRIPT_NAME}]: Creating SSH private key using the name of ${SSH_USERNAME} ..." 2>&1 | tee -a "${REPORT_FILE}"
+    echo "[${SCRIPT_NAME}]: Creating a directory of .ssh in ${SSH_USERNAME}'s home directory ..." 2>&1 | tee -a "${REPORT_FILE}"
+    sudo -H -u "${SSH_USERNAME}" bash -c "mkdir -p ~/.ssh"
+    echo "[${SCRIPT_NAME}]: Creating a file .ssh/authorized_keys in ${SSH_USERNAME}'s home directory ..." 2>&1 | tee -a "${REPORT_FILE}"
+    sudo -H -u "${SSH_USERNAME}" bash -c "touch ~/.ssh/authorized_keys"
+    echo "[${SCRIPT_NAME}]: Inserting SSH private key into .ssh/authorized_keys ..." 2>&1 | tee -a "${REPORT_FILE}"
+    sudo -H -u "${SSH_USERNAME}" bash -c "echo ${SSH_PUBLIC_KEY} >~/.ssh/authorized_keys"
+    echo "[${SCRIPT_NAME}]: Changing .ssh/authorized_keys permission to chmod 700 ..." 2>&1 | tee -a "${REPORT_FILE}"
+    sudo -H -u "${SSH_USERNAME}" bash -c "chmod 700 ~/.ssh/authorized_keys"
+
+    #sed -i "/AllowUsers/c\AllowUsers ${SSH_USERNAME}" /etc/ssh/sshd_config
+    find_au=$(grep -w "AllowUsers ${SSH_USERNAME}" /etc/ssh/sshd_config)
+    if [[ -z "${find_au}" ]]; then
+      # Put at the bottom
+      echo "[${SCRIPT_NAME}]: Adding user ${SSH_USERNAME} to AllowUsers list in sshd_config ..." 2>&1 | tee -a "${REPORT_FILE}"
+      echo "AllowUsers ${SSH_USERNAME}" >>/etc/ssh/sshd_config
+    else
+      echo "[${SCRIPT_NAME}]: [Skipped] user ${SSH_USERNAME} is already set as AllowUsers list in sshd_config ..." 2>&1 | tee -a "${REPORT_FILE}"
+    fi
+    # Don't permit root login
+    echo "[${SCRIPT_NAME}]: Disabling root login via sshd_config ..." 2>&1 | tee -a "${REPORT_FILE}"
+    sed -i '/^PermitRootLogin/s/yes/no/' /etc/ssh/sshd_config
+    echo "[${SCRIPT_NAME}]: Disabling Password authentication via sshd_config ..." 2>&1 | tee -a "${REPORT_FILE}"
+    sed -i "s/^#PasswordAuthentication.*/PasswordAuthentication no/" /etc/ssh/sshd_config
+    echo "[${SCRIPT_NAME}]: Disabling empty password login via sshd_config ..." 2>&1 | tee -a "${REPORT_FILE}"
+    sed -i "s/^#PermitEmptyPasswords.*/PermitEmptyPasswords no/" /etc/ssh/sshd_config
+
+    echo "[${SCRIPT_NAME}]: Changing SSH default port from 22 to ${SSH_PORT} so CSF will automatically add this PORT during installation ..." 2>&1 | tee -a "${REPORT_FILE}"
+    sed -i "s/#Port 22/Port ${SSH_PORT}/" /etc/ssh/sshd_config
+    echo "[${SCRIPT_NAME}]: Changing SSH to listen only to IPv4 (disable IPv6 SSH login) ..." 2>&1 | tee -a "${REPORT_FILE}"
+    sed -i "s/^#AddressFamily.*/AddressFamily inet/" /etc/ssh/sshd_config
+    # Adding login banner
+    echo "[${SCRIPT_NAME}]: Setting login banner for issue and issue.net ..." 2>&1 | tee -a "${REPORT_FILE}"
+
+    {
+      echo "Legal Authentication Banner:"
+      echo "---------------------------"
+      echo "=~=~=~=~=~=~=~=~=~=~=~=~=~00000~=~=~=~=~=~=~=~=~+~=~=~=~=~+~="
+      echo "Welcome to Sofibox. This is the ${BOX_HOSTNAME^^} Server"
+      echo "The ${BOX_HOSTNAME^^} consists of ENERGY where it has been created"
+      echo "perfectly with a certain EQUATIONS from NOTHING. Human"
+      echo "beings have changed the original EQUATIONS to their own"
+      echo "EQUATIONS. The ENERGY consists of TIME where TIME is MONEY"
+      echo "and MONEY is part of the RESOURCES. If you need SOMETHING,"
+      echo "the most ethical way in the world of humanity is asking"
+      echo "for SOMETHING instead of manipulating the RESOURCES."
+      echo "Disconnect now if you are not one of the team at Sofibox"
+      echo "=~=~=~=~=~=~=~=~=~=~=~=~=~00000~=~=~=~=~=~=~=~=~+~=~=~=~=~+~="
+      echo "Do not waste your RESOURCES for NOTHING - MaXi32, 2001"
+      echo "=============== We turned on 1 LiGHT DaRK =============="
+      echo ""
+      echo "SECURE TAG: access, legal, law, connect, enforce, system"
+    } >/etc/issue
+    cp -p /etc/issue /etc/issue.net
+    echo "[${SCRIPT_NAME}]: Enabling login banner in sshd_config ..." 2>&1 | tee -a "${REPORT_FILE}"
+    sed -i "s/^#Banner none/Banner \/etc\/issue/" /etc/ssh/sshd_config
+
+    if [ "${DISTRO_ID}" == "centos" ]; then
+      echo "[${SCRIPT_NAME}]: Adding SSH port ${SSH_PORT}/tcp to firewalld ..." 2>&1 | tee -a "${REPORT_FILE}"
+      sudo firewall-cmd --permanent --zone=public --add-port="${SSH_PORT}/tcp" 2>&1 | tee -a "${REPORT_FILE}"
+      echo "[${SCRIPT_NAME}]: Adding an IP from ${TEMP_ALLOW_IP} in firewalld to prevent locked out during setup" 2>&1 | tee -a "${REPORT_FILE}"
+      sleep 1
+      sudo firewall-cmd --permanent --add-source="${TEMP_ALLOW_IP}" >&1 | tee -a "${REPORT_FILE}"
+      firewall-cmd --reload
+    elif [ "${DISTRO_ID}" == "debian" ]; then
+      echo "[${SCRIPT_NAME}]: [Notice]: The default debian installation doesn't include firewall. Installing ufw to protect protect server during setup ..." 2>&1 | tee -a "${REPORT_FILE}"
+      apt install ufw 2>&1 | tee -a "${REPORT_FILE}"
+      echo "[${SCRIPT_NAME}]: Adding SSH port ${SSH_PORT}/tcp to ufw ..." 2>&1 | tee -a "${REPORT_FILE}"
+      sudo ufw allow "${SSH_PORT}/tcp" 2>&1 | tee -a "${REPORT_FILE}"
+      echo "[${SCRIPT_NAME}]: Adding an IP from ${TEMP_ALLOW_IP} in ufw to prevent locked out during setup" 2>&1 | tee -a "${REPORT_FILE}"
+      sleep 1
+      sudo ufw allow from "${TEMP_ALLOW_IP}" 2>&1 | tee -a "${REPORT_FILE}"
+      echo "[${SCRIPT_NAME}]: Enabling ufw firewall ..." 2>&1 | tee -a "${REPORT_FILE}"
+      sudo ufw --force enable 2>&1 | tee -a "${REPORT_FILE}"
+    else
+      echo "[${SCRIPT_NAME}]: Error, unknown value for distribution ID ${DISTRO_ID}" 2>&1 | tee -a "${REPORT_FILE}"
+      _exit 1
+    fi
+
+    # Restart SSHD
+    echo "[${SCRIPT_NAME}]: Restarting sshd service ..." 2>&1 | tee -a "${REPORT_FILE}"
+    # This works with debian too
+    systemctl reload sshd 2>&1 | tee -a "${REPORT_FILE}"
+    echo "[${SCRIPT_NAME}]: [OK]: Now ${BOX_HOSTNAME_FQDN} is secured with SSH. You can login using new port: ${SSH_PORT}" 2>&1 | tee -a "${REPORT_FILE}"
+    check_finish_reboot "${FUNCNAME[0]}"
+  else
+    echo "[${SCRIPT_NAME}]: [Skipped]: ${FUNCNAME[0]} has ran before" 2>&1 | tee -a "${REPORT_FILE}"
+    sleep 1
+  fi
+
+}
+
+function init_local_maxicode() {
+  #if [ ! -f "${CONF_PATH}/${FUNCNAME[0]}_executed" ]; then
+  echo "[${SCRIPT_NAME}]: Executing ${FUNCNAME[0]} ..." 2>&1 | tee -a "${REPORT_FILE}"
+  echo "[${SCRIPT_NAME}]: Copying maxicode scripts into /usr/local/maxicode ..." 2>&1 | tee -a "${REPORT_FILE}"
+  sleep 1
+  cp -r "${DATA_PATH}/maxisetup/storage/os/${DISTRO_ID}/usr/local/maxicode" /usr/local/
+  # TODO add maxicode folder to /usr/local/maxicode
+  # Make sure maxisetup is binary executable (link that on startup)
+  # run maxisetup --init-maxicode in order to get the latest version of binary from maxicode.
+  # make sure IDE use this maxicode directly from that private repo, so box will be always up to date
+  check_finish_reboot "${FUNCNAME[0]}"
+  #else
+  #  echo "[${SCRIPT_NAME}]: [Skipped]: ${FUNCNAME[0]} has ran before" 2>&1 | tee -a "${REPORT_FILE}"
+  #   sleep 1
+  # fi
+}
+# This one configuration hostname, network etc.
+function configure_net() {
+  if [ ! -f "${CONF_PATH}/${FUNCNAME[0]}_executed" ]; then
+    echo "[${SCRIPT_NAME}]: Executing ${FUNCNAME[0]} ..." 2>&1 | tee -a "${REPORT_FILE}"
+    local current_lan grub_count
+    # Download this from git better
+    if [ -d "${DATA_PATH}/maxisetup" ]; then
+      # This is bind or bind setting called named.conf. If we put this first in /etc, when install bind it will use this setting
+      # Bind setting is the same config for centos, debian
+      echo "[${SCRIPT_NAME}]: Copying modified named.conf from maxisetup to /etc/named.conf ..." 2>&1 | tee -a "${REPORT_FILE}"
+      cp "${DATA_PATH}/maxisetup/storage/os/${DISTRO_ID}/etc/named.conf" /etc/named.conf
+    else
+      # This is weird error and should exit
+      echo "[${SCRIPT_NAME}]: Warning no file named.conf found in maxisetup folder. Check maxisetup clone folder." 2>&1 | tee -a "${REPORT_FILE}"
+      _exit 1
+    fi
+    echo "[${SCRIPT_NAME}]: Configuring system email ..." 2>&1 | tee -a "${REPORT_FILE}"
+    echo "${ROOT_EMAIL}" >/root/.email.txt #Root email will use this one
+    echo "${ADMIN_EMAIL}" >/root/.forward  #Forward all email to admin (webmaster)
+    echo "[${SCRIPT_NAME}]: Configuring network interface ..." 2>&1 | tee -a "${REPORT_FILE}"
+    sleep 2
+
+    current_lan=$(ip link | awk -F: '$0 !~ "lo|vir|wl|^[^0-9]"{print $2}' | sed 's/ //g')
+    if [ "${current_lan}" != "${NIC_INTERFACE_NAME}" ]; then
+      echo "[${SCRIPT_NAME}]: [Warning]: Current LAN interface is emulated with ${current_lan} but it was set as: ${NIC_INTERFACE_NAME}" 2>&1 | tee -a "${REPORT_FILE}"
+      if [ "${NIC_INTERFACE_NAME}" == "eth0" ]; then
+        echo "[${SCRIPT_NAME}]: Modifying grub file to disable interface name convention ..." 2>&1 | tee -a "${REPORT_FILE}"
+        #sed -i 's/rhgb quiet/net.ifnames=0 biosdevname=0/' /etc/default/grub
+        # This will not run if values exist
+        grub_count=$(grep -Ec 'GRUB_CMDLINE_LINUX=.*net.ifnames|GRUB_CMDLINE_LINUX_DEFAULT=.*net.ifnames' /etc/default/grub)
+        if [ "${grub_count}" -eq 0 ]; then
+          echo "[${SCRIPT_NAME}]: Appending net.ifnames=0 for GRUB_CMDLINE_LINUX in /etc/default/grub ..." 2>&1 | tee -a "${REPORT_FILE}"
+          sed -i 's/GRUB_CMDLINE_LINUX="[^"]*/& net.ifnames=0/' /etc/default/grub
+        else
+          echo "[${SCRIPT_NAME}]: [Skipped]: The value 'net.ifnames' has already seen in /etc/default/grub ..." 2>&1 | tee -a "${REPORT_FILE}"
+        fi
+        grub_count=$(grep -Ec 'GRUB_CMDLINE_LINUX=.*biosdevname|GRUB_CMDLINE_LINUX_DEFAULT=.*biosdevname' /etc/default/grub)
+        if [ "${grub_count}" -eq 0 ]; then
+          echo "[${SCRIPT_NAME}]: Appending biosdevname for GRUB_CMDLINE_LINUX in /etc/default/grub ..." 2>&1 | tee -a "${REPORT_FILE}"
+          sed -i 's/GRUB_CMDLINE_LINUX="[^"]*/& biosdevname=0/' /etc/default/grub
+        else
+          echo "[${SCRIPT_NAME}]: [Skipped]: The value 'biosdevname' has already seen in /etc/default/grub ..." 2>&1 | tee -a "${REPORT_FILE}"
+        fi
+        sleep 1
+        echo "[${SCRIPT_NAME}]: Recompiling grub boot loader ..." 2>&1 | tee -a "${REPORT_FILE}"
+        if [ "${DISTRO_ID}" == "centos" ]; then
+          # Recompile grub centos command
+          grub2-mkconfig -o /boot/grub2/grub.cfg 2>&1 | tee -a "${REPORT_FILE}"
+          # Need to reboot here
+        elif [ "${DISTRO_ID}" == "debian" ]; then
+          # Recompile grub debian command
+          grub-mkconfig -o /boot/grub/grub.cfg 2>&1 | tee -a "${REPORT_FILE}"
+        else
+          echo "[${SCRIPT_NAME}]: Error, unknown value for distribution ID ${DISTRO_ID}" 2>&1 | tee -a "${REPORT_FILE}"
+          _exit 1
+        fi
+      else
+        # Rename other interfaces here
+        echo "[${SCRIPT_NAME}]: The new LAN interface is set to ${NIC_INTERFACE_NAME}" 2>&1 | tee -a "${REPORT_FILE}"
+        # Or recommend to use screen
+        echo "[${SCRIPT_NAME}]: Turning off current LAN interface for renaming ${current_lan} ..." 2>&1 | tee -a "${REPORT_FILE}"
+        echo "[${SCRIPT_NAME}]: Warning, the network needs to be turned off in order to be able to rename to new LAN interface" 2>&1 | tee -a "${REPORT_FILE}"
+        echo "[${SCRIPT_NAME}]: ** Warning, If you are on SSH, you will be disconnected from SSH" 2>&1 | tee -a "${REPORT_FILE}"
+        echo "[${SCRIPT_NAME}]: *** Warning, you will not see the following operations and system will reboot automatically. You can re-run this script again to continue setup" 2>&1 | tee -a "${REPORT_FILE}"
+        # Because the script reboot, we need to re-run this function to check if interface is already set like in the ENV file
+        _pause
+        ip link set "${current_lan}" down
+        echo "[${SCRIPT_NAME}]: Renaming ${current_lan} to ${NIC_INTERFACE_NAME} ..." 2>&1 | tee -a "${REPORT_FILE}"
+        sleep 1
+        ip link set "${current_lan}" name "${NIC_INTERFACE_NAME}"
+        echo "[${SCRIPT_NAME}]: Turning on the new LAN interface ${NIC_INTERFACE_NAME} ..." 2>&1 | tee -a "${REPORT_FILE}"
+        sleep 1
+        ip link set "${NIC_INTERFACE_NAME}" up
+        echo "[${SCRIPT_NAME}]: Renaming interface file ifcfg-${current_lan} to ifcfg-${NIC_INTERFACE_NAME} ..." 2>&1 | tee -a "${REPORT_FILE}"
+        sleep 1
+        mv /etc/sysconfig/network-scripts/ifcfg-{"${current_lan}","${NIC_INTERFACE_NAME}"}
+        _reboot
+      fi
+      # Changing this would require restart. So let's restart
+      echo "[${SCRIPT_NAME}]: Creating required reboot flag for network interface to revert back to eth0 automatically after reboot ..." 2>&1 | tee -a "${REPORT_FILE}"
+      cat /dev/null >/var/run/reboot-required
+      sleep 1
+    else
+      echo "[${SCRIPT_NAME}]: [Skipped]: OK, current LAN interface name is same with NIC_INTERFACE_NAME from env" 2>&1 | tee -a "${REPORT_FILE}"
+    fi
+    check_finish_reboot "${FUNCNAME[0]}"
+  else
+    echo "[${SCRIPT_NAME}]: [Skipped]: ${FUNCNAME[0]} has ran before" 2>&1 | tee -a "${REPORT_FILE}"
+    sleep 1
+  fi
+
+}
+
+# This would change like static IP, resolv.conf etc ...
+# I prefer to use eth0 than a strange name like epnx but now this script can rename whatever interface you want
+function configure_net2() {
+  if [ ! -f "${CONF_PATH}/${FUNCNAME[0]}_executed" ]; then
+    echo "[${SCRIPT_NAME}]: Executing ${FUNCNAME[0]} ..." 2>&1 | tee -a "${REPORT_FILE}"
+    local old_host lh_count
+    # So, at this stage we know our LAN would be ${NIC_INTERFACE_NAME} then we can insert network information directly into ${NIC_INTERFACE_NAME}
+    if [ "${DISTRO_ID}" == "centos" ]; then
+      # Create network static IP configuration
+      echo "[${SCRIPT_NAME}]: Inserting CentOS static IP information for ${NIC_INTERFACE_NAME} at /etc/sysconfig/network-scripts/ifcfg-${NIC_INTERFACE_NAME} ..." 2>&1 | tee -a "${REPORT_FILE}"
+      {
+        echo "# ==============================================="
+        echo "# This configuration file was generated by ${SCRIPT_NAME}"
+        echo "# Author: ${ADMIN_NAME} | Email: ${ADMIN_EMAIL} | Web: ${BOX_DOMAIN}"
+        echo "# ==============================================="
+        echo "# GENERAL DEVICE CONFIGURATION "
+        echo 'TYPE="Ethernet"'
+        echo "DEVICE=\"${NIC_INTERFACE_NAME}"\"
+        echo "NAME=\"${NIC_INTERFACE_NAME}"\"
+        echo 'ONBOOT="yes"'
+        echo 'BOOTPROTO="none"'
+        echo 'PEERDNS="no"'
+        # This will generate new UUID for "${NIC_INTERFACE_NAME}"
+        echo "UUID=$(uuidgen "${NIC_INTERFACE_NAME}")"
+        echo "DOMAIN=${BOX_DOMAIN}"
+        echo ""
+        echo "# IPv4 Configuration (Public)"
+        echo 'IPV4_FAILURE_FATAL="no"'
+        echo 'DEFROUTE="yes"'
+        echo "IPADDR0=${IPV4_ADD0}"
+        echo "GATEWAY0=${IPV4_DEF_GATEWAY0}"
+        echo "PREFIX0=24"
+        echo ""
+        echo "# IPv4 Configuration (Private)"
+        echo '# IPADDR2=""'
+        echo "# PREFIX2=17"
+        echo ""
+        echo "# IPv6 Configuration (Public)"
+        echo 'IPV6INIT="yes"'
+        echo 'IPV6_AUTOCONF="yes"'
+        echo 'IPV6_DEFROUTE="yes"'
+        echo 'IPV6_FAILURE_FATAL="no"'
+        echo 'IPV6_ADDR_GEN_MODE="stable-privacy"'
+        echo '#IPV6_ADDR_GEN_MODE="eui64"'
+        echo "IPV6ADDR=${IPV6_ADD}/64"
+        echo "IPV6_DEFAULTGW=${IPV6_DEF_GATEWAY}"
+        echo 'IPV6_PRIVACY="no"'
+        echo ""
+        echo "# resolvconf - doesn't recognize more than 3 nameservers. (IPv4 & IPv6)"
+        echo "DNS1=${NAME_SERVER1}"
+        echo "DNS2=${NAME_SERVER2}"
+        echo "DNS3=${NAME_SERVER3}"
+      } >"/etc/sysconfig/network-scripts/ifcfg-${NIC_INTERFACE_NAME}"
+    elif [ "${DISTRO_ID}" == "debian" ]; then
+      echo "[${SCRIPT_NAME}]: Inserting Debian static IP information for ${NIC_INTERFACE_NAME} at /etc/network/interfaces ..." 2>&1 | tee -a "${REPORT_FILE}"
+      {
+        echo "# ==============================================="
+        echo "# This configuration file was generated by ${SCRIPT_NAME}"
+        echo "# Author: ${ADMIN_NAME} | Email: ${ADMIN_EMAIL} | Web: ${BOX_DOMAIN}"
+        echo "# ==============================================="
+        echo "# This file describes the network interfaces available on your system"
+        echo "# and how to activate them. For more information, see interfaces(5)."
+        echo ""
+        echo "source /etc/network/interfaces.d/*"
+        echo ""
+        echo "# The loopback network interface"
+        echo "auto lo"
+        echo "iface lo inet loopback"
+        echo ""
+        echo "# auto ${NIC_INTERFACE_NAME} is needed to configure static IP for both IPv4 and IPv6"
+        echo "auto ${NIC_INTERFACE_NAME}"
+        echo "# IPv4 Configuration (Public)"
+        echo "iface ${NIC_INTERFACE_NAME} inet static"
+        echo "address ${IPV4_ADD0}/24"
+        echo "gateway ${IPV4_DEF_GATEWAY0}"
+        echo ""
+        echo "# IPv6 Configuration (Public)"
+        echo "iface ${NIC_INTERFACE_NAME} inet6 static"
+        echo "address ${IPV6_ADD}/64"
+        echo "gateway ${IPV6_DEF_GATEWAY}"
+      } >/etc/network/interfaces
+      # Disabling Ipv6 DAD: https://www.agwa.name/blog/post/beware_the_ipv6_dad_race_condition
+      # Another way is to use this sysctl -w net.ipv6.conf.eth0.dad_transmits=0 or put in /etc/sysctl for permanent
+      # Why disable? Because nginx sometimes cannot start with ipv6 unless system is restarted
+      if [ -f "/proc/sys/net/ipv6/conf/${NIC_INTERFACE_NAME}/accept_dad" ]; then
+        {
+          echo "# Disable IPv6 Duplicate Address Detection"
+          echo "pre-up echo 0 > /proc/sys/net/ipv6/conf/${NIC_INTERFACE_NAME}/accept_dad"
+        } >>/etc/network/interfaces
+      fi
+    else
+      echo "[${SCRIPT_NAME}]: Error, unknown value for distribution ID ${DISTRO_ID}" 2>&1 | tee -a "${REPORT_FILE}"
+      _exit 1
+    fi
+
+    # This one for both centos and debian so need to put OS condition
+    echo "[${SCRIPT_NAME}]: Inserting name server information in /etc/resolv.conf ..." 2>&1 | tee -a "${REPORT_FILE}"
+    {
+      echo "# ==============================================="
+      echo "# This configuration file was generated by ${SCRIPT_NAME}"
+      echo "# Author: ${ADMIN_NAME} | Email: ${ADMIN_EMAIL} | Web: ${BOX_DOMAIN}"
+      echo "# ==============================================="
+      echo "search ${BOX_DOMAIN}"
+      echo "domains ${BOX_HOSTNAME_FQDN}"
+      echo "options rotate"
+      echo "nameserver ${NAME_SERVER1}"
+      echo "nameserver ${NAME_SERVER2}"
+      echo "nameserver ${NAME_SERVER3}"
+    } >/etc/resolv.conf
+
+    echo "[${SCRIPT_NAME}]: Configuring DNS IPs in /etc/hosts ..." 2>&1 | tee -a "${REPORT_FILE}"
+    sleep 1
+    old_host=$(hostname --fqdn)
+    if [ "${old_host}" = "" ]; then
+      old_host=old.host.com
+      echo "[${SCRIPT_NAME}]: old hostname was blank. This is a placeholder value ${old_host}"
+    fi
+    #remove any previous hostnames.
+    grep -Fv "${BOX_HOSTNAME}" /etc/hosts | grep -Fv ${old_host} | grep -v '#' >/etc/hosts.tmp
+
+    #start the file over
+    {
+      echo "# ==============================================="
+      echo "# This configuration file was generated by ${SCRIPT_NAME}"
+      echo "# Author: ${ADMIN_NAME} | Email: ${ADMIN_EMAIL} | Web: ${BOX_DOMAIN}"
+      echo "# ==============================================="
+      echo "# Do not remove the following line, or various programs"
+      echo "# that require network functionality will fail."
+    } >/etc/hosts
+
+    lh_count=$(grep -c localhost /etc/hosts.tmp)
+    if [ "${lh_count}" -lt 1 ]; then
+      echo -e "127.0.0.1\t\tlocalhost localhost.localdomain" >>/etc/hosts
+    fi
+    echo "[${SCRIPT_NAME}]: Adding IP (IPv4) and (IPv6) and entries in /etc/hosts ..." 2>&1 | tee -a "${REPORT_FILE}"
+    {
+      cat /etc/hosts.tmp
+      echo ""
+      echo "#IP information for ${BOX_HOSTNAME_FQDN}:"
+      printf '%s\t%s\t%s\n' "${IPV4_ADD0}" "${BOX_HOSTNAME_FQDN}" "${BOX_HOSTNAME}"
+      printf '%s\t%s\t%s\n' "${IPV6_ADD}" "${BOX_HOSTNAME_FQDN}" "${BOX_HOSTNAME}"
+    } >>/etc/hosts
+    chmod 644 /etc/hosts
+    # When using a VPS that use auto network manager, it will keep replacing this hosts file.
+    # So, we don't want anyone to disturb this beautiful written host file by using chattr +i on this file
+    # Note directadmin setup also trying to modify this /etc/hosts file during setup using its script called: /usr/local/directadmin/scripts/hostname.sh
+    # It will get an error operation not permitted but do not worry because /etc/hosts is correctly configured now.
+    echo "[${SCRIPT_NAME}]: Preventing /etc/hosts modification by setting chattr +i immutable" 2>&1 | tee -a "${REPORT_FILE}"
+    chattr +i /etc/hosts
+    check_finish_reboot "${FUNCNAME[0]}"
+  else
+    echo "[${SCRIPT_NAME}]: [Skipped]: ${FUNCNAME[0]} has ran before" 2>&1 | tee -a "${REPORT_FILE}"
+    sleep 1
+  fi
+}
+# Tweaking swap for production
+function configure_sysctl_swap() {
+  if [ ! -f "${CONF_PATH}/${FUNCNAME[0]}_executed" ]; then
+    echo "[${SCRIPT_NAME}]: Executing ${FUNCNAME[0]} ..." 2>&1 | tee -a "${REPORT_FILE}"
+    echo "[${SCRIPT_NAME}]: Configuring disk swap information in sysctl ..." 2>&1 | tee -a "${REPORT_FILE}"
+    sleep 1
+    # Swap configuration
+    {
+      echo "vm.swappiness = 10"
+      echo "vm.vfs_cache_pressure = 50"
+    } >>/etc/sysctl.conf
+    sysctl -p /etc/sysctl.conf
+    check_finish_reboot "${FUNCNAME[0]}"
+  else
+    echo "[${SCRIPT_NAME}]: [Skipped]: ${FUNCNAME[0]} has ran before" 2>&1 | tee -a "${REPORT_FILE}"
+    sleep 1
+  fi
+
+}
+
+function configure_sysctl_kernel_fs() {
+  if [ ! -f "${CONF_PATH}/${FUNCNAME[0]}_executed" ]; then
+    echo "[${SCRIPT_NAME}]: Executing ${FUNCNAME[0]} ..." 2>&1 | tee -a "${REPORT_FILE}"
+    echo "[${SCRIPT_NAME}]: Configuring kernel and file system information in sysctl ..." 2>&1 | tee -a "${REPORT_FILE}"
+    sleep 1
+    {
+      # Disable core dumps
+      echo "fs.suid_dumpable = 0"
+      # Disable System Request debugging functionality
+      echo "kernel.sysrq = 0"
+      # Hide kernel pointers
+      echo "kernel.kptr_restrict = 2"
+    } >>/etc/sysctl.conf
+    sysctl -p /etc/sysctl.conf
+    check_finish_reboot "${FUNCNAME[0]}"
+  else
+    echo "[${SCRIPT_NAME}]: [Skipped]: ${FUNCNAME[0]} has ran before" 2>&1 | tee -a "${REPORT_FILE}"
+    sleep 1
+  fi
+
+}
+
+function configure_sysctl_ips() {
+  if [ ! -f "${CONF_PATH}/${FUNCNAME[0]}_executed" ]; then
+    echo "[${SCRIPT_NAME}]: Executing ${FUNCNAME[0]} ..." 2>&1 | tee -a "${REPORT_FILE}"
+    echo "[${SCRIPT_NAME}]: Configuring ipv4 and ipv6 information in sysctl ..." 2>&1 | tee -a "${REPORT_FILE}"
+    sleep 1
+    {
+      echo "# IPV4 & IPv6 configuration"
+      echo "# IPV6"
+      echo "net.ipv6.conf.all.disable_ipv6 = 0"
+      echo "net.ipv6.conf.default.disable_ipv6 = 0"
+      echo "#net.ipv6.conf.lo.disable_ipv6 = 0"
+      echo "#net.ipv6.bindv6only = 1"
+      echo "net.ipv6.conf.default.accept_redirects = 0"
+      echo "net.ipv6.conf.all.accept_redirects = 0"
+      # Disable IPv6 DAD in kernel
+      echo "net.ipv6.conf.${NIC_INTERFACE_NAME}.dad_transmits = 0"
+      echo "#IPV4"
+      echo "net.ipv4.conf.all.accept_redirects = 0"
+      echo "net.ipv4.conf.all.log_martians = 1"
+      echo "net.ipv4.conf.all.send_redirects = 0"
+      echo "net.ipv4.conf.default.accept_redirects = 0"
+      echo "net.ipv4.conf.default.log_martians = 1"
+      echo "#net.ipv6.tcp_timestamps = 0"
+
+      echo "# Enable TCP SYN cookie protection"
+      echo "net.ipv4.tcp_syncookies = 1"
+
+      echo "# Turn off the tcp_sack"
+      echo "#net.ipv4.tcp_sack = 0"
+
+      echo "# Turn off the tcp_window_scaling"
+      echo "#net.ipv4.tcp_window_scaling = 0"
+
+      echo "### Enable this when DDOS attack occur ###"
+      echo "# Decrease the time default value for tcp_fin_timeout connection"
+      echo "#net.ipv4.tcp_fin_timeout = 3"
+    } >>/etc/sysctl.conf
+    sysctl -p /etc/sysctl.conf
+    check_finish_reboot "${FUNCNAME[0]}"
+    # No need to reboot. Just run sysctl -p is enough
+    # echo "[${SCRIPT_NAME}]: Finished configuring network profile. You may reboot the system then re-run this script again for next setup ..." 2>&1 | tee -a "${REPORT_FILE}"
+  else
+    echo "[${SCRIPT_NAME}]: [Skipped]: ${FUNCNAME[0]} has ran before" 2>&1 | tee -a "${REPORT_FILE}"
+    sleep 1
+  fi
+
+}
+# Install missing os requirement, such as sendmail
+function upgrade_os() {
+  if [ ! -f "${CONF_PATH}/${FUNCNAME[0]}_executed" ]; then
+    echo "[${SCRIPT_NAME}]: Executing ${FUNCNAME[0]} ..." 2>&1 | tee -a "${REPORT_FILE}"
+    # General OS upgrade
+    if [ "${DISTRO_ID}" == "centos" ]; then
+      echo "[${SCRIPT_NAME}]: Updating CentOS system ..." 2>&1 | tee -a "${REPORT_FILE}"
+      sudo dnf -y update 2>&1 | tee -a "${REPORT_FILE}"
+      sudo dnf -y install epel-release 2>&1 | tee -a "${REPORT_FILE}"
+      # Remember now use powertools not PowerTools. This is bug found in CentOS repo 2 days ago: https://bugs.centos.org/view.php?id=17920
+      dnf config-manager --set-enabled powertools 2>&1 | tee -a "${REPORT_FILE}"
+    elif [ "${DISTRO_ID}" == "debian" ]; then
+      echo "[${SCRIPT_NAME}]: Updating Debian system ..." 2>&1 | tee -a "${REPORT_FILE}"
+      apt update
+      apt -y dist-upgrade
+      apt -y autoremove
+      apt clean
+
+    else
+      echo "[${SCRIPT_NAME}]: Error, unknown value for distribution ID ${DISTRO_ID}" 2>&1 | tee -a "${REPORT_FILE}"
+      _exit 1
+    fi
+
+    # Install other components based on installation type and distribution:
+    if [ "${INSTALL_TYPE}" == "GENERAL" ]; then
+      if [ "${DISTRO_ID}" == "centos" ]; then
+        echo "[${SCRIPT_NAME}]: Installing system required components for CentOS General setup ..." 2>&1 | tee -a "${REPORT_FILE}"
+
+        sudo dnf -y install sendmail tar bind-utils git curl gcc make libevent-devel zlib-devel openssl-devel pcre2-devel wget 2>&1 | tee -a "${REPORT_FILE}"
+        sudo dnf -y install bc htop ncdu 2>&1 | tee -a "${REPORT_FILE}"
+        echo "[${SCRIPT_NAME}]: Installing perl dependencies ..." 2>&1 | tee -a "${REPORT_FILE}"
+        sudo dnf -y install @perl perl-libwww-perl net-tools perl-LWP-Protocol-https 2>&1 | tee -a "${REPORT_FILE}"
+
+      elif [ "${DISTRO_ID}" == "debian" ]; then
+        echo "[${SCRIPT_NAME}]: Installing system required components for Debian General setup ..." 2>&1 | tee -a "${REPORT_FILE}"
+        apt-get -y install curl 2>&1 | tee -a "${REPORT_FILE}" # Needed especially to download lynis latest version
+        apt-get -y install sudo 2>&1 | tee -a "${REPORT_FILE}" # By default no sudo is installed
+      else
+        echo "[${SCRIPT_NAME}]: Error, unknown value for distribution ID ${DISTRO_ID}" 2>&1 | tee -a "${REPORT_FILE}"
+        _exit 1
+      fi
+    elif [ "${INSTALL_TYPE}" == "DIRECTADMIN" ]; then
+      if [ "${DISTRO_ID}" == "centos" ]; then
+        echo "[${SCRIPT_NAME}]: Installing system required components for CentOS Directadmin setup ..." 2>&1 | tee -a "${REPORT_FILE}"
+        : # will determine (but RIP CentOS)
+      elif [ "${DISTRO_ID}" == "debian" ]; then
+        echo "[${SCRIPT_NAME}]: Installing system required components for Debian Directadmin setup ..." 2>&1 | tee -a "${REPORT_FILE}"
+        echo "[${SCRIPT_NAME}]: Installing wget on Debian ... " 2>&1 | tee -a "${REPORT_FILE}"
+        apt-get -y install wget 2>&1 | tee -a "${REPORT_FILE}"
+        echo "[${SCRIPT_NAME}]: Installing ipv6calc for IPv6 conversion on Debian ..." 2>&1 | tee -a "${REPORT_FILE}"
+        apt-get -y install ipv6calc 2>&1 | tee -a "${REPORT_FILE}"
+        apt-get -y install curl 2>&1 | tee -a "${REPORT_FILE}" # Needed especially to download lynis latest version
+        apt-get -y install sudo 2>&1 | tee -a "${REPORT_FILE}" # By default no sudo is installed
+      else
+        echo "[${SCRIPT_NAME}]: Error, unknown value for distribution ID ${DISTRO_ID}" 2>&1 | tee -a "${REPORT_FILE}"
+        _exit 1
+      fi
+
+    fi
+    check_finish_reboot "${FUNCNAME[0]}"
+  else
+    echo "[${SCRIPT_NAME}]: [Skipped]: ${FUNCNAME[0]} has ran before" 2>&1 | tee -a "${REPORT_FILE}"
+    sleep 1
+  fi
+
+}
+
+# Install CSF Firewall
+configure_csf() {
+  if [ ! -f "${CONF_PATH}/${FUNCNAME[0]}_executed" ]; then
+    echo "[${SCRIPT_NAME}]: Executing ${FUNCNAME[0]} ..." 2>&1 | tee -a "${REPORT_FILE}"
+    # If DA INSTALL TYPE IS auto don't run this because it will install CSF automatically (as stated in documentation)
+    local gc ipv4_tcp_in ipv4_tcp_out ipv6_tcp_in ipv6_tcp_out all_allow_ports kernel_numericver
+    local bl_ip_html_source bl_ip_html_dest gc retval
+    if [ "${DA_INSTALL_TYPE}" != "AUTO" ]; then
+      if ! command -v csf &>/dev/null; then
+        echo "[${SCRIPT_NAME}]: No CSF binary is found (CSF is not installed)" 2>&1 | tee -a "${REPORT_FILE}"
+        sleep 2
+        if [ "${INSTALL_TYPE}" == "GENERAL" ]; then
+          echo "[${SCRIPT_NAME}]: Script installation type is set to GENERAL. Installing and Setting up CSF for ${BOX_HOSTNAME_FQDN} ..." 2>&1 | tee -a "${REPORT_FILE}"
+          sleep 2
+          echo "[${SCRIPT_NAME}]: Removing existing CSF if exist using built-in script ..." 2>&1 | tee -a "${REPORT_FILE}"
+          sh /etc/csf/uninstall.sh
+          echo "[${SCRIPT_NAME}]: Removing previous downloaded file ..." 2>&1 | tee -a "${REPORT_FILE}"
+          rm -fv "${INST_TEMP_DIR}/csf.tgz"
+          cd_to_path "${INST_TEMP_DIR}"
+          echo "[${SCRIPT_NAME}]: Downloading and extracting CSF file in ${INST_TEMP_DIR} ..." 2>&1 | tee -a "${REPORT_FILE}"
+          curl -SL https://download.configserver.com/csf.tgz | tar -xzf - 2>&1 | tee -a "${REPORT_FILE}"
+          # Now after extracted we have csf folder, let's enter to this path
+          cd_to_path "./csf"
+
+          echo "[${SCRIPT_NAME}]: Testing CSF pre-installation requirement ..." 2>&1 | tee -a "${REPORT_FILE}"
+          gc=$(./csftest.pl | tail -n 1 | grep -c 'RESULT: csf should function on this server')
+          if [ "${gc}" != "1" ]; then
+            ./csftest.pl
+            echo ""
+            echo ""
+            echo "CSF test did not pass. Will not continue. Solve the issue and rerun this script again"
+            _exit 2
+          else
+            echo "[OK]: CSF test passed!"
+          fi
+
+          echo "[${SCRIPT_NAME}]: Now installing CSF ..." 2>&1 | tee -a "${REPORT_FILE}"
+          chmod +x install.sh
+          sh "install.sh"
+          # When finished, we go back to original path
+
+          # CSF recommends to disable and remove APF+BFD (if exist). Check APF:
+          echo "[${SCRIPT_NAME}]: Checking and removing existing APF+BFD (recommended) ..." 2>&1 | tee -a "${REPORT_FILE}"
+          if command -v apf &>/dev/null; then
+            echo "[${SCRIPT_NAME}]: Warning, Found apf command. Removing apf bfd with remove_apf_bfd.sh ..." 2>&1 | tee -a "${REPORT_FILE}"
+            #sh /usr/local/csf/bin/disable_apf_bfd.sh #Script disabled because not found in the csf bin folder
+            sh /usr/local/csf/bin/remove_apf_bfd.sh
+          else
+            echo "[${SCRIPT_NAME}]: [Skipped]: OK, No existing APF+BFD installation to remove" 2>&1 | tee -a "${REPORT_FILE}"
+          fi
+        elif [ "${INSTALL_TYPE}" == "DIRECTADMIN" ]; then
+          echo "[${SCRIPT_NAME}]: Script installation type is set to DIRECTADMIN. Installing CSF on ${BOX_HOSTNAME_FQDN} using DA script by Poralix..." 2>&1 | tee -a "${REPORT_FILE}"
+          sleep 2
+          #wget http://files.directadmin.com/services/all/csf/csf_install.sh 2>&1 | tee -a "${REPORT_FILE}"
+          cd_to_path "${INST_TEMP_DIR}"
+          cp "${DATA_PATH}/maxisetup/storage/os/${DISTRO_ID}/usr/local/directadmin/install_scripts/csf_install.sh" "${INST_TEMP_DIR}/csf_install.sh"
+          chmod +x csf_install.sh
+          /bin/sh ./csf_install.sh 2>&1 | tee -a "${REPORT_FILE}"
+        fi
+      else
+        echo "[${SCRIPT_NAME}]: Found CSF binary (CSF already installed). Continuing setup ..." 2>&1 | tee -a "${REPORT_FILE}"
+      fi
+      # After install CSF definitely we got this
+      if [ -f /etc/csf/csf.conf ]; then
+        echo "[${SCRIPT_NAME}]: Now configuring CSF config at /etc/csf/csf.conf ..." 2>&1 | tee -a "${REPORT_FILE}"
+        sleep 1
+        # This also must have comma,
+        all_allow_ports=",${DA_PORT}${EXTRA_ALLOW_PORTS}"
+        echo "DEBUG: all_allow_ports=${all_allow_ports}"
+        grep -wq "^TCP_IN = .*${all_allow_ports}" /etc/csf/csf.conf
+        if [ $? = 1 ]; then
+          echo "[${SCRIPT_NAME}]: Adding extra port(s) ${all_allow_ports} in CSF firewall in CSF for TCP_IN ..." 2>&1 | tee -a "${REPORT_FILE}"
+          ipv4_tcp_in=$(grep -i '^TCP_IN' /etc/csf/csf.conf | tr -d '"' | cut -d "=" -f2 | sed 's/^ *//g' | awk -v ep="${all_allow_ports}" '{ print $1 ep }')
+          sed -i "s/TCP_IN = .*/TCP_IN = \"${ipv4_tcp_in}\"/" /etc/csf/csf.conf
+        else
+          echo "[${SCRIPT_NAME}]: [Skipped]: Extra port(s) ${all_allow_ports} has already added in CSF for TCP_IN before" 2>&1 | tee -a "${REPORT_FILE}"
+        fi
+        grep -wq "^TCP_OUT = .*${all_allow_ports}" /etc/csf/csf.conf
+        if [ $? = 1 ]; then
+          echo "[${SCRIPT_NAME}]: Adding extra port(s) ${all_allow_ports} in CSF firewall in CSF for TCP_OUT ..." 2>&1 | tee -a "${REPORT_FILE}"
+          ipv4_tcp_out=$(grep -i '^TCP_OUT' /etc/csf/csf.conf | tr -d '"' | cut -d "=" -f2 | sed 's/^ *//g' | awk -v ep="${all_allow_ports}" '{ print $1 ep }')
+          sed -i "s/TCP_OUT = .*/TCP_OUT = \"${ipv4_tcp_out}\"/" /etc/csf/csf.conf
+        else
+          echo "[${SCRIPT_NAME}]: [Skipped]: Extra port(s) ${all_allow_ports} has already added in CSF for TCP_OUT before" 2>&1 | tee -a "${REPORT_FILE}"
+        fi
+        grep -wq "^TCP6_IN = .*${all_allow_ports}" /etc/csf/csf.conf
+        if [ $? = 1 ]; then
+          echo "[${SCRIPT_NAME}]: Adding extra port(s) ${all_allow_ports} in CSF firewall in CSF for TCP6_IN ..." 2>&1 | tee -a "${REPORT_FILE}"
+          ipv6_tcp_in=$(grep -i '^TCP6_IN' /etc/csf/csf.conf | tr -d '"' | cut -d "=" -f2 | sed 's/^ *//g' | awk -v ep="${all_allow_ports}" '{ print $1 ep }')
+          sed -i "s/TCP6_IN = .*/TCP6_IN = \"${ipv6_tcp_in}\"/" /etc/csf/csf.conf
+        else
+          echo "[${SCRIPT_NAME}]: [Skipped]: Extra port(s) ${all_allow_ports} has already added in CSF for TCP6_IN before" 2>&1 | tee -a "${REPORT_FILE}"
+        fi
+        grep -wq "^TCP6_OUT = .*${all_allow_ports}" /etc/csf/csf.conf
+        if [ $? = 1 ]; then
+          echo "[${SCRIPT_NAME}]: Adding extra port(s) ${all_allow_ports} in CSF firewall in CSF for TCP6_OUT ..." 2>&1 | tee -a "${REPORT_FILE}"
+          ipv6_tcp_out=$(grep -i '^TCP6_OUT' /etc/csf/csf.conf | tr -d '"' | cut -d "=" -f2 | sed 's/^ *//g' | awk -v ep="${all_allow_ports}" '{ print $1 ep }')
+          sed -i "s/TCP6_OUT = .*/TCP6_OUT = \"${ipv6_tcp_out}\"/" /etc/csf/csf.conf
+        else
+          echo "[${SCRIPT_NAME}]: [Skipped]: Extra port(s) ${all_allow_ports} has already added in CSF for TCP6_OUT before" 2>&1 | tee -a "${REPORT_FILE}"
+        fi
+        # Disable CSF testing mode
+        echo "[${SCRIPT_NAME}]: Disabling CSF testing mode ..." 2>&1 | tee -a "${REPORT_FILE}"
+        sed -i 's/TESTING = "1"/TESTING = "0"/g' /etc/csf/csf.conf
+        #echo "[${SCRIPT_NAME}]: Setting CONNLIMIT and PORTFLOOD best setting ..." 2>&1 | tee -a "${REPORT_FILE}"
+        #sed -i 's/CONNLIMIT = ""/CONNLIMIT = "22;5,80;20,443;20"/g' /etc/csf/csf.conf
+        #sed -i 's/PORTFLOOD = ""/PORTFLOOD = "22;tcp;5;300,80;tcp;20;5,443;tcp;20;5"/g' /etc/csf/csf.conf
+        echo "[${SCRIPT_NAME}]: Enabling CSF email alert from 0 to 1 ..." 2>&1 | tee -a "${REPORT_FILE}"
+        sed -i 's/LF_SSH_EMAIL_ALERT = "0"/LF_SSH_EMAIL_ALERT = "1"/g' /etc/csf/csf.conf
+        echo "[${SCRIPT_NAME}]: Setting CSF email alert to ${ADMIN_EMAIL} ..." 2>&1 | tee -a "${REPORT_FILE}"
+        sed -i "s/LF_ALERT_TO = .*/LF_ALERT_TO = '\"${ADMIN_EMAIL}\"'/" /etc/csf/csf.conf
+        echo "[${SCRIPT_NAME}]: Enabling CSF SMTP_BLOCK ..." 2>&1 | tee -a "${REPORT_FILE}"
+        sed -i 's/SMTP_BLOCK = "0"/SMTP_BLOCK = "1"/g' /etc/csf/csf.conf
+        echo "[${SCRIPT_NAME}]: Setting CSF RESTRICT_SYSLOG from 0 to 3 to avoid warning ..." 2>&1 | tee -a "${REPORT_FILE}"
+        sed -i 's/RESTRICT_SYSLOG = "0"/RESTRICT_SYSLOG = "3"/g' /etc/csf/csf.conf
+        echo "[${SCRIPT_NAME}]: Setting CSF SYSLOG_CHECK to ${CSF_SYSLOG_CHECK} ..." 2>&1 | tee -a "${REPORT_FILE}"
+        sed -i "s/SYSLOG_CHECK = .*/SYSLOG_CHECK = '\"${CSF_SYSLOG_CHECK}\"'/" /etc/csf/csf.conf
+        sleep 1
+        echo "[${SCRIPT_NAME}]: Testing CSF after installation ..." 2>&1 | tee -a "${REPORT_FILE}"
+        echo "" 2>&1 | tee -a "${REPORT_FILE}"
+        perl /usr/local/csf/bin/csftest.pl 2>&1 | tee -a "${REPORT_FILE}"
+        echo "" 2>&1 | tee -a "${REPORT_FILE}"
+        echo "[${SCRIPT_NAME}]: Setting CSF PT_LOAD_ACTION ..." 2>&1 | tee -a "${REPORT_FILE}"
+        sed -i "s/^PT_LOAD_ACTION = .*/PT_LOAD_ACTION = \"\/usr\/local\/maxicode\/maxicsf\/csfload\"/" /etc/csf/csf.conf
+        echo "[${SCRIPT_NAME}]: Setting CSF to send security alert to ${ADMIN_EMAIL} ..." 2>&1 | tee -a "${REPORT_FILE}"
+        csf -m "${ADMIN_EMAIL}" 2>&1 | tee -a "${REPORT_FILE}"
+
+        echo "[${SCRIPT_NAME}]: Enabling IPSET large IP for CSF ..." 2>&1 | tee -a "${REPORT_FILE}"
+        # inspired by: https://community.centminmod.com/threads/what-should-be-the-right-value-for-lf_ipset-on-csf-config.2045/
+        kernel_numericver=$(uname -r | awk -F. '{ printf("%d%03d%03d%03d\n", $1,$2,$3,$4); }')
+        if [[ ! -f /proc/user_beancounters ]] && [[ "$(uname -r | grep linode)" || "$(find "/lib/modules/$(uname -r)" -name 'ipset')" ]] || [[ -f /proc/user_beancounters && "${kernel_numericver}" -ge '3000000000' ]]; then
+          if [[ ! -f /usr/sbin/ipset ]]; then
+            if [ "${DISTRO_ID}" == "centos" ]; then
+              yum -q -y install ipset ipset-devel
+            elif [ "${DISTRO_ID}" == "debian" ]; then
+              sudo apt-get install ipset -y
+            fi
+            sed -i 's/LF_IPSET = \"0\"/LF_IPSET = \"1\"/' /etc/csf/csf.conf
+          elif [[ -f /usr/sbin/ipset ]]; then
+            sed -i 's/LF_IPSET = \"0\"/LF_IPSET = \"1\"/' /etc/csf/csf.conf
+          fi
+        fi
+        # CSF Messenger: TODO haven't tested this messenger
+        echo "[${SCRIPT_NAME}]: Enabling CSF Messenger ..." 2>&1 | tee -a "${REPORT_FILE}"
+        sleep 1
+        sed -i "s/MESSENGER = \"0\"/MESSENGER = \"1\"/" /etc/csf/csf.conf
+        echo "[${SCRIPT_NAME}]: Inserting CSF RECAPTCHA_SITEKEY ..." 2>&1 | tee -a "${REPORT_FILE}"
+        sleep 1
+        sed -i "s/RECAPTCHA_SITEKEY = \"\"/RECAPTCHA_SITEKEY = \"${GOOGLE_RECAPTCHA_SITE_V2}\"/" /etc/csf/csf.conf
+        echo "[${SCRIPT_NAME}]: Inserting CSF RECAPTCHA_SECRET ..." 2>&1 | tee -a "${REPORT_FILE}"
+        sleep 1
+        sed -i "s/RECAPTCHA_SECRET = \"\"/RECAPTCHA_SECRET = \"${GOOGLE_RECAPTCHA_SECRET_V2}\"/" /etc/csf/csf.conf
+        echo "[${SCRIPT_NAME}]: Adding csf user in the system ..." 2>&1 | tee -a "${REPORT_FILE}"
+        useradd csf -s /bin/false 2>&1 | tee -a "${REPORT_FILE}"
+        echo "[${SCRIPT_NAME}]: Setting up CSF firewall blacklist template ..." 2>&1 | tee -a "${REPORT_FILE}"
+        mkdir -p /usr/local/directadmin/data/templates/custom
+        bl_ip_html_source="${DATA_PATH}/maxisetup/storage/os/${DISTRO_ID}/usr/local/directadmin/data/templates/custom/blacklisted_ip.html"
+        bl_ip_html_dest="/usr/local/directadmin/data/templates/custom/blacklisted_ip.html"
+        cp -r "${bl_ip_html_source}" "${bl_ip_html_dest}"
+
+        echo "[${SCRIPT_NAME}]: Starting CSF and LFD for the first time ..." 2>&1 | tee -a "${REPORT_FILE}"
+        echo "[${SCRIPT_NAME}]: Before we start it up, please confirm that your sshd port is listed in this output:" 2>&1 | tee -a "${REPORT_FILE}"
+        echo "-----------------" 2>&1 | tee -a "${REPORT_FILE}"
+        grep ^TCP_IN /etc/csf/csf.conf 2>&1 | tee -a "${REPORT_FILE}"
+        echo "" 2>&1 | tee -a "${REPORT_FILE}"
+        echo "If you do NOT see the port listed, press ctrl-c to immediately abort the script." 2>&1 | tee -a "${REPORT_FILE}"
+        echo "If you DO, the port correctly added, press enter to continue" 2>&1 | tee -a "${REPORT_FILE}"
+        _pause
+        if [ "${DISTRO_ID}" == "centos" ]; then
+          echo "[${SCRIPT_NAME}]: Disabling built-in firewall (firewalld) in CentOS ..." 2>&1 | tee -a "${REPORT_FILE}"
+          systemctl disable firewalld 2>&1 | tee -a "${REPORT_FILE}"
+          systemctl stop firewalld 2>&1 | tee -a "${REPORT_FILE}"
+        elif [ "${DISTRO_ID}" == "debian" ]; then
+          echo "[${SCRIPT_NAME}]: Disabling and removing firewall (ufw) in Debian ..." 2>&1 | tee -a "${REPORT_FILE}"
+          sudo ufw disable 2>&1 | tee -a "${REPORT_FILE}"
+          sudo apt-get -y remove ufw
+          sudo apt-get -y purge ufw
+        else
+          echo "[${SCRIPT_NAME}]: Error, unknown value for distribution ID ${DISTRO_ID}" 2>&1 | tee -a "${REPORT_FILE}"
+          _exit 1
+        fi
+        echo "-----------------" 2>&1 | tee -a "${REPORT_FILE}"
+        echo "[${SCRIPT_NAME}]: Starting CSF ..." 2>&1 | tee -a "${REPORT_FILE}"
+        service csf start 2>&1 | tee -a "${REPORT_FILE}"
+        # Fix that here
+        check_fix_service "csf"
+        # By default behaviour, LFD should start automatically when we run csf start
+        # service lfd start 2>&1 | tee -a "${REPORT_FILE}"
+        check_fix_service "lfd"
+        # This is a temporary allowed IP during setup which won't be blocked by firewall.
+        echo "[${SCRIPT_NAME}]: Temporarily allow IP ${TEMP_ALLOW_IP} in /etc/etc/csf/csf.allow during setup in CSF" 2>&1 | tee -a "${REPORT_FILE}"
+        csf -a "${TEMP_ALLOW_IP}" "Added by ${SCRIPT_NAME} for ${BOX_HOSTNAME_FQDN} as temporary allowed IP during setup"
+        # After that, the next step is requesting SSL and seems like the box need to restart
+        # The reason it needs to restart here because if I don't restart at this point, the front page is not accessible (seems like port 80 is blocked)
+        # If I don't restart at this point, I will not be able to renew cert (letsencrypt will produce error like firewall problem but it's not).
+        # This is related to Ipv6 DAD. Look at function link_da_ipv6() for more information
+        # DAD disable is not working. Still need to restart system. Just restart it and resume later.
+        echo "[${SCRIPT_NAME}]: Creating reboot flag to restart system after installing CSF ..." 2>&1 | tee -a "${REPORT_FILE}"
+        cat /dev/null >/var/run/reboot-required
+        echo "[${SCRIPT_NAME}]: Warning, system will reboot and you can run this script again to continue setup" 2>&1 | tee -a "${REPORT_FILE}"
+        _pause
+      else
+        echo "[${SCRIPT_NAME}]: This is the weirdest error. Where the hell is /etc/csf/csf.conf? ..." 2>&1 | tee -a "${REPORT_FILE}"
+        _exit 1
+      fi
+    # System will reboot automatically from above flag
+    else
+      echo "[${SCRIPT_NAME}]: [Skipped]: Directadmin installation type is set to AUTO which already include CSF installation" 2>&1 | tee -a "${REPORT_FILE}"
+      # TODO: check how DA install using AUTO mode, maybe we need to just use config from here after CSF has installed. Does it auto enable CSF? Will find out
+    fi
+    check_finish_reboot "${FUNCNAME[0]}"
+  else
+    echo "[${SCRIPT_NAME}]: [Skipped]: ${FUNCNAME[0]} has ran before" 2>&1 | tee -a "${REPORT_FILE}"
+    sleep 1
+  fi
+  # TIPS. CSF can be removed with this command:
+  #sh /etc/csf/uninstall.sh
+}
+
+function install_da_pre() {
+  if [ ! -f "${CONF_PATH}/${FUNCNAME[0]}_executed" ]; then
+    echo "[${SCRIPT_NAME}]: Executing ${FUNCNAME[0]} ..." 2>&1 | tee -a "${REPORT_FILE}"
+    echo "[${SCRIPT_NAME}]: Installing required components to execute DA pre-install ... " 2>&1 | tee -a "${REPORT_FILE}"
+    echo "[${SCRIPT_NAME}]: Setting up DA to run pre-install command ... " 2>&1 | tee -a "${REPORT_FILE}"
+    echo 2.0 >/root/.custombuild
+    # This will make sure preinstall command is going to be executed when starting DA installation
+    echo 1 >/root/.preinstall
+    # Here I can set options.conf and php_extensions.conf to custom install.
+    mkdir -p /usr/local/directadmin/custombuild
+    if [ "${DA_INSTALL_TYPE}" == "CUSTOM" ]; then
+      echo "[${SCRIPT_NAME}]: [Notice]: Directadmin installation type is custom. Setting up custom options.conf and php_extensions.conf ... " 2>&1 | tee -a "${REPORT_FILE}"
+      if [ "${DISTRO_ID}" == "centos" ]; then
+        :
+      elif [ "${DISTRO_ID}" == "debian" ]; then
+        # This one needed if clamav is included
+        # https://forum.directadmin.com/threads/configure-error-libcurl-not-found-libcurl-e-g-libcurl-devel-is-required-in-order-to-build-freshclam-and-clamsubmit.62869/
+        # No need to install libcurl now, it's working without installing libcurl. I have updated the post.
+        :
+        #echo "[${SCRIPT_NAME}]: Installing Debian libcurl ..." 2>&1 | tee -a "${REPORT_FILE}"
+        #sudo apt-get -y install libcurl4-openssl-dev 2>&1 | tee -a "${REPORT_FILE}"
+      else
+        echo "[${SCRIPT_NAME}]: Error, unknown value for distribution ID ${DISTRO_ID}" 2>&1 | tee -a "${REPORT_FILE}"
+        _exit 1
+      fi
+      if [ -d "${DATA_PATH}/maxisetup" ]; then
+        echo "[${SCRIPT_NAME}]: Copying Custombuild options.conf ..." 2>&1 | tee -a "${REPORT_FILE}"
+        cp "${DATA_PATH}/maxisetup/storage/os/${DISTRO_ID}/usr/local/directadmin/custombuild/options.conf" "/usr/local/directadmin/custombuild/options.conf"
+        sed -i "s|^redirect_host=.*|redirect_host=${BOX_HOSTNAME_FQDN}|" /usr/local/directadmin/custombuild/options.conf
+        sed -i "s|^email=.*|email=${ADMIN_EMAIL}|" /usr/local/directadmin/custombuild/options.conf
+        sed -i "s|^php_timezone=.*|php_timezone=${BOX_TIMEZONE}|" /usr/local/directadmin/custombuild/options.conf
+        echo "[${SCRIPT_NAME}]: Copying Custombuild php_extensions.conf..." 2>&1 | tee -a "${REPORT_FILE}"
+        cp "${DATA_PATH}/maxisetup/storage/os/${DISTRO_ID}/usr/local/directadmin/custombuild/php_extensions.conf" /usr/local/directadmin/custombuild/php_extensions.conf
+      else
+        echo "[${SCRIPT_NAME}]: Error, directory not exist. Check maxisetup clone folder." 2>&1 | tee -a "${REPORT_FILE}"
+        _exit 1 #Just exit because this is weird error if this folder is missing
+      fi
+    elif [ "${DA_INSTALL_TYPE}" == "ORI" ]; then
+      echo "[${SCRIPT_NAME}]: [Notice]: Directadmin installation type is set to ORI. Directadmin will install using default options" 2>&1 | tee -a "${REPORT_FILE}"
+    elif [ "${DA_INSTALL_TYPE}" == "INTERACTIVE" ]; then
+      echo "[${SCRIPT_NAME}]: [Notice]: Directadmin installation type is set to INTERACTIVE. Directadmin will install with some questions" 2>&1 | tee -a "${REPORT_FILE}"
+    elif [ "${DA_INSTALL_TYPE}" == "AUTO" ]; then
+      echo "[${SCRIPT_NAME}]: [Notice]: Directadmin installation type is set to AUTO. Directadmin will install all default options including CSF" 2>&1 | tee -a "${REPORT_FILE}"
+    else
+      echo "[${SCRIPT_NAME}]: Error, invalid installation type set for Directadmin in env file." 2>&1 | tee -a "${REPORT_FILE}"
+      _exit 1
+    fi
+    check_finish_reboot "${FUNCNAME[0]}"
+  else
+    echo "[${SCRIPT_NAME}]: [Skipped]: ${FUNCNAME[0]} has ran before" 2>&1 | tee -a "${REPORT_FILE}"
+    sleep 1
+  fi
+}
+
+function install_da() {
+  if [ ! -f "${CONF_PATH}/${FUNCNAME[0]}_executed" ]; then
+    echo "[${SCRIPT_NAME}]: Executing ${FUNCNAME[0]} ..." 2>&1 | tee -a "${REPORT_FILE}"
+    echo "[${SCRIPT_NAME}]: Downloading Directadmin setup script ... " 2>&1 | tee -a "${REPORT_FILE}"
+    cd_to_path "${INST_TEMP_DIR}"
+    wget -O setup.sh http://www.directadmin.com/setup.sh
+    chmod 755 setup.sh
+    echo "[${SCRIPT_NAME}]: Installing Directadmin on ${BOX_HOSTNAME_FQDN} using ${DA_INSTALL_TYPE} mode ... " 2>&1 | tee -a "${REPORT_FILE}"
+    echo "[${SCRIPT_NAME}]: Setup will install Directadmin within 30 seconds. It would take a long time, so please be patient" 2>&1 | tee -a "${REPORT_FILE}"
+    echo "[${SCRIPT_NAME}]: If you don't want to install Directadmin now, press (ctrl+C to exit) and then you can re-run this script to resume at this stage" 2>&1 | tee -a "${REPORT_FILE}"
+    sleep 30
+    if [[ "${DA_INSTALL_TYPE}" == "CUSTOM" || "${DA_INSTALL_TYPE}" == "ORI" ]]; then
+      # custom and ori depends on the options.conf (this won't ask question)
+      ./setup.sh "${DA_CLIENT_ID}" "${DA_LICENSE_ID}" "${BOX_HOSTNAME_FQDN}" "${NIC_INTERFACE_NAME}" "${IPV4_ADD0}" 2>&1 | tee -a "${REPORT_FILE}"
+    elif [[ "${DA_INSTALL_TYPE}" == "INTERACTIVE" ]]; then
+      # this will ask question
+      bash <(curl -Ss https://www.directadmin.com/setup.sh)
+    elif [[ "${DA_INSTALL_TYPE}" == "AUTO" ]]; then
+      # This will not ask question and everything will be installed as default including CSF
+      bash <(curl -Ss https://www.directadmin.com/setup.sh) auto
+    fi
+    check_finish_reboot "${FUNCNAME[0]}"
+  else
+    echo "[${SCRIPT_NAME}]: [Skipped]: ${FUNCNAME[0]} has ran before" 2>&1 | tee -a "${REPORT_FILE}"
+    sleep 1
+  fi
+  script_time
+}
+
+add_da_ipv6_ip() {
+  # Nice info about this: https://forum.directadmin.com/threads/how-to-add-ip-to-server-using-api.37227/
+  local ipv6_uncompress_add grep_result ipv6_da_file
+  ipv6_uncompress_add=$(ipv6calc --addr2uncompaddr "${IPV6_ADD}")
+  ipv6_da_file="/usr/local/directadmin/data/admin/ips/${ipv6_uncompress_add}"
+  # 2 ways: a) Using API or b) Manually create ipv6 file
+  #a) Using API
+  echo "[${SCRIPT_NAME}]: Adding ipv6 file config using the API method ..." 2>&1 | tee -a "${REPORT_FILE}"
+  sleep 1
+  da_api_admin "add-ip" "${ipv6_uncompress_add}" "/64"
+  sleep 2
+  #b) Manually create ipv6 file (alternative way) if the above method API doesn't produce the IP file (just in case)
+  if [ ! -f "${ipv6_da_file}" ]; then
+    # Normally API will not fail, but just in case if ipv6 file is still not created,
+    # we can use this unofficial method created by me here:
+    # https://forum.directadmin.com/threads/how-to-add-ip6-address-in-da-via-terminal-not-through-gui.62752/
+    echo "[${SCRIPT_NAME}]: Creating ipv6 file config using manual file creation (alternative method if API failed) ..." 2>&1 | tee -a "${REPORT_FILE}"
+    #_exit 1
+    touch "${ipv6_da_file}"
+    {
+      echo "gateway="
+      echo "global=no"
+      echo "linked_ips="
+      echo "netmask=/64"
+      echo "ns="
+      echo "reseller="
+      echo "status=free"
+      echo "value="
+    } >"/usr/local/directadmin/data/admin/ips/${ipv6_uncompress_add}"
+    chmod 600 "/usr/local/directadmin/data/admin/ips/${ipv6_uncompress_add}"
+    chown diradmin:diradmin "/usr/local/directadmin/data/admin/ips/${ipv6_uncompress_add}"
+    grep_result=$(grep -c "${ipv6_uncompress_add}" /usr/local/directadmin/data/admin/ip.list)
+    if [ "${grep_result}" = 0 ]; then
+      echo "${ipv6_uncompress_add}" >>/usr/local/directadmin/data/admin/ip.list
+    fi
+    echo "[${SCRIPT_NAME}]: Rebuilding httpd config files for new IPv6 and linked IPs..." 2>&1 | tee -a "${REPORT_FILE}"
+    /usr/local/directadmin/custombuild/build rewrite_confs
+  fi
+}
+
+function link_da_ipv6() {
+  if [ ! -f "${CONF_PATH}/${FUNCNAME[0]}_executed" ]; then
+    echo "[${SCRIPT_NAME}]: Executing ${FUNCNAME[0]} ..." 2>&1 | tee -a "${REPORT_FILE}"
+    local da_ipv6_adds base_da_ipv6 ipv6_uncompress_add linked_ips
+    echo "[${SCRIPT_NAME}]: Checking Directadmin IPv6 configuration file ..." 2>&1 | tee -a "${REPORT_FILE}"
+    da_ipv6_adds=$(ls /usr/local/directadmin/data/admin/ips/*:* 2>/dev/null)
+    #apt-get -y install ipv6calc 2>&1 | tee -a "${REPORT_FILE}"
+    ipv6_uncompress_add=$(ipv6calc --addr2uncompaddr "${IPV6_ADD}")
+    # DA IP file use this form 1234:1234:0:0:1234:1234 so we need to convert into this form using ipv6calc
+    if [[ -n "${da_ipv6_adds}" && "${AUTO_LINK_DA_IP}" == "yes" ]]; then
+      # TODO Change this to for loop instead of ls (best practice mentioned here: https://github.com/koalaman/shellcheck/wiki/SC2010)
+      for da_ipv6 in $(echo "${da_ipv6_adds}" | tr ' ' '\n'); do
+        #echo $(basename $da_ipv6)
+        base_da_ipv6=$(basename "${da_ipv6}")
+        if [[ "${base_da_ipv6}" == "${ipv6_uncompress_add}" ]]; then
+          echo "[${SCRIPT_NAME}]: IP address ${IPV6_ADD} is exist in [${da_ipv6}]" 2>&1 | tee -a "${REPORT_FILE}"
+          #source "${da_ipv6}"
+          linked_ips=$(sed -n 's/^linked_ips=//p' "${da_ipv6}")
+          if [[ "${linked_ips}" == "" || -z "${linked_ips}" ]]; then
+            echo "IPv6 linked_ip is empty: ${linked_ips}" 2>&1 | tee -a "${REPORT_FILE}"
+            sleep 1
+            echo "[${SCRIPT_NAME}]: Linking IP address ${base_da_ipv6} with IP address ${IPV4_ADD0} using DA task.queue ..." 2>&1 | tee -a "${REPORT_FILE}"
+            echo "action=linked_ips&ip_action=add&ip=${base_da_ipv6}&ip_to_link=${IPV4_ADD0}&apache=yes&dns=yes&apply=yes" >>/usr/local/directadmin/data/task.queue
+            /usr/local/directadmin/dataskq d2000
+            sleep 2
+            echo "[${SCRIPT_NAME}]: Linking IP address ${IPV4_ADD0} with IP address ${base_da_ipv6} using DA task.queue ..." 2>&1 | tee -a "${REPORT_FILE}"
+            echo "action=linked_ips&ip_action=add&ip=${IPV4_ADD0}&ip_to_link=${base_da_ipv6}&apache=yes&dns=yes&apply=yes" >>/usr/local/directadmin/data/task.queue
+            /usr/local/directadmin/dataskq d2000
+            sleep 2
+            # Normally DA task.queue completes in 1 minute but sometimes it left than 10 seconds, so we reduce the check in seconds
+            echo "[${SCRIPT_NAME}]: Linking is set to task.queue. Let's wait for the linking to complete in 10 seconds ..." 2>&1 | tee -a "${REPORT_FILE}"
+            sleep 10
+            # Recheck by calling again link_da_ipv6 if still not proceed by task.queue, then sleep 10 seconds .. again and again until success
+            link_da_ipv6
+          else
+            echo "Found IPv6 linked_ips with value: ${linked_ips}" 2>&1 | tee -a "${REPORT_FILE}"
+            sleep 1
+            # This is when success, we create that executed flag file and break the loop.
+            echo "[${SCRIPT_NAME}]: Success, found IP linking entry for IPv6. Continuing setup ..." 2>&1 | tee -a "${REPORT_FILE}"
+            check_finish_reboot "${FUNCNAME[0]}"
+            break # Good idea to break we only need first match. no reason to loop again.
+          fi
+        else
+          if [ "${AUTO_ADD_IPV6_ENTRY}" == "yes" ]; then
+            echo "[${SCRIPT_NAME}]: Warning, no IPv6 matched with ${IPV6_ADD}. AUTO_ADD_IPV6_ENTRY is set to yes. Automatically adding DA IPv6 config file ..." 2>&1 | tee -a "${REPORT_FILE}"
+            sleep 2
+            add_da_ipv6_ip
+            sleep 10
+            link_da_ipv6
+          else
+            # This might not be executed but just in case if something goes wrong.
+            echo "[${SCRIPT_NAME}]: Warning, no IPv6 matched with ${IPV6_ADD}. Please manually enter IPv6 from GUI (full form) then run this script again" 2>&1 | tee -a "${REPORT_FILE}"
+            _exit 1
+          fi
+        fi
+      done
+    else
+      if [ "${AUTO_ADD_IPV6_ENTRY}" == "yes" ]; then
+        echo "[${SCRIPT_NAME}]: Warning, IPv6 has not been setup through Directadmin. AUTO_ADD_IPV6_ENTRY is set to yes. Automatically adding DA IPv6 config file ..." 2>&1 | tee -a "${REPORT_FILE}"
+        sleep 2
+        add_da_ipv6_ip
+        link_da_ipv6
+      else
+        echo "[${SCRIPT_NAME}]: Warning, IPv6 has not been setup through Directadmin. Please manually enter IPv6 from GUI (full form) then run this script again" 2>&1 | tee -a "${REPORT_FILE}"
+        sleep 5
+        # Enable the DA port in firewall only when pressing enter (good confirmation from user)
+        read -r -s -n 1 -p "[${SCRIPT_NAME}]: Press any key to start adding TCP port ${DA_PORT}/tcp in ufw ..." 2>&1 | tee -a "${REPORT_FILE}"
+        echo ""
+        echo "[${SCRIPT_NAME}]: Allowing TCP port ${DA_PORT}/tcp for accessing DA admin page ..." 2>&1 | tee -a "${REPORT_FILE}"
+        sudo ufw allow "${DA_PORT}/tcp" 2>&1 | tee -a "${REPORT_FILE}"
+        # Need to restart DA because we did change port from 2222 to new port before calling this function
+        restart_da
+        echo "[${SCRIPT_NAME}]: Use the following login information to enter into DA admin page and add IPv6. When done, re-run this script again:". 2>&1 | tee -a "${REPORT_FILE}"
+        echo ""
+        echo "=============="
+        echo "Directadmin now can be accessed through http://${IPV4_ADD0}:${DA_PORT}" 2>&1 | tee -a "${REPORT_FILE}"
+        awk '{ print }' /usr/local/directadmin/scripts/setup.txt 2>&1 | tee -a "${REPORT_FILE}"
+        echo "=============="
+        echo ""
+        sleep 5
+        _exit 1
+      fi
+    fi
+  else
+    echo "[${SCRIPT_NAME}]: [Skipped]: ${FUNCNAME[0]} has ran before" 2>&1 | tee -a "${REPORT_FILE}"
+    sleep 1
+  fi
+}
+function rebuild_da_package() {
+  # Here I can rebuild any missing or change package in DA
+  # This to rebuild DA package that cause error like nginx_apache wont start for new install (bug)
+  if [ ! -f "${CONF_PATH}/${FUNCNAME[0]}_executed" ]; then
+    echo "[${SCRIPT_NAME}]: Executing ${FUNCNAME[0]} ..." 2>&1 | tee -a "${REPORT_FILE}"
+    local ori_path
+    # Need to rebuild nginx_apache because it cannot be started after installation due to modsecurity directive. See this:
+    # https://forum.directadmin.com/threads/nginx-and-apache-nginix-wont-start-due-to-mod_security.61427/
+    ori_path=${PWD}
+    cd_to_path "/usr/local/directadmin/custombuild"
+    echo "[${SCRIPT_NAME}]: Rebuilding DA packages to fix some issues ..."
+
+    ./build update
+    # ClamAV and exim rebuild
+    echo "[${SCRIPT_NAME}]: Rebuilding ClamAV and exim ..." 2>&1 | tee -a "${REPORT_FILE}"
+    sleep 2
+    ./build set clamav yes 2>&1 | tee -a "${REPORT_FILE}"
+    ./build set clamav_exim yes 2>&1 | tee -a "${REPORT_FILE}"
+    ./build set exim yes 2>&1 | tee -a "${REPORT_FILE}"
+    ./build set eximconf yes 2>&1 | tee -a "${REPORT_FILE}"
+    ./build set eximconf_release 4.5 2>&1 | tee -a "${REPORT_FILE}"
+    ./build clamav 2>&1 | tee -a "${REPORT_FILE}"
+    ./build exim 2>&1 | tee -a "${REPORT_FILE}"
+    ./build exim_conf 2>&1 | tee -a "${REPORT_FILE}"
+    # Mod security rebuild
+    echo "[${SCRIPT_NAME}]: Rebuilding modsecurity + ${DA_MODSECURITY_RULESET} ..." 2>&1 | tee -a "${REPORT_FILE}"
+    sleep 2
+    ./build set modsecurity yes 2>&1 | tee -a "${REPORT_FILE}"
+    ./build set modsecurity_ruleset "${DA_MODSECURITY_RULESET}" 2>&1 | tee -a "${REPORT_FILE}"
+    ./build modsecurity 2>&1 | tee -a "${REPORT_FILE}"
+    ./build modsecurity_rules 2>&1 | tee -a "${REPORT_FILE}"
+    # Web server setting rebuild
+    echo "[${SCRIPT_NAME}]: Rebuilding ${CB_WEB_SERVER_SOFTWARE} web server ..." 2>&1 | tee -a "${REPORT_FILE}"
+    sleep 2
+    ./build set webserver "${CB_WEB_SERVER_SOFTWARE}" 2>&1 | tee -a "${REPORT_FILE}"
+    ./build "${CB_WEB_SERVER_SOFTWARE}" 2>&1 | tee -a "${REPORT_FILE}"
+    ./build rewrite_confs 2>&1 | tee -a "${REPORT_FILE}"
+    check_finish_reboot "${FUNCNAME[0]}"
+  else
+    echo "[${SCRIPT_NAME}]: [Skipped]: ${FUNCNAME[0]} has ran before" 2>&1 | tee -a "${REPORT_FILE}"
+    sleep 1
+  fi
+}
+function install_da_post() {
+  if [ ! -f "${CONF_PATH}/${FUNCNAME[0]}_executed" ]; then
+    echo "[${SCRIPT_NAME}]: Executing ${FUNCNAME[0]} ..." 2>&1 | tee -a "${REPORT_FILE}"
+    echo "[${SCRIPT_NAME}]: Running DA post installation function ..." 2>&1 | tee -a "${REPORT_FILE}"
+    sleep 2
+    # Need to enable ipv6 after install by default DA don't do anything about ipv6
+    echo "[${SCRIPT_NAME}]: Enabling ipv6 in directadmin.conf config ..." 2>&1 | tee -a "${REPORT_FILE}"
+    /usr/local/directadmin/directadmin set ipv6 1
+    sleep 1
+    # DA port should be secure don't use 2222 unless you have reason
+    echo "[${SCRIPT_NAME}]: Changing DA admin port from 2222 to ${DA_PORT}" 2>&1 | tee -a "${REPORT_FILE}"
+    /usr/local/directadmin/directadmin set port "${DA_PORT}"
+    sleep 1
+    echo "[${SCRIPT_NAME}]: Changing DA login page redirection port from 2222 to ${DA_PORT}" 2>&1 | tee -a "${REPORT_FILE}"
+    {
+      echo "<?php"
+      echo "header(\"Location: http://\".\$_SERVER['HTTP_HOST'].\":${DA_PORT}\");"
+      echo "?>"
+    } >/var/www/html/redirect.php
+    sleep 1
+    if [ "${DISTRO_ID}" == "centos" ]; then
+      echo "[${SCRIPT_NAME}]: Adding DA new port ${DA_PORT}/tcp to firewalld ..." 2>&1 | tee -a "${REPORT_FILE}"
+      sudo firewall-cmd --permanent --zone=public --add-port="${DA_PORT}/tcp" 2>&1 | tee -a "${REPORT_FILE}"
+    elif [ "${DISTRO_ID}" == "debian" ]; then
+      echo "[${SCRIPT_NAME}]: Adding DA new port ${DA_PORT}/tcp to ufw ..." 2>&1 | tee -a "${REPORT_FILE}"
+      sudo ufw allow "${DA_PORT}/tcp" 2>&1 | tee -a "${REPORT_FILE}"
+    fi
+    echo "[${SCRIPT_NAME}]: Now directadmin can be login using a new port ${DA_PORT}" 2>&1 | tee -a "${REPORT_FILE}"
+    sleep 2
+    restart_da
+    echo "[${SCRIPT_NAME}]: DA post installation has completed!" 2>&1 | tee -a "${REPORT_FILE}"
+    check_finish_reboot "${FUNCNAME[0]}"
+  else
+    echo "[${SCRIPT_NAME}]: [Skipped]: ${FUNCNAME[0]} has ran before" 2>&1 | tee -a "${REPORT_FILE}"
+    sleep 1
+  fi
+}
+function enable_da_ssl() {
+  # Request SSL failed due to DAD (until server restart)
+  # Interesting answer: https://serverfault.com/questions/602700/debian-ipv6-is-not-asssigned-to-interface
+  # Nice reading: https://www.agwa.name/blog/post/beware_the_ipv6_dad_race_condition
+  # https://serverfault.com/questions/421460/nginx-failed-to-start-cannot-assign-requested-address
+  if [ ! -f "${CONF_PATH}/${FUNCNAME[0]}_executed" ]; then
+    echo "[${SCRIPT_NAME}]: Executing ${FUNCNAME[0]} ..." 2>&1 | tee -a "${REPORT_FILE}"
+    if [ "${SETUP_DA_HOST_SSL}" == "yes" ]; then
+      local da_bin cb_bin da_script_path
+      da_bin="/usr/local/directadmin/directadmin"
+      cb_bin="/usr/local/directadmin/custombuild/build"
+      da_script_path="/usr/local/directadmin/scripts"
+      echo "[${SCRIPT_NAME}]: Configuring Directadmin SSL Certificate ..." 2>&1 | tee -a "${REPORT_FILE}"
+      #0) Set the ssl_redirect_host
+      echo "[${SCRIPT_NAME}]: Setting ssl_redirect_host to ${BOX_HOSTNAME_FQDN} in directadmin.conf config ..." 2>&1 | tee -a "${REPORT_FILE}"
+      ${da_bin} set ssl_redirect_host "${BOX_HOSTNAME_FQDN}" 2>&1 | tee -a "${REPORT_FILE}"
+
+      echo "[${SCRIPT_NAME}]: Setting redirect_host_https no in Directadmin options.conf config ..." 2>&1 | tee -a "${REPORT_FILE}"
+      ${cb_bin} set redirect_host_https no 2>&1 | tee -a "${REPORT_FILE}"
+      sleep 1
+      echo "[${SCRIPT_NAME}]: Setting use_hostname_for_alias yes in Directadmin options.conf config ..." 2>&1 | tee -a "${REPORT_FILE}"
+      ${cb_bin} set use_hostname_for_alias yes 2>&1 | tee -a "${REPORT_FILE}"
+      sleep 1
+      #https://help.directadmin.com/item.php?id=629
+      #1) Make sure enable_ssl_sni=1 in directadmin.conf (internal value is already default to 1, so if enable_ssl_sni has no entry this code does nothing)
+      echo "[${SCRIPT_NAME}]: Enabling enable_ssl_sni=1 in directadmin.conf config..." 2>&1 | tee -a "${REPORT_FILE}"
+      ${da_bin} set enable_ssl_sni 1
+      sleep 1
+      #2) Make sure letsencrypt=1 in directadmin.conf
+      echo "[${SCRIPT_NAME}]: Setting letsencrypt=1 in directadmin.conf config ..." 2>&1 | tee -a "${REPORT_FILE}"
+      ${da_bin} set letsencrypt 1 2>&1 | tee -a "${REPORT_FILE}"
+      sleep 1
+      #3) Add wellknown-alias
+      echo "[${SCRIPT_NAME}]: Creating dummy acme-challenge texts through custombuild rewrite_confs ..." 2>&1 | tee -a "${REPORT_FILE}"
+      ${cb_bin} rewrite_confs
+      sleep 1
+      #4) install the latest letsencrypt (this will only get the latest letsencrypt.sh)
+      echo "[${SCRIPT_NAME}]: Installing the latest letsencrypt.sh for Directadmin ..." 2>&1 | tee -a "${REPORT_FILE}"
+      ${cb_bin} letsencrypt 2>&1 | tee -a "${REPORT_FILE}"
+      sleep 1
+      #5) Disable ssl=0 # This one fixed issue where you cannot request cert using ssl=1.
+      # only enable ssl=1 after request certificate success. From my notes last year, I disabled this first before renew else it wont work.
+      echo "[${SCRIPT_NAME}]: Disabling ssl=0 in directadmin.conf config..." 2>&1 | tee -a "${REPORT_FILE}"
+      ${da_bin} set ssl 0 2>&1 | tee -a "${REPORT_FILE}"
+      #6) Restart Directadmin
+      sleep 1
+      echo "[${SCRIPT_NAME}]: Restarting directadmin after changing directadmin.conf ..." 2>&1 | tee -a "${REPORT_FILE}"
+      restart_da
+      #7) Now let's request
+      echo "[${SCRIPT_NAME}]: Requesting SSL certificate for ${BOX_HOSTNAME_FQDN} ..." 2>&1 | tee -a "${REPORT_FILE}"
+      ${da_script_path}/letsencrypt.sh request_single "${BOX_HOSTNAME_FQDN}" 4096 2>&1 | tee -a "${REPORT_FILE}"
+      sleep 1
+      echo "[${SCRIPT_NAME}]: Enabling ssl=1 in directadmin.conf config..." 2>&1 | tee -a "${REPORT_FILE}"
+      ${da_bin} set ssl 1 2>&1 | tee -a "${REPORT_FILE}"
+      echo "[${SCRIPT_NAME}]: Setting redirect_host_https yes in Directadmin options.conf config ..." 2>&1 | tee -a "${REPORT_FILE}"
+      ${cb_bin} set redirect_host_https yes 2>&1 | tee -a "${REPORT_FILE}"
+      sleep 1
+      # Always a good idea to restart DA after changing directadmin.conf
+      restart_da
+      sleep 1
+    fi
+    check_finish_reboot "${FUNCNAME[0]}"
+  else
+    echo "[${SCRIPT_NAME}]: [Skipped]: ${FUNCNAME[0]} has ran before" 2>&1 | tee -a "${REPORT_FILE}"
+    sleep 1
+  fi
+}
+
+function change_da_auth() {
+  # This function change the directadmin username and password from default to yours (based on env file)
+  # It also has more options to secure DA installation. Example maybe this one we can create 2 step authentication
+  if [ ! -f "${CONF_PATH}/${FUNCNAME[0]}_executed" ]; then
+    echo "[${SCRIPT_NAME}]: Executing ${FUNCNAME[0]} ..." 2>&1 | tee -a "${REPORT_FILE}"
+    local da_scripts_path
+    da_scripts_path="/usr/local/directadmin/scripts"
+
+    # This will change Directadmin admin account:
+    echo "[${SCRIPT_NAME}]: Changing Directadmin admin username from admin to ${DA_OWNER_USERNAME} ... " 2>&1 | tee -a "${REPORT_FILE}"
+    sleep 1
+    ${da_scripts_path}/change_username.sh "admin" "${DA_OWNER_USERNAME}" 2>&1 | tee -a "${REPORT_FILE}"
+    # Now on just focus on debian command RIP CentOS
+    echo "[${SCRIPT_NAME}]: Changing Directadmin's admin (${DA_OWNER_USERNAME}) password ..." 2>&1 | tee -a "${REPORT_FILE}"
+    sleep 1
+    echo "${DA_OWNER_USERNAME}:${DA_OWNER_USERPASS}" | chpasswd
+    echo "" 2>&1 | tee -a "${REPORT_FILE}"
+
+    # Create htpasswd for phpmyadmin URL:
+    echo "[${SCRIPT_NAME}]: Creating httpasswd for restricting phpMyAdmin URL route ... " 2>&1 | tee -a "${REPORT_FILE}"
+    sleep 1
+    # Supply -c for first user
+    htpasswd -b -c /etc/httpd/.htpasswd "${HTTPASSWD_PHPMYADMIN_USERNAME}" "${HTTPASSWD_PHPMYADMIN_PASS}"
+
+    echo "[${SCRIPT_NAME}]: Creating httpasswd for restricting roundcube URL route ... " 2>&1 | tee -a "${REPORT_FILE}"
+    sleep 1
+    # Don't supply c for next user
+    htpasswd -b /etc/httpd/.htpasswd "${HTTPASSWD_ROUNDCUBE_USERNAME}" "${HTTPASSWD_ROUNDCUBE_PASS}"
+    sudo chown apache:apache /etc/httpd/.htpasswd
+    sudo chmod +r /etc/httpd/.htpasswd
+    echo "[${SCRIPT_NAME}]: Restarting Directadmin after changing new username ... " 2>&1 | tee -a "${REPORT_FILE}"
+    # I think best to restart DA after changing username because admin has so many configs (what do you think?):
+    restart_da
+    check_finish_reboot "${FUNCNAME[0]}"
+  else
+    echo "[${SCRIPT_NAME}]: [Skipped]: ${FUNCNAME[0]} has ran before" 2>&1 | tee -a "${REPORT_FILE}"
+    sleep 1
+  fi
+}
+function configure_da_sql() {
+  if [ ! -f "${CONF_PATH}/${FUNCNAME[0]}_executed" ]; then
+    echo "[${SCRIPT_NAME}]: Executing ${FUNCNAME[0]} ..." 2>&1 | tee -a "${REPORT_FILE}"
+    # Note that during installation MySQL generates a short password and DA use this root password. See the text message below:
+    # Heard someone said in the forum that root password is not set but that was wrong.
+    ##### MySQL root password seems to be unset, setting using MySQL queries...
+    ####Setting password: SET PASSWORD FOR 'root'@'localhost' = PASSWORD('*******');
+    local da_scripts_path mysql_on_my_cnf_etc mysql_on_my_cnf_da mysql_on_non_cnf gc mysql_granted my_cnf_db_root my_cnf_db_da_admin mysql_conf_db_da_admin
+    local randomBlowfishSecret replace_pma_blowfish replace_pma_authtype ret_code loop_count
+
+    da_scripts_path="/usr/local/directadmin/scripts"
+    mysql_conf_db_da_admin="/usr/local/directadmin/conf/mysql.conf"
+    my_cnf_db_da_admin="/usr/local/directadmin/conf/my.cnf"
+    my_cnf_db_root="/etc/my.cnf"
+
+    echo "[${SCRIPT_NAME}]: Securing mysql installation ..." 2>&1 | tee -a "${REPORT_FILE}"
+    echo "===============================" 2>&1 | tee -a "${REPORT_FILE}"
+    sleep 1
+    # By default sql root password is blank (this is not secure). Need to create that root password.
+    # This mysqld method can be used only if correct password is supplied in /etc/my.cnf or blank password with no entries in /etc/my.cnf
+    if pgrep -x "mysqld" >/dev/null 2>&1; then
+      # Using mysql if it's running and can be authenticated.
+
+      mysql_on_non_cnf=$(
+        mysql -e 'exit'
+        echo $?
+      )
+      mysql_on_my_cnf_etc=$(
+        mysql --defaults-extra-file=${my_cnf_db_root} -e 'exit'
+        echo $?
+      )
+      mysql_on_my_cnf_da=$(
+        mysql --defaults-extra-file=${my_cnf_db_da_admin} -e 'exit'
+        echo $?
+      )
+
+      if [ "${mysql_on_non_cnf}" -eq 0 ]; then
+        # In case password is empty then use this (normally initial setup server is empty):
+        echo "[${SCRIPT_NAME}]: Authenticating mysql without specifying config ..." 2>&1 | tee -a "${REPORT_FILE}"
+        mysql_granted="mysql -e"
+        echo "[${SCRIPT_NAME}]: Success, mysql command is able to login without specifying config file. mysql_granted is set to: ${mysql_granted}" 2>&1 | tee -a "${REPORT_FILE}"
+        sleep 1
+      elif [ "${mysql_on_my_cnf_etc}" -eq 0 ]; then
+        echo "[${SCRIPT_NAME}]: Authenticating mysql using ${my_cnf_db_root} ..." 2>&1 | tee -a "${REPORT_FILE}"
+        mysql_granted="mysql --defaults-extra-file=${my_cnf_db_root} -e"
+        echo "[${SCRIPT_NAME}]: Success, mysql command is able to login using ${my_cnf_db_root}. mysql_granted is set to: ${mysql_granted}" 2>&1 | tee -a "${REPORT_FILE}"
+        sleep 1
+      elif [ "${mysql_on_my_cnf_da}" -eq 0 ]; then
+        echo "[${SCRIPT_NAME}]: Authenticating mysql using ${my_cnf_db_da_admin} ..." 2>&1 | tee -a "${REPORT_FILE}"
+        mysql_granted="mysql --defaults-extra-file=${my_cnf_db_da_admin} -e"
+        echo "[${SCRIPT_NAME}]: Success, mysql command is able to login using ${my_cnf_db_da_admin}. mysql_granted is set to: ${mysql_granted}" 2>&1 | tee -a "${REPORT_FILE}"
+        sleep 1
+      else
+        # If above not working I can use this: https://help.directadmin.com/item.php?id=45
+        # or this: https://www.directadmin.com/features.php?id=2677
+        echo "[${SCRIPT_NAME}]: Error, local SQL authentication is needed. If you know your root password, please supply it in ${my_cnf_db_root} or ${my_cnf_db_da_admin}" 2>&1 | tee -a "${REPORT_FILE}"
+        echo "If you don't know, you may need to reset root password manually using this article: https://help.directadmin.com/item.php?id=45" 2>&1 | tee -a "${REPORT_FILE}"
+        _exit 1
+      fi
+
+      echo "[${SCRIPT_NAME}]: Changing mysql root password ... " 2>&1 | tee -a "${REPORT_FILE}"
+      ${mysql_granted} "ALTER USER 'root'@'localhost' IDENTIFIED BY '${DA_ROOT_SQL_PASS}';"
+      if [ -w "${my_cnf_db_root}" ]; then
+
+        gc=$(grep -ic '^password=.*\|^password.*=.*' "${my_cnf_db_root}")
+        #grep -ic '^password=.*\|^password.*=.*' /etc/my.cnf
+        if [ "${gc}" = 0 ]; then
+          # Append because not exist
+          echo "[${SCRIPT_NAME}]: Updating new SQL root password in ${my_cnf_db_root} under [client] section ... " 2>&1 | tee -a "${REPORT_FILE}"
+          sleep 1
+          sed -i "s|\[client\]|&\npassword=${DA_ROOT_SQL_PASS}|" "${my_cnf_db_root}"
+        else
+          echo "[${SCRIPT_NAME}]: Updating new SQL username root in ${my_cnf_db_root} ... " 2>&1 | tee -a "${REPORT_FILE}"
+          # Already exist, but we replace
+          sed -i "/\[client\]/,/^\[/ s/password=.*/password=${DA_ROOT_SQL_PASS}/" "${my_cnf_db_root}"
+        fi
+        gc=$(grep -ic '^user=.*\|^user.*=.*' "${my_cnf_db_root}")
+        if [ "${gc}" = 0 ]; then
+          echo "[${SCRIPT_NAME}]: Updating new SQL root username in ${my_cnf_db_root} under [client] section ... " 2>&1 | tee -a "${REPORT_FILE}"
+          sleep 1
+          # Append under client because not exist
+          sed -i 's|\[client\]|&\nuser=root|' "${my_cnf_db_root}"
+        else
+          echo "[${SCRIPT_NAME}]: Setting SQL user to root in ${my_cnf_db_root} ... " 2>&1 | tee -a "${REPORT_FILE}"
+          # Already exist, but we replace
+          sed -i "/\[client\]/,/^\[/ s/user=.*/user=root/" "${my_cnf_db_root}"
+        fi
+        gc=$(grep -ic '^bind-address=.*\|^bind-address.*=.*' "${my_cnf_db_root}")
+        if [ "${gc}" = 0 ]; then
+          echo "[${SCRIPT_NAME}]: Disabling mysql remote access in ${my_cnf_db_root} under [mysqld] section ... " 2>&1 | tee -a "${REPORT_FILE}"
+          sleep 1
+          # Append under client because not exist
+          sed -i 's|\[mysqld\]|&\nbind-address=127.0.0.1|' "${my_cnf_db_root}"
+        else
+          echo "[${SCRIPT_NAME}]: Updating mysql remote access as bind-address=127.0.0.1 in ${my_cnf_db_root} under [mysqld] section ... " 2>&1 | tee -a "${REPORT_FILE}"
+          # Already exist, but we replace
+          sed -i "/\[mysqld\]/,/^\[/ s/bind-address=.*/bind-address=127.0.0.1/" "${my_cnf_db_root}"
+        fi
+      else
+        echo "[${SCRIPT_NAME}]: Warning, file ${my_cnf_db_root} is missing. It should exist in this location if mysql is installed through DA" 2>&1 | tee -a "${REPORT_FILE}"
+        _exit 1
+      fi
+
+      echo "[${SCRIPT_NAME}]: Removing unsecured anonymous users from database ... " 2>&1 | tee -a "${REPORT_FILE}"
+      sleep 1
+      ${mysql_granted} "DELETE FROM mysql.user WHERE user='';"
+      echo "[${SCRIPT_NAME}]: Removing root users from non-localhost for security ... " 2>&1 | tee -a "${REPORT_FILE}"
+      sleep 1
+      ${mysql_granted} "DELETE FROM mysql.user WHERE User='root' AND Host NOT IN ('localhost', '127.0.0.1', '::1');"
+      echo "[${SCRIPT_NAME}]: Removing test database if exist for security ... " 2>&1 | tee -a "${REPORT_FILE}"
+      sleep 1
+      ${mysql_granted} "DROP DATABASE IF EXISTS test;"
+      echo "[${SCRIPT_NAME}]: Flushing mysql privileges ... " 2>&1 | tee -a "${REPORT_FILE}"
+      sleep 1
+      ${mysql_granted} "FLUSH PRIVILEGES;"
+      # There is no recommendation to change da_admin sql username to something else at this moment,
+      # so ignore username change for sql, just change password.
+      echo "[${SCRIPT_NAME}]: Changing Directadmin da_admin default SQL password ... " 2>&1 | tee -a "${REPORT_FILE}"
+      sleep 1
+      ${mysql_granted} "ALTER USER 'da_admin'@'localhost' IDENTIFIED BY '${DA_ADMIN_SQLPASS}';"
+      echo "[${SCRIPT_NAME}]: Updating da_admin SQL authentication information at ${mysql_conf_db_da_admin} ... " 2>&1 | tee -a "${REPORT_FILE}"
+      sleep 1
+
+      if [ -s ${mysql_conf_db_da_admin} ]; then
+        sed -i "s/^passwd=.*/passwd=${DA_ADMIN_SQLPASS}/" ${mysql_conf_db_da_admin}
+      else
+        echo -n '' >${mysql_conf_db_da_admin}
+        chmod 600 ${mysql_conf_db_da_admin}
+        chown diradmin:diradmin ${mysql_conf_db_da_admin}
+        echo "user=da_admin" >>${mysql_conf_db_da_admin}
+        echo "passwd=${DA_ADMIN_SQLPASS}" >>${mysql_conf_db_da_admin}
+      fi
+
+      if [ -s ${my_cnf_db_da_admin} ]; then
+        sed -i "s/^password=.*/password=${DA_ADMIN_SQLPASS}/" ${my_cnf_db_da_admin}
+      else
+        echo -n '' >${my_cnf_db_da_admin}
+        chmod 600 ${my_cnf_db_da_admin}
+        chown diradmin:diradmin ${my_cnf_db_da_admin}
+        echo "[client]"
+        echo "user=da_admin" >>${my_cnf_db_da_admin}
+        echo "password=${DA_ADMIN_SQLPASS}" >>${my_cnf_db_da_admin}
+      fi
+    else
+      echo "[${SCRIPT_NAME}]: Warning, mysqld is not running. Please inspect why and re-run this script to resume setup." 2>&1 | tee -a "${REPORT_FILE}"
+      _exit 1
+    fi
+    # When done, test running mysql in terminal.
+    echo "[${SCRIPT_NAME}]: [Completed]: Now, you can test running 'mysql' command in terminal to see if authentication was correctly setup" 2>&1 | tee -a "${REPORT_FILE}"
+    sleep 2
+
+    # Configuring phpmyadmin htaccess
+    echo "[${SCRIPT_NAME}]: Creating https redirection .htaccess for phpMyAdmin ..." 2>&1 | tee -a "${REPORT_FILE}"
+    sleep 1
+    touch /var/www/html/phpMyAdmin/.htaccess
+    {
+      echo "RewriteEngine On"
+      echo "RewriteCond %{HTTPS} !=on"
+      echo "RewriteRule ^/?(.*) https://%{SERVER_NAME}${PHPMYADMIN_LOGIN_ROUTE}\$1 [R=301,L]"
+    } >/var/www/html/phpMyAdmin/.htaccess
+    chmod 644 /var/www/html/phpMyAdmin/.htaccess
+    chown webapps:webapps /var/www/html/phpMyAdmin/.htaccess
+
+    echo "[${SCRIPT_NAME}]: Backing up original phpmyadmin config.inc.php at /var/www/html/phpMyAdmin as config.inc.php_original_${DATE_TIME_NOW}..." 2>&1 | tee -a "${REPORT_FILE}"
+    sleep 1
+    cp -p "/var/www/html/phpMyAdmin/config.inc.php" "/var/www/html/phpMyAdmin/config.inc.php_original_${DATE_TIME_NOW}"
+
+    echo "[${SCRIPT_NAME}]: Generating new blowfish secret key for phpMyAdmin in config.inc.php ..." 2>&1 | tee -a "${REPORT_FILE}"
+    sleep 1
+    # Enabling cookie authentication (so that we can use htpasswd for this)
+    # To enable cookie authentication we need to have blow fish string
+    # Some character might break sed like '/' so we don't want this character because this character can have problem later on.
+    # No need to escape https://stackoverflow.com/questions/65528031/how-to-generate-openssl-blowfish-without-certain-characters-or-allow-certain-set
+    loop_count=0
+    while :; do
+      ((loop_count++))
+      randomBlowfishSecret=$(openssl rand -base64 32)
+      replace_pma_blowfish="\$cfg['blowfish_secret'] = '${randomBlowfishSecret}'; \/* YOU MUST FILL IN THIS FOR COOKIE AUTH! *\/"
+      sed -i "s/\$cfg\[.blowfish_secret.\]\s*=.*/${replace_pma_blowfish}/" /var/www/html/phpMyAdmin/config.inc.php 2>/dev/null
+      ret_code=$?
+      if [ "${ret_code}" = 0 ]; then
+        echo "[${SCRIPT_NAME}]: Successfully inserted blowfish secret key into /var/www/html/phpMyAdmin/config.inc.php after ${loop_count} retry(s)" 2>&1 | tee -a "${REPORT_FILE}"
+        break
+      fi
+    done
+
+    echo "[${SCRIPT_NAME}]: Setting phpMyAdmin authentication from http to cookie in config.inc.php to enable page login and httpd protection ..." 2>&1 | tee -a "${REPORT_FILE}"
+    sleep 1
+    replace_pma_authtype="\$cfg['Servers'][\$i]['auth_type'] = 'cookie';"
+    sed -i "s/\$cfg\['Servers'\]\[\$i\]\['auth_type'\] = 'http';/${replace_pma_authtype}/" /var/www/html/phpMyAdmin/config.inc.php
+
+    # For custom phpMyAdmin theme (not using theme yet). Theme we must get it from maxisetup
+    #echo "[${SCRIPT_NAME}]: Setting up phpMyAdmin custom themes ..." 2>&1 | tee -a "${REPORT_FILE}"
+    #sleep 1
+    #cp -p "phpMyAdmin_theme_from_maxisetup_called_sofibox" into "/var/www/html/phpMyAdmin/themes/sofibox"
+    # Temporarily no theme yet. In the future put theme here
+    # And all the themes must have this permissions:
+    #chmod 644 for files, chmod 755 for folders
+    # And all must have this users:
+    #chown webapps:webapps /var/www/html/phpMyAdmin/themes/*
+
+    # This is used to fix problem with phpMyAdmin Storage: https://help.directadmin.com/item.php?id=564
+    cd_to_path "${INST_TEMP_DIR}"
+    echo "[${SCRIPT_NAME}]: Creating phpMyAdmin configuration storage database ..." 2>&1 | tee -a "${REPORT_FILE}"
+    wget -O create_tables.sh http://files1.directadmin.com/services/all/phpMyAdmin/create_tables.sh
+    chmod 755 create_tables.sh
+    echo "[${SCRIPT_NAME}]: Executing create_tables.sh to create phpMyAdmin configuration storage database ..." 2>&1 | tee -a "${REPORT_FILE}"
+    ./create_tables.sh
+
+    #TODO install mysql tuner after all above to check mysql or phpmyadmin status here:
+    #wget -O /usr/local/sbin/mysqltuner mysqltuner.pl
+    #chmod 710 /usr/local/sbin/mysqltuner
+    #mysqltuner
+    #when you execute mysqltuner, you will get suggestion what to tweak for your sql.
+    #The mysqltuner will read directadmin mysql.conf password that you have specified before.
+    #In case it cannot read and trigger an error.
+    #Make sure the password doesn't contain this character > or < because mysqltuner does not support it.
+    #[Sample my.cnf at /etc/my.cnf](https://gitlab.com/arafatx/sofibox-luks-earth/-/blob/master/etc/my.cnf)
+    check_finish_reboot "${FUNCNAME[0]}"
+  else
+    echo "[${SCRIPT_NAME}]: [Skipped]: ${FUNCNAME[0]} has ran before" 2>&1 | tee -a "${REPORT_FILE}"
+    sleep 1
+  fi
+
+  # Deprecated:
+  # echo "[${SCRIPT_NAME}]: Changing Directadmin da_admin SQL password using DA custom script ... " 2>&1 | tee -a "${REPORT_FILE}"
+  # This script requires that we have root or da_admin password defined in cnf, else it's not working
+  # ${da_scripts_path}/reset_da_admin_password.sh --password "${DA_ADMIN_SQLPASS}"
+
+}
+# This configure_da_mail can be roundcube squirrelmail or others
+function configure_da_mail() {
+  if [ ! -f "${CONF_PATH}/${FUNCNAME[0]}_executed" ]; then
+    echo "[${SCRIPT_NAME}]: Executing ${FUNCNAME[0]} ..." 2>&1 | tee -a "${REPORT_FILE}"
+    local rc_index_file
+    rc_index_file="/var/www/html/roundcube/index.php"
+    if [ -f ${rc_index_file} ]; then
+      local grep_count my_cnf_rc_file replace_rc_authconf replace_rc_prodname rc_config_file
+      local replace_rc_rcguard_recaptcha_privatekey replace_rc_rcguard_recaptcha_publickey rc_built_in_plugins rc_version
+      rc_version=$(grep '| Version' /var/www/html/roundcube/index.php | awk '{ print $3 }')
+      echo "[${SCRIPT_NAME}]: OK, roundcube version ${rc_version} has been detected" 2>&1 | tee -a "${REPORT_FILE}"
+      echo "[${SCRIPT_NAME}]: Configuring roundcube ${rc_version} installation ..." 2>&1 | tee -a "${REPORT_FILE}"
+      sleep 2
+
+      my_cnf_rc_file="/var/www/html/roundcube/config/my.cnf"
+      rc_config_file="/var/www/html/roundcube/config/config.inc.php"
+      echo "[${SCRIPT_NAME}]: Backing up original roundcube config.inc.php at /var/www/html/roundcube/config/config.inc.php as config.inc.php_original_${DATE_TIME_NOW}..." 2>&1 | tee -a "${REPORT_FILE}"
+      sleep 1
+      cp -p "/var/www/html/roundcube/config/config.inc.php" "/var/www/html/roundcube/config/config.inc.php_original_${DATE_TIME_NOW}"
+
+      echo "[${SCRIPT_NAME}]: Securing roundcube installation ..." 2>&1 | tee -a "${REPORT_FILE}"
+      echo "===============================" 2>&1 | tee -a "${REPORT_FILE}"
+      sleep 1
+      # By default roundcube is installed with a very short and weak password. We need to change the password to secured one
+      # Remember roundcube password cannot contains character '@ , & and :' because config.inc.php use this separator and won't accept that password.
+      echo "[${SCRIPT_NAME}]: Changing da_roundcube password in user database ..." 2>&1 | tee -a "${REPORT_FILE}"
+      sleep 1
+      mysql -e "ALTER USER 'da_roundcube'@'localhost' IDENTIFIED BY '${DA_ROUNDCUBE_SQL_PASS}'; FLUSH PRIVILEGES;"
+      echo "[${SCRIPT_NAME}]: Updating da_roundcube password in config.inc.php ..." 2>&1 | tee -a "${REPORT_FILE}"
+      sleep 1
+      replace_rc_authconf="\$config['db_dsnw'] = 'mysql:\/\/da_roundcube:${DA_ROUNDCUBE_SQL_PASS}@localhost\/da_roundcube';"
+      sed -i "s/\$config\[.db_dsnw.\]\s*=.*/${replace_rc_authconf}/" "${rc_config_file}"
+
+      echo "[${SCRIPT_NAME}]: Changing DA product name in config.inc.php ..." 2>&1 | tee -a "${REPORT_FILE}"
+      sleep 1
+      replace_rc_prodname="\$config['product_name'] = '${ROUNDCUBE_CUSTOM_NAME}';"
+      sed -i "s/\$config\[.product_name.\]\s*=.*/${replace_rc_prodname}/" "${rc_config_file}"
+
+      grep_count=$(grep -ic "\$config\['force_https'\]" "${rc_config_file}")
+      if [ "${grep_count}" = 0 ]; then
+        echo "[${SCRIPT_NAME}]: Enabling force_https for roundcube at config.inc.php ..." 2>&1 | tee -a "${REPORT_FILE}"
+        sleep 1
+        echo "\$config['force_https'] = true;" >>"${rc_config_file}"
+      else
+        echo "[${SCRIPT_NAME}]: The roundcube setting config.inc.php has already set force_https" 2>&1 | tee -a "${REPORT_FILE}"
+      fi
+
+      if [ -s "${my_cnf_rc_file}" ]; then
+        echo "[${SCRIPT_NAME}]: Updating SQL da_roundcube username in ${my_cnf_rc_file} ... " 2>&1 | tee -a "${REPORT_FILE}"
+        sleep 1
+        sed -i "/\[client\]/,/^\[/ s/user=.*/user=da_roundcube/" "${my_cnf_rc_file}"
+        echo "[${SCRIPT_NAME}]: Updating SQL da_roundcube password in ${my_cnf_rc_file} ... " 2>&1 | tee -a "${REPORT_FILE}"
+        sleep 1
+        sed -i "/\[client\]/,/^\[/ s/password=.*/password=${DA_ROUNDCUBE_SQL_PASS}/" ${my_cnf_rc_file}
+      else
+        # If no file was created, we write this file for my.cnf (roundcube auth sql config)
+        echo -n '' >${my_cnf_rc_file}
+        chmod 600 ${my_cnf_rc_file}
+        chown diradmin:diradmin ${my_cnf_rc_file}
+        echo "[client]"
+        echo "user=da_roundcube" >>${my_cnf_rc_file}
+        echo "password=${DA_ROUNDCUBE_SQL_PASS}" >>${my_cnf_rc_file}
+      fi
+
+      echo "[${SCRIPT_NAME}]: Enabling some roundcube built-in plugins ... " 2>&1 | tee -a "${REPORT_FILE}"
+      sleep 1
+      rc_built_in_plugins=("'password',"
+        "'archive',"
+        "'zipdownload',"
+        "'newmail_notifier',"
+        "'managesieve',"
+        "'markasjunk',"
+        "'emoticons',"
+        "'attachment_reminder',"
+        "'new_user_dialog',"
+      )
+      #printf "%s\n" "${rc_built_in_plugins[@]}"
+      for rc_built_in_plugin in "${rc_built_in_plugins[@]}"; do
+        grep_count=$(grep -ic "${rc_built_in_plugin}" "${rc_config_file}")
+        if [ "${grep_count}" -eq 0 ]; then
+          # Use this code and loop above rc_plugins must be array
+          echo "[${SCRIPT_NAME}]: Adding ${rc_built_in_plugin} into roundcube plugin list ..." 2>&1 | tee -a "${REPORT_FILE}"
+          sleep 1
+          sed -i "s|\$config\[.plugins.\] = array(|&\n    ${rc_built_in_plugin}|" "${rc_config_file}"
+
+        else
+          echo "[${SCRIPT_NAME}]: [Skipped] The plugin ${rc_built_in_plugin} has already been set in ${rc_config_file}" 2>&1 | tee -a "${REPORT_FILE}"
+        fi
+      done
+
+      echo "[${SCRIPT_NAME}]: Installing roundcube 3rd party plugins ... " 2>&1 | tee -a "${REPORT_FILE}"
+      # Here we install roundcube 3rd party plugins
+      if [ "${ENABLE_ROUNDCUBE_RCGUARD}" == "yes" ]; then
+
+        sleep 1
+        # I posted bug here: https://github.com/dsoares/roundcube-rcguard/issues/39, but jus that server restart fixed the problem
+        echo "[${SCRIPT_NAME}]: Installing rcguard (Google recaptcha) to protect roundcube ... " 2>&1 | tee -a "${REPORT_FILE}"
+        sleep 1
+        cd_to_path "/var/www/html/roundcube/plugins/"
+        GIT_SSL_NO_VERIFY=true git clone https://github.com/dsoares/rcguard.git rcguard
+        chown -R webapps:webapps rcguard/
+        chmod 755 rcguard
+        cd_to_path "/var/www/html/roundcube/plugins/rcguard/"
+        find . -type d -exec chmod 0755 {} \;
+        find . -type f -exec chmod 0644 {} \;
+        mv config.inc.php.dist config.inc.php
+
+        echo "[${SCRIPT_NAME}]: Configuring rcguard recaptcha_publickey in config.inc.php ..." 2>&1 | tee -a "${REPORT_FILE}"
+        sleep 1
+        replace_rc_rcguard_recaptcha_publickey="\$config['recaptcha_publickey'] = '${GOOGLE_RECAPTCHA_SITE_V2}';"
+        sed -i "s/\$config\[.recaptcha_publickey.\]\s*=.*/${replace_rc_rcguard_recaptcha_publickey}/" /var/www/html/roundcube/plugins/rcguard/config.inc.php
+        echo "[${SCRIPT_NAME}]: Configuring rcguard recaptcha_privatekey in config.inc.php ..." 2>&1 | tee -a "${REPORT_FILE}"
+        sleep 1
+        replace_rc_rcguard_recaptcha_privatekey="\$config['recaptcha_privatekey'] = '${GOOGLE_RECAPTCHA_SECRET_V2}';"
+        sed -i "s/\$config\[.recaptcha_privatekey.\]\s*=.*/${replace_rc_rcguard_recaptcha_privatekey}/" /var/www/html/roundcube/plugins/rcguard/config.inc.php
+        echo "[${SCRIPT_NAME}]: Creating mysql table for rcguard ..." 2>&1 | tee -a "${REPORT_FILE}"
+        sleep 1
+        # The plugin already provide initial script to create rcguard table in roundcube. So we can just add this sql file under da_roundcube username
+        mysql da_roundcube </var/www/html/roundcube/plugins/rcguard/SQL/mysql.initial.sql
+
+        # Add rcguard plugin into roundcube config if doesn't exist
+        grep_count=$(grep -ic "'rcguard'," /var/www/html/roundcube/config/config.inc.php)
+        if [ "${grep_count}" -eq 0 ]; then
+          # Use this code and loop above rc_plugins must be array
+          echo "[${SCRIPT_NAME}]: Adding 'rcguard', into roundcube plugin list ..."
+          sleep 1
+          sed -i "s|\$config\[.plugins.\] = array(|&\n    'rcguard',|" /var/www/html/roundcube/config/config.inc.php
+        else
+          echo "[${SCRIPT_NAME}]: [Skipped] The plugin 'rcguard', has already been set in /var/www/html/roundcube/config/config.inc.php  " 2>&1 | tee -a "${REPORT_FILE}"
+        fi
+
+      else
+        echo "[${SCRIPT_NAME}]: [Skipped]: rcguard plugin installation is not set to yes" 2>&1 | tee -a "${REPORT_FILE}"
+      fi
+    else
+      echo "[${SCRIPT_NAME}]: [Skipped]: no roundcube has been installed (unable to detect index.php)" 2>&1 | tee -a "${REPORT_FILE}"
+    fi
+
+    # configure other mail here, like squirrelmail
+    check_finish_reboot "${FUNCNAME[0]}"
+  else
+    echo "[${SCRIPT_NAME}]: [Skipped]: ${FUNCNAME[0]} has ran before" 2>&1 | tee -a "${REPORT_FILE}"
+    sleep 1
+  fi
+}
+
+configure_da_ftp() {
+  if [ ! -f "${CONF_PATH}/${FUNCNAME[0]}_executed" ]; then
+    echo "[${SCRIPT_NAME}]: Executing ${FUNCNAME[0]} ..." 2>&1 | tee -a "${REPORT_FILE}"
+    local gc
+    gc=$(grep -ic '\-\/var\/log\/pureftpd\.log' /etc/rsyslog.conf)
+    if [ "${gc}" -eq 0 ]; then
+      echo "[${SCRIPT_NAME}]: Setting pure-ftpd to use log at /var/log/pureftpd.log ..." 2>&1 | tee -a "${REPORT_FILE}"
+      sleep 1
+      printf "ftp.*\t\t\t\t-/var/log/pureftpd.log\n" >>/etc/rsyslog.conf
+    else
+      echo "[${SCRIPT_NAME}]: [Skipped]: Found ftp log entry '-/var/log/pureftpd.log' at /etc/ryslog.conf" 2>&1 | tee -a "${REPORT_FILE}"
+    fi
+    # No need to remove ftp log from rsyslog.conf using ftp.none because DA BFM and LFD from CSF needs the log to auto block
+    check_finish_reboot "${FUNCNAME[0]}"
+  else
+    echo "[${SCRIPT_NAME}]: [Skipped]: ${FUNCNAME[0]} has ran before" 2>&1 | tee -a "${REPORT_FILE}"
+    sleep 1
+  fi
+}
+# This function only for configuring nginx_apache (it makes URL phpmyadmin or roundcube secure)
+function configure_nginx_apache() {
+  if [ ! -f "${CONF_PATH}/${FUNCNAME[0]}_executed" ]; then
+    echo "[${SCRIPT_NAME}]: Executing ${FUNCNAME[0]} ..." 2>&1 | tee -a "${REPORT_FILE}"
+    echo "[${SCRIPT_NAME}]: Backing up original httpd-alias.conf at /etc/httpd/ as httpd-alias.conf_original_${DATE_TIME_NOW} ..." 2>&1 | tee -a "${REPORT_FILE}"
+    sleep 1
+    cp -p "/etc/httpd/conf/extra/httpd-alias.conf" "/etc/httpd/conf/extra/httpd-alias.conf_original_${DATE_TIME_NOW}"
+    echo "[${SCRIPT_NAME}]: Creating DA custom config for httpd-alias.conf ..." 2>&1 | tee -a "${REPORT_FILE}"
+    sleep 1
+    cat /dev/null >/etc/httpd/conf/extra/httpd-alias.conf
+    {
+      echo "# ==============================================="
+      echo "# This configuration file was generated by ${SCRIPT_NAME}"
+      echo "# Author: ${ADMIN_NAME} | Email: ${ADMIN_EMAIL} | Web: ${BOX_DOMAIN}"
+      echo "# ==============================================="
+      echo "RewriteEngine On"
+      echo "Alias /config "\"/var/www/html/redirect.php"\""
+      echo "Alias /.well-known/acme-challenge "\"/var/www/html/.well-known/acme-challenge"\""
+      echo ""
+      # Here we can specify what URL should be blocked (with 404.html page)
+      echo "# BLOCKED URLs:"
+      echo "Alias /phpMyAdmin "\"/var/www/html/server/error_docs/404.html"\""
+      echo "Alias /phpmyadmin "\"/var/www/html/server/error_docs/404.html"\""
+      echo "Alias /pma "\"/var/www/html/server/error_docs/404.html"\""
+      echo "Alias /squirrelmail "\"/var/www/html/server/error_docs/404.html"\""
+      echo "Alias /webmail "\"/var/www/html/server/error_docs/404.html"\""
+      echo "Alias /roundcube "\"/var/www/html/server/error_docs/404.html"\""
+      echo ""
+      echo "# CUSTOM URLs:"
+      echo "# PHPMYADMIN custom URL:"
+      echo "Alias ${PHPMYADMIN_LOGIN_ROUTE} "\"/var/www/html/phpMyAdmin/"\""
+      echo "# ROUNDCUBE custom URL:"
+      echo "Alias ${ROUNDCUBE_LOGIN_ROUTE} "\"/var/www/html/roundcube/"\""
+      echo "# HTPASSWD secure directories:"
+      echo ""
+    } >>/etc/httpd/conf/extra/httpd-alias.conf
+    if [ "${SECURE_HTTPASSWD_LOGIN_ROUTE}" == "yes" ]; then
+      echo "[${SCRIPT_NAME}]: SECURE HTTPASSWD_LOGIN_ROUTE is set to yes. creating htpasswd authentication for custom routes ..." 2>&1 | tee -a "${REPORT_FILE}"
+      sleep 1
+      {
+        echo "#Protect phpMyAdmin directory:"
+        echo "<Directory "\"/var/www/html/phpMyAdmin/"\">"
+        echo "#AllowOverride AuthConfig"
+        echo "AuthType Basic"
+        echo "AuthName "\""${BOX_HOSTNAME_FQDN}": DB-Auth"\""
+        echo "AuthUserFile /etc/httpd/.htpasswd"
+        echo "Require user ${HTTPASSWD_PHPMYADMIN_USERNAME}"
+        echo "</Directory>"
+        echo ""
+        echo "#Protect roundcube directory:"
+        echo "<Directory "\"/var/www/html/roundcube/"\">"
+        echo "#AllowOverride AuthConfig"
+        echo "AuthType Basic"
+        echo "AuthName "\""${BOX_HOSTNAME_FQDN}": Mail-Auth"\""
+        echo "AuthUserFile /etc/httpd/.htpasswd"
+        echo "Require user ${HTTPASSWD_ROUNDCUBE_USERNAME}"
+        echo "</Directory>"
+      } >>/etc/httpd/conf/extra/httpd-alias.conf
+
+    else
+      echo "[${SCRIPT_NAME}]: [skipped]: SECURE HTTPASSWD_LOGIN_ROUTE is set to no. Custom URL routes are not protected" 2>&1 | tee -a "${REPORT_FILE}"
+      sleep 1
+      {
+        echo "##Protect phpMyAdmin directory:"
+        echo "#<Directory "\"/var/www/html/phpMyAdmin/"\">"
+        echo "##AllowOverride AuthConfig"
+        echo "#AuthType Basic"
+        echo "#AuthName "\""${BOX_HOSTNAME_FQDN}": DB-Auth"\""
+        echo "#AuthUserFile /etc/httpd/.htpasswd"
+        echo "#Require user ${HTTPASSWD_PHPMYADMIN_USERNAME}"
+        echo "#</Directory>"
+        echo ""
+        echo "##Protect roundcube directory:"
+        echo "#<Directory "\"/var/www/html/roundcube/"\">"
+        echo "##AllowOverride AuthConfig"
+        echo "#AuthType Basic"
+        echo "#AuthName "\""${BOX_HOSTNAME_FQDN}": Mail-Auth"\""
+        echo "#AuthUserFile /etc/httpd/.htpasswd"
+        echo "#Require user ${HTTPASSWD_ROUNDCUBE_USERNAME}"
+        echo "#</Directory>"
+      } >>/etc/httpd/conf/extra/httpd-alias.conf
+
+    fi
+
+    echo "[${SCRIPT_NAME}]: Backing up original httpd-includes.conf at /etc/httpd/ as httpd-includes.conf_original_${DATE_TIME_NOW} ..." 2>&1 | tee -a "${REPORT_FILE}"
+    sleep 1
+    cp -p "/etc/httpd/conf/extra/httpd-includes.conf" "/etc/httpd/conf/extra/httpd-includes.conf_original_${DATE_TIME_NOW}"
+    echo "[${SCRIPT_NAME}]: Creating https redirection for all routes in httpd-includes.conf ..." 2>&1 | tee -a "${REPORT_FILE}"
+    sleep 1
+    # It is a new file, so we make sure it is exist
+    touch /etc/httpd/conf/extra/httpd-includes.conf
+    {
+      # Make https for all directories
+      echo "# ==============================================="
+      echo "# This configuration file was generated by ${SCRIPT_NAME}"
+      echo "# Author: ${ADMIN_NAME} | Email: ${ADMIN_EMAIL} | Web: ${BOX_DOMAIN}"
+      echo "# ==============================================="
+      echo "<location /*>"
+      echo "RewriteEngine On"
+      echo "RewriteCond %{HTTPS} off"
+      echo "RewriteRule (.*) https://%{HTTP_HOST}%{REQUEST_URI}"
+      echo "</location>"
+    } >>/etc/httpd/conf/extra/httpd-includes.conf
+
+    echo "[${SCRIPT_NAME}]: Backing up original httpd-default.conf at /etc/httpd/ as httpd-default.conf_original_${DATE_TIME_NOW} ..." 2>&1 | tee -a "${REPORT_FILE}"
+    sleep 1
+    cp -p "/etc/httpd/conf/extra/httpd-default.conf" "/etc/httpd/conf/extra/httpd-default.conf_original_${DATE_TIME_NOW}"
+    echo "[${SCRIPT_NAME}]: Customizing server config at httpd-default.conf ..." 2>&1 | tee -a "${REPORT_FILE}"
+    sleep 1
+    sed -i 's|^ServerTokens .*|ServerTokens Prod|' /etc/httpd/conf/extra/httpd-default.conf
+    sed -i 's|^ServerSignature .*|ServerSignature Off|' /etc/httpd/conf/extra/httpd-default.conf
+    # Restarting web server based on ENV
+    restart_da_web_server
+    check_finish_reboot "${FUNCNAME[0]}"
+  else
+    echo "[${SCRIPT_NAME}]: [Skipped]: ${FUNCNAME[0]} has ran before" 2>&1 | tee -a "${REPORT_FILE}"
+    sleep 1
+  fi
+}
+
+# Configure apps in /var/www/html
+function configure_web_apps_html() {
+  if [ ! -f "${CONF_PATH}/${FUNCNAME[0]}_executed" ]; then
+    echo "[${SCRIPT_NAME}]: Executing ${FUNCNAME[0]} ..." 2>&1 | tee -a "${REPORT_FILE}"
+    # TODO copy that webapps here (it should from maxisetup)
+    cat /dev/null >/var/www/html/index.php
+    {
+      echo "<? php"
+      echo "MaXi32 - Arafat Ali - Rebuilding"
+      echo "?>"
+    } >/var/www/html/index.php
+    chmod 644 /var/www/html/index.php
+    chown webapps:webapps /var/www/html/index.php
+    check_finish_reboot "${FUNCNAME[0]}"
+  else
+    echo "[${SCRIPT_NAME}]: [Skipped]: ${FUNCNAME[0]} has ran before" 2>&1 | tee -a "${REPORT_FILE}"
+    sleep 1
+  fi
+}
+
+function build_da_custom_conf() {
+  # This function will create / copy all custom configs like roundcube, phpmyadmin, ap2 etc in DA custom folder
+  # So when we update Directadmin, it won't replace these files.
+  if [ ! -f "${CONF_PATH}/${FUNCNAME[0]}_executed" ]; then
+    echo "[${SCRIPT_NAME}]: Executing ${FUNCNAME[0]} ..." 2>&1 | tee -a "${REPORT_FILE}"
+    # This will build custom config for DA with secured settings
+    local cb_bin
+    cb_bin="/usr/local/directadmin/custombuild/build"
+    # 1) create custom folder at /usr/local/directadmin/custombuild/custom/ap2/conf/extra
+    mkdir -p /usr/local/directadmin/custombuild/custom/ap2/conf/extra
+    echo "[${SCRIPT_NAME}]: Copying httpd-alias.conf into DA custom ap2 folder ..." 2>&1 | tee -a "${REPORT_FILE}"
+    sleep 1
+    cp -p "/etc/httpd/conf/extra/httpd-alias.conf" "/usr/local/directadmin/custombuild/custom/ap2/conf/extra/httpd-alias.conf"
+
+    echo "[${SCRIPT_NAME}]: Copying httpd-includes.conf into DA custom ap2 folder ..." 2>&1 | tee -a "${REPORT_FILE}"
+    sleep 1
+    cp -p "/etc/httpd/conf/extra/httpd-includes.conf" "/usr/local/directadmin/custombuild/custom/ap2/conf/extra/httpd-includes.conf"
+
+    echo "[${SCRIPT_NAME}]: Copying httpd-default.conf at into DA custom ap2 folder ..." 2>&1 | tee -a "${REPORT_FILE}"
+    sleep 1
+    cp -p "/etc/httpd/conf/extra/httpd-default.conf" "/usr/local/directadmin/custombuild/custom/ap2/conf/extra/httpd-default.conf"
+
+    # 2 For phpmyadmin
+    mkdir -p /usr/local/directadmin/custombuild/custom/phpmyadmin
+    # .htaccess
+    echo "[${SCRIPT_NAME}]: Copying phpMyAdmin .htaccess into phpmyadmin DA custom folder ..." 2>&1 | tee -a "${REPORT_FILE}"
+    sleep 1
+    cp -p "/var/www/html/phpMyAdmin/.htaccess" "/usr/local/directadmin/custombuild/custom/phpmyadmin/.htaccess"
+
+    # config.inc.php
+    echo "[${SCRIPT_NAME}]: Copying original phpmyadmin config.inc.php at /var/www/html/phpMyAdmin into DA phpmyadmin custom folder ..." 2>&1 | tee -a "${REPORT_FILE}"
+    sleep 1
+    cp -p "/var/www/html/phpMyAdmin/config.inc.php" "/usr/local/directadmin/custombuild/custom/phpmyadmin/config.inc.php"
+
+    # For custom phpMyAdmin theme (not using theme yet) leave this comment until I have new custom theme
+    #mkdir -p /usr/local/directadmin/custombuild/custom/phpmyadmin/themes
+    #echo "[${SCRIPT_NAME}]: Copying custom phpMyAdmin themes ..." 2>&1 | tee -a "${REPORT_FILE}"
+    #cp -p "/var/www/html/phpMyAdmin/themes/sofibox" "/usr/local/directadmin/custombuild/custom/phpmyadmin/themes/sofibox"
+    #sleep 1
+
+    #3 - For main roundcube (2 important files: config.inc.php, my.cnf)
+    mkdir -p /usr/local/directadmin/custombuild/custom/roundcube
+    echo "[${SCRIPT_NAME}]: Copying original roundcube config.inc.php into DA roundcube custom folder ..." 2>&1 | tee -a "${REPORT_FILE}"
+    sleep 1
+    cp -p "/var/www/html/roundcube/config/config.inc.php" "/usr/local/directadmin/custombuild/custom/roundcube/config.inc.php"
+    # Remember when rebuild roundcube ./build roundcube DA will automatically update my.cnf. Don't touch that.
+    # I wrote answer here: https://forum.directadmin.com/threads/script-to-reset-da_admin-da_roundcube-password.57101/#post-324944
+    #4 - For roundcube rcguard plugin (copy the whole folder)
+    mkdir -p /usr/local/directadmin/custombuild/custom/roundcube/plugins/
+    echo "[${SCRIPT_NAME}]: Copying custom roundcube custom plugins ..." 2>&1 | tee -a "${REPORT_FILE}"
+    cp -p -r /var/www/html/roundcube/plugins/rcguard /usr/local/directadmin/custombuild/custom/roundcube/plugins/
+
+    #n - For others later in here
+
+    #n-Create custom php ini file here (create custom php ini file here with the following information) -- what is the purpose? find it out
+    # increase memory consumption or upload sql size, make custom path in custom/php.conf.d
+    #https://forum.directadmin.com/threads/solved-customized-50-webapps-ini-and-10-directadmin-ini.61045/#post-312326
+
+    # at the end must do build phpmyadmin, roundcube, rewrite_confs to save httpd changes.
+    # Need to rebuild this because previously we change config.inc.php. Better rebuild for new setting.
+    echo "[${SCRIPT_NAME}]: Rebuilding DA phpMyAdmin for new settings ..." 2>&1 | tee -a "${REPORT_FILE}"
+    sleep 1
+    ${cb_bin} phpmyadmin 2>&1 | tee -a "${REPORT_FILE}"
+    echo "[${SCRIPT_NAME}]: Rebuilding DA roundcube for new settings ..." 2>&1 | tee -a "${REPORT_FILE}"
+    sleep 1
+    ${cb_bin} roundcube 2>&1 | tee -a "${REPORT_FILE}"
+    echo "[${SCRIPT_NAME}]: Updating DA apache/nginx configs for new settings ..." 2>&1 | tee -a "${REPORT_FILE}"
+    sleep 1
+    ${cb_bin} rewrite_confs 2>&1 | tee -a "${REPORT_FILE}"
+
+    # Rebuilding other DA package whatever more here if needed ...
+    check_finish_reboot "${FUNCNAME[0]}"
+  else
+    echo "[${SCRIPT_NAME}]: [Skipped]: ${FUNCNAME[0]} has ran before" 2>&1 | tee -a "${REPORT_FILE}"
+    sleep 1
+  fi
+}
+
+# For extra hardening any DA related installation
+function harden_da() {
+  if [ ! -f "${CONF_PATH}/${FUNCNAME[0]}_executed" ]; then
+    echo "[${SCRIPT_NAME}]: Executing ${FUNCNAME[0]} ..." 2>&1 | tee -a "${REPORT_FILE}"
+    # TODO LOOK AT DA BASIC SECURITY AND APPLY HERE
+    # TODO Follow directadmin basic security one by one on debian here !!!:https://help.directadmin.com/item.php?id=247
+    # TODO look at the post about DA external import js, try to avoid that for security and apply it here
+    check_finish_reboot "${FUNCNAME[0]}"
+  else
+    echo "[${SCRIPT_NAME}]: [Skipped]: ${FUNCNAME[0]} has ran before" 2>&1 | tee -a "${REPORT_FILE}"
+    sleep 1
+  fi
+}
+
+# Harden server based on lynis suggestion
+function harden_lynis() {
+  # Here we do extra hardening for SSHD (based on lynis suggestion)
+  if [ ! -f "${CONF_PATH}/${FUNCNAME[0]}_executed" ]; then
+    echo "[${SCRIPT_NAME}]: Executing ${FUNCNAME[0]} ..." 2>&1 | tee -a "${REPORT_FILE}"
+    local lynis_latest_version
+    echo "[${SCRIPT_NAME}]: Hardening other settings for SSHD_CONFIG ..." 2>&1 | tee -a "${REPORT_FILE}"
+    # Recommended by lynis
+    echo "[${SCRIPT_NAME}]: Setting SSH LogLevel to VERBOSE ..." 2>&1 | tee -a "${REPORT_FILE}"
+    sed -i "s/^#LogLevel.*/LogLevel VERBOSE/" /etc/ssh/sshd_config
+    sleep 1
+    # Recommended by lynis
+    echo "[${SCRIPT_NAME}]: Setting SSH MaxAuthTries to 5 ..." 2>&1 | tee -a "${REPORT_FILE}"
+    sed -i "s/^#MaxAuthTries.*/MaxAuthTries 5/" /etc/ssh/sshd_config
+    sleep 1
+    # Recommended by lynis
+    echo "[${SCRIPT_NAME}]: Setting SSH MaxSessions to 10 ..." 2>&1 | tee -a "${REPORT_FILE}"
+    sed -i "s/^#MaxSessions.*/MaxSessions 10/" /etc/ssh/sshd_config
+    sleep 1
+    # This one recommended by CSF security page:
+    echo "[${SCRIPT_NAME}]: Setting SSH UseDNS to no ..." 2>&1 | tee -a "${REPORT_FILE}"
+    sed -i "s/^#UseDNS.*/UseDNS no/" /etc/ssh/sshd_config
+    sleep 1
+    # Since we change a lot of setting at sshd_config above, it is a good idea to restart this
+    echo "[${SCRIPT_NAME}]: Restarting SSHD service ..." 2>&1 | tee -a "${REPORT_FILE}"
+    systemctl reload sshd 2>&1 | tee -a "${REPORT_FILE}"
+
+    # SSHD config enough. No more
+    # TODO MORE HERE for others based on lynis suggestion.. (Need to obtain the scan ID first and get that value)
+    # Use that value and auto apply hardening here
+    # Install latest lynis using:
+    # Get latest version tar.gz inspired by: https://stackoverflow.com/questions/22510705/get-the-latest-download-link-programmatically
+    echo "[${SCRIPT_NAME}]: Getting latest version of lynis ..." 2>&1 | tee -a "${REPORT_FILE}"
+    lynis_latest_version=$(curl 'https://downloads.cisofy.com/lynis/' | grep -oP 'href="lynis-\K[0-9]+\.[0-9]+\.[0-9]+' | sort -t. -rn -k1,1 -k2,2 -k3,3 | head -1)
+    echo "[${SCRIPT_NAME}]: Latest version detected as ${lynis_latest_version}. Downloading lynis version ${lynis_latest_version} ..." 2>&1 | tee -a "${REPORT_FILE}"
+    sleep 1
+    mkdir -p /usr/local/lynis
+    cd_to_path "/usr/local"
+    wget "https://cisofy.com/files/lynis-${lynis_latest_version}.tar.gz" 2>&1 | tee -a "${REPORT_FILE}"
+    echo "[${SCRIPT_NAME}]: Extracting lynis.tar.gz ..." 2>&1 | tee -a "${REPORT_FILE}"
+    tar xfvz "lynis-${lynis_latest_version}.tar.gz" 2>&1 | tee -a "${REPORT_FILE}"
+    rm -f "lynis-${lynis_latest_version}.tar.gz"
+    cd_to_path "lynis"
+    echo "[${SCRIPT_NAME}]: Checking system security with lynis ..." 2>&1 | tee -a "${REPORT_FILE}"
+    # No need to audit system during setup because ain't nobody got time for this
+    #./lynis audit system 2>&1 | tee -a "${REPORT_FILE}"
+    check_finish_reboot "${FUNCNAME[0]}"
+  else
+    echo "[${SCRIPT_NAME}]: [Skipped]: ${FUNCNAME[0]} has ran before" 2>&1 | tee -a "${REPORT_FILE}"
+    sleep 1
+  fi
+}
+
+function add_da_ip() {
+  # This is to add DA script to add IP into device.
+  if [ ! -f "${CONF_PATH}/${FUNCNAME[0]}_executed" ]; then
+    echo "[${SCRIPT_NAME}]: Executing ${FUNCNAME[0]} ..." 2>&1 | tee -a "${REPORT_FILE}"
+    echo "[${SCRIPT_NAME}]: Adding ipv6 address for Directadmin using DA addip official script ..." 2>&1 | tee -a "${REPORT_FILE}"
+    sleep 1
+    #echo "Usage: $0 <ip> (<netmask> (<eth dev> (<broadcast>)))";
+    #echo "example: $0 1.2.3.4 255.255.255.0 eth0";
+    local addip_script
+    addip_script="/usr/local/directadmin/scripts/addip"
+    if [ -f ${addip_script} ]; then
+      "${addip_script}" "${IPV6_ADD}" "255.255.255.0" "${NIC_INTERFACE_NAME}" 2>&1 | tee -a "${REPORT_FILE}"
+    else
+      echo "[${SCRIPT_NAME}]: Warning file ${addip_script} was not found. Bye!" 2>&1 | tee -a "${REPORT_FILE}"
+      _exit 1
+    fi
+    check_finish_reboot "${FUNCNAME[0]}"
+  else
+    echo "[${SCRIPT_NAME}]: [Skipped]: ${FUNCNAME[0]} has ran before" 2>&1 | tee -a "${REPORT_FILE}"
+    sleep 1
+  fi
+
+}
+
+# This maxibox will be the place to upgrade maxicode binaries (even when script finished running).
+# example running maxibox --update-maxicode or maxibox --checkout-all maxibox
+# TODO finish this
+function configure_maxibox() {
+  if [ ! -f "${CONF_PATH}/${FUNCNAME[0]}_executed" ]; then
+    echo "[${SCRIPT_NAME}]: Executing ${FUNCNAME[0]} ..." 2>&1 | tee -a "${REPORT_FILE}"
+    check_finish_reboot "${FUNCNAME[0]}"
+  else
+    echo "[${SCRIPT_NAME}]: [Skipped]: ${FUNCNAME[0]} has ran before" 2>&1 | tee -a "${REPORT_FILE}"
+    sleep 1
+  fi
+}
+# Installing other security software based on maxicode
+function configure_maxigpg() {
+  if [ ! -f "${CONF_PATH}/${FUNCNAME[0]}_executed" ]; then
+    echo "[${SCRIPT_NAME}]: Executing ${FUNCNAME[0]} ..." 2>&1 | tee -a "${REPORT_FILE}"
+    local maxigpg_bin ret_val gpg_priv_key
+    echo "[${SCRIPT_NAME}]: Configuring maxigpg installation in maxicode ..." 2>&1 | tee -a "${REPORT_FILE}"
+    maxigpg_bin="/usr/local/maxicode/maxigpg/maxigpg"
+    if [ -f ${maxigpg_bin} ]; then
+      echo "[${SCRIPT_NAME}]: Creating symlink and executable for ${maxigpg_bin} ..." 2>&1 | tee -a "${REPORT_FILE}"
+      chmod +x ${maxigpg_bin}
+      # Symbolic name
+      ln -s ${maxigpg_bin} /usr/local/bin
+    else
+      echo "[${SCRIPT_NAME}]: Warning, maxigpg doesn't exist in /usr/local/maxicode !" 2>&1 | tee -a "${REPORT_FILE}"
+      _exit 1
+    fi
+    if [ "${GPG_USE_EXISTING_KEY}" == "yes" ]; then
+      gpg_priv_key="${DATA_PATH}/maxisetup/storage/os/debian/usr/local/maxicode/maxigpg/secure/priv.key"
+      echo "[${SCRIPT_NAME}]: Importing existing gpg-agent key from maxisetup ..." 2>&1 | tee -a "${REPORT_FILE}"
+      gpg --pinentry-mode=loopback --passphrase "${GPG_PASSPHRASE}" --import "${gpg_priv_key}"
+      ret_val=$?
+      if [ ${ret_val} = 0 ]; then
+        echo "[${SCRIPT_NAME}]: Import ok" 2>&1 | tee -a "${REPORT_FILE}"
+      else
+        echo "[${SCRIPT_NAME}]: Import failed" 2>&1 | tee -a "${REPORT_FILE}"
+        _exit 1
+      fi
+    else
+      # 0) Configure gpg first
+      echo "[${SCRIPT_NAME}]: Generating new gpg-agent key ..." 2>&1 | tee -a "${REPORT_FILE}"
+      cat >gpgkey <<EOF
+     %echo Generating a basic OpenPGP key for ${BOX_HOSTNAME_FQDN}
+     Key-Type: RSA
+     Key-Length: 2048
+     Subkey-Type: RSA
+     Subkey-Length: 2048
+     Name-Real: ${ADMIN_NAME}
+     Name-Comment: This is the main GPG key for ${ADMIN_NAME} in ${BOX_HOSTNAME_FQDN}
+     Name-Email: ${ADMIN_EMAIL}
+     Expire-Date: 0
+     Passphrase: ${GPG_PASSPHRASE}
+     # Do a commit here, so that we can later print "done" :-)
+     %commit
+     %echo done
+EOF
+      # Generate the key based on the above information
+      gpg --verbose --batch --generate-key gpgkey
+      # Set trust to 5 for the key so we can encrypt without prompt.
+      echo "[${SCRIPT_NAME}]: Setting trust to 5 for the key ${ADMIN_EMAIL} so we can encrypt without prompt ..." 2>&1 | tee -a "${REPORT_FILE}"
+      sleep 1
+      echo -e "5\ny\n" | gpg --command-fd 0 --expert --edit-key "${ADMIN_EMAIL}" trust
+      # Test the key can encrypt and decrypt.
+      echo "[${SCRIPT_NAME}]: Testing key for encrypting ..." 2>&1 | tee -a "${REPORT_FILE}"
+      sleep 1
+      gpg -e -a -r "${ADMIN_EMAIL}" gpgkey
+      ret_val=$?
+      if [ ${ret_val} = 0 ]; then
+        echo "[${SCRIPT_NAME}]: Encryption test ok" 2>&1 | tee -a "${REPORT_FILE}"
+      else
+        echo "[${SCRIPT_NAME}]: Encryption test failed" 2>&1 | tee -a "${REPORT_FILE}"
+        _exit 1
+      fi
+      # Delete the options and decrypt the original to stdout.
+      rm -f gpgkey
+      echo "[${SCRIPT_NAME}]: Testing key for decrypting ..." 2>&1 | tee -a "${REPORT_FILE}"
+      sleep 1
+      gpg -d gpgkey.asc
+      ret_val=$?
+      if [ ${ret_val} = 0 ]; then
+        echo "[${SCRIPT_NAME}]: Decryption test ok" 2>&1 | tee -a "${REPORT_FILE}"
+        rm -f gpgkey.asc
+      else
+        echo "[${SCRIPT_NAME}]: Decryption test failed" 2>&1 | tee -a "${REPORT_FILE}"
+        _exit 1
+      fi
+    fi
+    check_finish_reboot "${FUNCNAME[0]}"
+  else
+    echo "[${SCRIPT_NAME}]: [Skipped]: ${FUNCNAME[0]} has ran before" 2>&1 | tee -a "${REPORT_FILE}"
+    sleep 1
+  fi
+}
+# This will install OS memcached and php memcached extension
+function configure_da_memcached() {
+  if [ ! -f "${CONF_PATH}/${FUNCNAME[0]}_executed" ]; then
+    local gc
+    echo "[${SCRIPT_NAME}]: Executing ${FUNCNAME[0]} ..." 2>&1 | tee -a "${REPORT_FILE}"
+    sleep 1
+    echo "[${SCRIPT_NAME}]: Installing memcached components in OS level ..." 2>&1 | tee -a "${REPORT_FILE}"
+    sleep 1
+    # Remember libmemcached-dev is needed for Debian. In CentOS it's called libmemcached-devel
+    sudo apt-get -y install memcached libmemcached-tools libmemcached-dev
+    gc=$(grep -ic "\-l ::1" /etc/memcached.conf)
+    if [ "${gc}" = 0 ]; then
+      echo "[${SCRIPT_NAME}]: Setting memcached to listen to IPv6 ..." 2>&1 | tee -a "${REPORT_FILE}"
+      sleep 1
+      sed -i "s/^\-l.*/\-l 127.0.0.1 \-l ::1/" /etc/memcached.conf
+    else
+      echo "[${SCRIPT_NAME}]: [Skipped] memcached config is already set to listen to IPv6" 2>&1 | tee -a "${REPORT_FILE}"
+      sleep 1
+    fi
+    echo "[${SCRIPT_NAME}]: Restarting memcached ... " 2>&1 | tee -a "${REPORT_FILE}"
+
+    systemctl restart memcached
+    echo "[${SCRIPT_NAME}]: Checking memcached status ... " 2>&1 | tee -a "${REPORT_FILE}"
+
+    systemctl status memcached
+    echo "[${SCRIPT_NAME}]: Installing memcached for php-extension using Poralix script ..." 2>&1 | tee -a "${REPORT_FILE}"
+    sleep 1
+    cd_to_path "${INST_TEMP_DIR}"
+    cp "${DATA_PATH}/maxisetup/storage/os/${DISTRO_ID}/usr/local/directadmin/install_scripts/php_extension.sh" "${INST_TEMP_DIR}/php_extension.sh"
+    chmod +x php_extension.sh
+    # This one just checking not verifying, so whether exist or not we just execute install
+    echo "[${SCRIPT_NAME}]: Checking existing php-memcached installation ..." 2>&1 | tee -a "${REPORT_FILE}"
+    sleep 1
+    /bin/sh ./php_extension.sh status memcached 2>&1 | tee -a "${REPORT_FILE}"
+    echo "[${SCRIPT_NAME}]: Installing php-memcached for all PHP versions ..." 2>&1 | tee -a "${REPORT_FILE}"
+    sleep 2
+    /bin/sh ./php_extension.sh install memcached 2>&1 | tee -a "${REPORT_FILE}"
+    check_finish_reboot "${FUNCNAME[0]}"
+  else
+    echo "[${SCRIPT_NAME}]: [Skipped]: ${FUNCNAME[0]} has ran before" 2>&1 | tee -a "${REPORT_FILE}"
+    sleep 1
+  fi
+}
+
+function configure_da_geoip() {
+  if [ ! -f "${CONF_PATH}/${FUNCNAME[0]}_executed" ]; then
+    echo "[${SCRIPT_NAME}]: Executing ${FUNCNAME[0]} ..." 2>&1 | tee -a "${REPORT_FILE}"
+    # TODO use poralix script to install geoip then use DA custombuild to upgrade geoip database using ./build geoipupdate
+    echo "[${SCRIPT_NAME}]: Installing geoip components in OS level ..." 2>&1 | tee -a "${REPORT_FILE}"
+    # Just like the memcached need libmemcache-dev, this geoip needs libgeoip-dev
+    apt-get -y install libgeoip-dev geoip-bin geoip-database
+
+    echo "[${SCRIPT_NAME}]: Installing geoip for php-extension using Poralix script ..." 2>&1 | tee -a "${REPORT_FILE}"
+    sleep 1
+    cd_to_path "${INST_TEMP_DIR}"
+    cp "${DATA_PATH}/maxisetup/storage/os/${DISTRO_ID}/usr/local/directadmin/install_scripts/php_extension.sh" "${INST_TEMP_DIR}/php_extension.sh"
+    chmod +x php_extension.sh
+    # This one just checking not verifying, so whether exist or not we just execute install
+    echo "[${SCRIPT_NAME}]: Checking existing php-geoip installation ..." 2>&1 | tee -a "${REPORT_FILE}"
+    sleep 1
+    /bin/sh ./php_extension.sh status geoip 2>&1 | tee -a "${REPORT_FILE}"
+    echo "[${SCRIPT_NAME}]: Installing php-geoip for all PHP versions ..." 2>&1 | tee -a "${REPORT_FILE}"
+    sleep 2
+    # For geoip from poralix script, it needs to select --beta because stable release has error during installation
+    /bin/sh ./php_extension.sh install geoip --beta 2>&1 | tee -a "${REPORT_FILE}"
+
+    check_finish_reboot "${FUNCNAME[0]}"
+  else
+    echo "[${SCRIPT_NAME}]: [Skipped]: ${FUNCNAME[0]} has ran before" 2>&1 | tee -a "${REPORT_FILE}"
+    sleep 1
+  fi
+}
+
+configure_da_dns_templates() {
+  if [ ! -f "${CONF_PATH}/${FUNCNAME[0]}_executed" ]; then
+    echo "[${SCRIPT_NAME}]: Executing ${FUNCNAME[0]} ..." 2>&1 | tee -a "${REPORT_FILE}"
+    local da_template_custom ipv6_full_uncompressed da_bin
+    da_template_custom="/usr/local/directadmin/data/templates/custom"
+    da_bin="/usr/local/directadmin/directadmin"
+    mkdir -p "${da_template_custom}"
+    chown diradmin:diradmin ${da_template_custom}
+    touch "${da_template_custom}/dns_txt.conf"
+    echo "[${SCRIPT_NAME}]: Creating SPF and DMARC DNS custom template file for Directadmin ..." 2>&1 | tee -a "${REPORT_FILE}"
+    sleep 2
+    {
+      echo "|DOMAIN|.=\"v=spf1 a mx ip4:|SERVER_IP||EXTRA_SPF| ~all\""
+      echo "_dmarc=\"v=DMARC1; p=none; sp=none; rua=mailto:spam-reports@|DOMAIN|\""
+    } >"${da_template_custom}/dns_txt.conf"
+    chown diradmin:diradmin "${da_template_custom}/dns_txt.conf"
+    chmod 644 "${da_template_custom}/dns_txt.conf"
+    # Note last year I use the full form of IP.
+    ipv6_full_uncompressed=$(ipv6calc --addr2fulluncompaddr "${IPV6_ADD}")
+    echo "[${SCRIPT_NAME}]: Setting extra_spf_value with ipv6:${ipv6_full_uncompressed} ..." 2>&1 | tee -a "${REPORT_FILE}"
+    sleep 2
+    ${da_bin} set extra_spf_value " ipv6:${ipv6_full_uncompressed}" 2>&1 | tee -a "${REPORT_FILE}"
+    restart_da
+    check_finish_reboot "${FUNCNAME[0]}"
+  else
+    echo "[${SCRIPT_NAME}]: [Skipped]: ${FUNCNAME[0]} has ran before" 2>&1 | tee -a "${REPORT_FILE}"
+    sleep 1
+  fi
+}
+
+function configure_maxicode() {
+  if [ ! -f "${CONF_PATH}/${FUNCNAME[0]}_executed" ]; then
+    echo "[${SCRIPT_NAME}]: Executing ${FUNCNAME[0]} ..." 2>&1 | tee -a "${REPORT_FILE}"
+
+    # 1) Install aide and copy maxiaide files (make sure it works)
+    # 2) Install rsync and copy maxisetup files (make sure it works)
+    # 3) Install suricata and copy maxicata files (make sure it works)
+    # 4) Copy maxicbuild
+
+    #local ORI_PWD
+    #echo "[${SCRIPT_NAME}]: Installing OSSEC ..." 2>&1 | tee -a "${REPORT_FILE}"
+    #sleep 2
+    #echo "[${SCRIPT_NAME}]: Creating directory /usr/src if doesn't exist ..." 2>&1 | tee -a "${REPORT_FILE}"
+    #mkdir -p "${INST_TEMP_DIR}"
+    #echo "[${SCRIPT_NAME}]: Removing previous download file ..." 2>&1 | tee -a "${REPORT_FILE}"
+    #rm -fv "${INST_TEMP_DIR}/3.6.0.tar.gz"
+    #echo "[${SCRIPT_NAME}]: Downloading and extracting OSSEC file ..." 2>&1 | tee -a "${REPORT_FILE}"
+    #ORI_PWD="${PWD}"
+    #cd "${INST_TEMP_DIR}" || {
+    #  echo "Failed to enter into directory" 2>&1 | tee -a "${REPORT_FILE}"
+    #  _exit 1
+    #}
+    #wget https://github.com/ossec/ossec-hids/archive/3.6.0.tar.gz
+    #tar xzf 3.6.0.tar.gz
+
+    #cd ossec-hids-3.6.0/ || {
+    #  echo "Failed to enter into directory" 2>&1 | tee -a "${REPORT_FILE}"
+    #  _exit 1
+    #}
+    #sh "install.sh"
+    # If want to silent install follow this documentation: https://www.ossec.net/docs/manual/installation/install-source-unattended.html
+    # Need to change the config file (uncomment setting)
+    # Tip: To remove OSSEC use this
+    # /var/ossec/bin/ossec-control stop && rm -rf /var/ossec && rm /etc/init.d/*ossec* && rm /etc/ossec-init.conf
+    check_finish_reboot "${FUNCNAME[0]}"
+  else
+    echo "[${SCRIPT_NAME}]: [Skipped]: ${FUNCNAME[0]} has ran before" 2>&1 | tee -a "${REPORT_FILE}"
+    sleep 1
+  fi
+}
+
+function configure_da_accounts() {
+  if [ ! -f "${CONF_PATH}/${FUNCNAME[0]}_executed" ]; then
+    echo "[${SCRIPT_NAME}]: Executing ${FUNCNAME[0]} ..." 2>&1 | tee -a "${REPORT_FILE}"
+    # ALL API documentation: https://www.directadmin.com/search_versions.php?query=CMD_API
+    # Create CURL action for API: https://help.directadmin.com/item.php?id=580
+    # How to debug API: https://help.directadmin.com/item.php?id=356
+    # https://help.directadmin.com/item.php?id=293
+    :
+    # TODO
+    # 1) Here we use DA API log into admin account (USE API curl!!!. Done that)
+    # 2) Then with this account logged, we must first create a reseller package (eg: RESELLER UNLIMITED)
+    #in package creation, do not use anonymous FTP accounts, do not use SSH access (for security)
+    # 3) After created a package, then we can create a reseller account (eg: maxibox)
+    # 4) Then using this reseller account we create a user account (eg: newuser)
+    # 5)
+    #
+    # then we can create a reseller account
+
+    # 2) Then we log into this account
+
+    #da_api --command "CMD_COMMAND_" --data ""
+    check_finish_reboot "${FUNCNAME[0]}"
+  else
+    echo "[${SCRIPT_NAME}]: [Skipped]: ${FUNCNAME[0]} has ran before" 2>&1 | tee -a "${REPORT_FILE}"
+    sleep 1
+  fi
+}
+
+# This is used to install extra packages like ncdu, htop and more
+function post_setup() {
+  if [ ! -f "${CONF_PATH}/${FUNCNAME[0]}_executed" ]; then
+    echo "[${SCRIPT_NAME}]: Executing ${FUNCNAME[0]} ..." 2>&1 | tee -a "${REPORT_FILE}"
+    apt-get -y install ncdu htop mailutils gpg 2>&1 | tee -a "${REPORT_FILE}"
+  else
+    echo "[${SCRIPT_NAME}]: [Skipped]: ${FUNCNAME[0]} has ran before" 2>&1 | tee -a "${REPORT_FILE}"
+    sleep 1
+  fi
+}
+
+temp1() {
+  :
+}
+
+test1() {
+  :
+}
+CTRL_C_COUNT=0
+# IF SCRIPT EXIT UNSUCCESSFULLY, THEN WE CALL cleanup function
+_trap_with_args cleanup QUIT INT TERM EXIT
+SCRIPT_NAME=$(basename -- "$0")
+SCRIPT_PATH="$(dirname "$(readlink -f "$0")")"
+DATE_BIN=$(command -v date)
+LOG_PATH="${SCRIPT_PATH}/log"
+# Configuration path for script
+CONF_PATH="${SCRIPT_PATH}/conf"
+DATA_PATH="${SCRIPT_PATH}/data"
+CODE_PATH="${SCRIPT_PATH}/code"
+TEMP_PATH="${SCRIPT_PATH}/temp"
+INST_TEMP_DIR="${TEMP_PATH}/src"
+
+mkdir -p "${LOG_PATH}"
+mkdir -p "${CONF_PATH}"
+mkdir -p "${DATA_PATH}"
+mkdir -p "${CODE_PATH}"
+mkdir -p "${TEMP_PATH}"
+mkdir -p "${INST_TEMP_DIR}"
+
+RANDSTR="$(${DATE_BIN} '+%d-%m-%Y_%H-%M-%S').${RANDOM}"
+DATE_TIME_NOW="$(date '+%d-%m-%Y_%H-%M-%S')" #31-03-2020_11-56-16
+if [[ "${USE_ONE_LOG_FILE}" == "yes" ]]; then
+  REPORT_FILE="${LOG_PATH}/${SCRIPT_NAME}-report.log"
+else
+  REPORT_FILE="${LOG_PATH}/${SCRIPT_NAME}-${RANDSTR}-report.log"
+fi
+REPORT_FILE_ERROR="${LOG_PATH}/${SCRIPT_NAME}-${RANDSTR}-${DATE_TIME_NOW}-error-report.log"
+# ==== Locking mechanism ====
+PID=$(pidof -x "${SCRIPT_NAME}")
+# USE ATOMIC LOCK
+LOCK_DIR="/var/lock/${SCRIPT_NAME}"
+LOCK_PID="${LOCK_DIR}/pid"
+
+# THIS WILL CHECK ONLY ONE INSTANCE OF SCRIPT SHOULD RUN
+if ! mkdir "${LOCK_DIR}" 2>/dev/null; then
+  PID=$(cat "${LOCK_PID}")
+  if ! kill -0 "${PID}" 2>/dev/null; then
+    echo "[${SCRIPT_NAME}]: Removing stale lock of nonexistent PID ${PID}" 2>&1 | tee -a "${REPORT_FILE}"
+    rm -rf "${LOCK_DIR}"
+    echo "[${SCRIPT_NAME}]: Restarting (${SCRIPT_NAME})" 2>&1 | tee -a "${REPORT_FILE}"
+    exec "$0" "$@"
+  fi
+  echo "[${SCRIPT_NAME}]: Warning, another instance of this script is already running with PID [${PID}]" 2>&1 | tee -a "${REPORT_FILE}"
+  echo "[${SCRIPT_NAME}]: Please wait or clear the current running session to re-run this script" 2>&1 | tee -a "${REPORT_FILE}"
+  exit 1
+else
+  # LOCK SUCCESS NOW SAVE INFORMATION IN PID
+  echo $$ >"${LOCK_PID}"
+fi
+# ============End of locking===============
+
+ENVIRONMENT_FILE="maxi.env"
+if [ -s ${ENVIRONMENT_FILE} ]; then
+  #if bash_errs=$(bash -n "${ENVIRONMENT_FILE}" 2>&1); then
+  # This doesn't actually source it. It just test if source is working.
+  # Seems like source doesn't actually return proper return code
+  # I wrote a pretty good answer to handle this here:
+  # https://stackoverflow.com/questions/46577973/how-to-syntax-check-a-shell-script-before-sourcing-it/65650773#65650773
+  source_errs=$(source "${ENVIRONMENT_FILE}" 2>&1 >/dev/null)
+  # get the return code
+  retval=$?
+  #echo "${retval}"
+  if [ ${retval} = 0 ]; then
+    # Let's do the weird thing on string:
+    str_comm="[${SCRIPT_NAME}]: The source command returns success code [0]"
+    if [ -n "${source_errs}" ]; then
+      echo "${str_comm} but it has one or more syntax errors!"
+      echo "Error details:"
+      printf "%s\n" "${source_errs}"
+      _exit 1
+    else
+      echo "${str_comm} with no syntax error"
+      echo "[${SCRIPT_NAME}]: Sourcing environment file from ${ENVIRONMENT_FILE} ..."
+      source "${ENVIRONMENT_FILE}"
+    fi
+    #else
+    #   echo "[${SCRIPT_NAME}]: [Warning]: The source command returns an error code of ${retval} when sourcing ${ENVIRONMENT_FILE}:" 2>&1 | tee -a "${REPORT_FILE_ERROR}"
+    #  echo "Error details:"
+    #  printf "%s\n" "${source_errs}"
+    #  _exit 1
+    #fi
+  else
+    echo "[${SCRIPT_NAME}]: [Warning]: The source command returns an error code of ${retval} when sourcing ${ENVIRONMENT_FILE}:" 2>&1 | tee -a "${REPORT_FILE_ERROR}"
+    echo "Error details:"
+    printf "%s\n" "${source_errs}"
+    _exit 1
+  fi
+else
+  echo "[${SCRIPT_NAME}]: Error, ${ENVIRONMENT_FILE} does not exist or empty. Need this configuration file" 2>&1 | tee -a "${REPORT_FILE_ERROR}"
+  _exit 1
+fi
+
+if [ "${1}" == "--init" ]; then
+  rm -rf "${LOG_PATH}"
+  rm -rf "${CONF_PATH}"
+  rm -rf "${DATA_PATH}"
+  rm -rf "${CODE_PATH}"
+  rm -rf "${TEMP_PATH}"
+  rm -rf "${INST_TEMP_DIR}"
+  echo "[${SCRIPT_NAME}]: Program path cleaned"
+  exit 0
+fi
+
+echo "=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~" 2>&1 | tee -a "${REPORT_FILE}"
+echo "Welcome to Sofibox Host Installation Script" 2>&1 | tee -a "${REPORT_FILE}"
+echo "This script is part of Sofibox/MaxiNet implementation" 2>&1 | tee -a "${REPORT_FILE}"
+echo "Author: Arafat Ali | Email: arafat@sofibox.com" 2>&1 | tee -a "${REPORT_FILE}"
+echo "Sofibox/MaxiNet was developed by Sofibox" 2>&1 | tee -a "${REPORT_FILE}"
+echo "=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~" 2>&1 | tee -a "${REPORT_FILE}"
+echo ""
+
+DISTRO_ID=$(get_linux_os "id")
+#DISTRO_VERSION=$(get_linux_os "version")
+
+if [[ ${DISTRO_ID} == "centos" || ${DISTRO_ID} == "debian" ]]; then
+  #echo "[${SCRIPT_NAME}]: OK, this operating system [${DISTRO_ID}] is supported!" 2>&1 | tee -a "${REPORT_FILE}"
+  :
+else
+  echo "[${SCRIPT_NAME}]: Sorry, this operating system is not supported!" 2>&1 | tee -a "${REPORT_FILE}"
+  _exit
+fi
+
+if compgen -G "${CONF_PATH}/*_executed" >/dev/null; then
+  echo "[${SCRIPT_NAME} | ${DATE_TIME_NOW}]: Resuming from previous installation ..." 2>&1 | tee -a "${REPORT_FILE}"
+  START_OR_RESUME="Resuming"
+  _pause
+else
+  START_OR_RESUME="Starting"
+fi
+echo "[${SCRIPT_NAME}]: ${START_OR_RESUME} Installation for ${BOX_HOSTNAME_FQDN} ..." 2>&1 | tee -a "${REPORT_FILE}"
+echo "" 2>&1 | tee -a "${REPORT_FILE}"
+# Use this to install screen or disable Selinux in CentOS
+pre_setup
+# Clone all setup script
+clone_git_setup #OK
+# Get the latest security codes from maxicode
+init_local_maxicode
+# Hardening server
+secure_box #OK
+# Configure basic network 1
+configure_net #OK
+# Must run configure_net first before running configure_net2 because we need interface to be ${NIC_INTERFACE_NAME} first #OK
+configure_net2
+# Tweaking swap for production server
+configure_sysctl_swap #OK
+# Tweaking kernel etc ..
+configure_sysctl_kernel_fs #OK
+# Tweaking IPv4 or Ipv6
+configure_sysctl_ips #OK
+# Upgrade system
+upgrade_os #Done
+if [ "${INSTALL_TYPE}" == "DIRECTADMIN" ]; then
+  install_da_pre #OK
+  #exit 1
+  install_da #OK
+  #exit 1
+  # Must run this after install_da and before install_da_post because install_da_post requires valid nginx directive which is fixed at rebuild_da_package
+  rebuild_da_package #OK -- find more what to rebuild
+  #exit 1
+  install_da_post #OK
+  #exit 1
+  change_da_auth #OK
+  #exit 1
+  # Linking da ipv6 with ipv4 and vice versa
+  link_da_ipv6 #OK
+  #exit 1
+fi
+
+# FOR BOTH GENERAL AND DIRECTADMIN INSTALLATION TYPE:
+#Best to execute after install_da because CSF installer will detect if DA exist, it will install CSF in DA way.
+configure_csf
+exit 1
+# Need to restart first before running next commands after enable IPv6 because 'tentative status issue with ethX + nginx'.
+# If I don't restart, I won't be able to request cert and letsencrypt will complain about firewall.
+# Just temporary restart until I find solution (restart best after configure_csf).
+if [ "${INSTALL_TYPE}" == "DIRECTADMIN" ]; then
+  # Must run this functions (enable_da_ssl) after running CSF because we need to make sure all appropriate ports are opened to request certs
+  # Warning do not overused enable_da_ssl function because when requesting the same cert for the same domain 7 times for a week, you will get blocked.
+
+  enable_da_ssl #OK
+  #exit 1
+  configure_da_sql #OK
+  #exit 1
+  configure_da_mail #OK but need to test again
+  # exit 1
+  configure_da_ftp
+  #exit 1
+  configure_nginx_apache
+  # exit 1
+  configure_web_apps_html
+  #exit 1
+  build_da_custom_conf
+  #exit 1
+  harden_da
+  #exit 1
+  configure_da_accounts
+  #exit 1
+  configure_da_memcached
+  #exit 1
+  configure_da_geoip
+  #exit 1
+  configure_da_dns_templates
+fi
+#configure_logs
+# Still need to add more based on lynis suggestion
+harden_lynis
+#exit 1
+configure_maxibox
+#exit 1
+configure_maxigpg
+#exit 1
+#setup_maxiaide
+#exit 1
+#setup_maxicata
+post_setup
+echo "" 2>&1 | tee -a "${REPORT_FILE}"
+echo "==============" 2>&1 | tee -a "${REPORT_FILE}"
+echo "Directadmin now can be accessed through this URL: " 2>&1 | tee -a "${REPORT_FILE}"
+echo "http://${IPV4_ADD0}:${DA_PORT} or http://${BOX_HOSTNAME_FQDN}:${DA_PORT}" 2>&1 | tee -a "${REPORT_FILE}"
+echo "Username: ${DA_OWNER_USERNAME}" 2>&1 | tee -a "${REPORT_FILE}"
+echo "Password: *******" 2>&1 | tee -a "${REPORT_FILE}"
+echo "==============" 2>&1 | tee -a "${REPORT_FILE}"
+echo "" 2>&1 | tee -a "${REPORT_FILE}"
+echo ""
+script_time
+echo "========== Installation Completed ==========" 2>&1 | tee -a "${REPORT_FILE}"
+echo ""
+echo "[${SCRIPT_NAME}]: Destroying ${ENVIRONMENT_FILE} file in 30 seconds (ctrl+c to cancel) ..." 2>&1 | tee -a "${REPORT_FILE}"
+sleep 30
+shred -uvz ${ENVIRONMENT_FILE}
