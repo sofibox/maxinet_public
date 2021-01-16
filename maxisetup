@@ -38,7 +38,6 @@ function cleanup() {
     fi
     echo "-------------------------------END-----------------------------------------"
   fi
-
   exit 1
 }
 # This function get the OS ID and version number
@@ -112,8 +111,6 @@ function restart_da() {
     echo "action=directadmin&value=restart" >>/usr/local/directadmin/data/task.queue
     /usr/local/directadmin/dataskq d2000
     # Better to restart DA with task.queue (this is what most documentation do) because DA needs to respect task.queue process
-    # [deprecated]:
-    # service directadmin restart 2>&1 | tee -a "${REPORT_FILE}"
   else
     echo "[${SCRIPT_NAME}]: Warning, Directadmin task.queue still has pending task(s) to be executed. Waiting 10 seconds to finish the pending task(s) ..." 2>&1 | tee -a "${REPORT_FILE}"
     sleep 10
@@ -223,47 +220,68 @@ function check_finish_reboot() {
 # check_fix_service <service_name>
 function check_fix_service() {
   local service_name="$1"
-  local gc retval
+  local gc retval lfd_service csf_service
   echo "[${SCRIPT_NAME}]: Checking ${service_name} status ..." 2>&1 | tee -a "${REPORT_FILE}"
   sleep 2
   if [ "${service_name}" == "csf" ]; then
     # Fix that here
-    service csf status
-    retval=$?
-    if [ "${retval}" -ne 0 ]; then
-      echo "[${SCRIPT_NAME}]: Warning, unable to start CSF service properly. Please check what is going on" 2>&1 | tee -a "${REPORT_FILE}"
-      _exit 1
-    else
+    csf_service=$(systemctl is-active csf)
+    if [ "${csf_service}" == "active" ]; then
       echo "[${SCRIPT_NAME}]: OK, CSF service is running with status 0" 2>&1 | tee -a "${REPORT_FILE}"
-
+    else
+      # CSF fix 1 - restarting
+      echo "[${SCRIPT_NAME}]: Warning, unable to start CSF service properly. Restarting CSF ..." 2>&1 | tee -a "${REPORT_FILE}"
+      systemctl restart csf
+      sleep 3
+      csf_service=$(systemctl is-active csf)
+      if [ "${csf_service}" == "active" ]; then
+        echo "[${SCRIPT_NAME}]: Warning, unable to start CSF service properly. Please check the log file for more hints" 2>&1 | tee -a "${REPORT_FILE}"
+        _exit 1
+      else
+        echo "[${SCRIPT_NAME}]: OK, CSF service is running with status 0" 2>&1 | tee -a "${REPORT_FILE}"
+      fi
+      # CSF fix 2 - pending if any
     fi
   fi
 
   if [ "${service_name}" == "lfd" ]; then
-    service lfd status
-    retval=$?
-    if [ "${retval}" -ne 0 ]; then
+    lfd_service=$(systemctl is-active lfd)
+    if [ "${lfd_service}" == "active" ]; then
+      echo "[${SCRIPT_NAME}]: OK, lfd has started with status 0" 2>&1 | tee -a "${REPORT_FILE}"
+    else
       echo "[${SCRIPT_NAME}]: Warning, unable to start LFD service properly. Trying to solve this based on common problems ..." 2>&1 | tee -a "${REPORT_FILE}"
       sleep 1
-      gc=$(grep -ic 'you may need to install the IO::Socket::INET6 module' /var/log/lfd.log)
-      if [ "${gc}" -ne 0 ]; then
-        echo "[${SCRIPT_NAME}]: Found missing perl IO::Socket::INET6 module. Installing libio-socket-inet6-perl for Debian" 2>&1 | tee -a "${REPORT_FILE}"
-        apt-get -y install libio-socket-inet6-perl 2>&1 | tee -a "${REPORT_FILE}"
-        echo "[${SCRIPT_NAME}]: Starting lfd for the second time ..." 2>&1 | tee -a "${REPORT_FILE}"
-        service lfd restart
-        retval=$?
-        if [ "${retval}" -ne 0 ]; then
-          echo "[${SCRIPT_NAME}]: Warning, unable to start LFD service properly for the second time. Inspect this problem right now" 2>&1 | tee -a "${REPORT_FILE}"
-          _exit 1
+      # Start lfd to generate log file because first it had no log
+      echo "[${SCRIPT_NAME}]: Starting lfd to generate lfd log file ..." 2>&1 | tee -a "${REPORT_FILE}"
+      systemctl start lfd
+      # lfd known fix 1
+      if [ -f /var/log/lfd.log ]; then
+        gc=$(grep -ic 'you may need to install the IO::Socket::INET6 module' /var/log/lfd.log)
+        if [ "${gc}" -ne 0 ]; then
+          echo "[${SCRIPT_NAME}]: Found missing perl IO::Socket::INET6 module. Installing libio-socket-inet6-perl for Debian" 2>&1 | tee -a "${REPORT_FILE}"
+          sleep 1
+          apt-get -y install libio-socket-inet6-perl 2>&1 | tee -a "${REPORT_FILE}"
+          echo "[${SCRIPT_NAME}]: Clearing lfd log entry ..." 2>&1 | tee -a "${REPORT_FILE}"
+          sleep 1
+          cat /dev/null >/var/log/lfd.log
+          echo "[${SCRIPT_NAME}]: Restarting lfd ..." 2>&1 | tee -a "${REPORT_FILE}"
+          systemctl restart lfd
+          check_fix_service "lfd"
         else
-          echo "[${SCRIPT_NAME}]: OK, LFD has not started with status 0" 2>&1 | tee -a "${REPORT_FILE}"
+          echo "[${SCRIPT_NAME}]: Error, unable to understand why lfd cannot be started. Check /var/log/lfd.log for more hints" 2>&1 | tee -a "${REPORT_FILE}"
+          _exit 1
         fi
-        # End service_name = lfd
       else
-        echo "[${SCRIPT_NAME}]: Error, unable to understand why lfd cannot be started. Check /var/log/lfd.log for more hints" 2>&1 | tee -a "${REPORT_FILE}"
-        _exit 1
+        # This is just in case if log file not appear
+        echo "[${SCRIPT_NAME}]: Warning, lfd log file not generated" 2>&1 | tee -a "${REPORT_FILE}"
+        echo "[${SCRIPT_NAME}]: Rechecking lfd status in 5 seconds ..." 2>&1 | tee -a "${REPORT_FILE}"
+        sleep 5
+        check_fix_service "lfd"
       fi
-      echo "[${SCRIPT_NAME}]: OK, LFD has not started with status 0" 2>&1 | tee -a "${REPORT_FILE}"
+
+      # lfd known fix 2
+      # ----
+
     fi
   fi
 }
@@ -1100,7 +1118,7 @@ configure_csf() {
         fi
         echo "-----------------" 2>&1 | tee -a "${REPORT_FILE}"
         echo "[${SCRIPT_NAME}]: Starting CSF ..." 2>&1 | tee -a "${REPORT_FILE}"
-        service csf start 2>&1 | tee -a "${REPORT_FILE}"
+        systemctl start csf 2>&1 | tee -a "${REPORT_FILE}"
         # Fix that here
         check_fix_service "csf"
         # By default behaviour, LFD should start automatically when we run csf start
@@ -1848,7 +1866,6 @@ function configure_da_mail() {
           echo "[${SCRIPT_NAME}]: Adding ${rc_built_in_plugin} into roundcube plugin list ..." 2>&1 | tee -a "${REPORT_FILE}"
           sleep 1
           sed -i "s|\$config\[.plugins.\] = array(|&\n    ${rc_built_in_plugin}|" "${rc_config_file}"
-
         else
           echo "[${SCRIPT_NAME}]: [Skipped] The plugin ${rc_built_in_plugin} has already been set in ${rc_config_file}" 2>&1 | tee -a "${REPORT_FILE}"
         fi
@@ -2695,14 +2712,13 @@ fi
 # FOR BOTH GENERAL AND DIRECTADMIN INSTALLATION TYPE:
 #Best to execute after install_da because CSF installer will detect if DA exist, it will install CSF in DA way.
 configure_csf
-exit 1
+#exit 1
 # Need to restart first before running next commands after enable IPv6 because 'tentative status issue with ethX + nginx'.
 # If I don't restart, I won't be able to request cert and letsencrypt will complain about firewall.
 # Just temporary restart until I find solution (restart best after configure_csf).
 if [ "${INSTALL_TYPE}" == "DIRECTADMIN" ]; then
   # Must run this functions (enable_da_ssl) after running CSF because we need to make sure all appropriate ports are opened to request certs
   # Warning do not overused enable_da_ssl function because when requesting the same cert for the same domain 7 times for a week, you will get blocked.
-
   enable_da_ssl #OK
   #exit 1
   configure_da_sql #OK
