@@ -211,7 +211,7 @@ function check_finish_reboot() {
   else
     echo "[${SCRIPT_NAME}]: [OK]: ${FUNC_NAME} has been executed" 2>&1 | tee -a "${REPORT_FILE}"
     # This sleep is for debugging, when finish developing this script, I should remove this sleep to speed up the script
-    sleep 1
+    #sleep 1
   fi
 
 }
@@ -2349,6 +2349,197 @@ EOF
     sleep 1
   fi
 }
+
+function configure_maxiaide() {
+  # install aide
+  # init database
+  :
+}
+
+function configure_maxicata() {
+  # Debug
+  rm -f "${CONF_PATH}/configure_maxicata_executed"
+  if [ ! -f "${CONF_PATH}/${FUNCNAME[0]}_executed" ]; then
+    echo "[${SCRIPT_NAME}]: Executing ${FUNCNAME[0]} ..." 2>&1 | tee -a "${REPORT_FILE}"
+    local latest_suricata_version suricata_service is_masked suricata_select_version suricata_conf
+    suricata_conf="/etc/suricata/suricata.yaml"
+    # Instruction: https://forum.suricata.io/t/install-suricata-6-0-1-on-debian-10-from-source/992
+    # Install required components for suricata:
+    echo "[${SCRIPT_NAME}]: Installing required components for suricata ..." 2>&1 | tee -a "${REPORT_FILE}"
+    sleep 1
+
+    apt-get install make autoconf automake libtool
+    apt-get -y install libpcre3 libpcre3-dbg libpcre3-dev build-essential libpcap-dev \
+      libnet1-dev libyaml-0-2 libyaml-dev pkg-config zlib1g zlib1g-dev liblz4-dev \
+      libcap-ng-dev libcap-ng0 libmagic-dev libjansson-dev libnspr4-dev \
+      libnss3-dev libgeoip-dev liblua5.1-dev libhiredis-dev libevent-dev \
+      python-yaml python3-distutils python3-pip #rustc cargo
+    pip3 install PyYAML
+
+    # Do not install rustc and cargo
+    # This will fix this error -> ERROR: Suricata now requires Rust to build (Debian has bug with rustc package)
+    # Bug details: https://bugs.debian.org/cgi-bin/bugreport.cgi?bug=976601 | https://redmine.openinfosecfoundation.org/issues/4204
+    # workaround step: https://stackoverflow.com/questions/65330382/building-suricata-could-not-compile-der-parser
+
+    # Remove built-in package of rustc
+    echo "[${SCRIPT_NAME}]: Removing built-in of existing rustc ..." 2>&1 | tee -a "${REPORT_FILE}"
+    sleep 1
+    sudo apt remove --purge rustc
+    # apt-get -y install rustc cargo (install latest rust)
+    echo "[${SCRIPT_NAME}]: Installing the latest rustc package ..." 2>&1 | tee -a "${REPORT_FILE}"
+    # The last command sh -s -- -y will not prompt question
+    curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
+    echo "[${SCRIPT_NAME}]: Sourcing cargo env file ..." 2>&1 | tee -a "${REPORT_FILE}"
+    sleep 1
+    source "$HOME/.cargo/env"
+    # Removing suricata compiled source:
+
+    echo "[${SCRIPT_NAME}]: Removing existing suricata installation and log files ..." 2>&1 | tee -a "${REPORT_FILE}"
+    sleep 1
+    apt-get remove suricata
+    rm -rf /usr/share/suricata
+    rm -rf /etc/suricata
+    rm -rf /var/lib/suricata
+    rm -rf /var/log/suricata
+    rm -f /usr/local/bin/suricata
+    rm -f /etc/default/suricata
+    rm -f /etc/init.d/suricata
+    rm -f /etc/systemd/system/suricata.service
+
+    systemctl daemon-reload
+
+    # source configuration
+    # Do not use apt to install. Currently Debian package uses old version 4.1.2 but the latest is 6.0.1
+    # For CentOS rpm package will install only version 5. So the best is to compile from source using this trick:
+    cd_to_path "${INST_TEMP_DIR}"
+    latest_suricata_version=$(curl 'https://www.openinfosecfoundation.org/download/' | grep -oP 'href="suricata-\K[0-9]+\.[0-9]+\.[0-9]+' | sort -t. -rn -k1,1 -k2,2 -k3,3 | head -1)
+    # If you think the future version of suricata installation will follow below step then put suricata_select_version="${latest_suricata_version}"
+    suricata_select_version="6.0.1"
+    # Below is the installation for Suricata 6.0.1. Sometimes new version release and the way how to install Suricata is not the same like previous one
+    # Sometimes new version has extra library so we need to check how to install this.
+    echo "[${SCRIPT_NAME}]: Removing suricata downloaded file suricata-${suricata_select_version}.tar.gz ..." 2>&1 | tee -a "${REPORT_FILE}"
+    sleep 1
+    rm -fv "${INST_TEMP_DIR}/suricata-${suricata_select_version}.tar.gz"
+    echo "[${SCRIPT_NAME}]: Downloading suricata latest version-${suricata_select_version} ..." 2>&1 | tee -a "${REPORT_FILE}"
+    sleep 1
+    wget "https://www.openinfosecfoundation.org/download/suricata-${suricata_select_version}.tar.gz"
+    echo "[${SCRIPT_NAME}]: Extracting suricata version-${suricata_select_version} ..." 2>&1 | tee -a "${REPORT_FILE}"
+    sleep 1
+    tar xzvf "suricata-${suricata_select_version}.tar.gz"
+    cd_to_path "suricata-${suricata_select_version}/"
+    echo "[${SCRIPT_NAME}]: Configuring script for getting ready to build suricata ... " 2>&1 | tee -a "${REPORT_FILE}"
+    sleep 1
+    # Dont enable IPS because we will integrate blocking with CSF (using my script called maxicode/maxicata)
+    ./configure --libdir=/usr/lib64 --prefix=/usr/local --sysconfdir=/etc --localstatedir=/var --datarootdir=/usr/local/share --enable-lua --enable-rust
+    #make
+    #sudo make install
+    echo "[${SCRIPT_NAME}]: Installing suricata with make install-full ... " 2>&1 | tee -a "${REPORT_FILE}"
+    sleep 1
+    sudo make install-full
+
+    # Use this ldconfig to prevent error described here:
+    # https://stackoverflow.com/questions/65330382/building-suricata-could-not-compile-der-parser
+    # sudo ldconfig
+
+    # suricata -V
+    if command -v suricata &>/dev/null; then
+      echo "[${SCRIPT_NAME}]: Suricata is installed with the following details: " 2>&1 | tee -a "${REPORT_FILE}"
+      suricata -V
+      sleep 2
+    else
+      echo "[${SCRIPT_NAME}]: No suricata binary is found! Please inspect the log file why " 2>&1 | tee -a "${REPORT_FILE}"
+      _exit 1
+    fi
+    # Then Create the service file
+    echo "[${SCRIPT_NAME}]: Creating a new suricata.service file ..." 2>&1 | tee -a "${REPORT_FILE}"
+    sleep 1
+
+    {
+      echo "# ==============================================="
+      echo "# This configuration file was generated by ${SCRIPT_NAME}"
+      echo "# Author: ${ADMIN_NAME} | Email: ${ADMIN_EMAIL} | Web: ${BOX_DOMAIN}"
+      echo "# ==============================================="
+      echo "[Unit]"
+      echo "Description=Suricata IDS/IDP Service"
+      echo "Wants=network.target syslog.target"
+      echo "After=network.target syslog.target"
+      echo "Documentation=man:suricata(8) man:suricatasc(8)"
+      echo "Documentation=https://redmine.openinfosecfoundation.org/projects/suricata/wiki"
+      echo ""
+      echo "[Service]"
+      echo "Type=forking"
+      echo "Environment=LD_PREDLOAD=/usr/lib/x86_64-linux-gnu/libtcmalloc_minimal.so.4"
+      echo "# Debug level ---> -v: INFO | -vv: INFO+PERF | -vvv: INFO+PERF+CONFIG | -vvvv: INFO+PERF+CONFIG+DEBUG"
+      echo "# D - means in daemon | -c read config | --pidfile <file> write pidfile on a file"
+      echo "ExecStart=suricata --af-packet -vvv -D -c /etc/suricata/suricata.yaml --pidfile /var/run/suricata.pid"
+      echo "ExecStartPre=rm -f /var/run/suricata.pid"
+      echo "ExecStop=kill \$MAINPID && rm -f /var/run/suricata.pid"
+      echo "ExecReload=kill -9 \$MAINPID"
+      echo ""
+      echo "[Install]"
+      echo "WantedBy=multi-user.target"
+    } >/etc/systemd/system/suricata.service
+    sleep 1
+    echo "[${SCRIPT_NAME}]: Checking if suricata.service is masked ..." 2>&1 | tee -a "${REPORT_FILE}"
+    sleep 1
+    is_masked=$(systemctl status suricata | grep -c 'masked')
+    #is_masked=$(ls -l /etc/systemd/system/suricata.service | grep -c '/dev/null')
+    if [ "${is_masked}" -gt 0 ]; then
+      echo "[${SCRIPT_NAME}]: Warning, the suricata.service is masked. Unmasking the service file ..." 2>&1 | tee -a "${REPORT_FILE}"
+      sleep 1
+      systemctl unmask suricata
+    else
+      echo "[${SCRIPT_NAME}]: OK, the suricata.service is not masked" 2>&1 | tee -a "${REPORT_FILE}"
+    fi
+
+    # Enable suricata before starting at /etc/default/suricata (doesn't seems important when I use the above script)
+    # Before starting suricata, I need to use custom config file (suricata.yaml) for best performance:
+
+    echo "[${SCRIPT_NAME}]: Copying suricata.yaml configuration file template into ${suricata_conf} ..."
+    sleep 1
+    cp "${DATA_PATH}/maxisetup/storage/os/${DISTRO_ID}/usr/local/maxicode/maxicata/code/etc/suricata/suricata.yaml" "${suricata_conf}"
+
+    echo "[${SCRIPT_NAME}]: Starting suricata ... " 2>&1 | tee -a "${REPORT_FILE}"
+    sleep 1
+    systemctl start suricata
+    suricata_service=$(systemctl is-active suricata)
+
+    if [ "${suricata_service}" == "active" ]; then
+      echo "[${SCRIPT_NAME}]: OK, suricata is running" 2>&1 | tee -a "${REPORT_FILE}"
+    else
+      echo "[${SCRIPT_NAME}]: Warning, suricata process is not active [unknown reason]. Please inspect log file to understand the reason" 2>&1 | tee -a "${REPORT_FILE}"
+      _exit 1
+    fi
+
+    echo "[${SCRIPT_NAME}]: Enabling suricata 3rd party rules ..." 2>&1 | tee -a "${REPORT_FILE}"
+    sleep 1
+    suricata-update enable-source sslbl/ssl-fp-blacklist
+    suricata-update enable-source ptresearch/attackdetection
+    suricata-update enable-source etnetera/aggressive
+    suricata-update enable-source oisf/trafficid
+    suricata-update enable-source sslbl/ja3-fingerprints
+    suricata-update enable-source et/open
+    suricata-update add-source timon-rules/cybergon https://gitlab.com/cybergon/timon-rules/raw/master/cybergon.rules
+    echo "[${SCRIPT_NAME}]: Updating suricata new 3rd party sources ..." 2>&1 | tee -a "${REPORT_FILE}"
+    sleep 1
+    suricata-update update-sources
+    echo "[${SCRIPT_NAME}]: Updating suricata new signature ..." 2>&1 | tee -a "${REPORT_FILE}"
+    sleep 1
+    suricata-update
+
+    check_finish_reboot "${FUNCNAME[0]}"
+  else
+    echo "[${SCRIPT_NAME}]: [Skipped]: ${FUNCNAME[0]} has ran before" 2>&1 | tee -a "${REPORT_FILE}"
+    sleep 1
+  fi
+}
+
+function configure_da_package() {
+
+  :
+  #https://forum.directadmin.com/threads/server-migration-how-to-use-the-existing-configuration-during-setup.62937/
+}
+
 # This will install OS memcached and php memcached extension
 function configure_da_memcached() {
   if [ ! -f "${CONF_PATH}/${FUNCNAME[0]}_executed" ]; then
@@ -2751,9 +2942,10 @@ configure_maxibox
 #exit 1
 configure_maxigpg
 #exit 1
-#setup_maxiaide
+configure_maxiaide
 #exit 1
-#setup_maxicata
+configure_maxicata
+#exit 1
 post_setup
 echo "" 2>&1 | tee -a "${REPORT_FILE}"
 echo "==============" 2>&1 | tee -a "${REPORT_FILE}"
@@ -2769,4 +2961,4 @@ echo "========== Installation Completed ==========" 2>&1 | tee -a "${REPORT_FILE
 echo ""
 echo "[${SCRIPT_NAME}]: Destroying ${ENVIRONMENT_FILE} file in 30 seconds (ctrl+c to cancel) ..." 2>&1 | tee -a "${REPORT_FILE}"
 sleep 30
-shred -uvz ${ENVIRONMENT_FILE}
+shred -uvz "${ENVIRONMENT_FILE}"
