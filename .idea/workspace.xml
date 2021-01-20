@@ -10,7 +10,9 @@
     <select />
   </component>
   <component name="ChangeListManager">
-    <list default="true" id="113c828c-9a32-4b24-ab1e-978ce50c6320" name="Default Changelist" comment="Add maxiperm installation" />
+    <list default="true" id="113c828c-9a32-4b24-ab1e-978ce50c6320" name="Default Changelist" comment="Initial release alpha version v0.1 of maxida (MaxiDA) to manage directadmin functionalities and APIs&#10;Add new function to create reseller package using API">
+      <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
+    </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
     <option name="HIGHLIGHT_NON_ACTIVE_CHANGELIST" value="false" />
@@ -45,6 +47,21 @@
       <recent name="C:\Users\Maxibi\IdeaProjects\maxisetup_public" />
     </key>
   </component>
+  <component name="RunManager">
+    <configuration default="true" type="ArquillianTestNG" factoryName="" nameIsGenerated="true">
+      <option name="arquillianRunConfiguration">
+        <value>
+          <option name="containerStateName" value="" />
+        </value>
+      </option>
+      <option name="TEST_OBJECT" value="CLASS" />
+      <properties />
+      <listeners />
+      <method v="2">
+        <option name="Make" enabled="true" />
+      </method>
+    </configuration>
+  </component>
   <component name="SpellCheckerSettings" RuntimeDictionaries="0" Folders="0" CustomDictionaries="0" DefaultDictionary="application-level" UseSingleDictionary="true" transferred="true" />
   <component name="TaskManager">
     <task active="true" id="Default" summary="Default task">
@@ -59,6 +76,8 @@
       <workItem from="1611111970165" duration="726000" />
       <workItem from="1611119189290" duration="111000" />
       <workItem from="1611119716499" duration="640000" />
+      <workItem from="1611125941805" duration="309000" />
+      <workItem from="1611168472056" duration="591000" />
     </task>
     <task id="LOCAL-00001" summary="Initial release from beta Version 0.3.2.7-beta">
       <created>1610639956771</created>
@@ -95,7 +114,21 @@
       <option name="project" value="LOCAL" />
       <updated>1611119759780</updated>
     </task>
-    <option name="localTasksCounter" value="6" />
+    <task id="LOCAL-00006" summary="Fixed maxiperm wrong binary name from 'maxiperm' to 'perm'&#10;Fixed awk not display result due to missing awk binary. So, added gawk requirement for maxicata and other scripts&#10;added configure_maxicode_pre function to install pre-requisite components for all maxicode">
+      <created>1611125978628</created>
+      <option name="number" value="00006" />
+      <option name="presentableId" value="LOCAL-00006" />
+      <option name="project" value="LOCAL" />
+      <updated>1611125978628</updated>
+    </task>
+    <task id="LOCAL-00007" summary="Initial release alpha version v0.1 of maxida (MaxiDA) to manage directadmin functionalities and APIs&#10;Add new function to create reseller package using API">
+      <created>1611168526150</created>
+      <option name="number" value="00007" />
+      <option name="presentableId" value="LOCAL-00007" />
+      <option name="project" value="LOCAL" />
+      <updated>1611168526150</updated>
+    </task>
+    <option name="localTasksCounter" value="8" />
     <servers />
   </component>
   <component name="TypeScriptGeneratedFilesManager">
@@ -119,17 +152,19 @@
     <MESSAGE value="Add required components installation and custom env file for maxicata (private code)" />
     <MESSAGE value="Fixed minor bug on extra curly bracket for MAXICATA_AIPDB_REPORT_URL variable for Maxicata script&#10;Maxicata - Fixed bug awk code empty. Re-add code file srch.awk" />
     <MESSAGE value="Add maxiperm installation" />
-    <option name="LAST_COMMIT_MESSAGE" value="Add maxiperm installation" />
+    <MESSAGE value="Fixed maxiperm wrong binary name from 'maxiperm' to 'perm'&#10;Fixed awk not display result due to missing awk binary. So, added gawk requirement for maxicata and other scripts&#10;added configure_maxicode_pre function to install pre-requisite components for all maxicode" />
+    <MESSAGE value="Initial release alpha version v0.1 of maxida (MaxiDA) to manage directadmin functionalities and APIs&#10;Add new function to create reseller package using API" />
+    <option name="LAST_COMMIT_MESSAGE" value="Initial release alpha version v0.1 of maxida (MaxiDA) to manage directadmin functionalities and APIs&#10;Add new function to create reseller package using API" />
   </component>
   <component name="WindowStateProjectService">
-    <state x="184" y="85" width="1536" height="860" key="DiffContextDialog" timestamp="1611119300232">
+    <state x="184" y="85" width="1536" height="860" key="DiffContextDialog" timestamp="1611169066850">
       <screen x="0" y="0" width="1920" height="1040" />
     </state>
-    <state x="184" y="85" width="1536" height="860" key="DiffContextDialog/0.0.1920.1040@0.0.1920.1040" timestamp="1611119300232" />
-    <state x="350" y="112" key="Vcs.Push.Dialog.v2" timestamp="1611119761528">
+    <state x="184" y="85" width="1536" height="860" key="DiffContextDialog/0.0.1920.1040@0.0.1920.1040" timestamp="1611169066850" />
+    <state x="350" y="112" key="Vcs.Push.Dialog.v2" timestamp="1611168527467">
       <screen x="0" y="0" width="1920" height="1040" />
     </state>
     <state x="233" y="73" key="Vcs.Push.Dialog.v2/0.0.1280.680@0.0.1280.680" timestamp="1610639958844" />
-    <state x="350" y="112" key="Vcs.Push.Dialog.v2/0.0.1920.1040@0.0.1920.1040" timestamp="1611119761528" />
+    <state x="350" y="112" key="Vcs.Push.Dialog.v2/0.0.1920.1040@0.0.1920.1040" timestamp="1611168527467" />
   </component>
 </project>

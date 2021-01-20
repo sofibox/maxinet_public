@@ -1,7 +1,7 @@
 #!/bin/bash
 # =~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~
 # Author: Arafat Ali Email: arafat@sofibox.com
-# Version 0.3.3.4-beta
+# Version 0.3.3.6-beta
 # This is an initial server hardening script for general server using CentOS and Debian.
 # Compatible 100% with Directadmin. Supported OS: CentOS + Debian (Planned on FreeBSD)
 # Read the code to know what the scripts offer.
@@ -148,6 +148,20 @@ function da_api_admin() {
   fi
   if [ "${action}" == "create-admin-account" ]; then
     # da_api_admin "create-admin-account" "admin2" "admin2@sofibox.com" "12321"
+    shift
+    username="$1"
+    email="$2"
+    password="$3"
+    command="CMD_API_ACCOUNT_ADMIN"
+    method="POST"
+    echo "SSL: ${ssl} | Action: ${action} | username: ${username} | email: ${email} | password: ${password}"
+    #exit 1
+    data="action=create&add=submit&username=${username}&email=${email}&passwd=${password}&passwd2=${password}&notify=yes"
+    echo "Executing: ${action}" 2>&1 | tee -a "${REPORT_FILE}"
+  elif [ "${action}" == "create-reseller-account" ]; then
+    # TODO testing
+    shift
+    # da_api_admin "create-reseller-account" "admin2" "admin2@sofibox.com" "12321"
     shift
     username="$1"
     email="$2"
@@ -1231,10 +1245,11 @@ function install_da() {
     cd_to_path "${INST_TEMP_DIR}"
     wget -O setup.sh http://www.directadmin.com/setup.sh
     chmod 755 setup.sh
-    echo "[${SCRIPT_NAME}]: Installing Directadmin on ${BOX_HOSTNAME_FQDN} using ${DA_INSTALL_TYPE} mode ... " 2>&1 | tee -a "${REPORT_FILE}"
     echo "[${SCRIPT_NAME}]: Setup will install Directadmin within 30 seconds. It would take a long time, so please be patient" 2>&1 | tee -a "${REPORT_FILE}"
-    echo "[${SCRIPT_NAME}]: If you don't want to install Directadmin now, press (ctrl+C to exit) and then you can re-run this script to resume at this stage" 2>&1 | tee -a "${REPORT_FILE}"
+    echo "[${SCRIPT_NAME}]: If you don't want to install Directadmin now, press (ctrl+C) to exit and then you can re-run this script to resume at this stage" 2>&1 | tee -a "${REPORT_FILE}"
+    echo "[${SCRIPT_NAME}]: Setup will continue within 30 seconds press (ctrl+c) to exit..." 2>&1 | tee -a "${REPORT_FILE}"
     sleep 30
+    echo "[${SCRIPT_NAME}]: Installing Directadmin on ${BOX_HOSTNAME_FQDN} using ${DA_INSTALL_TYPE} mode ... " 2>&1 | tee -a "${REPORT_FILE}"
     if [[ "${DA_INSTALL_TYPE}" == "CUSTOM" || "${DA_INSTALL_TYPE}" == "ORI" ]]; then
       # custom and ori depends on the options.conf (this won't ask question)
       ./setup.sh "${DA_CLIENT_ID}" "${DA_LICENSE_ID}" "${BOX_HOSTNAME_FQDN}" "${NIC_INTERFACE_NAME}" "${IPV4_ADD0}" 2>&1 | tee -a "${REPORT_FILE}"
@@ -2847,9 +2862,12 @@ function configure_da_accounts() {
     :
     # TODO
     # 1) Here we use DA API log into admin account (USE API curl!!!. Done that)
-    # 2) Then with this account logged, we must first create a reseller package (eg: RESELLER UNLIMITED)
-    #in package creation, do not use anonymous FTP accounts, do not use SSH access (for security)
+    # 2) Then with this account logged, we must first create a reseller package (eg: RESELLER UNLIMITED) (Done at configure_da_packages)
+    #in package creation, do not use anonymous FTP accounts, do not use SSH access (for security) (done at configure_da_packages )
     # 3) After created a package, then we can create a reseller account (eg: maxibox)
+
+    # CREATE RESELLER HERE (BUT when create reseller how about package?) let's see what happen.
+
     # 4) Then using this reseller account we create a user account (eg: newuser)
     # 5)
     #
@@ -3056,6 +3074,9 @@ if [ "${INSTALL_TYPE}" == "DIRECTADMIN" ]; then
   link_da_ipv6 #OK
   #exit 1
 fi
+# FOR BOTH GENERAL AND DIRECTADMIN INSTALLATION TYPE:
+#Best to execute after install_da because CSF installer will detect if DA exist, it will install CSF in DA way.
+configure_csf
 # Still need to add more based on lynis suggestion
 harden_lynis
 #exit 1
@@ -3072,11 +3093,7 @@ configure_maxida
 configure_maxiaide
 #exit 1
 configure_maxicata
-# exit 1
-# FOR BOTH GENERAL AND DIRECTADMIN INSTALLATION TYPE:
-#Best to execute after install_da because CSF installer will detect if DA exist, it will install CSF in DA way.
-configure_csf
-#exit 1
+exit 1
 # Need to restart first before running next commands after enable IPv6 because 'tentative status issue with ethX + nginx'.
 # If I don't restart, I won't be able to request cert and letsencrypt will complain about firewall.
 # Just temporary restart until I find solution (restart best after configure_csf).
