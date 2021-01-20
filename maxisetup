@@ -1,7 +1,7 @@
 #!/bin/bash
 # =~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~
 # Author: Arafat Ali Email: arafat@sofibox.com
-# Version 0.3.3.3-beta
+# Version 0.3.3.4-beta
 # This is an initial server hardening script for general server using CentOS and Debian.
 # Compatible 100% with Directadmin. Supported OS: CentOS + Debian (Planned on FreeBSD)
 # Read the code to know what the scripts offer.
@@ -2268,19 +2268,32 @@ function configure_maxibox() {
   fi
 }
 
+# This is the pre-requisite components for all maxicode
+function configure_maxicode_pre () {
+    if [ ! -f "${CONF_PATH}/${FUNCNAME[0]}_executed" ]; then
+    echo "[${SCRIPT_NAME}]: Executing ${FUNCNAME[0]} ..." 2>&1 | tee -a "${REPORT_FILE}"
+    apt-get -y install ipcalc bc jq gawk
+    check_finish_reboot "${FUNCNAME[0]}"
+  else
+    echo "[${SCRIPT_NAME}]: [Skipped]: ${FUNCNAME[0]} has ran before" 2>&1 | tee -a "${REPORT_FILE}"
+    sleep 1
+  fi
+
+}
+
 function configure_maxiperm() {
   if [ ! -f "${CONF_PATH}/${FUNCNAME[0]}_executed" ]; then
     local maxiperm_bin
     echo "[${SCRIPT_NAME}]: Executing ${FUNCNAME[0]} ..." 2>&1 | tee -a "${REPORT_FILE}"
     echo "[${SCRIPT_NAME}]: Configuring maxiperm installation in maxicode ..." 2>&1 | tee -a "${REPORT_FILE}"
-    maxiperm_bin="/usr/local/maxicode/maxiperm/maxiperm"
+    maxiperm_bin="/usr/local/maxicode/maxiperm/perm"
     if [ -f ${maxiperm_bin} ]; then
       echo "[${SCRIPT_NAME}]: Creating symlink and executable for ${maxiperm_bin} ..." 2>&1 | tee -a "${REPORT_FILE}"
       chmod +x ${maxiperm_bin}
       # Symbolic name
       ln -s ${maxiperm_bin} /usr/local/bin
     else
-      echo "[${SCRIPT_NAME}]: Warning, maxigpg doesn't exist in /usr/local/maxicode !" 2>&1 | tee -a "${REPORT_FILE}"
+      echo "[${SCRIPT_NAME}]: Warning, maxiperm doesn't exist in /usr/local/maxicode !" 2>&1 | tee -a "${REPORT_FILE}"
       _exit 1
     fi
     check_finish_reboot "${FUNCNAME[0]}"
@@ -2398,9 +2411,6 @@ function configure_maxicata() {
       libnss3-dev libgeoip-dev liblua5.1-dev libhiredis-dev libevent-dev \
       python-yaml python3-distutils python3-pip #rustc cargo
     pip3 install PyYAML
-    # Required by maxicata:
-    apt-get -y install ipcalc bc jq
-
     # Do not install rustc and cargo
     # This will fix this error -> ERROR: Suricata now requires Rust to build (Debian has bug with rustc package)
     # Bug details: https://bugs.debian.org/cgi-bin/bugreport.cgi?bug=976601 | https://redmine.openinfosecfoundation.org/issues/4204
@@ -3019,6 +3029,8 @@ fi
 harden_lynis
 #exit 1
 configure_maxibox
+#exit 1
+configure_maxicode_pre
 #exit 1
 configure_maxiperm
 #exit 1
