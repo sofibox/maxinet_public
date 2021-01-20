@@ -1,7 +1,7 @@
 #!/bin/bash
 # =~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~
 # Author: Arafat Ali Email: arafat@sofibox.com
-# Version 0.3.3.0-beta
+# Version 0.3.3.1-beta
 # This is an initial server hardening script for general server using CentOS and Debian.
 # Compatible 100% with Directadmin. Supported OS: CentOS + Debian (Planned on FreeBSD)
 # Read the code to know what the scripts offer.
@@ -2365,16 +2365,19 @@ function configure_maxicata() {
     suricata_conf="/etc/suricata/suricata.yaml"
     # Instruction: https://forum.suricata.io/t/install-suricata-6-0-1-on-debian-10-from-source/992
     # Install required components for suricata:
-    echo "[${SCRIPT_NAME}]: Installing required components for suricata ..." 2>&1 | tee -a "${REPORT_FILE}"
+    echo "[${SCRIPT_NAME}]: Installing required components for suricata & maxicata ..." 2>&1 | tee -a "${REPORT_FILE}"
     sleep 1
-
+    # Essential tools:
     apt-get install make autoconf automake libtool
+    # Required by suricata:
     apt-get -y install libpcre3 libpcre3-dbg libpcre3-dev build-essential libpcap-dev \
       libnet1-dev libyaml-0-2 libyaml-dev pkg-config zlib1g zlib1g-dev liblz4-dev \
       libcap-ng-dev libcap-ng0 libmagic-dev libjansson-dev libnspr4-dev \
       libnss3-dev libgeoip-dev liblua5.1-dev libhiredis-dev libevent-dev \
       python-yaml python3-distutils python3-pip #rustc cargo
     pip3 install PyYAML
+    # Required by maxicata:
+    apt-get -y install ipcalc bc jq
 
     # Do not install rustc and cargo
     # This will fix this error -> ERROR: Suricata now requires Rust to build (Debian has bug with rustc package)
@@ -2565,9 +2568,21 @@ function configure_maxicata() {
       _exit 1
     fi
 
-    # Maxicata --init will do all the commented above (already have this function long time ago).
-    echo "[${SCRIPT_NAME}]: Running maxicata --initfull ..." 2>&1 | tee -a "${REPORT_FILE}"
+    # Writing a new maxicata.env file (all sensitive variables should be declared in maxi.env and pass here)
+    echo "[${SCRIPT_NAME}]: Writing new maxicata.env file ..." 2>&1 | tee -a "${REPORT_FILE}"
+    sleep 1
+    {
+      echo "# The URL. Need to modify this if they change this URL like the v2 to v3"
+      echo "AIPDB_CHECK_URL=\"${MAXICATA_AIPDB_CHECK_URL}"\"
+      echo "AIPDB_REPORT_URL=\"${MAXICATA_AIPDB_REPORT_URL}}"\"
+      echo "# The main AIPDB key"
+      echo "AIPDB_API_KEY=\"${MAXICATA_AIPDB_API_KEY}"\"
+    } >"/usr/local/maxicode/maxicata/conf/maxicata.env"
 
+    # Maxicata --init will do all the commented above (already have this function long time ago).
+    # Must have maxicata.env file first before running --initfull
+    echo "[${SCRIPT_NAME}]: Running maxicata --initfull ..." 2>&1 | tee -a "${REPORT_FILE}"
+    sleep 1
     maxicata --initfull
 
     check_finish_reboot "${FUNCNAME[0]}"
@@ -2578,7 +2593,6 @@ function configure_maxicata() {
 }
 
 function configure_da_package() {
-
   :
   #https://forum.directadmin.com/threads/server-migration-how-to-use-the-existing-configuration-during-setup.62937/
 }
