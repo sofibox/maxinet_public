@@ -1,7 +1,7 @@
 #!/bin/bash
 # =~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~
 # Author: Arafat Ali Email: arafat@sofibox.com
-# Version 0.3.3.1-beta
+# Version 0.3.3.3-beta
 # This is an initial server hardening script for general server using CentOS and Debian.
 # Compatible 100% with Directadmin. Supported OS: CentOS + Debian (Planned on FreeBSD)
 # Read the code to know what the scripts offer.
@@ -2267,6 +2267,28 @@ function configure_maxibox() {
     sleep 1
   fi
 }
+
+function configure_maxiperm() {
+  if [ ! -f "${CONF_PATH}/${FUNCNAME[0]}_executed" ]; then
+    local maxiperm_bin
+    echo "[${SCRIPT_NAME}]: Executing ${FUNCNAME[0]} ..." 2>&1 | tee -a "${REPORT_FILE}"
+    echo "[${SCRIPT_NAME}]: Configuring maxiperm installation in maxicode ..." 2>&1 | tee -a "${REPORT_FILE}"
+    maxiperm_bin="/usr/local/maxicode/maxiperm/maxiperm"
+    if [ -f ${maxiperm_bin} ]; then
+      echo "[${SCRIPT_NAME}]: Creating symlink and executable for ${maxiperm_bin} ..." 2>&1 | tee -a "${REPORT_FILE}"
+      chmod +x ${maxiperm_bin}
+      # Symbolic name
+      ln -s ${maxiperm_bin} /usr/local/bin
+    else
+      echo "[${SCRIPT_NAME}]: Warning, maxigpg doesn't exist in /usr/local/maxicode !" 2>&1 | tee -a "${REPORT_FILE}"
+      _exit 1
+    fi
+    check_finish_reboot "${FUNCNAME[0]}"
+  else
+    echo "[${SCRIPT_NAME}]: [Skipped]: ${FUNCNAME[0]} has ran before" 2>&1 | tee -a "${REPORT_FILE}"
+    sleep 1
+  fi
+}
 # Installing other security software based on maxicode
 function configure_maxigpg() {
   if [ ! -f "${CONF_PATH}/${FUNCNAME[0]}_executed" ]; then
@@ -2595,6 +2617,7 @@ function configure_maxicata() {
 function configure_da_package() {
   :
   #https://forum.directadmin.com/threads/server-migration-how-to-use-the-existing-configuration-during-setup.62937/
+  #https://forum.directadmin.com/threads/default-user-package-s-for-resellers.49156/
 }
 
 # This will install OS memcached and php memcached extension
@@ -2996,6 +3019,8 @@ fi
 harden_lynis
 #exit 1
 configure_maxibox
+#exit 1
+configure_maxiperm
 #exit 1
 configure_maxigpg
 #exit 1
