@@ -10,7 +10,9 @@
     <select />
   </component>
   <component name="ChangeListManager">
-    <list default="true" id="113c828c-9a32-4b24-ab1e-978ce50c6320" name="Default Changelist" comment="Fixed maxicata directory creation (small changes)&#10;Change code to use built-in maxicata function to init config" />
+    <list default="true" id="113c828c-9a32-4b24-ab1e-978ce50c6320" name="Default Changelist" comment="Add required components installation and custom env file for maxicata (private code)">
+      <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
+    </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
     <option name="HIGHLIGHT_NON_ACTIVE_CHANGELIST" value="false" />
@@ -45,21 +47,6 @@
       <recent name="C:\Users\Maxibi\IdeaProjects\maxisetup_public" />
     </key>
   </component>
-  <component name="RunManager">
-    <configuration default="true" type="ArquillianTestNG" factoryName="" nameIsGenerated="true">
-      <option name="arquillianRunConfiguration">
-        <value>
-          <option name="containerStateName" value="" />
-        </value>
-      </option>
-      <option name="TEST_OBJECT" value="CLASS" />
-      <properties />
-      <listeners />
-      <method v="2">
-        <option name="Make" enabled="true" />
-      </method>
-    </configuration>
-  </component>
   <component name="SpellCheckerSettings" RuntimeDictionaries="0" Folders="0" CustomDictionaries="0" DefaultDictionary="application-level" UseSingleDictionary="true" transferred="true" />
   <component name="TaskManager">
     <task active="true" id="Default" summary="Default task">
@@ -71,6 +58,7 @@
       <workItem from="1610639729879" duration="6369000" />
       <workItem from="1610901827130" duration="26000" />
       <workItem from="1611060627378" duration="578000" />
+      <workItem from="1611111970165" duration="726000" />
     </task>
     <task id="LOCAL-00001" summary="Initial release from beta Version 0.3.2.7-beta">
       <created>1610639956771</created>
@@ -86,7 +74,14 @@
       <option name="project" value="LOCAL" />
       <updated>1611061058090</updated>
     </task>
-    <option name="localTasksCounter" value="3" />
+    <task id="LOCAL-00003" summary="Add required components installation and custom env file for maxicata (private code)">
+      <created>1611112084944</created>
+      <option name="number" value="00003" />
+      <option name="presentableId" value="LOCAL-00003" />
+      <option name="project" value="LOCAL" />
+      <updated>1611112084944</updated>
+    </task>
+    <option name="localTasksCounter" value="4" />
     <servers />
   </component>
   <component name="TypeScriptGeneratedFilesManager">
@@ -107,17 +102,18 @@
   <component name="VcsManagerConfiguration">
     <MESSAGE value="Initial release from beta Version 0.3.2.7-beta" />
     <MESSAGE value="Fixed maxicata directory creation (small changes)&#10;Change code to use built-in maxicata function to init config" />
-    <option name="LAST_COMMIT_MESSAGE" value="Fixed maxicata directory creation (small changes)&#10;Change code to use built-in maxicata function to init config" />
+    <MESSAGE value="Add required components installation and custom env file for maxicata (private code)" />
+    <option name="LAST_COMMIT_MESSAGE" value="Add required components installation and custom env file for maxicata (private code)" />
   </component>
   <component name="WindowStateProjectService">
     <state x="184" y="85" width="1536" height="860" key="DiffContextDialog" timestamp="1611061049230">
       <screen x="0" y="0" width="1920" height="1040" />
     </state>
     <state x="184" y="85" width="1536" height="860" key="DiffContextDialog/0.0.1920.1040@0.0.1920.1040" timestamp="1611061049230" />
-    <state x="350" y="112" key="Vcs.Push.Dialog.v2" timestamp="1611061059448">
+    <state x="350" y="112" key="Vcs.Push.Dialog.v2" timestamp="1611112094484">
       <screen x="0" y="0" width="1920" height="1040" />
     </state>
     <state x="233" y="73" key="Vcs.Push.Dialog.v2/0.0.1280.680@0.0.1280.680" timestamp="1610639958844" />
-    <state x="350" y="112" key="Vcs.Push.Dialog.v2/0.0.1920.1040@0.0.1920.1040" timestamp="1611061059448" />
+    <state x="350" y="112" key="Vcs.Push.Dialog.v2/0.0.1920.1040@0.0.1920.1040" timestamp="1611112094484" />
   </component>
 </project>

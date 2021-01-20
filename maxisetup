@@ -2574,7 +2574,7 @@ function configure_maxicata() {
     {
       echo "# The URL. Need to modify this if they change this URL like the v2 to v3"
       echo "AIPDB_CHECK_URL=\"${MAXICATA_AIPDB_CHECK_URL}"\"
-      echo "AIPDB_REPORT_URL=\"${MAXICATA_AIPDB_REPORT_URL}}"\"
+      echo "AIPDB_REPORT_URL=\"${MAXICATA_AIPDB_REPORT_URL}"\"
       echo "# The main AIPDB key"
       echo "AIPDB_API_KEY=\"${MAXICATA_AIPDB_API_KEY}"\"
     } >"/usr/local/maxicode/maxicata/conf/maxicata.env"
