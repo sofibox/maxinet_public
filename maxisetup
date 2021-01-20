@@ -1,7 +1,7 @@
 #!/bin/bash
 # =~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~
 # Author: Arafat Ali Email: arafat@sofibox.com
-# Version 0.3.3.6-beta
+# Version 0.3.3.7-beta
 # This is an initial server hardening script for general server using CentOS and Debian.
 # Compatible 100% with Directadmin. Supported OS: CentOS + Debian (Planned on FreeBSD)
 # Read the code to know what the scripts offer.
@@ -1162,10 +1162,10 @@ configure_csf() {
         # If I don't restart at this point, I will not be able to renew cert (letsencrypt will produce error like firewall problem but it's not).
         # This is related to Ipv6 DAD. Look at function link_da_ipv6() for more information
         # DAD disable is not working. Still need to restart system. Just restart it and resume later.
-        echo "[${SCRIPT_NAME}]: Creating reboot flag to restart system after installing CSF ..." 2>&1 | tee -a "${REPORT_FILE}"
-        cat /dev/null >/var/run/reboot-required
-        echo "[${SCRIPT_NAME}]: Warning, system will reboot and you can run this script again to continue setup" 2>&1 | tee -a "${REPORT_FILE}"
-        _pause
+        #echo "[${SCRIPT_NAME}]: Creating reboot flag to restart system after installing CSF ..." 2>&1 | tee -a "${REPORT_FILE}"
+        #cat /dev/null >/var/run/reboot-required
+        #echo "[${SCRIPT_NAME}]: Warning, system will reboot and you can run this script again to continue setup" 2>&1 | tee -a "${REPORT_FILE}"
+        #_pause
       else
         echo "[${SCRIPT_NAME}]: This is the weirdest error. Where the hell is /etc/csf/csf.conf? ..." 2>&1 | tee -a "${REPORT_FILE}"
         _exit 1
@@ -1476,6 +1476,22 @@ function install_da_post() {
     sleep 1
   fi
 }
+
+# This is the pre-requirement before getting ssl
+function enable_da_ssl_pre() {
+  if [ ! -f "${CONF_PATH}/${FUNCNAME[0]}_executed" ]; then
+    echo "[${SCRIPT_NAME}]: Executing ${FUNCNAME[0]} ..." 2>&1 | tee -a "${REPORT_FILE}"
+    echo "[${SCRIPT_NAME}]: Creating reboot flag to restart system before requesting SSL certificate for Directadmin ..." 2>&1 | tee -a "${REPORT_FILE}"
+    cat /dev/null >/var/run/reboot-required
+    echo "[${SCRIPT_NAME}]: Warning, system will reboot and you can run this script again to continue setup" 2>&1 | tee -a "${REPORT_FILE}"
+    _pause
+    check_finish_reboot "${FUNCNAME[0]}"
+  else
+    echo "[${SCRIPT_NAME}]: [Skipped]: ${FUNCNAME[0]} has ran before" 2>&1 | tee -a "${REPORT_FILE}"
+    sleep 1
+  fi
+}
+
 function enable_da_ssl() {
   # Request SSL failed due to DAD (until server restart)
   # Interesting answer: https://serverfault.com/questions/602700/debian-ipv6-is-not-asssigned-to-interface
@@ -3093,14 +3109,15 @@ configure_maxida
 configure_maxiaide
 #exit 1
 configure_maxicata
-exit 1
+#exit 1
 # Need to restart first before running next commands after enable IPv6 because 'tentative status issue with ethX + nginx'.
 # If I don't restart, I won't be able to request cert and letsencrypt will complain about firewall.
-# Just temporary restart until I find solution (restart best after configure_csf).
 #configure_logs
 if [ "${INSTALL_TYPE}" == "DIRECTADMIN" ]; then
   # Must run this functions (enable_da_ssl) after running CSF because we need to make sure all appropriate ports are opened to request certs
   # Warning do not overused enable_da_ssl function because when requesting the same cert for the same domain 7 times for a week, you will get blocked.
+  enable_da_ssl_pre
+  exit 1
   enable_da_ssl #OK
   #exit 1
   configure_da_sql #OK
