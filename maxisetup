@@ -127,7 +127,7 @@ function da_api_admin() {
   local command data method input decoded_status
   local action username email password
   local ip netmask ssl admin_new_list admin_ori_list
-
+  local package_name
   admin_new_list=$(head -1 "/usr/local/directadmin/data/admin/admin.list")
   admin_ori_list="/usr/local/directadmin/scripts/setup.txt"
   action="$1"
@@ -180,6 +180,22 @@ function da_api_admin() {
     echo "SSL: ${ssl} | Action: ${action} | IP: ${ip} | netmask: ${netmask}"
     #exit 1
     echo "Executing: ${action}" 2>&1 | tee -a "${REPORT_FILE}"
+    #CMD_API_MANAGE_RESELLER_PACKAGES
+  elif [ "${action}" == "create-reseller-package" ]; then
+    # da_api_admin"create-reseller-package" "RESELLER_UNLIMITED"
+    shift
+    package_name="$1"
+    command="CMD_API_MANAGE_RESELLER_PACKAGES"
+    # This is unlimited package:
+    data="bandwidth=5000&ubandwidth=yes&quota=1000&uquota=yes&inode=&uinode=yes&vdomains=10&uvdomains=yes \
+    &nsubdomains=10&unsubdomains=yes&nemails=100&unemails=yes&nemailf=100&unemailf=yes&nemailml=10 \
+    &unemailml=yes&nemailr=100&unemailr=yes&mysql=0&umysql=yes&domainptr=0&udomainptr=yes&ftp=10&uftp=yes \
+    &cgi=ON&php=ON&spam=ON&catchall=ON&ssl=ON&oversell=ON&cron=ON&sysinfo=ON&login_keys=ON&dnscontrol=ON \
+    &dns=OFF&serverip=ON&packagename=${package_name}&nusers=&unusers=yes&json=yes&add=yes&ips=0"
+    method="POST"
+  else
+    echo "[${SCRIPT_NAME}]: The API action '${action}' does not exist!"
+    exit 1
   fi
   # Executing API via curl based on command above
   input=$(curl --request "${method}" --user "${api_username}":"${api_password}" --data "${data}" "${ssl}://${BOX_HOSTNAME_FQDN}:${DA_PORT}/${command}")
@@ -1229,12 +1245,12 @@ function install_da() {
       # This will not ask question and everything will be installed as default including CSF
       bash <(curl -Ss https://www.directadmin.com/setup.sh) auto
     fi
+    script_time
     check_finish_reboot "${FUNCNAME[0]}"
   else
     echo "[${SCRIPT_NAME}]: [Skipped]: ${FUNCNAME[0]} has ran before" 2>&1 | tee -a "${REPORT_FILE}"
     sleep 1
   fi
-  script_time
 }
 
 add_da_ipv6_ip() {
@@ -2269,8 +2285,8 @@ function configure_maxibox() {
 }
 
 # This is the pre-requisite components for all maxicode
-function configure_maxicode_pre () {
-    if [ ! -f "${CONF_PATH}/${FUNCNAME[0]}_executed" ]; then
+function configure_maxicode_pre() {
+  if [ ! -f "${CONF_PATH}/${FUNCNAME[0]}_executed" ]; then
     echo "[${SCRIPT_NAME}]: Executing ${FUNCNAME[0]} ..." 2>&1 | tee -a "${REPORT_FILE}"
     apt-get -y install ipcalc bc jq gawk
     check_finish_reboot "${FUNCNAME[0]}"
@@ -2378,6 +2394,45 @@ EOF
         _exit 1
       fi
     fi
+    check_finish_reboot "${FUNCNAME[0]}"
+  else
+    echo "[${SCRIPT_NAME}]: [Skipped]: ${FUNCNAME[0]} has ran before" 2>&1 | tee -a "${REPORT_FILE}"
+    sleep 1
+  fi
+}
+
+# maxida is used to manage directadmin functionalities including APIs.
+function configure_maxida() {
+  if [ ! -f "${CONF_PATH}/${FUNCNAME[0]}_executed" ]; then
+    local maxida_bin maxida_env
+    echo "[${SCRIPT_NAME}]: Executing ${FUNCNAME[0]} ..." 2>&1 | tee -a "${REPORT_FILE}"
+    echo "[${SCRIPT_NAME}]: Configuring maxida installation in maxicode ..." 2>&1 | tee -a "${REPORT_FILE}"
+    maxida_bin="/usr/local/maxicode/maxida/maxida"
+    maxida_env="/usr/local/maxicode/maxida/maxida.env"
+    if [ -f ${maxida_bin} ]; then
+      echo "[${SCRIPT_NAME}]: Creating symlink and executable for ${maxida_bin} ..." 2>&1 | tee -a "${REPORT_FILE}"
+      sleep 1
+      chmod +x ${maxida_bin}
+      # Symbolic name
+      ln -s ${maxida_bin} /usr/local/bin
+    else
+      echo "[${SCRIPT_NAME}]: Warning, maxida doesn't exist in /usr/local/maxicode !" 2>&1 | tee -a "${REPORT_FILE}"
+      _exit 1
+    fi
+
+    if [ -f ${maxida_env} ]; then
+      # Here we create environment variables to use maxida API (Directadmin API). Very important to supply initial authentication
+      echo "[${SCRIPT_NAME}]: Creating environment variable for maxida at ${maxida_env} ..." 2>&1 | tee -a "${REPORT_FILE}"
+      sleep 1
+      sed -i "s/^DA_OWNER_USERNAME=.*/DA_OWNER_USERNAME=\"${DA_OWNER_USERNAME}\"/" ${maxida_env}
+      sed -i "s/^DA_OWNER_USERPASS=.*/DA_OWNER_USERPASS=\"${DA_OWNER_USERPASS}\"/" ${maxida_env}
+      sed -i "s/^BOX_HOSTNAME_FQDN=.*/BOX_HOSTNAME_FQDN=\"${BOX_HOSTNAME_FQDN}\"/" ${maxida_env}
+      sed -i "s/^DA_PORT=.*/DA_PORT=\"${DA_PORT}\"/" ${maxida_env}
+    else
+      echo "[${SCRIPT_NAME}]: Warning, maxida.env doesn't exist in /usr/local/maxicode !" 2>&1 | tee -a "${REPORT_FILE}"
+      _exit 1
+    fi
+
     check_finish_reboot "${FUNCNAME[0]}"
   else
     echo "[${SCRIPT_NAME}]: [Skipped]: ${FUNCNAME[0]} has ran before" 2>&1 | tee -a "${REPORT_FILE}"
@@ -2624,12 +2679,6 @@ function configure_maxicata() {
   fi
 }
 
-function configure_da_package() {
-  :
-  #https://forum.directadmin.com/threads/server-migration-how-to-use-the-existing-configuration-during-setup.62937/
-  #https://forum.directadmin.com/threads/default-user-package-s-for-resellers.49156/
-}
-
 # This will install OS memcached and php memcached extension
 function configure_da_memcached() {
   if [ ! -f "${CONF_PATH}/${FUNCNAME[0]}_executed" ]; then
@@ -2774,6 +2823,20 @@ function configure_maxicode() {
   fi
 }
 
+function configure_da_packages() {
+  #https://forum.directadmin.com/threads/server-migration-how-to-use-the-existing-configuration-during-setup.62937/
+  #https://forum.directadmin.com/threads/default-user-package-s-for-resellers.49156/
+  if [ ! -f "${CONF_PATH}/${FUNCNAME[0]}_executed" ]; then
+    echo "[${SCRIPT_NAME}]: Executing ${FUNCNAME[0]} ..." 2>&1 | tee -a "${REPORT_FILE}"
+    echo "[${SCRIPT_NAME}]: Creating reseller unlimited package ..." 2>&1 | tee -a "${REPORT_FILE}"
+    da_api_admin "create-reseller-package" "RESELLER_UNLIMITED"
+    check_finish_reboot "${FUNCNAME[0]}"
+  else
+    echo "[${SCRIPT_NAME}]: [Skipped]: ${FUNCNAME[0]} has ran before" 2>&1 | tee -a "${REPORT_FILE}"
+    sleep 1
+  fi
+}
+
 function configure_da_accounts() {
   if [ ! -f "${CONF_PATH}/${FUNCNAME[0]}_executed" ]; then
     echo "[${SCRIPT_NAME}]: Executing ${FUNCNAME[0]} ..." 2>&1 | tee -a "${REPORT_FILE}"
@@ -2800,6 +2863,10 @@ function configure_da_accounts() {
     echo "[${SCRIPT_NAME}]: [Skipped]: ${FUNCNAME[0]} has ran before" 2>&1 | tee -a "${REPORT_FILE}"
     sleep 1
   fi
+}
+
+function configure_da_emails() {
+  :
 }
 
 # This is used to install extra packages like ncdu, htop and more
@@ -2989,7 +3056,23 @@ if [ "${INSTALL_TYPE}" == "DIRECTADMIN" ]; then
   link_da_ipv6 #OK
   #exit 1
 fi
-
+# Still need to add more based on lynis suggestion
+harden_lynis
+#exit 1
+configure_maxibox
+#exit 1
+configure_maxicode_pre
+#exit 1
+configure_maxiperm
+#exit 1
+configure_maxigpg
+#exit 1
+configure_maxida
+#exit 1
+configure_maxiaide
+#exit 1
+configure_maxicata
+# exit 1
 # FOR BOTH GENERAL AND DIRECTADMIN INSTALLATION TYPE:
 #Best to execute after install_da because CSF installer will detect if DA exist, it will install CSF in DA way.
 configure_csf
@@ -2997,6 +3080,7 @@ configure_csf
 # Need to restart first before running next commands after enable IPv6 because 'tentative status issue with ethX + nginx'.
 # If I don't restart, I won't be able to request cert and letsencrypt will complain about firewall.
 # Just temporary restart until I find solution (restart best after configure_csf).
+#configure_logs
 if [ "${INSTALL_TYPE}" == "DIRECTADMIN" ]; then
   # Must run this functions (enable_da_ssl) after running CSF because we need to make sure all appropriate ports are opened to request certs
   # Warning do not overused enable_da_ssl function because when requesting the same cert for the same domain 7 times for a week, you will get blocked.
@@ -3016,6 +3100,8 @@ if [ "${INSTALL_TYPE}" == "DIRECTADMIN" ]; then
   #exit 1
   harden_da
   #exit 1
+  configure_da_packages
+  #exit 1
   configure_da_accounts
   #exit 1
   configure_da_memcached
@@ -3024,21 +3110,6 @@ if [ "${INSTALL_TYPE}" == "DIRECTADMIN" ]; then
   #exit 1
   configure_da_dns_templates
 fi
-#configure_logs
-# Still need to add more based on lynis suggestion
-harden_lynis
-#exit 1
-configure_maxibox
-#exit 1
-configure_maxicode_pre
-#exit 1
-configure_maxiperm
-#exit 1
-configure_maxigpg
-#exit 1
-configure_maxiaide
-#exit 1
-configure_maxicata
 #exit 1
 post_setup
 echo "" 2>&1 | tee -a "${REPORT_FILE}"
