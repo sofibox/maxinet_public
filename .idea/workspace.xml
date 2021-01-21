@@ -10,7 +10,7 @@
     <select />
   </component>
   <component name="ChangeListManager">
-    <list default="true" id="113c828c-9a32-4b24-ab1e-978ce50c6320" name="Default Changelist" comment="Change reboot order before requesting SSL for Directadmin (Disable reboot after installing CSF)" />
+    <list default="true" id="113c828c-9a32-4b24-ab1e-978ce50c6320" name="Default Changelist" comment="Remove 3rd party rules from maxisetup and add that in maxicata instead" />
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
     <option name="HIGHLIGHT_NON_ACTIVE_CHANGELIST" value="false" />
@@ -46,15 +46,13 @@
     </key>
   </component>
   <component name="RunManager">
-    <configuration default="true" type="ArquillianTestNG" factoryName="" nameIsGenerated="true">
+    <configuration default="true" type="ArquillianJUnit" factoryName="" nameIsGenerated="true">
       <option name="arquillianRunConfiguration">
         <value>
           <option name="containerStateName" value="" />
         </value>
       </option>
-      <option name="TEST_OBJECT" value="CLASS" />
-      <properties />
-      <listeners />
+      <option name="TEST_OBJECT" value="class" />
       <method v="2">
         <option name="Make" enabled="true" />
       </method>
@@ -78,6 +76,7 @@
       <workItem from="1611168472056" duration="591000" />
       <workItem from="1611175755428" duration="61000" />
       <workItem from="1611176395419" duration="623000" />
+      <workItem from="1611204454142" duration="41000" />
     </task>
     <task id="LOCAL-00001" summary="Initial release from beta Version 0.3.2.7-beta">
       <created>1610639956771</created>
@@ -142,7 +141,14 @@
       <option name="project" value="LOCAL" />
       <updated>1611176422432</updated>
     </task>
-    <option name="localTasksCounter" value="10" />
+    <task id="LOCAL-00010" summary="Remove 3rd party rules from maxisetup and add that in maxicata instead">
+      <created>1611204482891</created>
+      <option name="number" value="00010" />
+      <option name="presentableId" value="LOCAL-00010" />
+      <option name="project" value="LOCAL" />
+      <updated>1611204482891</updated>
+    </task>
+    <option name="localTasksCounter" value="11" />
     <servers />
   </component>
   <component name="TypeScriptGeneratedFilesManager">
@@ -170,17 +176,18 @@
     <MESSAGE value="Initial release alpha version v0.1 of maxida (MaxiDA) to manage directadmin functionalities and APIs&#10;Add new function to create reseller package using API" />
     <MESSAGE value="Add API for creating reseller account&#10;Add missing file maxida.env for maxida script" />
     <MESSAGE value="Change reboot order before requesting SSL for Directadmin (Disable reboot after installing CSF)" />
-    <option name="LAST_COMMIT_MESSAGE" value="Change reboot order before requesting SSL for Directadmin (Disable reboot after installing CSF)" />
+    <MESSAGE value="Remove 3rd party rules from maxisetup and add that in maxicata instead" />
+    <option name="LAST_COMMIT_MESSAGE" value="Remove 3rd party rules from maxisetup and add that in maxicata instead" />
   </component>
   <component name="WindowStateProjectService">
     <state x="184" y="85" width="1536" height="860" key="DiffContextDialog" timestamp="1611169066850">
       <screen x="0" y="0" width="1920" height="1040" />
     </state>
     <state x="184" y="85" width="1536" height="860" key="DiffContextDialog/0.0.1920.1040@0.0.1920.1040" timestamp="1611169066850" />
-    <state x="350" y="112" key="Vcs.Push.Dialog.v2" timestamp="1611176423409">
+    <state x="350" y="112" key="Vcs.Push.Dialog.v2" timestamp="1611204484972">
       <screen x="0" y="0" width="1920" height="1040" />
     </state>
     <state x="233" y="73" key="Vcs.Push.Dialog.v2/0.0.1280.680@0.0.1280.680" timestamp="1610639958844" />
-    <state x="350" y="112" key="Vcs.Push.Dialog.v2/0.0.1920.1040@0.0.1920.1040" timestamp="1611176423409" />
+    <state x="350" y="112" key="Vcs.Push.Dialog.v2/0.0.1920.1040@0.0.1920.1040" timestamp="1611204484972" />
   </component>
 </project>
