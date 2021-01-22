@@ -1,7 +1,7 @@
 #!/bin/bash
 # =~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~
 # Author: Arafat Ali Email: arafat@sofibox.com
-# Version 0.3.3.9-beta
+# Version 0.3.4.0-beta
 # This is an initial server hardening script for general server using CentOS and Debian.
 # Compatible 100% with Directadmin. Supported OS: CentOS + Debian (Planned on FreeBSD)
 # Read the code to know what the scripts offer.
@@ -103,9 +103,9 @@ function script_time() {
   printf "[${SCRIPT_NAME}]: Time spent: %02d H:%02d M :%02d S\n" ${hrs} ${mins} ${secs} 2>&1 | tee -a "${REPORT_FILE}"
 }
 function cd_to_path() {
-  local TO_PATH="$1"
-  echo "[${SCRIPT_NAME}]: Entering directory ${TO_PATH} ..." 2>&1 | tee -a "${REPORT_FILE}"
-  cd "${TO_PATH}" || {
+  local to_path="$1"
+  echo "[${SCRIPT_NAME}]: Entering directory ${to_path} ..." 2>&1 | tee -a "${REPORT_FILE}"
+  cd "${to_path}" || {
     echo "Failed to enter into directory" 2>&1 | tee -a "${REPORT_FILE}"
     _exit 1
   }
@@ -131,103 +131,254 @@ function restart_da() {
 # da_api_admin "create" "admin2" "admin2@sofibox.com" "x12321aa"
 # da_api_admin add-ip 12.12.12.12 255.255.255.0
 function da_api_admin() {
+  # By default, da_api_admin will use owner authentication if I don't supply this: da_api_admin "end_owner"
   local api_username api_password
   local command data method input decoded_status
   local action username email password
-  local ip netmask ssl admin_new_list admin_ori_list
+  local owner_main_auth owner_new_list admin_new_list admin_list reseller_new_list admin_ori_list admin_main_auth
+  local reseller_main_auth user_main_auth user_new_list
+  local ip netmask ssl
+  local domain ip_type
   local package_name
-  admin_new_list=$(head -1 "/usr/local/directadmin/data/admin/admin.list")
+  admin_list="/usr/local/directadmin/data/admin/admin.list"
+  admin_new_list=$(grep -w "${DA_ADMIN_USERNAME}" "${admin_list}")
+  owner_new_list=$(grep -w "${DA_OWNER_USERNAME}" "${admin_list}")
+  reseller_new_list=$(grep -w "${DA_RESELLER_USERNAME}" "/usr/local/directadmin/data/admin/reseller.list")
+  user_new_list=$(find /usr/local/directadmin/data/users/ -name "${DA_USER_USERNAME}" -type d)
   admin_ori_list="/usr/local/directadmin/scripts/setup.txt"
+  owner_main_auth="${TEMP_PATH}/api/${DA_OWNER_USERNAME}_owner_main_auth_api"
+  admin_main_auth="${TEMP_PATH}/api/${DA_ADMIN_USERNAME}_admin_main_auth_api"
+  reseller_main_auth="${TEMP_PATH}/api/${DA_RESELLER_USERNAME}_reseller_main_auth_api"
+  user_main_auth="${TEMP_PATH}/api/${DA_USER_USERNAME}_user_main_auth_api"
   action="$1"
 
+  mkdir -p "${TEMP_PATH}/api"
   if [[ "${SETUP_DA_HOST_SSL}" == "yes" && -f "${CONF_PATH}/configure_da_ssl_executed" ]]; then
     ssl="https"
   else
     ssl="http"
   fi
+  if [ "${action}" == "start_owner" ]; then
+    rm -f "${TEMP_PATH}"/api/*
+    echo "executing start_owner"
+    if [ -n "${owner_new_list}" ]; then
+      echo "[${SCRIPT_NAME}]: Found owner account matched in ENV file. Creating API session file authentication..." 2>&1 | tee -a "${REPORT_FILE}"
+      touch "${owner_main_auth}"
+      {
+        echo "DA_OWNER_USERNAME=\"${DA_OWNER_USERNAME}"\"
+        echo "DA_OWNER_USERPASS=\"${DA_OWNER_USERPASS}"\"
+      } >"${owner_main_auth}"
+    else
+      echo "[${SCRIPT_NAME}]: Error, no owner account matched in ENV file. Please create owner first!" 2>&1 | tee -a "${REPORT_FILE}"
+      _exit 1
+    fi
+  elif [ "${action}" == "end_owner" ]; then
+    rm -f "${owner_main_auth}"
+  elif [ "${action}" == "start_admin" ]; then
+    rm -f "${TEMP_PATH}"/api/*
+    echo "executing start_admin"
+    if [ -n "${admin_new_list}" ]; then
+
+      echo "[${SCRIPT_NAME}]: Found admin account matched in ENV file. Creating API session file authentication ..." 2>&1 | tee -a "${REPORT_FILE}"
+      touch "${admin_main_auth}"
+      {
+        echo "DA_ADMIN_USERNAME=\"${DA_ADMIN_USERNAME}"\"
+        # Admin username cannot contain character '+' it will trigger invalid password (DA bug?)
+        echo "DA_ADMIN_USERPASS=\"${DA_ADMIN_USERPASS}"\"
+      } >"${admin_main_auth}"
+
+    else
+      echo "[${SCRIPT_NAME}]: Error, no admin account matched in ENV file. Please create admin first!" 2>&1 | tee -a "${REPORT_FILE}"
+      _exit 1
+    fi
+  elif [ "${action}" == "end_admin" ]; then
+    rm -f "${admin_main_auth}"
+  elif [ "${action}" == "start_reseller" ]; then
+    rm -f "${TEMP_PATH}"/api/*
+    echo "executing start_reseller"
+    if [ -n "${reseller_new_list}" ]; then
+
+      echo "[${SCRIPT_NAME}]: Found reseller account matched in ENV file. Creating API session file authentication ..." 2>&1 | tee -a "${REPORT_FILE}"
+      touch "${reseller_main_auth}"
+      {
+        echo "DA_RESELLER_USERNAME=\"${DA_RESELLER_USERNAME}"\"
+        echo "DA_RESELLER_USERPASS=\"${DA_RESELLER_USERPASS}"\"
+      } >"${reseller_main_auth}"
+    else
+      echo "[${SCRIPT_NAME}]: Error, no reseller account matched in ENV file. Please create reseller first!" 2>&1 | tee -a "${REPORT_FILE}"
+      _exit 1
+    fi
+  elif [ "${action}" == "end_reseller" ]; then
+    echo "executing end_reseller"
+    rm -f "${reseller_main_auth}"
+  elif [ "${action}" == "start_user" ]; then
+    rm -f "${TEMP_PATH}"/api/*
+    echo "executing start_user"
+    if [ -n "${user_new_list}" ]; then
+
+      echo "[${SCRIPT_NAME}]: Found user account matched in ENV file. Creating API session file authentication ..." 2>&1 | tee -a "${REPORT_FILE}"
+      touch "${user_main_auth}"
+      {
+        echo "DA_USER_USERNAME=\"${DA_USER_USERNAME}"\"
+        echo "DA_USER_USERPASS=\"${DA_USER_USERPASS}"\"
+      } >"${user_main_auth}"
+    else
+      echo "[${SCRIPT_NAME}]: Error, no user account matched in ENV file. Please create user first!" 2>&1 | tee -a "${REPORT_FILE}"
+      _exit 1
+    fi
+  elif [ "${action}" == "end_user" ]; then
+    rm -f "${user_main_auth}"
+  elif [ "${action}" == "end" ]; then
+    rm -f "${TEMP_PATH}"/api/*
+  fi
   # If the admin.list file has a new admin username, we use that authentication
-  if [ "${admin_new_list}" == "${DA_OWNER_USERNAME}" ]; then
+  # This is the default authentication for DA owner
+
+  if [ -s "${owner_main_auth}" ]; then
+    echo "[${SCRIPT_NAME}]: Using DA API authentication from ${DA_OWNER_USERNAME} ..." 2>&1 | tee -a "${REPORT_FILE}"
+    _pause 2
+    api_username=$(sed -n 's/^DA_OWNER_USERNAME=//p' "${owner_main_auth}" | sed -e 's/^"//' -e 's/"$//')
+    api_password=$(sed -n 's/^DA_OWNER_USERPASS=//p' "${owner_main_auth}" | sed -e 's/^"//' -e 's/"$//')
+    #echo "api_username is: ${api_username}"
+    #echo "api_userpassword is: ${api_password}"
+    #exit 1
+  elif [ -s "${admin_main_auth}" ]; then
+    echo "[${SCRIPT_NAME}]: Using DA API authentication from ${DA_ADMIN_USERNAME} ..." 2>&1 | tee -a "${REPORT_FILE}"
+    _pause 2
+    api_username=$(sed -n 's/^DA_ADMIN_USERNAME=//p' "${admin_main_auth}" | sed -e 's/^"//' -e 's/"$//')
+    api_password=$(sed -n 's/^DA_ADMIN_USERPASS=//p' "${admin_main_auth}" | sed -e 's/^"//' -e 's/"$//')
+  elif [ -s "${reseller_main_auth}" ]; then
+    echo "[${SCRIPT_NAME}]: Using DA API authentication from ${DA_RESELLER_USERNAME} ..." 2>&1 | tee -a "${REPORT_FILE}"
+    _pause 2
+    api_username=$(sed -n 's/^DA_RESELLER_USERNAME=//p' "${reseller_main_auth}" | sed -e 's/^"//' -e 's/"$//')
+    api_password=$(sed -n 's/^DA_RESELLER_USERPASS=//p' "${reseller_main_auth}" | sed -e 's/^"//' -e 's/"$//')
+  elif [ -s "${user_main_auth}" ]; then
+    echo "[${SCRIPT_NAME}]: Using DA API authentication from ${DA_USER_USERNAME} ..." 2>&1 | tee -a "${REPORT_FILE}"
+    _pause 2
+    api_username=$(sed -n 's/^DA_USER_USERNAME=//p' "${user_main_auth}" | sed -e 's/^"//' -e 's/"$//')
+    api_password=$(sed -n 's/^DA_USER_USERPASS=//p' "${user_main_auth}" | sed -e 's/^"//' -e 's/"$//')
+  # At this stage, if user don't use start_<user> before calling API then it will use below with the condition the auth exist:
+  elif [ -n "${owner_new_list}" ]; then
+    echo "[${SCRIPT_NAME}]: Using DA API authentication from ${DA_OWNER_USERNAME} ..." 2>&1 | tee -a "${REPORT_FILE}"
+    _pause 2
     api_username=${DA_OWNER_USERNAME}
     api_password=${DA_OWNER_USERPASS}
-  else
-    # else we use the original authentication generated by DA during installation
+  elif [ -s "${admin_ori_list}" ]; then
+    echo "[${SCRIPT_NAME}]: Using DA API authentication from DA setup.txt file ..." 2>&1 | tee -a "${REPORT_FILE}"
+    _pause 2
+    # else we use the original authentication generated by DA during installation if all above not valid
     api_username=$(sed -n 's/^adminname=//p' ${admin_ori_list})
     api_password=$(sed -n 's/^adminpass=//p' ${admin_ori_list})
-  fi
-  if [ "${action}" == "create-admin-account" ]; then
-    # da_api_admin "create-admin-account" "admin2" "admin2@sofibox.com" "12321"
-    shift
-    username="$1"
-    email="$2"
-    password="$3"
-    command="CMD_API_ACCOUNT_ADMIN"
-    method="POST"
-    echo "SSL: ${ssl} | Action: ${action} | username: ${username} | email: ${email} | password: ${password}"
-    #exit 1
-    data="action=create&add=submit&username=${username}&email=${email}&passwd=${password}&passwd2=${password}&notify=yes"
-    echo "Executing: ${action}" 2>&1 | tee -a "${REPORT_FILE}"
-  elif [ "${action}" == "create-reseller-account" ]; then
-    # TODO testing
-    shift
-    # da_api_admin "create-reseller-account" "admin2" "admin2@sofibox.com" "12321"
-    shift
-    username="$1"
-    email="$2"
-    password="$3"
-    command="CMD_API_ACCOUNT_ADMIN"
-    method="POST"
-    echo "SSL: ${ssl} | Action: ${action} | username: ${username} | email: ${email} | password: ${password}"
-    #exit 1
-    data="action=create&add=submit&username=${username}&email=${email}&passwd=${password}&passwd2=${password}&notify=yes"
-    echo "Executing: ${action}" 2>&1 | tee -a "${REPORT_FILE}"
-  elif [ "${action}" == "delete-users" ]; then
-    # da_api_admin "delete-users" "admin2"
-    shift
-    username="$1"
-    command="CMD_API_SELECT_USERS"
-    method="POST"
-    data="confirmed=Confirm&delete=yes&select0=${username}"
-    echo "SSL: ${ssl} | Action: ${action} | username: ${username}"
-    #exit 1
-    echo "Executing: ${action}" 2>&1 | tee -a "${REPORT_FILE}"
-  elif [ "${action}" == "add-ip" ]; then
-    # da_api_admin "add-ip" "2400:1234:0000:0000:123c:1234:fe05:6cb1" "/64"
-    # da_api_admin "add-ip" "12.12.12.12" "255.255.255.0"
-    shift
-    ip="$1"
-    netmask="$2"
-    command="CMD_API_IP_MANAGER"
-    data="action=add&ip=${ip}&netmask=${netmask}&device=yes&add_to_device_aware=yes"
-    method="POST"
-    echo "SSL: ${ssl} | Action: ${action} | IP: ${ip} | netmask: ${netmask}"
-    #exit 1
-    echo "Executing: ${action}" 2>&1 | tee -a "${REPORT_FILE}"
-    #CMD_API_MANAGE_RESELLER_PACKAGES
-  elif [ "${action}" == "create-reseller-package" ]; then
-    # da_api_admin"create-reseller-package" "RESELLER_UNLIMITED"
-    shift
-    package_name="$1"
-    command="CMD_API_MANAGE_RESELLER_PACKAGES"
-    # This is unlimited package:
-    data="bandwidth=5000&ubandwidth=yes&quota=1000&uquota=yes&inode=&uinode=yes&vdomains=10&uvdomains=yes \
-    &nsubdomains=10&unsubdomains=yes&nemails=100&unemails=yes&nemailf=100&unemailf=yes&nemailml=10 \
-    &unemailml=yes&nemailr=100&unemailr=yes&mysql=0&umysql=yes&domainptr=0&udomainptr=yes&ftp=10&uftp=yes \
-    &cgi=ON&php=ON&spam=ON&catchall=ON&ssl=ON&oversell=ON&cron=ON&sysinfo=ON&login_keys=ON&dnscontrol=ON \
-    &dns=OFF&serverip=ON&packagename=${package_name}&nusers=&unusers=yes&json=yes&add=yes&ips=0"
-    method="POST"
   else
-    echo "[${SCRIPT_NAME}]: The API action '${action}' does not exist!"
-    exit 1
+    echo "[${SCRIPT_NAME}]: Warning, no valid authentication is available to use Directadmin API!" 2>&1 | tee -a "${REPORT_FILE}"
+    _exit 1
   fi
-  # Executing API via curl based on command above
-  input=$(curl --request "${method}" --user "${api_username}":"${api_password}" --data "${data}" "${ssl}://${BOX_HOSTNAME_FQDN}:${DA_PORT}/${command}")
-  decoded_status=$(printf '%b' "${input//%/\\x}")
-  echo "---" 2>&1 | tee -a "${REPORT_FILE}"
-  echo "[${SCRIPT_NAME}]: Status: ${decoded_status} | status=0 means success" 2>&1 | tee -a "${REPORT_FILE}"
-  #exit 1
+
+  # Only run this if number of argument is more than 1 or at least 2
+  if [ "$#" -gt 1 ]; then
+    if [ "${action}" == "create-admin-account" ]; then
+      # da_api_admin "create-admin-account" "admin2" "admin2@sofibox.com" "12321"
+      shift
+      username="$1"
+      email="$2"
+      password="$3"
+      command="CMD_API_ACCOUNT_ADMIN"
+      method="POST"
+      #echo "SSL: ${ssl} | Action: ${action} | username: ${username} | email: ${email} | password: ${password}"
+      #exit 1
+      data="action=create&add=submit&username=${username}&email=${email}&passwd=${password}&passwd2=${password}&notify=yes"
+      echo "Executing: ${action}" 2>&1 | tee -a "${REPORT_FILE}"
+    elif [ "${action}" == "create-reseller-account" ]; then
+      # da_api_admin "create-reseller-account" "reseller1" "reseller1@sofibox.com" "x1231aax" "sofibox.com" "RESELLER_UNLIMITED" "shared"
+      shift
+      username="$1"
+      email="$2"
+      password="$3"
+      domain="$4"
+      package_name="$5"
+      ip_type="$6"
+      command="CMD_API_ACCOUNT_RESELLER"
+      data="username=${username}&email=${email}&passwd=${password}&passwd2=${password}&domain=${domain}&package=${package_name}&notify=yes&ip=${ip_type}&json=yes&action=create&add=yes"
+      method="POST"
+      echo "Executing: ${action}" 2>&1 | tee -a "${REPORT_FILE}"
+    elif [ "${action}" == "create-user-account" ]; then
+      # da_api_admin "create-reseller-account" "user1" "user1@maxibi.com" "x1231aax" "maxibi.com" "USER_UNLIMITED"
+      shift
+      username="$1"
+      email="$2"
+      password="$3"
+      domain="$4"
+      package_name="$5"
+      # Normally IPv4 that has been set up in DA
+      command="CMD_API_ACCOUNT_USER"
+      data="username=${username}&email=${email}&passwd=${password}&passwd2=${password}&domain=${domain}&package=${package_name}&ip=${IPV4_ADD0}&notify=no&json=yes&add=yes&action=create"
+      method="POST"
+    elif [ "${action}" == "delete-users" ]; then
+      # da_api_admin "delete-users" "admin2"
+      shift
+      username="$1"
+      command="CMD_API_SELECT_USERS"
+      data="confirmed=Confirm&delete=yes&select0=${username}"
+      method="POST"
+      #echo "SSL: ${ssl} | Action: ${action} | username: ${username}"
+      #exit 1
+      echo "Executing: ${action}" 2>&1 | tee -a "${REPORT_FILE}"
+    elif [ "${action}" == "add-ip" ]; then
+      # da_api_admin "add-ip" "2400:1234:0000:0000:123c:1234:fe05:6cb1" "/64"
+      # da_api_admin "add-ip" "12.12.12.12" "255.255.255.0"
+      shift
+      ip="$1"
+      netmask="$2"
+      command="CMD_API_IP_MANAGER"
+      data="action=add&ip=${ip}&netmask=${netmask}&device=yes&add_to_device_aware=yes"
+      method="POST"
+      echo "SSL: ${ssl} | Action: ${action} | IP: ${ip} | netmask: ${netmask}"
+      #exit 1
+      echo "Executing: ${action}" 2>&1 | tee -a "${REPORT_FILE}"
+      #CMD_API_MANAGE_RESELLER_PACKAGES
+    elif [ "${action}" == "create-reseller-package" ]; then
+      # da_api_admin"create-reseller-package" "RESELLER_UNLIMITED"
+      shift
+      package_name="$1"
+      command="CMD_API_MANAGE_RESELLER_PACKAGES"
+      # This is unlimited RESELLER package:
+      data="bandwidth=5000&ubandwidth=yes&quota=1000&uquota=yes&inode=&uinode=yes&vdomains=10&uvdomains=yes \
+      &nsubdomains=10&unsubdomains=yes&nemails=100&unemails=yes&nemailf=100&unemailf=yes&nemailml=10 \
+      &unemailml=yes&nemailr=100&unemailr=yes&mysql=0&umysql=yes&domainptr=0&udomainptr=yes&ftp=10&uftp=yes \
+      &cgi=ON&php=ON&spam=ON&catchall=ON&ssl=ON&oversell=ON&cron=ON&sysinfo=ON&login_keys=ON&dnscontrol=ON \
+      &dns=OFF&serverip=ON&packagename=${package_name}&nusers=&unusers=yes&json=yes&add=yes&ips=0"
+      method="POST"
+
+    elif [ "${action}" == "create-user-package" ]; then
+      shift
+      package_name="$1"
+      # This is unlimited USER package:
+      command="CMD_API_MANAGE_USER_PACKAGES"
+      data="bandwidth=1000&ubandwidth=yes&quota=100&uquota=yes&inode=&uinode=yes&vdomains=1&uvdomains=yes \
+      &nsubdomains=10&unsubdomains=yes&nemails=10&unemails=yes&unemailf=yes&nemailml=0&unemailml=yes \
+      &nemailr=10&unemailr=yes&mysql=5&umysql=yes&domainptr=0&udomainptr=yes&ftp=1&uftp=yes&php=ON \
+      &spam=ON&catchall=ON&ssl=ON&cron=ON&sysinfo=ON&login_keys=ON&dnscontrol=ON&suspend_at_limit=ON \
+      &language=en&skin=evolution&packagename=${package_name}&json=yes&add=yes&feature_sets=& \
+      plugins_allow=[clear]&plugins_deny=[clear]"
+      method="POST"
+    else
+      echo "[${SCRIPT_NAME}]: The API action '${action}' does not exist!"
+      exit 1
+    fi
+    # Executing API via curl based on command above
+    input=$(curl --request "${method}" --user "${api_username}":"${api_password}" --data "${data}" "${ssl}://${BOX_HOSTNAME_FQDN}:${DA_PORT}/${command}")
+    decoded_status=$(printf '%b' "${input//%/\\x}")
+    echo "---" 2>&1 | tee -a "${REPORT_FILE}"
+    echo "[${SCRIPT_NAME}]: Status: ${decoded_status} | status=0 means success" 2>&1 | tee -a "${REPORT_FILE}"
+    #exit 1
+    echo "" 2>&1 | tee -a "${REPORT_FILE}"
+  else
+    echo "[${SCRIPT_NAME}]: Argument given is: $1" 2>&1 | tee -a "${REPORT_FILE}"
+  fi
 }
 
 # This will check if system needs to reboot based on /var/run/reboot-required file
+# This function also will make sure if a caller function has finished executed, then we won't run that function again.
 function check_finish_reboot() {
   local FUNC_NAME="$1"
   cat /dev/null >"${CONF_PATH}/${FUNC_NAME}_executed"
@@ -250,6 +401,7 @@ function check_finish_reboot() {
     echo "[${SCRIPT_NAME}]: [OK]: ${FUNC_NAME} has been executed" 2>&1 | tee -a "${REPORT_FILE}"
     # This sleep is for debugging, when finish developing this script, I should remove this sleep to speed up the script
     #sleep 1
+    echo "=~=~=~=~=~=~=~=~=~" 2>&1 | tee -a "${REPORT_FILE}"
   fi
 
 }
@@ -366,28 +518,30 @@ function pre_setup() {
     check_finish_reboot "${FUNCNAME[0]}"
   else
     echo "[${SCRIPT_NAME}]: [Skipped]: ${FUNCNAME[0]} has ran before" 2>&1 | tee -a "${REPORT_FILE}"
-    sleep 1
+    echo "=~=~=~=~=~=~=~=~=~" 2>&1 | tee -a "${REPORT_FILE}"
   fi
 
 }
-# Get the latest scripts from private repo gitlab (need to have private token defined in ENV)
+# Get the latest scripts from private repo (need to have private token defined in ENV)
 # This private repo contains lots of security scripts for Linux (c) by Arafat Ali (aka MaXi32)
 # can re-run this to re-clone (update latest codes)
-clone_git_setup() {
+get_latest_maxisetup() {
   #if [ ! -f "${CONF_PATH}/${FUNCNAME[0]}_executed" ]; then
   echo "[${SCRIPT_NAME}]: Executing ${FUNCNAME[0]} ..." 2>&1 | tee -a "${REPORT_FILE}"
-  if [ "${DISTRO_ID}" == "centos" ]; then
-    echo "[${SCRIPT_NAME}]: Downloading git for centos ..." 2>&1 | tee -a "${REPORT_FILE}"
-    dnf -y install git 2>&1 | tee -a "${REPORT_FILE}"
-  elif [ "${DISTRO_ID}" == "debian" ]; then
-    echo "[${SCRIPT_NAME}]: Downloading git for debian ..." 2>&1 | tee -a "${REPORT_FILE}"
-    apt-get -y install git 2>&1 | tee -a "${REPORT_FILE}"
-  else
-    echo "[${SCRIPT_NAME}]: Error, unknown value for distribution ID ${DISTRO_ID}" 2>&1 | tee -a "${REPORT_FILE}"
-    _exit 1
+  local GIT_ASKPASS
+  if ! command -v git &>/dev/null; then
+    if [ "${DISTRO_ID}" == "centos" ]; then
+      echo "[${SCRIPT_NAME}]: Downloading git for centos ..." 2>&1 | tee -a "${REPORT_FILE}"
+      dnf -y install git 2>&1 | tee -a "${REPORT_FILE}"
+    elif [ "${DISTRO_ID}" == "debian" ]; then
+      echo "[${SCRIPT_NAME}]: Downloading git for debian ..." 2>&1 | tee -a "${REPORT_FILE}"
+      apt-get -y install git 2>&1 | tee -a "${REPORT_FILE}"
+    else
+      echo "[${SCRIPT_NAME}]: Error, unknown value for distribution ID ${DISTRO_ID}" 2>&1 | tee -a "${REPORT_FILE}"
+      _exit 1
+    fi
   fi
   # This one work for both CentOS and Debian
-  local GIT_ASKPASS ORI_PATH
   echo "[${SCRIPT_NAME}]: Setting up temporary git authentication for private repository ..." 2>&1 | tee -a "${REPORT_FILE}"
   cat /dev/null >"${HOME}/.git-askpass"
   echo "#!/bin/bash" >>"${HOME}/.git-askpass"
@@ -395,11 +549,13 @@ clone_git_setup() {
   chmod +x "${HOME}/.git-askpass"
   export GIT_ASKPASS="${HOME}/.git-askpass"
   cd_to_path "${DATA_PATH}"
-  echo "[${SCRIPT_NAME}]: Removing existing local repository ..." 2>&1 | tee -a "${REPORT_FILE}"
+  echo "[${SCRIPT_NAME}]: Removing existing maxisetup repository ..." 2>&1 | tee -a "${REPORT_FILE}"
   # remove existing setup
   rm -rf "${DATA_PATH}/maxisetup"
-  echo "[${SCRIPT_NAME}]: Cloning main repository ..." 2>&1 | tee -a "${REPORT_FILE}"
+  echo "[${SCRIPT_NAME}]: Cloning new maxisetup repository ..." 2>&1 | tee -a "${REPORT_FILE}"
+  echo "=~=~=~=~=~=~=~"
   git clone "${SETUP_GIT_URL}" 2>&1 | tee -a "${REPORT_FILE}"
+  echo "=~=~=~=~=~=~=~"
   # Now we have setup folder.
   # Delete these files for security
   echo "[${SCRIPT_NAME}]: Removing git authentication and destroying its environment variable ..." 2>&1 | tee -a "${REPORT_FILE}"
@@ -408,7 +564,7 @@ clone_git_setup() {
   check_finish_reboot "${FUNCNAME[0]}"
   #else
   #  echo "[${SCRIPT_NAME}]: [Skipped]: ${FUNCNAME[0]} has ran before" 2>&1 | tee -a "${REPORT_FILE}"
-  #  sleep 1
+  # echo "=~=~=~=~=~=~=~=~=~" 2>&1 | tee -a "${REPORT_FILE}"
   #fi
 }
 
@@ -548,7 +704,7 @@ function secure_box() {
     check_finish_reboot "${FUNCNAME[0]}"
   else
     echo "[${SCRIPT_NAME}]: [Skipped]: ${FUNCNAME[0]} has ran before" 2>&1 | tee -a "${REPORT_FILE}"
-    sleep 1
+    echo "=~=~=~=~=~=~=~=~=~" 2>&1 | tee -a "${REPORT_FILE}"
   fi
 
 }
@@ -566,7 +722,7 @@ function init_local_maxicode() {
   check_finish_reboot "${FUNCNAME[0]}"
   #else
   #  echo "[${SCRIPT_NAME}]: [Skipped]: ${FUNCNAME[0]} has ran before" 2>&1 | tee -a "${REPORT_FILE}"
-  #   sleep 1
+  #   echo "=~=~=~=~=~=~=~=~=~" 2>&1 | tee -a "${REPORT_FILE}"
   # fi
 }
 # This one configuration hostname, network etc.
@@ -657,7 +813,7 @@ function configure_net() {
     check_finish_reboot "${FUNCNAME[0]}"
   else
     echo "[${SCRIPT_NAME}]: [Skipped]: ${FUNCNAME[0]} has ran before" 2>&1 | tee -a "${REPORT_FILE}"
-    sleep 1
+    echo "=~=~=~=~=~=~=~=~=~"
   fi
 
 }
@@ -814,7 +970,7 @@ function configure_net2() {
     check_finish_reboot "${FUNCNAME[0]}"
   else
     echo "[${SCRIPT_NAME}]: [Skipped]: ${FUNCNAME[0]} has ran before" 2>&1 | tee -a "${REPORT_FILE}"
-    sleep 1
+    echo "=~=~=~=~=~=~=~=~=~" 2>&1 | tee -a "${REPORT_FILE}"
   fi
 }
 # Tweaking swap for production
@@ -832,7 +988,7 @@ function configure_sysctl_swap() {
     check_finish_reboot "${FUNCNAME[0]}"
   else
     echo "[${SCRIPT_NAME}]: [Skipped]: ${FUNCNAME[0]} has ran before" 2>&1 | tee -a "${REPORT_FILE}"
-    sleep 1
+    echo "=~=~=~=~=~=~=~=~=~" 2>&1 | tee -a "${REPORT_FILE}"
   fi
 
 }
@@ -854,7 +1010,7 @@ function configure_sysctl_kernel_fs() {
     check_finish_reboot "${FUNCNAME[0]}"
   else
     echo "[${SCRIPT_NAME}]: [Skipped]: ${FUNCNAME[0]} has ran before" 2>&1 | tee -a "${REPORT_FILE}"
-    sleep 1
+    echo "=~=~=~=~=~=~=~=~=~" 2>&1 | tee -a "${REPORT_FILE}"
   fi
 
 }
@@ -902,7 +1058,7 @@ function configure_sysctl_ips() {
     # echo "[${SCRIPT_NAME}]: Finished configuring network profile. You may reboot the system then re-run this script again for next setup ..." 2>&1 | tee -a "${REPORT_FILE}"
   else
     echo "[${SCRIPT_NAME}]: [Skipped]: ${FUNCNAME[0]} has ran before" 2>&1 | tee -a "${REPORT_FILE}"
-    sleep 1
+    echo "=~=~=~=~=~=~=~=~=~" 2>&1 | tee -a "${REPORT_FILE}"
   fi
 
 }
@@ -968,7 +1124,7 @@ function upgrade_os() {
     check_finish_reboot "${FUNCNAME[0]}"
   else
     echo "[${SCRIPT_NAME}]: [Skipped]: ${FUNCNAME[0]} has ran before" 2>&1 | tee -a "${REPORT_FILE}"
-    sleep 1
+    echo "=~=~=~=~=~=~=~=~=~" 2>&1 | tee -a "${REPORT_FILE}"
   fi
 
 }
@@ -1186,7 +1342,7 @@ configure_csf() {
     check_finish_reboot "${FUNCNAME[0]}"
   else
     echo "[${SCRIPT_NAME}]: [Skipped]: ${FUNCNAME[0]} has ran before" 2>&1 | tee -a "${REPORT_FILE}"
-    sleep 1
+    echo "=~=~=~=~=~=~=~=~=~" 2>&1 | tee -a "${REPORT_FILE}"
   fi
   # TIPS. CSF can be removed with this command:
   #sh /etc/csf/uninstall.sh
@@ -1242,7 +1398,7 @@ function install_da_pre() {
     check_finish_reboot "${FUNCNAME[0]}"
   else
     echo "[${SCRIPT_NAME}]: [Skipped]: ${FUNCNAME[0]} has ran before" 2>&1 | tee -a "${REPORT_FILE}"
-    sleep 1
+    echo "=~=~=~=~=~=~=~=~=~" 2>&1 | tee -a "${REPORT_FILE}"
   fi
 }
 
@@ -1271,7 +1427,7 @@ function install_da() {
     check_finish_reboot "${FUNCNAME[0]}"
   else
     echo "[${SCRIPT_NAME}]: [Skipped]: ${FUNCNAME[0]} has ran before" 2>&1 | tee -a "${REPORT_FILE}"
-    sleep 1
+    echo "=~=~=~=~=~=~=~=~=~" 2>&1 | tee -a "${REPORT_FILE}"
   fi
 }
 
@@ -1400,7 +1556,7 @@ function link_da_ipv6() {
     fi
   else
     echo "[${SCRIPT_NAME}]: [Skipped]: ${FUNCNAME[0]} has ran before" 2>&1 | tee -a "${REPORT_FILE}"
-    sleep 1
+    echo "=~=~=~=~=~=~=~=~=~" 2>&1 | tee -a "${REPORT_FILE}"
   fi
 }
 function rebuild_da_package() {
@@ -1443,7 +1599,7 @@ function rebuild_da_package() {
     check_finish_reboot "${FUNCNAME[0]}"
   else
     echo "[${SCRIPT_NAME}]: [Skipped]: ${FUNCNAME[0]} has ran before" 2>&1 | tee -a "${REPORT_FILE}"
-    sleep 1
+    echo "=~=~=~=~=~=~=~=~=~" 2>&1 | tee -a "${REPORT_FILE}"
   fi
 }
 function install_da_post() {
@@ -1480,7 +1636,7 @@ function install_da_post() {
     check_finish_reboot "${FUNCNAME[0]}"
   else
     echo "[${SCRIPT_NAME}]: [Skipped]: ${FUNCNAME[0]} has ran before" 2>&1 | tee -a "${REPORT_FILE}"
-    sleep 1
+    echo "=~=~=~=~=~=~=~=~=~" 2>&1 | tee -a "${REPORT_FILE}"
   fi
 }
 
@@ -1495,7 +1651,7 @@ function configure_da_ssl_pre() {
     check_finish_reboot "${FUNCNAME[0]}"
   else
     echo "[${SCRIPT_NAME}]: [Skipped]: ${FUNCNAME[0]} has ran before" 2>&1 | tee -a "${REPORT_FILE}"
-    sleep 1
+    echo "=~=~=~=~=~=~=~=~=~" 2>&1 | tee -a "${REPORT_FILE}"
   fi
 }
 
@@ -1563,7 +1719,7 @@ function configure_da_ssl() {
     check_finish_reboot "${FUNCNAME[0]}"
   else
     echo "[${SCRIPT_NAME}]: [Skipped]: ${FUNCNAME[0]} has ran before" 2>&1 | tee -a "${REPORT_FILE}"
-    sleep 1
+    echo "=~=~=~=~=~=~=~=~=~" 2>&1 | tee -a "${REPORT_FILE}"
   fi
 }
 
@@ -1603,7 +1759,7 @@ function change_da_auth() {
     check_finish_reboot "${FUNCNAME[0]}"
   else
     echo "[${SCRIPT_NAME}]: [Skipped]: ${FUNCNAME[0]} has ran before" 2>&1 | tee -a "${REPORT_FILE}"
-    sleep 1
+    echo "=~=~=~=~=~=~=~=~=~" 2>&1 | tee -a "${REPORT_FILE}"
   fi
 }
 function configure_da_sql() {
@@ -1828,6 +1984,7 @@ function configure_da_sql() {
   else
     echo "[${SCRIPT_NAME}]: [Skipped]: ${FUNCNAME[0]} has ran before" 2>&1 | tee -a "${REPORT_FILE}"
     #sleep 1
+    echo "=~=~=~=~=~=~=~=~=~" 2>&1 | tee -a "${REPORT_FILE}"
   fi
 
   # Deprecated:
@@ -1978,6 +2135,7 @@ function configure_da_mail() {
   else
     echo "[${SCRIPT_NAME}]: [Skipped]: ${FUNCNAME[0]} has ran before" 2>&1 | tee -a "${REPORT_FILE}"
     #sleep 1
+    echo "=~=~=~=~=~=~=~=~=~" 2>&1 | tee -a "${REPORT_FILE}"
   fi
 }
 
@@ -1997,7 +2155,7 @@ configure_da_ftp() {
     check_finish_reboot "${FUNCNAME[0]}"
   else
     echo "[${SCRIPT_NAME}]: [Skipped]: ${FUNCNAME[0]} has ran before" 2>&1 | tee -a "${REPORT_FILE}"
-    sleep 1
+    echo "=~=~=~=~=~=~=~=~=~" 2>&1 | tee -a "${REPORT_FILE}"
   fi
 }
 # This function only for configuring nginx_apache (it makes URL phpmyadmin or roundcube secure)
@@ -2116,7 +2274,7 @@ function configure_nginx_apache() {
     check_finish_reboot "${FUNCNAME[0]}"
   else
     echo "[${SCRIPT_NAME}]: [Skipped]: ${FUNCNAME[0]} has ran before" 2>&1 | tee -a "${REPORT_FILE}"
-    sleep 1
+    echo "=~=~=~=~=~=~=~=~=~" 2>&1 | tee -a "${REPORT_FILE}"
   fi
 }
 
@@ -2136,7 +2294,7 @@ function configure_web_apps_html() {
     check_finish_reboot "${FUNCNAME[0]}"
   else
     echo "[${SCRIPT_NAME}]: [Skipped]: ${FUNCNAME[0]} has ran before" 2>&1 | tee -a "${REPORT_FILE}"
-    sleep 1
+    echo "=~=~=~=~=~=~=~=~=~" 2>&1 | tee -a "${REPORT_FILE}"
   fi
 }
 
@@ -2214,7 +2372,7 @@ function build_da_custom_conf() {
     check_finish_reboot "${FUNCNAME[0]}"
   else
     echo "[${SCRIPT_NAME}]: [Skipped]: ${FUNCNAME[0]} has ran before" 2>&1 | tee -a "${REPORT_FILE}"
-    sleep 1
+    echo "=~=~=~=~=~=~=~=~=~" 2>&1 | tee -a "${REPORT_FILE}"
   fi
 }
 
@@ -2228,7 +2386,7 @@ function harden_da() {
     check_finish_reboot "${FUNCNAME[0]}"
   else
     echo "[${SCRIPT_NAME}]: [Skipped]: ${FUNCNAME[0]} has ran before" 2>&1 | tee -a "${REPORT_FILE}"
-    sleep 1
+    echo "=~=~=~=~=~=~=~=~=~" 2>&1 | tee -a "${REPORT_FILE}"
   fi
 }
 
@@ -2281,7 +2439,7 @@ function harden_lynis() {
     check_finish_reboot "${FUNCNAME[0]}"
   else
     echo "[${SCRIPT_NAME}]: [Skipped]: ${FUNCNAME[0]} has ran before" 2>&1 | tee -a "${REPORT_FILE}"
-    sleep 1
+    echo "=~=~=~=~=~=~=~=~=~" 2>&1 | tee -a "${REPORT_FILE}"
   fi
 }
 
@@ -2304,7 +2462,7 @@ function add_da_ip() {
     check_finish_reboot "${FUNCNAME[0]}"
   else
     echo "[${SCRIPT_NAME}]: [Skipped]: ${FUNCNAME[0]} has ran before" 2>&1 | tee -a "${REPORT_FILE}"
-    sleep 1
+    echo "=~=~=~=~=~=~=~=~=~" 2>&1 | tee -a "${REPORT_FILE}"
   fi
 
 }
@@ -2318,7 +2476,7 @@ function configure_maxibox() {
     check_finish_reboot "${FUNCNAME[0]}"
   else
     echo "[${SCRIPT_NAME}]: [Skipped]: ${FUNCNAME[0]} has ran before" 2>&1 | tee -a "${REPORT_FILE}"
-    sleep 1
+    echo "=~=~=~=~=~=~=~=~=~" 2>&1 | tee -a "${REPORT_FILE}"
   fi
 }
 
@@ -2330,7 +2488,7 @@ function configure_maxicode_pre() {
     check_finish_reboot "${FUNCNAME[0]}"
   else
     echo "[${SCRIPT_NAME}]: [Skipped]: ${FUNCNAME[0]} has ran before" 2>&1 | tee -a "${REPORT_FILE}"
-    sleep 1
+    echo "=~=~=~=~=~=~=~=~=~" 2>&1 | tee -a "${REPORT_FILE}"
   fi
 
 }
@@ -2353,7 +2511,7 @@ function configure_maxiperm() {
     check_finish_reboot "${FUNCNAME[0]}"
   else
     echo "[${SCRIPT_NAME}]: [Skipped]: ${FUNCNAME[0]} has ran before" 2>&1 | tee -a "${REPORT_FILE}"
-    sleep 1
+    echo "=~=~=~=~=~=~=~=~=~" 2>&1 | tee -a "${REPORT_FILE}"
   fi
 }
 # Installing other security software based on maxicode
@@ -2435,17 +2593,18 @@ EOF
     check_finish_reboot "${FUNCNAME[0]}"
   else
     echo "[${SCRIPT_NAME}]: [Skipped]: ${FUNCNAME[0]} has ran before" 2>&1 | tee -a "${REPORT_FILE}"
-    sleep 1
+    echo "=~=~=~=~=~=~=~=~=~" 2>&1 | tee -a "${REPORT_FILE}"
   fi
 }
 
 # maxida is used to manage directadmin functionalities including APIs.
 function configure_maxida() {
   if [ ! -f "${CONF_PATH}/${FUNCNAME[0]}_executed" ]; then
-    local maxida_bin maxida_env
+    local maxida_bin maxida_env_sample maxida_env
     echo "[${SCRIPT_NAME}]: Executing ${FUNCNAME[0]} ..." 2>&1 | tee -a "${REPORT_FILE}"
     echo "[${SCRIPT_NAME}]: Configuring maxida installation in maxicode ..." 2>&1 | tee -a "${REPORT_FILE}"
     maxida_bin="/usr/local/maxicode/maxida/maxida"
+    maxida_env_sample="/usr/local/maxicode/maxida/maxida.env.sample"
     maxida_env="/usr/local/maxicode/maxida/maxida.env"
     if [ -f ${maxida_bin} ]; then
       echo "[${SCRIPT_NAME}]: Creating symlink and executable for ${maxida_bin} ..." 2>&1 | tee -a "${REPORT_FILE}"
@@ -2458,7 +2617,8 @@ function configure_maxida() {
       _exit 1
     fi
 
-    if [ -f ${maxida_env} ]; then
+    if [ -f ${maxida_env_sample} ]; then
+      cp "${maxida_env_sample}" "${maxida_env}"
       # Here we create environment variables to use maxida API (Directadmin API). Very important to supply initial authentication
       echo "[${SCRIPT_NAME}]: Creating environment variable for maxida at ${maxida_env} ..." 2>&1 | tee -a "${REPORT_FILE}"
       sleep 1
@@ -2474,7 +2634,7 @@ function configure_maxida() {
     check_finish_reboot "${FUNCNAME[0]}"
   else
     echo "[${SCRIPT_NAME}]: [Skipped]: ${FUNCNAME[0]} has ran before" 2>&1 | tee -a "${REPORT_FILE}"
-    sleep 1
+    echo "=~=~=~=~=~=~=~=~=~" 2>&1 | tee -a "${REPORT_FILE}"
   fi
 }
 
@@ -2703,7 +2863,7 @@ function configure_maxicata() {
     check_finish_reboot "${FUNCNAME[0]}"
   else
     echo "[${SCRIPT_NAME}]: [Skipped]: ${FUNCNAME[0]} has ran before" 2>&1 | tee -a "${REPORT_FILE}"
-    sleep 1
+    echo "=~=~=~=~=~=~=~=~=~" 2>&1 | tee -a "${REPORT_FILE}"
   fi
 }
 
@@ -2747,7 +2907,7 @@ function configure_da_memcached() {
     check_finish_reboot "${FUNCNAME[0]}"
   else
     echo "[${SCRIPT_NAME}]: [Skipped]: ${FUNCNAME[0]} has ran before" 2>&1 | tee -a "${REPORT_FILE}"
-    sleep 1
+    echo "=~=~=~=~=~=~=~=~=~" 2>&1 | tee -a "${REPORT_FILE}"
   fi
 }
 
@@ -2776,7 +2936,7 @@ function configure_da_geoip() {
     check_finish_reboot "${FUNCNAME[0]}"
   else
     echo "[${SCRIPT_NAME}]: [Skipped]: ${FUNCNAME[0]} has ran before" 2>&1 | tee -a "${REPORT_FILE}"
-    sleep 1
+    echo "=~=~=~=~=~=~=~=~=~" 2>&1 | tee -a "${REPORT_FILE}"
   fi
 }
 
@@ -2806,7 +2966,7 @@ configure_da_dns_templates() {
     check_finish_reboot "${FUNCNAME[0]}"
   else
     echo "[${SCRIPT_NAME}]: [Skipped]: ${FUNCNAME[0]} has ran before" 2>&1 | tee -a "${REPORT_FILE}"
-    sleep 1
+    echo "=~=~=~=~=~=~=~=~=~" 2>&1 | tee -a "${REPORT_FILE}"
   fi
 }
 
@@ -2847,52 +3007,89 @@ function configure_maxicode() {
     check_finish_reboot "${FUNCNAME[0]}"
   else
     echo "[${SCRIPT_NAME}]: [Skipped]: ${FUNCNAME[0]} has ran before" 2>&1 | tee -a "${REPORT_FILE}"
-    sleep 1
+    echo "=~=~=~=~=~=~=~=~=~" 2>&1 | tee -a "${REPORT_FILE}"
   fi
 }
-
-function configure_da_packages() {
-  #https://forum.directadmin.com/threads/server-migration-how-to-use-the-existing-configuration-during-setup.62937/
-  #https://forum.directadmin.com/threads/default-user-package-s-for-resellers.49156/
+# Create any extra admin accounts here
+function configure_admin_accounts() {
+  rm -f "${CONF_PATH}/${FUNCNAME[0]}_executed"
   if [ ! -f "${CONF_PATH}/${FUNCNAME[0]}_executed" ]; then
     echo "[${SCRIPT_NAME}]: Executing ${FUNCNAME[0]} ..." 2>&1 | tee -a "${REPORT_FILE}"
-    echo "[${SCRIPT_NAME}]: Creating reseller unlimited package ..." 2>&1 | tee -a "${REPORT_FILE}"
-    da_api_admin "create-reseller-package" "RESELLER_UNLIMITED"
+    # Currently we only have owner account, now we create an admin account, we create admin here
+    # We will use this account to fully manage DA instead of owner for security but for API we only use DA owner account
+    echo "[${SCRIPT_NAME}]: Creating a new DA admin account ..." 2>&1 | tee -a "${REPORT_FILE}"
+    #_pause 2
+    # Start owner session to use API (it will automatically destroy after execution or use da_api_admin "end_owner" to destroy manually
+    # Here means owner login and create admin account
+    da_api_admin "start_owner"
+    #exit 1
+    da_api_admin "create-admin-account" "${DA_ADMIN_USERNAME}" "${ADMIN_EMAIL}" "${DA_ADMIN_USERPASS}"
     check_finish_reboot "${FUNCNAME[0]}"
   else
     echo "[${SCRIPT_NAME}]: [Skipped]: ${FUNCNAME[0]} has ran before" 2>&1 | tee -a "${REPORT_FILE}"
-    sleep 1
+    echo "=~=~=~=~=~=~=~=~=~" 2>&1 | tee -a "${REPORT_FILE}"
   fi
-}
 
+}
 function configure_da_accounts() {
+  rm -f "${CONF_PATH}/${FUNCNAME[0]}_executed"
   if [ ! -f "${CONF_PATH}/${FUNCNAME[0]}_executed" ]; then
     echo "[${SCRIPT_NAME}]: Executing ${FUNCNAME[0]} ..." 2>&1 | tee -a "${REPORT_FILE}"
+    local da_admin_packages_list da_user_packages_list gc
+    da_admin_packages_list="/usr/local/directadmin/data/admin/packages.list"
+    da_user_packages_list="/usr/local/directadmin/data/users/${DA_RESELLER_USERNAME}/packages.list"
     # ALL API documentation: https://www.directadmin.com/search_versions.php?query=CMD_API
     # Create CURL action for API: https://help.directadmin.com/item.php?id=580
     # How to debug API: https://help.directadmin.com/item.php?id=356
     # https://help.directadmin.com/item.php?id=293
-    :
-    # TODO
-    # 1) Here we use DA API log into admin account (USE API curl!!!. Done that)
-    # 2) Then with this account logged, we must first create a reseller package (eg: RESELLER UNLIMITED) (Done at configure_da_packages)
-    #in package creation, do not use anonymous FTP accounts, do not use SSH access (for security) (done at configure_da_packages )
-    # 3) After created a package, then we can create a reseller account (eg: maxibox)
 
-    # CREATE RESELLER HERE (BUT when create reseller how about package?) let's see what happen.
+    # We already have owner account
+    # Must create a reseller package first before create reseller account
+    # In package creation, do not use anonymous FTP accounts, do not use SSH access (for security)
 
-    # 4) Then using this reseller account we create a user account (eg: newuser)
-    # 5)
-    #
-    # then we can create a reseller account
+    # TODO do not use owner to create reseller, but use admin TODO need to pass the above admin credential:
+    # Check if reseller package is created
+    # https://forum.directadmin.com/threads/server-migration-how-to-use-the-existing-configuration-during-setup.62937/
+    # https://forum.directadmin.com/threads/default-user-package-s-for-resellers.49156/
 
-    # 2) Then we log into this account
+    # First create reseller unlimited package
+    echo "[${SCRIPT_NAME}]: Creating reseller unlimited package ..." 2>&1 | tee -a "${REPORT_FILE}"
+    #_pause 3
+    # Make sure admin account is created first (da_api_admin will check this)
+    da_api_admin "start_admin"
+    da_api_admin "create-reseller-package" "${DA_RESELLER_PACKAGE_NAME}"
 
-    #da_api --command "CMD_COMMAND_" --data ""
+    gc=$(grep -ic "${DA_RESELLER_PACKAGE_NAME}" "${da_admin_packages_list}")
+    if [ "${gc}" -gt 0 ]; then
+      echo "[${SCRIPT_NAME}]: Found package ${DA_RESELLER_PACKAGE_NAME}. Creating reseller account using package name ${DA_RESELLER_PACKAGE_NAME} ..." 2>&1 | tee -a "${REPORT_FILE}"
+      # Use admin account to create reseller
+      da_api_admin "create-reseller-account" "${DA_RESELLER_USERNAME}" "${DA_RESELLER_EMAIL}" "${DA_RESELLER_USERPASS}" "${DA_RESELLER_DOMAIN}" "${DA_RESELLER_PACKAGE_NAME}" "${DA_RESELLER_IP_TYPE}"
+      #da_api_admin "end_admin" # optional command, it will destroy session automatically
+    else
+      echo "[${SCRIPT_NAME}]: Warning, ${DA_RESELLER_PACKAGE_NAME} does not exist in ${da_admin_packages_list}. Please inspect why!" 2>&1 | tee -a "${REPORT_FILE}"
+      _exit 1
+    fi
+
+    # Now we create user unlimited package
+    echo "[${SCRIPT_NAME}]: Creating user unlimited package ..." 2>&1 | tee -a "${REPORT_FILE}"
+    #_pause 3
+    # Make sure reseller account is created first (da_api_admin will check this)
+    # We use reseller account to create user package:
+    da_api_admin "start_reseller"
+    da_api_admin "create-user-package" "${DA_USER_PACKAGE_NAME}"
+
+    gc=$(grep -ic "${DA_USER_PACKAGE_NAME}" "${da_user_packages_list}")
+    if [ "${gc}" -gt 0 ]; then
+      echo "[${SCRIPT_NAME}]: Found package ${DA_USER_PACKAGE_NAME}. Creating user account using package name ${DA_USER_PACKAGE_NAME} ..." 2>&1 | tee -a "${REPORT_FILE}"
+      da_api_admin "create-user-account" "${DA_USER_USERNAME}" "${DA_USER_EMAIL}" "${DA_USER_USERPASS}" "${DA_USER_DOMAIN}" "${DA_USER_PACKAGE_NAME}"
+    else
+      echo "[${SCRIPT_NAME}]: Warning, ${DA_USER_PACKAGE_NAME} does not exist in ${da_user_packages_list}. Please inspect why!" 2>&1 | tee -a "${REPORT_FILE}"
+      _exit 1
+    fi
     check_finish_reboot "${FUNCNAME[0]}"
   else
     echo "[${SCRIPT_NAME}]: [Skipped]: ${FUNCNAME[0]} has ran before" 2>&1 | tee -a "${REPORT_FILE}"
-    sleep 1
+    echo "=~=~=~=~=~=~=~=~=~" 2>&1 | tee -a "${REPORT_FILE}"
   fi
 }
 
@@ -2907,7 +3104,7 @@ function post_setup() {
     apt-get -y install ncdu htop mailutils gpg 2>&1 | tee -a "${REPORT_FILE}"
   else
     echo "[${SCRIPT_NAME}]: [Skipped]: ${FUNCNAME[0]} has ran before" 2>&1 | tee -a "${REPORT_FILE}"
-    sleep 1
+    echo "=~=~=~=~=~=~=~=~=~" 2>&1 | tee -a "${REPORT_FILE}"
   fi
 }
 
@@ -3054,7 +3251,7 @@ echo "" 2>&1 | tee -a "${REPORT_FILE}"
 # Use this to install screen or disable Selinux in CentOS
 pre_setup
 # Clone all setup script
-clone_git_setup #OK
+get_latest_maxisetup #OK
 # Get the latest security codes from maxicode
 init_local_maxicode
 # Hardening server
@@ -3116,7 +3313,7 @@ if [ "${INSTALL_TYPE}" == "DIRECTADMIN" ]; then
   configure_da_ssl_pre
   #exit 1
   configure_da_ssl #OK
-  exit 1
+  #exit 1
   configure_da_sql #OK
   #exit 1
   configure_da_mail #OK but need to test again
@@ -3130,11 +3327,11 @@ if [ "${INSTALL_TYPE}" == "DIRECTADMIN" ]; then
   build_da_custom_conf
   #exit 1
   harden_da
-  #exit 1
-  configure_da_packages
+  #exit
+  configure_admin_accounts
   #exit 1
   configure_da_accounts
-  #exit 1
+  exit 1
   configure_da_memcached
   #exit 1
   configure_da_geoip
