@@ -91,6 +91,7 @@ function _exit() {
 }
 
 function _reboot() {
+  echo "--<]--"
   echo "[${SCRIPT_NAME}]: Rebooting system ..." 2>&1 | tee -a "${REPORT_FILE}"
   shutdown -r now
 }
@@ -913,7 +914,7 @@ function configure_net2() {
       _exit 1
     fi
 
-    # This one for both centos and debian so need to put OS condition
+    # This insertion works for both centos and debian so there is no need to put OS condition
     echo "[${SCRIPT_NAME}]: Inserting name server information in /etc/resolv.conf ..." 2>&1 | tee -a "${REPORT_FILE}"
     {
       echo "# ==============================================="
@@ -2391,7 +2392,7 @@ function harden_da() {
 }
 
 # Harden server based on lynis suggestion
-function harden_lynis() {
+function harden_with_lynis() {
   # Here we do extra hardening for SSHD (based on lynis suggestion)
   if [ ! -f "${CONF_PATH}/${FUNCNAME[0]}_executed" ]; then
     echo "[${SCRIPT_NAME}]: Executing ${FUNCNAME[0]} ..." 2>&1 | tee -a "${REPORT_FILE}"
@@ -2639,9 +2640,32 @@ function configure_maxida() {
 }
 
 function configure_maxiaide() {
-  # install aide
-  # init database
-  :
+  # Under testing for new version AIDE. New AIDE version has different config format.
+  if [ ! -f "${CONF_PATH}/${FUNCNAME[0]}_executed" ]; then
+    local maxiaide_bin
+    echo "[${SCRIPT_NAME}]: Executing ${FUNCNAME[0]} ..." 2>&1 | tee -a "${REPORT_FILE}"
+    # install aide
+    echo "[${SCRIPT_NAME}]: Installing AIDE file monitoring ..." 2>&1 | tee -a "${REPORT_FILE}"
+    apt-get -y install aide
+    # init database
+    # TODO more
+    maxiaide_bin="/usr/local/maxicode/maxiaide/maxiaide"
+
+    if [ -f ${maxiaide_bin} ]; then
+      echo "[${SCRIPT_NAME}]: Creating symlink and executable for ${maxiaide_bin} ..." 2>&1 | tee -a "${REPORT_FILE}"
+      chmod +x ${maxiaide_bin}
+      # Symbolic name
+      ln -s ${maxiaide_bin} /usr/local/bin
+    else
+      echo "[${SCRIPT_NAME}]: Warning, maxiaide doesn't exist in /usr/local/maxicode !" 2>&1 | tee -a "${REPORT_FILE}"
+      _exit 1
+    fi
+
+    check_finish_reboot "${FUNCNAME[0]}"
+  else
+    echo "[${SCRIPT_NAME}]: [Skipped]: ${FUNCNAME[0]} has ran before" 2>&1 | tee -a "${REPORT_FILE}"
+    echo "=~=~=~=~=~=~=~=~=~" 2>&1 | tee -a "${REPORT_FILE}"
+  fi
 }
 
 function configure_maxicata() {
@@ -2970,7 +2994,21 @@ configure_da_dns_templates() {
   fi
 }
 
+# Configure DA skins like set the time format, set logo (focus on Evolution Skin)
+# No complete API yet, waiting for DA version 1.61.6 stable release
+function configure_da_skins() {
+  # We can customize this skin evolution based on this file /usr/local/directadmin/data/users/username/skin_customization/evolution/user_options.json
+  if [ ! -f "${CONF_PATH}/${FUNCNAME[0]}_executed" ]; then
+    echo "[${SCRIPT_NAME}]: Executing ${FUNCNAME[0]} ..." 2>&1 | tee -a "${REPORT_FILE}"
+
+    check_finish_reboot "${FUNCNAME[0]}"
+  else
+    echo "[${SCRIPT_NAME}]: [Skipped]: ${FUNCNAME[0]} has ran before" 2>&1 | tee -a "${REPORT_FILE}"
+    echo "=~=~=~=~=~=~=~=~=~" 2>&1 | tee -a "${REPORT_FILE}"
+  fi
+}
 function configure_maxicode() {
+
   if [ ! -f "${CONF_PATH}/${FUNCNAME[0]}_executed" ]; then
     echo "[${SCRIPT_NAME}]: Executing ${FUNCNAME[0]} ..." 2>&1 | tee -a "${REPORT_FILE}"
 
@@ -3012,7 +3050,6 @@ function configure_maxicode() {
 }
 # Create any extra admin accounts here
 function configure_admin_accounts() {
-  rm -f "${CONF_PATH}/${FUNCNAME[0]}_executed"
   if [ ! -f "${CONF_PATH}/${FUNCNAME[0]}_executed" ]; then
     echo "[${SCRIPT_NAME}]: Executing ${FUNCNAME[0]} ..." 2>&1 | tee -a "${REPORT_FILE}"
     # Currently we only have owner account, now we create an admin account, we create admin here
@@ -3031,8 +3068,8 @@ function configure_admin_accounts() {
   fi
 
 }
+# Create reseller or user accounts here including packages and more
 function configure_da_accounts() {
-  rm -f "${CONF_PATH}/${FUNCNAME[0]}_executed"
   if [ ! -f "${CONF_PATH}/${FUNCNAME[0]}_executed" ]; then
     echo "[${SCRIPT_NAME}]: Executing ${FUNCNAME[0]} ..." 2>&1 | tee -a "${REPORT_FILE}"
     local da_admin_packages_list da_user_packages_list gc
@@ -3093,6 +3130,7 @@ function configure_da_accounts() {
   fi
 }
 
+# Creat email here (maybe everything should be configure in account)
 function configure_da_emails() {
   :
 }
@@ -3288,7 +3326,7 @@ fi
 #Best to execute after install_da because CSF installer will detect if DA exist, it will install CSF in DA way.
 configure_csf
 # Still need to add more based on lynis suggestion
-harden_lynis
+harden_with_lynis
 #exit 1
 configure_maxibox
 #exit 1
@@ -3337,6 +3375,8 @@ if [ "${INSTALL_TYPE}" == "DIRECTADMIN" ]; then
   configure_da_geoip
   #exit 1
   configure_da_dns_templates
+  #exit 1
+  configure_da_skins
 fi
 #exit 1
 post_setup
