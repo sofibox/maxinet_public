@@ -1,7 +1,7 @@
 #!/bin/bash
 # =~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~
 # Author: Arafat Ali Email: arafat@sofibox.com
-# Version 0.3.4.0-beta
+# Version 0.3.4.2-beta
 # This is an initial server hardening script for general server using CentOS and Debian.
 # Compatible 100% with Directadmin. Supported OS: CentOS + Debian (Planned on FreeBSD)
 # Read the code to know what the scripts offer.
@@ -142,15 +142,15 @@ function da_api_admin() {
   local domain ip_type
   local package_name
   admin_list="/usr/local/directadmin/data/admin/admin.list"
-  admin_new_list=$(grep -w "${DA_ADMIN_USERNAME}" "${admin_list}")
-  owner_new_list=$(grep -w "${DA_OWNER_USERNAME}" "${admin_list}")
-  reseller_new_list=$(grep -w "${DA_RESELLER_USERNAME}" "/usr/local/directadmin/data/admin/reseller.list")
-  user_new_list=$(find /usr/local/directadmin/data/users/ -name "${DA_USER_USERNAME}" -type d)
+  admin_new_list=$(grep -w "${DA_ADMIN_USERNAME1}" "${admin_list}")
+  owner_new_list=$(grep -w "${DA_OWNER_USERNAME1}" "${admin_list}")
+  reseller_new_list=$(grep -w "${DA_RESELLER_USERNAME1}" "/usr/local/directadmin/data/admin/reseller.list")
+  user_new_list=$(find /usr/local/directadmin/data/users/ -name "${DA_USER_USERNAME1}" -type d)
   admin_ori_list="/usr/local/directadmin/scripts/setup.txt"
-  owner_main_auth="${TEMP_PATH}/api/${DA_OWNER_USERNAME}_owner_main_auth_api"
-  admin_main_auth="${TEMP_PATH}/api/${DA_ADMIN_USERNAME}_admin_main_auth_api"
-  reseller_main_auth="${TEMP_PATH}/api/${DA_RESELLER_USERNAME}_reseller_main_auth_api"
-  user_main_auth="${TEMP_PATH}/api/${DA_USER_USERNAME}_user_main_auth_api"
+  owner_main_auth="${TEMP_PATH}/api/${DA_OWNER_USERNAME1}_owner_main_auth_api"
+  admin_main_auth="${TEMP_PATH}/api/${DA_ADMIN_USERNAME1}_admin_main_auth_api"
+  reseller_main_auth="${TEMP_PATH}/api/${DA_RESELLER_USERNAME1}_reseller_main_auth_api"
+  user_main_auth="${TEMP_PATH}/api/${DA_USER_USERNAME1}_user_main_auth_api"
   action="$1"
 
   mkdir -p "${TEMP_PATH}/api"
@@ -166,8 +166,8 @@ function da_api_admin() {
       echo "[${SCRIPT_NAME}]: Found owner account matched in ENV file. Creating API session file authentication..." 2>&1 | tee -a "${REPORT_FILE}"
       touch "${owner_main_auth}"
       {
-        echo "DA_OWNER_USERNAME=\"${DA_OWNER_USERNAME}"\"
-        echo "DA_OWNER_USERPASS=\"${DA_OWNER_USERPASS}"\"
+        echo "DA_OWNER_USERNAME1=\"${DA_OWNER_USERNAME1}"\"
+        echo "DA_OWNER_USERPASS1=\"${DA_OWNER_USERPASS1}"\"
       } >"${owner_main_auth}"
     else
       echo "[${SCRIPT_NAME}]: Error, no owner account matched in ENV file. Please create owner first!" 2>&1 | tee -a "${REPORT_FILE}"
@@ -183,9 +183,9 @@ function da_api_admin() {
       echo "[${SCRIPT_NAME}]: Found admin account matched in ENV file. Creating API session file authentication ..." 2>&1 | tee -a "${REPORT_FILE}"
       touch "${admin_main_auth}"
       {
-        echo "DA_ADMIN_USERNAME=\"${DA_ADMIN_USERNAME}"\"
+        echo "DA_ADMIN_USERNAME1=\"${DA_ADMIN_USERNAME1}"\"
         # Admin username cannot contain character '+' it will trigger invalid password (DA bug?)
-        echo "DA_ADMIN_USERPASS=\"${DA_ADMIN_USERPASS}"\"
+        echo "DA_ADMIN_USERPASS1=\"${DA_ADMIN_USERPASS1}"\"
       } >"${admin_main_auth}"
 
     else
@@ -202,8 +202,8 @@ function da_api_admin() {
       echo "[${SCRIPT_NAME}]: Found reseller account matched in ENV file. Creating API session file authentication ..." 2>&1 | tee -a "${REPORT_FILE}"
       touch "${reseller_main_auth}"
       {
-        echo "DA_RESELLER_USERNAME=\"${DA_RESELLER_USERNAME}"\"
-        echo "DA_RESELLER_USERPASS=\"${DA_RESELLER_USERPASS}"\"
+        echo "DA_RESELLER_USERNAME1=\"${DA_RESELLER_USERNAME1}"\"
+        echo "DA_RESELLER_USERPASS1=\"${DA_RESELLER_USERPASS1}"\"
       } >"${reseller_main_auth}"
     else
       echo "[${SCRIPT_NAME}]: Error, no reseller account matched in ENV file. Please create reseller first!" 2>&1 | tee -a "${REPORT_FILE}"
@@ -220,8 +220,8 @@ function da_api_admin() {
       echo "[${SCRIPT_NAME}]: Found user account matched in ENV file. Creating API session file authentication ..." 2>&1 | tee -a "${REPORT_FILE}"
       touch "${user_main_auth}"
       {
-        echo "DA_USER_USERNAME=\"${DA_USER_USERNAME}"\"
-        echo "DA_USER_USERPASS=\"${DA_USER_USERPASS}"\"
+        echo "DA_USER_USERNAME1=\"${DA_USER_USERNAME1}"\"
+        echo "DA_USER_USERPASS1=\"${DA_USER_USERPASS1}"\"
       } >"${user_main_auth}"
     else
       echo "[${SCRIPT_NAME}]: Error, no user account matched in ENV file. Please create user first!" 2>&1 | tee -a "${REPORT_FILE}"
@@ -236,34 +236,34 @@ function da_api_admin() {
   # This is the default authentication for DA owner
 
   if [ -s "${owner_main_auth}" ]; then
-    echo "[${SCRIPT_NAME}]: Using DA API authentication from ${DA_OWNER_USERNAME} ..." 2>&1 | tee -a "${REPORT_FILE}"
+    echo "[${SCRIPT_NAME}]: Using DA API authentication from ${DA_OWNER_USERNAME1} ..." 2>&1 | tee -a "${REPORT_FILE}"
     _pause 2
-    api_username=$(sed -n 's/^DA_OWNER_USERNAME=//p' "${owner_main_auth}" | sed -e 's/^"//' -e 's/"$//')
-    api_password=$(sed -n 's/^DA_OWNER_USERPASS=//p' "${owner_main_auth}" | sed -e 's/^"//' -e 's/"$//')
+    api_username=$(sed -n 's/^DA_OWNER_USERNAME1=//p' "${owner_main_auth}" | sed -e 's/^"//' -e 's/"$//')
+    api_password=$(sed -n 's/^DA_OWNER_USERPASS1=//p' "${owner_main_auth}" | sed -e 's/^"//' -e 's/"$//')
     #echo "api_username is: ${api_username}"
     #echo "api_userpassword is: ${api_password}"
     #exit 1
   elif [ -s "${admin_main_auth}" ]; then
-    echo "[${SCRIPT_NAME}]: Using DA API authentication from ${DA_ADMIN_USERNAME} ..." 2>&1 | tee -a "${REPORT_FILE}"
+    echo "[${SCRIPT_NAME}]: Using DA API authentication from ${DA_ADMIN_USERNAME1} ..." 2>&1 | tee -a "${REPORT_FILE}"
     _pause 2
-    api_username=$(sed -n 's/^DA_ADMIN_USERNAME=//p' "${admin_main_auth}" | sed -e 's/^"//' -e 's/"$//')
-    api_password=$(sed -n 's/^DA_ADMIN_USERPASS=//p' "${admin_main_auth}" | sed -e 's/^"//' -e 's/"$//')
+    api_username=$(sed -n 's/^DA_ADMIN_USERNAME1=//p' "${admin_main_auth}" | sed -e 's/^"//' -e 's/"$//')
+    api_password=$(sed -n 's/^DA_ADMIN_USERPASS1=//p' "${admin_main_auth}" | sed -e 's/^"//' -e 's/"$//')
   elif [ -s "${reseller_main_auth}" ]; then
-    echo "[${SCRIPT_NAME}]: Using DA API authentication from ${DA_RESELLER_USERNAME} ..." 2>&1 | tee -a "${REPORT_FILE}"
+    echo "[${SCRIPT_NAME}]: Using DA API authentication from ${DA_RESELLER_USERNAME1} ..." 2>&1 | tee -a "${REPORT_FILE}"
     _pause 2
-    api_username=$(sed -n 's/^DA_RESELLER_USERNAME=//p' "${reseller_main_auth}" | sed -e 's/^"//' -e 's/"$//')
-    api_password=$(sed -n 's/^DA_RESELLER_USERPASS=//p' "${reseller_main_auth}" | sed -e 's/^"//' -e 's/"$//')
+    api_username=$(sed -n 's/^DA_RESELLER_USERNAME1=//p' "${reseller_main_auth}" | sed -e 's/^"//' -e 's/"$//')
+    api_password=$(sed -n 's/^DA_RESELLER_USERPASS1=//p' "${reseller_main_auth}" | sed -e 's/^"//' -e 's/"$//')
   elif [ -s "${user_main_auth}" ]; then
-    echo "[${SCRIPT_NAME}]: Using DA API authentication from ${DA_USER_USERNAME} ..." 2>&1 | tee -a "${REPORT_FILE}"
+    echo "[${SCRIPT_NAME}]: Using DA API authentication from ${DA_USER_USERNAME1} ..." 2>&1 | tee -a "${REPORT_FILE}"
     _pause 2
-    api_username=$(sed -n 's/^DA_USER_USERNAME=//p' "${user_main_auth}" | sed -e 's/^"//' -e 's/"$//')
-    api_password=$(sed -n 's/^DA_USER_USERPASS=//p' "${user_main_auth}" | sed -e 's/^"//' -e 's/"$//')
+    api_username=$(sed -n 's/^DA_USER_USERNAME1=//p' "${user_main_auth}" | sed -e 's/^"//' -e 's/"$//')
+    api_password=$(sed -n 's/^DA_USER_USERPASS1=//p' "${user_main_auth}" | sed -e 's/^"//' -e 's/"$//')
   # At this stage, if user don't use start_<user> before calling API then it will use below with the condition the auth exist:
   elif [ -n "${owner_new_list}" ]; then
-    echo "[${SCRIPT_NAME}]: Using DA API authentication from ${DA_OWNER_USERNAME} ..." 2>&1 | tee -a "${REPORT_FILE}"
+    echo "[${SCRIPT_NAME}]: Using DA API authentication from ${DA_OWNER_USERNAME1} ..." 2>&1 | tee -a "${REPORT_FILE}"
     _pause 2
-    api_username=${DA_OWNER_USERNAME}
-    api_password=${DA_OWNER_USERPASS}
+    api_username=${DA_OWNER_USERNAME1}
+    api_password=${DA_OWNER_USERPASS1}
   elif [ -s "${admin_ori_list}" ]; then
     echo "[${SCRIPT_NAME}]: Using DA API authentication from DA setup.txt file ..." 2>&1 | tee -a "${REPORT_FILE}"
     _pause 2
@@ -406,7 +406,7 @@ function check_finish_reboot() {
   fi
 
 }
-# Deprecated
+
 # This function will check service error and try to repair it using common solutions like log error information
 # check_fix_service <service_name>
 function check_fix_service() {
@@ -1733,13 +1733,13 @@ function change_da_auth() {
     da_scripts_path="/usr/local/directadmin/scripts"
 
     # This will change Directadmin admin account:
-    echo "[${SCRIPT_NAME}]: Changing Directadmin admin username from admin to ${DA_OWNER_USERNAME} ... " 2>&1 | tee -a "${REPORT_FILE}"
+    echo "[${SCRIPT_NAME}]: Changing Directadmin admin username from admin to ${DA_OWNER_USERNAME1} ... " 2>&1 | tee -a "${REPORT_FILE}"
     sleep 1
-    ${da_scripts_path}/change_username.sh "admin" "${DA_OWNER_USERNAME}" 2>&1 | tee -a "${REPORT_FILE}"
+    ${da_scripts_path}/change_username.sh "admin" "${DA_OWNER_USERNAME1}" 2>&1 | tee -a "${REPORT_FILE}"
     # Now on just focus on debian command RIP CentOS
-    echo "[${SCRIPT_NAME}]: Changing Directadmin's admin (${DA_OWNER_USERNAME}) password ..." 2>&1 | tee -a "${REPORT_FILE}"
+    echo "[${SCRIPT_NAME}]: Changing Directadmin's admin (${DA_OWNER_USERNAME1}) password ..." 2>&1 | tee -a "${REPORT_FILE}"
     sleep 1
-    echo "${DA_OWNER_USERNAME}:${DA_OWNER_USERPASS}" | chpasswd
+    echo "${DA_OWNER_USERNAME1}:${DA_OWNER_USERPASS1}" | chpasswd
     echo "" 2>&1 | tee -a "${REPORT_FILE}"
 
     # Create htpasswd for phpmyadmin URL:
@@ -2623,8 +2623,8 @@ function configure_maxida() {
       # Here we create environment variables to use maxida API (Directadmin API). Very important to supply initial authentication
       echo "[${SCRIPT_NAME}]: Creating environment variable for maxida at ${maxida_env} ..." 2>&1 | tee -a "${REPORT_FILE}"
       sleep 1
-      sed -i "s/^DA_OWNER_USERNAME=.*/DA_OWNER_USERNAME=\"${DA_OWNER_USERNAME}\"/" ${maxida_env}
-      sed -i "s/^DA_OWNER_USERPASS=.*/DA_OWNER_USERPASS=\"${DA_OWNER_USERPASS}\"/" ${maxida_env}
+      sed -i "s/^DA_OWNER_USERNAME1=.*/DA_OWNER_USERNAME1=\"${DA_OWNER_USERNAME1}\"/" ${maxida_env}
+      sed -i "s/^DA_OWNER_USERPASS1=.*/DA_OWNER_USERPASS1=\"${DA_OWNER_USERPASS1}\"/" ${maxida_env}
       sed -i "s/^BOX_HOSTNAME_FQDN=.*/BOX_HOSTNAME_FQDN=\"${BOX_HOSTNAME_FQDN}\"/" ${maxida_env}
       sed -i "s/^DA_PORT=.*/DA_PORT=\"${DA_PORT}\"/" ${maxida_env}
     else
@@ -3060,7 +3060,7 @@ function configure_admin_accounts() {
     # Here means owner login and create admin account
     da_api_admin "start_owner"
     #exit 1
-    da_api_admin "create-admin-account" "${DA_ADMIN_USERNAME}" "${ADMIN_EMAIL}" "${DA_ADMIN_USERPASS}"
+    da_api_admin "create-admin-account" "${DA_ADMIN_USERNAME1}" "${DA_ADMIN_EMAIL1}" "${DA_ADMIN_USERPASS1}"
     check_finish_reboot "${FUNCNAME[0]}"
   else
     echo "[${SCRIPT_NAME}]: [Skipped]: ${FUNCNAME[0]} has ran before" 2>&1 | tee -a "${REPORT_FILE}"
@@ -3072,9 +3072,12 @@ function configure_admin_accounts() {
 function configure_da_accounts() {
   if [ ! -f "${CONF_PATH}/${FUNCNAME[0]}_executed" ]; then
     echo "[${SCRIPT_NAME}]: Executing ${FUNCNAME[0]} ..." 2>&1 | tee -a "${REPORT_FILE}"
-    local da_admin_packages_list da_user_packages_list gc
+    local da_admin_packages_list da_user_packages_list gc count
+    local da_user_unames da_user_passwords da_user_emails da_user_domains da_user_package_names
+    local da_user_uname da_user_password da_user_email da_user_domain da_user_package_name
+    local da_user_count
     da_admin_packages_list="/usr/local/directadmin/data/admin/packages.list"
-    da_user_packages_list="/usr/local/directadmin/data/users/${DA_RESELLER_USERNAME}/packages.list"
+    da_user_packages_list="/usr/local/directadmin/data/users/${DA_RESELLER_USERNAME1}/packages.list"
     # ALL API documentation: https://www.directadmin.com/search_versions.php?query=CMD_API
     # Create CURL action for API: https://help.directadmin.com/item.php?id=580
     # How to debug API: https://help.directadmin.com/item.php?id=356
@@ -3094,16 +3097,16 @@ function configure_da_accounts() {
     #_pause 3
     # Make sure admin account is created first (da_api_admin will check this)
     da_api_admin "start_admin"
-    da_api_admin "create-reseller-package" "${DA_RESELLER_PACKAGE_NAME}"
+    da_api_admin "create-reseller-package" "${DA_RESELLER_PACKAGE_NAME1}"
 
-    gc=$(grep -ic "${DA_RESELLER_PACKAGE_NAME}" "${da_admin_packages_list}")
+    gc=$(grep -ic "${DA_RESELLER_PACKAGE_NAME1}" "${da_admin_packages_list}")
     if [ "${gc}" -gt 0 ]; then
-      echo "[${SCRIPT_NAME}]: Found package ${DA_RESELLER_PACKAGE_NAME}. Creating reseller account using package name ${DA_RESELLER_PACKAGE_NAME} ..." 2>&1 | tee -a "${REPORT_FILE}"
+      echo "[${SCRIPT_NAME}]: Found package ${DA_RESELLER_PACKAGE_NAME1}. Creating reseller account using package name ${DA_RESELLER_PACKAGE_NAME1} ..." 2>&1 | tee -a "${REPORT_FILE}"
       # Use admin account to create reseller
-      da_api_admin "create-reseller-account" "${DA_RESELLER_USERNAME}" "${DA_RESELLER_EMAIL}" "${DA_RESELLER_USERPASS}" "${DA_RESELLER_DOMAIN}" "${DA_RESELLER_PACKAGE_NAME}" "${DA_RESELLER_IP_TYPE}"
+      da_api_admin "create-reseller-account" "${DA_RESELLER_USERNAME1}" "${DA_RESELLER_EMAIL1}" "${DA_RESELLER_USERPASS1}" "${DA_RESELLER_DOMAIN1}" "${DA_RESELLER_PACKAGE_NAME1}" "${DA_RESELLER_IP_TYPE1}"
       #da_api_admin "end_admin" # optional command, it will destroy session automatically
     else
-      echo "[${SCRIPT_NAME}]: Warning, ${DA_RESELLER_PACKAGE_NAME} does not exist in ${da_admin_packages_list}. Please inspect why!" 2>&1 | tee -a "${REPORT_FILE}"
+      echo "[${SCRIPT_NAME}]: Warning, ${DA_RESELLER_PACKAGE_NAME1} does not exist in ${da_admin_packages_list}. Please inspect why!" 2>&1 | tee -a "${REPORT_FILE}"
       _exit 1
     fi
 
@@ -3113,21 +3116,60 @@ function configure_da_accounts() {
     # Make sure reseller account is created first (da_api_admin will check this)
     # We use reseller account to create user package:
     da_api_admin "start_reseller"
-    da_api_admin "create-user-package" "${DA_USER_PACKAGE_NAME}"
+    # Assign DA_USER_PACKAGE_NAME1 because it's the first package for user
+    da_api_admin "create-user-package" "${DA_USER_PACKAGE_NAME1}"
 
-    gc=$(grep -ic "${DA_USER_PACKAGE_NAME}" "${da_user_packages_list}")
-    if [ "${gc}" -gt 0 ]; then
-      echo "[${SCRIPT_NAME}]: Found package ${DA_USER_PACKAGE_NAME}. Creating user account using package name ${DA_USER_PACKAGE_NAME} ..." 2>&1 | tee -a "${REPORT_FILE}"
-      da_api_admin "create-user-account" "${DA_USER_USERNAME}" "${DA_USER_EMAIL}" "${DA_USER_USERPASS}" "${DA_USER_DOMAIN}" "${DA_USER_PACKAGE_NAME}"
-    else
-      echo "[${SCRIPT_NAME}]: Warning, ${DA_USER_PACKAGE_NAME} does not exist in ${da_user_packages_list}. Please inspect why!" 2>&1 | tee -a "${REPORT_FILE}"
-      _exit 1
-    fi
+    # TODO waiting for answer, create dynamic variable https://stackoverflow.com/questions/65873108/bash-loop-dynamic-variable-from-source-file
+    # Create first user
+    da_user_unames="${!DA_USER_USERNAME@}"
+    da_user_passwords="${!DA_USER_USERPASS@}"
+    da_user_emails="${!DA_USER_EMAIL@}"
+    da_user_domains="${!DA_USER_DOMAIN@}"
+    da_user_package_names="${!DA_USER_PACKAGE_NAME@}"
+    da_user_count=$(echo "${da_user_unames}" | wc -w)
+    count=1
+    while [[ ${count} -le ${da_user_count} ]]; do
+      typeset -n "da_user_uname"="DA_USER_USERNAME${count}"
+      typeset -n "da_user_password"="DA_USER_USERPASS${count}"
+      typeset -n "da_user_email"="DA_USER_EMAIL${count}"
+      typeset -n "da_user_domain"="DA_USER_DOMAIN${count}"
+      typeset -n "da_user_package_name"="DA_USER_PACKAGE_NAME${count}"
+      if [ -z "${da_user_password}" ]; then
+        echo "[Skipped]: Warning user ${da_user_uname} is set but doesn't have password set in ENV file. Please check configuration file "
+        _exit 1
+      elif [ -z "${da_user_email}" ]; then
+        echo "[Skipped]: Warning user ${da_user_uname} is set but doesn't have email set in ENV file. Please check configuration file "
+        _exit 1
+      elif [ -z "${da_user_domain}" ]; then
+        echo "[Skipped]: Warning user ${da_user_uname} is set but doesn't have domain set in ENV file. Please check configuration file "
+        _exit 1
+      elif [ -z "${da_user_package_name}" ]; then
+        echo "[Skipped]: Warning user ${da_user_uname} is set but doesn't have package name set in ENV file. Please check configuration file "
+        _exit 1
+      else
+        echo "Ok user ${da_user_uname} has all variables set. Checking user package ${da_user_package_name} ..."
+        #echo "${da_user_uname} | ${da_user_password} | ${da_user_email} | ${da_user_domain} | ${da_user_package_name}"
+        gc=$(grep -ic "${da_user_package_name}" "${da_user_packages_list}")
+        if [ "${gc}" -gt 0 ]; then
+          echo "[${SCRIPT_NAME}]: Found package ${da_user_package_name}. Creating user account using package name ${da_user_package_name} ..." 2>&1 | tee -a "${REPORT_FILE}"
+          da_api_admin "create-user-account" "${da_user_uname}" "${da_user_email}" "${da_user_password}" "${da_user_domain}" "${da_user_package_name}"
+        else
+          echo "[${SCRIPT_NAME}]: Warning, ${da_user_package_name} does not exist in ${da_user_packages_list}. Please inspect why!" 2>&1 | tee -a "${REPORT_FILE}"
+          _exit 1
+        fi
+
+      fi
+      ((count = count + 1))
+    done
     check_finish_reboot "${FUNCNAME[0]}"
   else
     echo "[${SCRIPT_NAME}]: [Skipped]: ${FUNCNAME[0]} has ran before" 2>&1 | tee -a "${REPORT_FILE}"
     echo "=~=~=~=~=~=~=~=~=~" 2>&1 | tee -a "${REPORT_FILE}"
   fi
+
+  # TODO creating user api with different username:
+  # da_api_admin "start_<da_username>"
+  # da_api_admin "start_maxibi00" "action" "action_arguments"
 }
 
 # Creat email here (maybe everything should be configure in account)
@@ -3368,13 +3410,14 @@ if [ "${INSTALL_TYPE}" == "DIRECTADMIN" ]; then
   #exit
   configure_admin_accounts
   #exit 1
+  # After creating admin accounts, we configure dns template before creating user accounts so they can use new DNS template
+  configure_da_dns_templates
+  #exit 1
   configure_da_accounts
-  exit 1
+  #exit 1
   configure_da_memcached
   #exit 1
   configure_da_geoip
-  #exit 1
-  configure_da_dns_templates
   #exit 1
   configure_da_skins
 fi
@@ -3384,7 +3427,7 @@ echo "" 2>&1 | tee -a "${REPORT_FILE}"
 echo "==============" 2>&1 | tee -a "${REPORT_FILE}"
 echo "Directadmin now can be accessed through this URL: " 2>&1 | tee -a "${REPORT_FILE}"
 echo "http://${IPV4_ADD0}:${DA_PORT} or http://${BOX_HOSTNAME_FQDN}:${DA_PORT}" 2>&1 | tee -a "${REPORT_FILE}"
-echo "Username: ${DA_OWNER_USERNAME}" 2>&1 | tee -a "${REPORT_FILE}"
+echo "Username: ${DA_OWNER_USERNAME1}" 2>&1 | tee -a "${REPORT_FILE}"
 echo "Password: *******" 2>&1 | tee -a "${REPORT_FILE}"
 echo "==============" 2>&1 | tee -a "${REPORT_FILE}"
 echo "" 2>&1 | tee -a "${REPORT_FILE}"

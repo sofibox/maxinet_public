@@ -10,7 +10,7 @@
     <select />
   </component>
   <component name="ChangeListManager">
-    <list default="true" id="113c828c-9a32-4b24-ab1e-978ce50c6320" name="Default Changelist" comment="Improve DA API such as adding a flexible way to start API session with da_api_admin &quot;start_&lt;role&gt;&quot;&#10;Add API to create packages for reseller and user&#10;Add API to create reseller and user account&#10;Fixed maxida.env at maxida file overwritten with blank environment variables when resume setup">
+    <list default="true" id="113c828c-9a32-4b24-ab1e-978ce50c6320" name="Default Changelist" comment="Fixed maxida environment source file (maxida.env) not found&#10;Minor improvement of maxicata on package checking (auto install missing package)&#10;Add maxiaide alpha version 1.0 installation for Debian&#10;Add sample aide.conf for testing&#10;Note that maxida and maxiaide are currently at private repo that need git token access.">
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
@@ -27,7 +27,7 @@
   <component name="GitToolBoxStore">
     <option name="projectConfigVersion" value="2" />
   </component>
-  <component name="JupyterTrust" id="c68df64c-34c6-43c5-b7fb-a663147e7798" />
+  <component name="JupyterTrust" id="8557b86d-6a50-45db-ace0-04efaf79add5" />
   <component name="ProjectId" id="1n4BxEHbbfffUetR8AIQOCKdrFr" />
   <component name="ProjectViewState">
     <option name="autoscrollFromSource" value="true" />
@@ -48,13 +48,15 @@
     </key>
   </component>
   <component name="RunManager">
-    <configuration default="true" type="ArquillianJUnit" factoryName="" nameIsGenerated="true">
+    <configuration default="true" type="ArquillianTestNG" factoryName="" nameIsGenerated="true">
       <option name="arquillianRunConfiguration">
         <value>
           <option name="containerStateName" value="" />
         </value>
       </option>
-      <option name="TEST_OBJECT" value="class" />
+      <option name="TEST_OBJECT" value="CLASS" />
+      <properties />
+      <listeners />
       <method v="2">
         <option name="Make" enabled="true" />
       </method>
@@ -81,6 +83,7 @@
       <workItem from="1611204454142" duration="41000" />
       <workItem from="1611209121554" duration="45000" />
       <workItem from="1611347809837" duration="512000" />
+      <workItem from="1611498737863" duration="1042000" />
     </task>
     <task id="LOCAL-00001" summary="Initial release from beta Version 0.3.2.7-beta">
       <created>1610639956771</created>
@@ -166,7 +169,14 @@
       <option name="project" value="LOCAL" />
       <updated>1611347876787</updated>
     </task>
-    <option name="localTasksCounter" value="13" />
+    <task id="LOCAL-00013" summary="Fixed maxida environment source file (maxida.env) not found&#10;Minor improvement of maxicata on package checking (auto install missing package)&#10;Add maxiaide alpha version 1.0 installation for Debian&#10;Add sample aide.conf for testing&#10;Note that maxida and maxiaide are currently at private repo that need git token access.">
+      <created>1611498825417</created>
+      <option name="number" value="00013" />
+      <option name="presentableId" value="LOCAL-00013" />
+      <option name="project" value="LOCAL" />
+      <updated>1611498825417</updated>
+    </task>
+    <option name="localTasksCounter" value="14" />
     <servers />
   </component>
   <component name="TypeScriptGeneratedFilesManager">
@@ -197,17 +207,19 @@
     <MESSAGE value="Remove 3rd party rules from maxisetup and add that in maxicata instead" />
     <MESSAGE value="Minor change- &gt; improve _pause() function to accept both timeout and keypress, so during setup, we can skip sleep function by pressing enter." />
     <MESSAGE value="Improve DA API such as adding a flexible way to start API session with da_api_admin &quot;start_&lt;role&gt;&quot;&#10;Add API to create packages for reseller and user&#10;Add API to create reseller and user account&#10;Fixed maxida.env at maxida file overwritten with blank environment variables when resume setup" />
-    <option name="LAST_COMMIT_MESSAGE" value="Improve DA API such as adding a flexible way to start API session with da_api_admin &quot;start_&lt;role&gt;&quot;&#10;Add API to create packages for reseller and user&#10;Add API to create reseller and user account&#10;Fixed maxida.env at maxida file overwritten with blank environment variables when resume setup" />
+    <MESSAGE value="Fixed maxida environment source file (maxida.env) not found&#10;Minor improvement of maxicata on package checking (auto install missing package)&#10;Add maxiaide alpha version 1.0 installation for Debian&#10;Add sample aide.conf for testing&#10;Note that maxida and maxiaide are currently at private repo that need git token access. Public version will be released soon." />
+    <MESSAGE value="Fixed maxida environment source file (maxida.env) not found&#10;Minor improvement of maxicata on package checking (auto install missing package)&#10;Add maxiaide alpha version 1.0 installation for Debian&#10;Add sample aide.conf for testing&#10;Note that maxida and maxiaide are currently at private repo that need git token access." />
+    <option name="LAST_COMMIT_MESSAGE" value="Fixed maxida environment source file (maxida.env) not found&#10;Minor improvement of maxicata on package checking (auto install missing package)&#10;Add maxiaide alpha version 1.0 installation for Debian&#10;Add sample aide.conf for testing&#10;Note that maxida and maxiaide are currently at private repo that need git token access." />
   </component>
   <component name="WindowStateProjectService">
     <state x="184" y="85" width="1536" height="860" key="DiffContextDialog" timestamp="1611169066850">
       <screen x="0" y="0" width="1920" height="1040" />
     </state>
     <state x="184" y="85" width="1536" height="860" key="DiffContextDialog/0.0.1920.1040@0.0.1920.1040" timestamp="1611169066850" />
-    <state x="233" y="73" key="Vcs.Push.Dialog.v2" timestamp="1611347878335">
-      <screen x="0" y="0" width="1280" height="680" />
+    <state x="350" y="112" key="Vcs.Push.Dialog.v2" timestamp="1611498827203">
+      <screen x="0" y="0" width="1920" height="1040" />
     </state>
     <state x="233" y="73" key="Vcs.Push.Dialog.v2/0.0.1280.680@0.0.1280.680" timestamp="1611347878335" />
-    <state x="350" y="112" key="Vcs.Push.Dialog.v2/0.0.1920.1040@0.0.1920.1040" timestamp="1611209155912" />
+    <state x="350" y="112" key="Vcs.Push.Dialog.v2/0.0.1920.1040@0.0.1920.1040" timestamp="1611498827203" />
   </component>
 </project>
