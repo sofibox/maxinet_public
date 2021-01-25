@@ -1,14 +1,13 @@
 #!/bin/bash
 # =~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~
 # Author: Arafat Ali Email: arafat@sofibox.com
-# Version 0.3.4.2-beta
+# Version 0.3.4.3-beta
 # This is an initial server hardening script for general server using CentOS and Debian.
 # Compatible 100% with Directadmin. Supported OS: CentOS + Debian (Planned on FreeBSD)
 # Read the code to know what the scripts offer.
 # In DA, it will setup Directadmin from scratch, install firewall, secure username, auto link IP, set SSL and more
 # At the end of installation, you will get a secured DA control panel without needed to tweak more
 # TODO enable --dry-run (that will simulate testing for this script)
-# shellcheck source=/dev/null
 # =~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~
 # This function is used to handle exit trap
 
@@ -17,6 +16,7 @@ _trap_with_args() {
   func="$1"
   shift
   for sig; do
+    # shellcheck disable=SC2064
     trap "${func} ${sig}" "${sig}"
   done
 }
@@ -159,18 +159,19 @@ function da_api_admin() {
   else
     ssl="http"
   fi
+
   if [ "${action}" == "start_owner" ]; then
     rm -f "${TEMP_PATH}"/api/*
     echo "executing start_owner"
     if [ -n "${owner_new_list}" ]; then
-      echo "[${SCRIPT_NAME}]: Found owner account matched in ENV file. Creating API session file authentication..." 2>&1 | tee -a "${REPORT_FILE}"
+      echo "[${SCRIPT_NAME}]: Found main owner account ${owner_new_list} matched in ENV file. Creating API session file authentication for ${owner_new_list} ..." 2>&1 | tee -a "${REPORT_FILE}"
       touch "${owner_main_auth}"
       {
         echo "DA_OWNER_USERNAME1=\"${DA_OWNER_USERNAME1}"\"
         echo "DA_OWNER_USERPASS1=\"${DA_OWNER_USERPASS1}"\"
       } >"${owner_main_auth}"
     else
-      echo "[${SCRIPT_NAME}]: Error, no owner account matched in ENV file. Please create owner first!" 2>&1 | tee -a "${REPORT_FILE}"
+      echo "[${SCRIPT_NAME}]: Error, no main owner account matched in ENV file. Please create owner first!" 2>&1 | tee -a "${REPORT_FILE}"
       _exit 1
     fi
   elif [ "${action}" == "end_owner" ]; then
@@ -180,7 +181,7 @@ function da_api_admin() {
     echo "executing start_admin"
     if [ -n "${admin_new_list}" ]; then
 
-      echo "[${SCRIPT_NAME}]: Found admin account matched in ENV file. Creating API session file authentication ..." 2>&1 | tee -a "${REPORT_FILE}"
+      echo "[${SCRIPT_NAME}]: Found main admin account ${admin_new_list} matched in ENV file. Creating API session file authentication for ${admin_new_list} ..." 2>&1 | tee -a "${REPORT_FILE}"
       touch "${admin_main_auth}"
       {
         echo "DA_ADMIN_USERNAME1=\"${DA_ADMIN_USERNAME1}"\"
@@ -189,7 +190,7 @@ function da_api_admin() {
       } >"${admin_main_auth}"
 
     else
-      echo "[${SCRIPT_NAME}]: Error, no admin account matched in ENV file. Please create admin first!" 2>&1 | tee -a "${REPORT_FILE}"
+      echo "[${SCRIPT_NAME}]: Error, no main admin account matched in ENV file. Please create admin first!" 2>&1 | tee -a "${REPORT_FILE}"
       _exit 1
     fi
   elif [ "${action}" == "end_admin" ]; then
@@ -199,14 +200,14 @@ function da_api_admin() {
     echo "executing start_reseller"
     if [ -n "${reseller_new_list}" ]; then
 
-      echo "[${SCRIPT_NAME}]: Found reseller account matched in ENV file. Creating API session file authentication ..." 2>&1 | tee -a "${REPORT_FILE}"
+      echo "[${SCRIPT_NAME}]: Found main reseller account ${reseller_new_list} matched in ENV file. Creating API session file authentication for ${reseller_new_list} ..." 2>&1 | tee -a "${REPORT_FILE}"
       touch "${reseller_main_auth}"
       {
         echo "DA_RESELLER_USERNAME1=\"${DA_RESELLER_USERNAME1}"\"
         echo "DA_RESELLER_USERPASS1=\"${DA_RESELLER_USERPASS1}"\"
       } >"${reseller_main_auth}"
     else
-      echo "[${SCRIPT_NAME}]: Error, no reseller account matched in ENV file. Please create reseller first!" 2>&1 | tee -a "${REPORT_FILE}"
+      echo "[${SCRIPT_NAME}]: Error, no main reseller account matched in ENV file. Please create reseller first!" 2>&1 | tee -a "${REPORT_FILE}"
       _exit 1
     fi
   elif [ "${action}" == "end_reseller" ]; then
@@ -217,14 +218,14 @@ function da_api_admin() {
     echo "executing start_user"
     if [ -n "${user_new_list}" ]; then
 
-      echo "[${SCRIPT_NAME}]: Found user account matched in ENV file. Creating API session file authentication ..." 2>&1 | tee -a "${REPORT_FILE}"
+      echo "[${SCRIPT_NAME}]: Found main user account ${user_new_list} matched in ENV file. Creating API session file authentication for ${user_new_list}..." 2>&1 | tee -a "${REPORT_FILE}"
       touch "${user_main_auth}"
       {
         echo "DA_USER_USERNAME1=\"${DA_USER_USERNAME1}"\"
         echo "DA_USER_USERPASS1=\"${DA_USER_USERPASS1}"\"
       } >"${user_main_auth}"
     else
-      echo "[${SCRIPT_NAME}]: Error, no user account matched in ENV file. Please create user first!" 2>&1 | tee -a "${REPORT_FILE}"
+      echo "[${SCRIPT_NAME}]: Error, no main user account matched in ENV file. Please create user first!" 2>&1 | tee -a "${REPORT_FILE}"
       _exit 1
     fi
   elif [ "${action}" == "end_user" ]; then
@@ -232,6 +233,8 @@ function da_api_admin() {
   elif [ "${action}" == "end" ]; then
     rm -f "${TEMP_PATH}"/api/*
   fi
+  # End check
+
   # If the admin.list file has a new admin username, we use that authentication
   # This is the default authentication for DA owner
 
@@ -244,7 +247,7 @@ function da_api_admin() {
     #echo "api_userpassword is: ${api_password}"
     #exit 1
   elif [ -s "${admin_main_auth}" ]; then
-    echo "[${SCRIPT_NAME}]: Using DA API authentication from ${DA_ADMIN_USERNAME1} ..." 2>&1 | tee -a "${REPORT_FILE}"
+    #echo "[${SCRIPT_NAME}]: Using DA API authentication from ${DA_ADMIN_USERNAME1} ..." 2>&1 | tee -a "${REPORT_FILE}"
     _pause 2
     api_username=$(sed -n 's/^DA_ADMIN_USERNAME1=//p' "${admin_main_auth}" | sed -e 's/^"//' -e 's/"$//')
     api_password=$(sed -n 's/^DA_ADMIN_USERPASS1=//p' "${admin_main_auth}" | sed -e 's/^"//' -e 's/"$//')
@@ -1260,6 +1263,7 @@ configure_csf() {
         echo "[${SCRIPT_NAME}]: Enabling IPSET large IP for CSF ..." 2>&1 | tee -a "${REPORT_FILE}"
         # inspired by: https://community.centminmod.com/threads/what-should-be-the-right-value-for-lf_ipset-on-csf-config.2045/
         kernel_numericver=$(uname -r | awk -F. '{ printf("%d%03d%03d%03d\n", $1,$2,$3,$4); }')
+        # shellcheck disable=SC2143
         if [[ ! -f /proc/user_beancounters ]] && [[ "$(uname -r | grep linode)" || "$(find "/lib/modules/$(uname -r)" -name 'ipset')" ]] || [[ -f /proc/user_beancounters && "${kernel_numericver}" -ge '3000000000' ]]; then
           if [[ ! -f /usr/sbin/ipset ]]; then
             if [ "${DISTRO_ID}" == "centos" ]; then
@@ -1565,10 +1569,8 @@ function rebuild_da_package() {
   # This to rebuild DA package that cause error like nginx_apache wont start for new install (bug)
   if [ ! -f "${CONF_PATH}/${FUNCNAME[0]}_executed" ]; then
     echo "[${SCRIPT_NAME}]: Executing ${FUNCNAME[0]} ..." 2>&1 | tee -a "${REPORT_FILE}"
-    local ori_path
     # Need to rebuild nginx_apache because it cannot be started after installation due to modsecurity directive. See this:
     # https://forum.directadmin.com/threads/nginx-and-apache-nginix-wont-start-due-to-mod_security.61427/
-    ori_path=${PWD}
     cd_to_path "/usr/local/directadmin/custombuild"
     echo "[${SCRIPT_NAME}]: Rebuilding DA packages to fix some issues ..."
 
@@ -2673,8 +2675,8 @@ function configure_maxicata() {
   # rm -f "${CONF_PATH}/configure_maxicata_executed"
   if [ ! -f "${CONF_PATH}/${FUNCNAME[0]}_executed" ]; then
     echo "[${SCRIPT_NAME}]: Executing ${FUNCNAME[0]} ..." 2>&1 | tee -a "${REPORT_FILE}"
-    local latest_suricata_version suricata_service is_masked suricata_select_version suricata_conf maxicata_bin maxirbl_bin
-    suricata_conf="/etc/suricata/suricata.yaml"
+    local latest_suricata_version suricata_select_version maxicata_bin maxirbl_bin # suricata_conf suricata_service is_masked
+    # suricata_conf="/etc/suricata/suricata.yaml"
     # Instruction: https://forum.suricata.io/t/install-suricata-6-0-1-on-debian-10-from-source/992
     # Install required components for suricata:
     echo "[${SCRIPT_NAME}]: Installing required components for suricata & maxicata ..." 2>&1 | tee -a "${REPORT_FILE}"
@@ -2725,7 +2727,9 @@ function configure_maxicata() {
     cd_to_path "${INST_TEMP_DIR}"
     latest_suricata_version=$(curl 'https://www.openinfosecfoundation.org/download/' | grep -oP 'href="suricata-\K[0-9]+\.[0-9]+\.[0-9]+' | sort -t. -rn -k1,1 -k2,2 -k3,3 | head -1)
     # If you think the future version of suricata installation will follow below step then put suricata_select_version="${latest_suricata_version}"
-    suricata_select_version="6.0.1"
+    if [ "${latest_suricata_version}" != "${SURICATA_SELECT_VERSION}" ]; then
+      echo "[${SCRIPT_NAME}]: Warning, suricata latest version is: ${latest_suricata_version} but selected version in ENV file is ${SURICATA_SELECT_VERSION}" 2>&1 | tee -a "${REPORT_FILE}"
+    fi
     # Below is the installation for Suricata 6.0.1. Sometimes new version release and the way how to install Suricata is not the same like previous one
     # Sometimes new version has extra library so we need to check how to install this.
     echo "[${SCRIPT_NAME}]: Removing suricata downloaded file suricata-${suricata_select_version}.tar.gz ..." 2>&1 | tee -a "${REPORT_FILE}"
@@ -3073,7 +3077,7 @@ function configure_da_accounts() {
   if [ ! -f "${CONF_PATH}/${FUNCNAME[0]}_executed" ]; then
     echo "[${SCRIPT_NAME}]: Executing ${FUNCNAME[0]} ..." 2>&1 | tee -a "${REPORT_FILE}"
     local da_admin_packages_list da_user_packages_list gc count
-    local da_user_unames da_user_passwords da_user_emails da_user_domains da_user_package_names
+    local da_user_unames #da_user_passwords da_user_emails da_user_domains da_user_package_names
     local da_user_uname da_user_password da_user_email da_user_domain da_user_package_name
     local da_user_count
     da_admin_packages_list="/usr/local/directadmin/data/admin/packages.list"
@@ -3119,13 +3123,12 @@ function configure_da_accounts() {
     # Assign DA_USER_PACKAGE_NAME1 because it's the first package for user
     da_api_admin "create-user-package" "${DA_USER_PACKAGE_NAME1}"
 
-    # TODO waiting for answer, create dynamic variable https://stackoverflow.com/questions/65873108/bash-loop-dynamic-variable-from-source-file
-    # Create first user
+    # Create user dynamically based on ENV files
     da_user_unames="${!DA_USER_USERNAME@}"
-    da_user_passwords="${!DA_USER_USERPASS@}"
-    da_user_emails="${!DA_USER_EMAIL@}"
-    da_user_domains="${!DA_USER_DOMAIN@}"
-    da_user_package_names="${!DA_USER_PACKAGE_NAME@}"
+    #da_user_passwords="${!DA_USER_USERPASS@}"
+    #da_user_emails="${!DA_USER_EMAIL@}"
+    #da_user_domains="${!DA_USER_DOMAIN@}"
+    #da_user_package_names="${!DA_USER_PACKAGE_NAME@}"
     da_user_count=$(echo "${da_user_unames}" | wc -w)
     count=1
     while [[ ${count} -le ${da_user_count} ]]; do
@@ -3153,11 +3156,11 @@ function configure_da_accounts() {
         if [ "${gc}" -gt 0 ]; then
           echo "[${SCRIPT_NAME}]: Found package ${da_user_package_name}. Creating user account using package name ${da_user_package_name} ..." 2>&1 | tee -a "${REPORT_FILE}"
           da_api_admin "create-user-account" "${da_user_uname}" "${da_user_email}" "${da_user_password}" "${da_user_domain}" "${da_user_package_name}"
+
         else
           echo "[${SCRIPT_NAME}]: Warning, ${da_user_package_name} does not exist in ${da_user_packages_list}. Please inspect why!" 2>&1 | tee -a "${REPORT_FILE}"
           _exit 1
         fi
-
       fi
       ((count = count + 1))
     done
@@ -3167,9 +3170,6 @@ function configure_da_accounts() {
     echo "=~=~=~=~=~=~=~=~=~" 2>&1 | tee -a "${REPORT_FILE}"
   fi
 
-  # TODO creating user api with different username:
-  # da_api_admin "start_<da_username>"
-  # da_api_admin "start_maxibi00" "action" "action_arguments"
 }
 
 # Creat email here (maybe everything should be configure in account)
@@ -3248,8 +3248,8 @@ else
 fi
 # ============End of locking===============
 
-ENVIRONMENT_FILE="maxi.env"
-if [ -s ${ENVIRONMENT_FILE} ]; then
+ENVIRONMENT_FILE="${SCRIPT_PATH}/maxi.env"
+if [ -s "${ENVIRONMENT_FILE}" ]; then
   #if bash_errs=$(bash -n "${ENVIRONMENT_FILE}" 2>&1); then
   # This doesn't actually source it. It just test if source is working.
   # Seems like source doesn't actually return proper return code
@@ -3335,13 +3335,13 @@ get_latest_maxisetup #OK
 # Get the latest security codes from maxicode
 init_local_maxicode
 # Hardening server
-secure_box #OK
+secure_box    #OK
 # Configure basic network 1
 configure_net #OK
 # Must run configure_net first before running configure_net2 because we need interface to be ${NIC_INTERFACE_NAME} first #OK
 configure_net2
 # Tweaking swap for production server
-configure_sysctl_swap #OK
+configure_sysctl_swap      #OK
 # Tweaking kernel etc ..
 configure_sysctl_kernel_fs #OK
 # Tweaking IPv4 or Ipv6
@@ -3349,9 +3349,9 @@ configure_sysctl_ips #OK
 # Upgrade system
 upgrade_os #Done
 if [ "${INSTALL_TYPE}" == "DIRECTADMIN" ]; then
-  install_da_pre #OK
+  install_da_pre     #OK
   #exit 1
-  install_da #OK
+  install_da         #OK
   #exit 1
   # Must run this after install_da and before install_da_post because install_da_post requires valid nginx directive which is fixed at rebuild_da_package
   rebuild_da_package #OK -- find more what to rebuild
@@ -3392,9 +3392,9 @@ if [ "${INSTALL_TYPE}" == "DIRECTADMIN" ]; then
   # Warning do not overused configure_da_ssl function because when requesting the same cert for the same domain 7 times for a week, you will get blocked.
   configure_da_ssl_pre
   #exit 1
-  configure_da_ssl #OK
+  configure_da_ssl  #OK
   #exit 1
-  configure_da_sql #OK
+  configure_da_sql  #OK
   #exit 1
   configure_da_mail #OK but need to test again
   # exit 1
@@ -3435,6 +3435,6 @@ echo ""
 script_time
 echo "========== Installation Completed ==========" 2>&1 | tee -a "${REPORT_FILE}"
 echo ""
-echo "[${SCRIPT_NAME}]: Destroying ${ENVIRONMENT_FILE} file in 30 seconds ..." 2>&1 | tee -a "${REPORT_FILE}"
-_pause 30
+echo "[${SCRIPT_NAME}]: Destroying ${ENVIRONMENT_FILE} file in 60 seconds ..." 2>&1 | tee -a "${REPORT_FILE}"
+_pause 60
 shred -uvz "${ENVIRONMENT_FILE}"
