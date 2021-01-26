@@ -1,16 +1,18 @@
 #!/bin/bash
 # =~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~
 # Author: Arafat Ali Email: arafat@sofibox.com
-# Version 0.3.4.6-beta
-# This is an initial server hardening script for general server using CentOS and Debian.
+# Version 0.3.4.7-beta
+# This is an initial server hardening script for CentOS and Debian.
 # Compatible 100% with Directadmin. Supported OS: CentOS + Debian (Planned on FreeBSD)
-# Read the code to know what the scripts offer.
-# In DA, it will setup Directadmin from scratch, install firewall, secure username, auto link IP, set SSL and more
-# At the end of installation, you will get a secured DA control panel without needed to tweak more
+# You can choose to install as the other stack server such as LEMP, Laravel etc defined in ENV file (TODO)
+# In Directadmin, it will setup Directadmin from scratch, secure its installation with many security best practices
+# At the end of installation, you will get a secured Directadmin control panel without needed to tweak more
+# You can always re-run this script to resume installation if it's halt due to known error or script has performed reboot
+# URL (public): github.com/sofibox/maxisetup_public | (private) github.com/sofibox/maxisetup (need access token)
 # TODO enable --dry-run (that will simulate testing for this script)
 # =~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~
-# This function is used to handle exit trap
 
+# This function is used to handle exit trap
 _trap_with_args() {
   local func
   func="$1"
@@ -1561,7 +1563,7 @@ function link_da_ipv6() {
     ipv6_uncompress_add=$(ipv6calc --addr2uncompaddr "${IPV6_ADD}")
     # DA IP file use this form 1234:1234:0:0:1234:1234 so we need to convert into this form using ipv6calc
     if [[ -n "${da_ipv6_adds}" && "${AUTO_LINK_DA_IP}" == "yes" ]]; then
-      # TODO Change this to for loop instead of ls (best practice mentioned here: https://github.com/koalaman/shellcheck/wiki/SC2010)
+      # Change this to for loop instead of ls (best practice mentioned here: https://github.com/koalaman/shellcheck/wiki/SC2010)
       for da_ipv6 in $(echo "${da_ipv6_adds}" | tr ' ' '\n'); do
         #echo $(basename $da_ipv6)
         base_da_ipv6=$(basename "${da_ipv6}")
@@ -2723,10 +2725,9 @@ function configure_maxiaide() {
     local maxiaide_bin
     echo "[${SCRIPT_NAME}]: Executing ${FUNCNAME[0]} ..." 2>&1 | tee -a "${REPORT_FILE}"
     # install aide
-    echo "[${SCRIPT_NAME}]: Installing AIDE file monitoring ..." 2>&1 | tee -a "${REPORT_FILE}"
-    apt-get -y install aide
-    # init database
-    # TODO more
+    # No need to install aide because maxiaide --initfull is designed to initialize this and install required packages
+    #echo "[${SCRIPT_NAME}]: Installing AIDE file monitoring ..." 2>&1 | tee -a "${REPORT_FILE}"
+    #apt-get -y install aide
     maxiaide_bin="/usr/local/maxicode/maxiaide/maxiaide"
 
     if [ -f ${maxiaide_bin} ]; then
@@ -2738,7 +2739,8 @@ function configure_maxiaide() {
       echo "[${SCRIPT_NAME}]: Warning, maxiaide doesn't exist in /usr/local/maxicode !" 2>&1 | tee -a "${REPORT_FILE}"
       _exit 1
     fi
-
+    # TODO Waiting for testing
+    # maxiaide --initfull
     check_finish_reboot "${FUNCNAME[0]}"
   else
     echo "[${SCRIPT_NAME}]: [Skipped]: ${FUNCNAME[0]} has ran before" 2>&1 | tee -a "${REPORT_FILE}"
@@ -3060,7 +3062,7 @@ configure_da_dns_templates() {
     } >"${da_template_custom}/dns_txt.conf"
     chown diradmin:diradmin "${da_template_custom}/dns_txt.conf"
     chmod 644 "${da_template_custom}/dns_txt.conf"
-    # Note last year I use the full form of IP.
+    # Note last year I use the full form of IP. Remember DA also has ipv6 calculator from directadmin binary.
     ipv6_full_uncompressed=$(ipv6calc --addr2fulluncompaddr "${IPV6_ADD}")
     echo "[${SCRIPT_NAME}]: Setting extra_spf_value with ipv6:${ipv6_full_uncompressed} ..." 2>&1 | tee -a "${REPORT_FILE}"
     sleep 2
@@ -3129,6 +3131,7 @@ function configure_maxicode() {
 }
 # Create any extra admin accounts here
 function configure_admin_accounts() {
+  rm -rf "${CONF_PATH}/${FUNCNAME[0]}_executed"
   if [ ! -f "${CONF_PATH}/${FUNCNAME[0]}_executed" ]; then
     echo "[${SCRIPT_NAME}]: Executing ${FUNCNAME[0]} ..." 2>&1 | tee -a "${REPORT_FILE}"
     # Currently we only have owner account, now we create an admin account, we create admin here
@@ -3149,6 +3152,7 @@ function configure_admin_accounts() {
 }
 # Create reseller or user accounts here including packages and more
 function configure_da_accounts() {
+  rm -rf "${CONF_PATH}/${FUNCNAME[0]}_executed"
   if [ ! -f "${CONF_PATH}/${FUNCNAME[0]}_executed" ]; then
     echo "[${SCRIPT_NAME}]: Executing ${FUNCNAME[0]} ..." 2>&1 | tee -a "${REPORT_FILE}"
     local da_admin_packages_list da_user_packages_list gc count

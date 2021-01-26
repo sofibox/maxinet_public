@@ -10,7 +10,9 @@
     <select />
   </component>
   <component name="ChangeListManager">
-    <list default="true" id="113c828c-9a32-4b24-ab1e-978ce50c6320" name="Default Changelist" comment="Update maxida --api to use any users to use that API (before only owner can use) (note maxida is a private repo)&#10;Update maxisetup DA API to set DKIM and obtained DKIM value. This value is important to be used by external DNS. For example, we can use linode API to update this DKIM value automatically as external DNS record. Linode API will be coming soon ..." />
+    <list default="true" id="113c828c-9a32-4b24-ab1e-978ce50c6320" name="Default Changelist" comment="Update DA API to be able to obtain the value of domain DNS record, dmarc, spf and dkim. These 3 values are important to have in order to prevent website or email spams. We will pass this value to external DNS such as linode (if it's enabled in ENV file as the external DNS provider)">
+      <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
+    </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
     <option name="HIGHLIGHT_NON_ACTIVE_CHANGELIST" value="false" />
@@ -87,6 +89,7 @@
       <workItem from="1611562272910" duration="1267000" />
       <workItem from="1611606974766" duration="669000" />
       <workItem from="1611668636777" duration="220000" />
+      <workItem from="1611676976866" duration="671000" />
     </task>
     <task id="LOCAL-00001" summary="Initial release from beta Version 0.3.2.7-beta">
       <created>1610639956771</created>
@@ -207,7 +210,14 @@
       <option name="project" value="LOCAL" />
       <updated>1611668681681</updated>
     </task>
-    <option name="localTasksCounter" value="18" />
+    <task id="LOCAL-00018" summary="Update DA API to be able to obtain the value of domain DNS record, dmarc, spf and dkim. These 3 values are important to have in order to prevent website or email spams. We will pass this value to external DNS such as linode (if it's enabled in ENV file as the external DNS provider)">
+      <created>1611677049887</created>
+      <option name="number" value="00018" />
+      <option name="presentableId" value="LOCAL-00018" />
+      <option name="project" value="LOCAL" />
+      <updated>1611677049887</updated>
+    </task>
+    <option name="localTasksCounter" value="19" />
     <servers />
   </component>
   <component name="TypeScriptGeneratedFilesManager">
@@ -244,6 +254,7 @@
     <MESSAGE value="Able to select suricata version in ENV file.&#10;Remove unused variables" />
     <MESSAGE value="Add the ability to login as another user and add multiple domains into itself. For example to add multiple domain for a user muser use the following format in ENV file:&#10;=====&#10;DA_USER_USERNAME2=&quot;muser&quot;&#10;DA_USER_USERPASS2=&quot;password&quot;&#10;DA_USER_EMAIL2=&quot;webmaster@kalibmedia.com&quot;&#10;DA_USER_DOMAIN2=&quot;kalibmedia.com kalibtv.com kalibtest.com&quot;&#10;DA_USER_PACKAGE_NAME2=&quot;USER_UNLIMITED&quot;&#10;DA_USER_DOMAIN_ENABLE_SSL2=&quot;yes&quot;&#10;=====&#10;&#10;The script will automatically login as user 'muser' and add the 3 domains for itself&#10;&#10;Now the API authentication can be passed dynamically. For example for this user use the following syntax:&#10;&#10;start+${role_user}+${role_password}&#10;&#10;I use the symbol + instead of _ because '+' is a unique and useless character which cannot be used as password in DA.&#10;&#10;The previous API auth call has changed. eg: from start_admin change to start+admin" />
     <MESSAGE value="Update maxida --api to use any users to use that API (before only owner can use) (note maxida is a private repo)&#10;Update maxisetup DA API to set DKIM and obtained DKIM value. This value is important to be used by external DNS. For example, we can use linode API to update this DKIM value automatically as external DNS record. Linode API will be coming soon ..." />
-    <option name="LAST_COMMIT_MESSAGE" value="Update maxida --api to use any users to use that API (before only owner can use) (note maxida is a private repo)&#10;Update maxisetup DA API to set DKIM and obtained DKIM value. This value is important to be used by external DNS. For example, we can use linode API to update this DKIM value automatically as external DNS record. Linode API will be coming soon ..." />
+    <MESSAGE value="Update DA API to be able to obtain the value of domain DNS record, dmarc, spf and dkim. These 3 values are important to have in order to prevent website or email spams. We will pass this value to external DNS such as linode (if it's enabled in ENV file as the external DNS provider)" />
+    <option name="LAST_COMMIT_MESSAGE" value="Update DA API to be able to obtain the value of domain DNS record, dmarc, spf and dkim. These 3 values are important to have in order to prevent website or email spams. We will pass this value to external DNS such as linode (if it's enabled in ENV file as the external DNS provider)" />
   </component>
 </project>
