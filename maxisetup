@@ -1,7 +1,7 @@
 #!/bin/bash
 # =~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~
 # Author: Arafat Ali Email: arafat@sofibox.com
-# Version 0.3.4.5-beta
+# Version 0.3.4.6-beta
 # This is an initial server hardening script for general server using CentOS and Debian.
 # Compatible 100% with Directadmin. Supported OS: CentOS + Debian (Planned on FreeBSD)
 # Read the code to know what the scripts offer.
@@ -127,6 +127,10 @@ function restart_da() {
     # Recursive function call again until condition satisfied
     restart_da
   fi
+}
+
+function linode_api_admin() {
+  :
 }
 # da_api_admin <action> <action-option-arguments>
 # da_api_admin "create" "admin2" "admin2@sofibox.com" "x12321aa"
@@ -412,17 +416,31 @@ function da_api_admin() {
       echo "[${SCRIPT_NAME}]: The API action '${action}' does not exist!"
       exit 1
     fi
+
     # Executing API via curl based on command above
-    if [ "${filter_cmd}" == "x._domainkey+VALUE" ]; then
+    if [ "${filter_cmd}" == "v=DKIM1+VALUE" ]; then
       # Here we just display that single value for this filtering
-      curl --request "${method}" --user "${api_username}":"${api_password}" --data "${data}" "${ssl}://${BOX_HOSTNAME_FQDN}:${DA_PORT}/${command}" | grep 'x._domainkey' | awk '{ print $6" "$7" "$8}'
+      # print the 6th column onward
+      curl --request "${method}" --user "${api_username}":"${api_password}" --data "${data}" "${ssl}://${BOX_HOSTNAME_FQDN}:${DA_PORT}/${command}" | grep 'v=DKIM1' | awk '{for(i=6;i<=NF;++i)printf $i""FS ; print ""}'
       # get out based on return value
       return $?
-    elif [ "${filter_cmd}" == "x._domainkey+TTL" ]; then
+    elif [ "${filter_cmd}" == "v=DMARC1+VALUE" ]; then
+      # Here we just display that single value for this filtering
+      # print the 5th column onward
+      curl --request "${method}" --user "${api_username}":"${api_password}" --data "${data}" "${ssl}://${BOX_HOSTNAME_FQDN}:${DA_PORT}/${command}" | grep 'v=DMARC1' | awk '{for(i=5;i<=NF;++i)printf $i""FS ; print ""}'
+      # get out based on return value
+      return $?
+    elif [ "${filter_cmd}" == "v=spf1+VALUE" ]; then
+      # Here we just display that single value for this filtering
+      # Print the 5th column onward
+      curl --request "${method}" --user "${api_username}":"${api_password}" --data "${data}" "${ssl}://${BOX_HOSTNAME_FQDN}:${DA_PORT}/${command}" | grep 'v=spf1' | awk '{for(i=5;i<=NF;++i)printf $i""FS ; print ""}'
+      # get out based on return value
+      return $?
+    elif [ "${filter_cmd}" == "v=DMARC1+TTL" ]; then
       curl --request "${method}" --user "${api_username}":"${api_password}" --data "${data}" "${ssl}://${BOX_HOSTNAME_FQDN}:${DA_PORT}/${command}" | grep 'x._domainkey' | awk '{ print $2}'
       # get out based on return value
       return $?
-    elif [ "${filter_cmd}" == "x._domainkey+TYPE" ]; then
+    elif [ "${filter_cmd}" == "v=DMARC1+TYPE" ]; then
       curl --request "${method}" --user "${api_username}":"${api_password}" --data "${data}" "${ssl}://${BOX_HOSTNAME_FQDN}:${DA_PORT}/${command}" | grep 'x._domainkey' | awk '{ print $4}'
       # get out based on return value
       return $?
@@ -3111,7 +3129,6 @@ function configure_maxicode() {
 }
 # Create any extra admin accounts here
 function configure_admin_accounts() {
-  rm -rf "${CONF_PATH}/${FUNCNAME[0]}_executed"
   if [ ! -f "${CONF_PATH}/${FUNCNAME[0]}_executed" ]; then
     echo "[${SCRIPT_NAME}]: Executing ${FUNCNAME[0]} ..." 2>&1 | tee -a "${REPORT_FILE}"
     # Currently we only have owner account, now we create an admin account, we create admin here
@@ -3132,14 +3149,13 @@ function configure_admin_accounts() {
 }
 # Create reseller or user accounts here including packages and more
 function configure_da_accounts() {
-  rm -rf "${CONF_PATH}/${FUNCNAME[0]}_executed"
   if [ ! -f "${CONF_PATH}/${FUNCNAME[0]}_executed" ]; then
     echo "[${SCRIPT_NAME}]: Executing ${FUNCNAME[0]} ..." 2>&1 | tee -a "${REPORT_FILE}"
     local da_admin_packages_list da_user_packages_list gc count
     local da_user_unames #da_user_passwords da_user_emails da_user_domains da_user_package_names
     local this_da_user_uname this_da_user_password this_da_user_email this_da_user_domain this_da_user_package_name
     local da_user_count domains
-    local dkim_val
+    local dkim_val dmarc_val spf_val
     da_admin_packages_list="/usr/local/directadmin/data/admin/packages.list"
     da_user_packages_list="/usr/local/directadmin/data/users/${DA_RESELLER_USERNAME1}/packages.list"
     # ALL API documentation: https://www.directadmin.com/search_versions.php?query=CMD_API
@@ -3218,13 +3234,26 @@ function configure_da_accounts() {
           da_user_domain_first=$(echo "${this_da_user_domain}" | awk '{ print $1 }')
           da_api_admin "start+reseller"
           da_api_admin "create-user-account" "${this_da_user_uname}" "${this_da_user_email}" "${this_da_user_password}" "${da_user_domain_first}" "${this_da_user_package_name}"
-          echo "[${SCRIPT_NAME}]: Enabling email DKIM for domain ${da_user_domain_first} ..." 2>&1 | tee -a "${REPORT_FILE}"
+          echo "[${SCRIPT_NAME}]: Enabling email DKIM for the first domain ${da_user_domain_first} ..." 2>&1 | tee -a "${REPORT_FILE}"
           _pause 2
           da_api_admin "start+${this_da_user_uname}+${this_da_user_password}"
           da_api_admin "enable-email-dkim" "${da_user_domain_first}"
-          dkim_val=$(da_api_admin "get-dns-zone" "${this_da_user_domain}" "x._domainkey+VALUE" | tail -n 1)
+          # This dkim_val is important, we can pass it to external DNS for writing.
+          dkim_val=$(da_api_admin "get-dns-zone" "${this_da_user_domain}" "v=DKIM1+VALUE" | tail -n 1)
+          dmarc_val=$(da_api_admin "get-dns-zone" "${this_da_user_domain}" "v=DMARC1+VALUE" | tail -n 1)
+          spf_val=$(da_api_admin "get-dns-zone" "${this_da_user_domain}" "v=spf1+VALUE" | tail -n 1)
           echo "The dkim value for this domain ${da_user_domain_first} is: ${dkim_val}"
+          echo "The dmarc value for this domain ${da_user_domain_first} is: ${dmarc_val}"
+          echo "The spf value for this domain ${da_user_domain_first} is: ${spf_val}"
 
+          if [ "${EXTERNAL_DNS_PROVIDER}" == "linode" ]; then
+            :
+            # TODO implement linode API before enabling this
+            # linode_api_admin "add-dns-record" "x._domainkey" "5" "TXT" "${dkim_val}"
+            # linode_api_admin "add-dns-record" "_dmarc." "5" "TXT" "${spf_val}"
+            # linode_api_admin "add-dns-record" "${this_da_user_domain}." "5" "TXT" "${spf_val}"
+
+          fi
           if [ "${da_user_domain_count}" -gt 1 ]; then
             echo "[${SCRIPT_NAME}]: This user ${this_da_user_uname} has ${da_user_domain_count} domains" 2>&1 | tee -a "${REPORT_FILE}"
             _pause 2
@@ -3238,11 +3267,24 @@ function configure_da_accounts() {
               echo "[${SCRIPT_NAME}]: Creating extra domain ${domain} for ${this_da_user_uname} ..." 2>&1 | tee -a "${REPORT_FILE}"
               _pause 2
               da_api_admin "create-user-domain" "${domain}"
-              echo "[${SCRIPT_NAME}]: Enabling email DKIM for domain ${domain} ..." 2>&1 | tee -a "${REPORT_FILE}"
+              echo "[${SCRIPT_NAME}]: Enabling email DKIM for extra domain ${domain} ..." 2>&1 | tee -a "${REPORT_FILE}"
               _pause 2
               da_api_admin "enable-email-dkim" "${domain}"
-              dkim_val=$(da_api_admin "get-dns-zone" "${domain}" "x._domainkey+VALUE" | tail -n 1)
+              # This dkim_val is important, we can pass it to external DNS for writing.
+              dkim_val=$(da_api_admin "get-dns-zone" "${domain}" "v=DKIM1+VALUE" | tail -n 1)
+              dmarc_val=$(da_api_admin "get-dns-zone" "${domain}" "v=DMARC1+VALUE" | tail -n 1)
+              spf_val=$(da_api_admin "get-dns-zone" "${domain}" "v=spf1+VALUE" | tail -n 1)
               echo "The dkim value for this domain ${domain} is: ${dkim_val}"
+              echo "The dmarc value for this domain ${domain} is: ${dmarc_val}"
+              echo "The spf value for this domain ${domain} is: ${spf_val}"
+              if [ "${EXTERNAL_DNS_PROVIDER}" == "linode" ]; then
+                :
+                # TODO implement linode API before enabling this
+                # linode_api_admin "add-dns-record" "x._domainkey" "5" "TXT" "${dkim_val}"
+                # linode_api_admin "add-dns-record" "_dmarc." "5" "TXT" "${spf_val}"
+                # linode_api_admin "add-dns-record" "${domain}." "5" "TXT" "${spf_val}"
+
+              fi
             done
           fi
         else

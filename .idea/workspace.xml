@@ -10,9 +10,7 @@
     <select />
   </component>
   <component name="ChangeListManager">
-    <list default="true" id="113c828c-9a32-4b24-ab1e-978ce50c6320" name="Default Changelist" comment="Add the ability to login as another user and add multiple domains into itself. For example to add multiple domain for a user muser use the following format in ENV file:&#10;=====&#10;DA_USER_USERNAME2=&quot;muser&quot;&#10;DA_USER_USERPASS2=&quot;password&quot;&#10;DA_USER_EMAIL2=&quot;webmaster@kalibmedia.com&quot;&#10;DA_USER_DOMAIN2=&quot;kalibmedia.com kalibtv.com kalibtest.com&quot;&#10;DA_USER_PACKAGE_NAME2=&quot;USER_UNLIMITED&quot;&#10;DA_USER_DOMAIN_ENABLE_SSL2=&quot;yes&quot;&#10;=====&#10;&#10;The script will automatically login as user 'muser' and add the 3 domains for itself&#10;&#10;Now the API authentication can be passed dynamically. For example for this user use the following syntax:&#10;&#10;start+${role_user}+${role_password}&#10;&#10;I use the symbol + instead of _ because '+' is a unique and useless character which cannot be used as password in DA.&#10;&#10;The previous API auth call has changed. eg: from start_admin change to start+admin">
-      <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-    </list>
+    <list default="true" id="113c828c-9a32-4b24-ab1e-978ce50c6320" name="Default Changelist" comment="Update maxida --api to use any users to use that API (before only owner can use) (note maxida is a private repo)&#10;Update maxisetup DA API to set DKIM and obtained DKIM value. This value is important to be used by external DNS. For example, we can use linode API to update this DKIM value automatically as external DNS record. Linode API will be coming soon ..." />
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
     <option name="HIGHLIGHT_NON_ACTIVE_CHANGELIST" value="false" />
@@ -49,13 +47,15 @@
     </key>
   </component>
   <component name="RunManager">
-    <configuration default="true" type="ArquillianJUnit" factoryName="" nameIsGenerated="true">
+    <configuration default="true" type="ArquillianTestNG" factoryName="" nameIsGenerated="true">
       <option name="arquillianRunConfiguration">
         <value>
           <option name="containerStateName" value="" />
         </value>
       </option>
-      <option name="TEST_OBJECT" value="class" />
+      <option name="TEST_OBJECT" value="CLASS" />
+      <properties />
+      <listeners />
       <method v="2">
         <option name="Make" enabled="true" />
       </method>
@@ -86,6 +86,7 @@
       <workItem from="1611518018216" duration="133000" />
       <workItem from="1611562272910" duration="1267000" />
       <workItem from="1611606974766" duration="669000" />
+      <workItem from="1611668636777" duration="220000" />
     </task>
     <task id="LOCAL-00001" summary="Initial release from beta Version 0.3.2.7-beta">
       <created>1610639956771</created>
@@ -199,7 +200,14 @@
       <option name="project" value="LOCAL" />
       <updated>1611607014737</updated>
     </task>
-    <option name="localTasksCounter" value="17" />
+    <task id="LOCAL-00017" summary="Update maxida --api to use any users to use that API (before only owner can use) (note maxida is a private repo)&#10;Update maxisetup DA API to set DKIM and obtained DKIM value. This value is important to be used by external DNS. For example, we can use linode API to update this DKIM value automatically as external DNS record. Linode API will be coming soon ...">
+      <created>1611668681681</created>
+      <option name="number" value="00017" />
+      <option name="presentableId" value="LOCAL-00017" />
+      <option name="project" value="LOCAL" />
+      <updated>1611668681681</updated>
+    </task>
+    <option name="localTasksCounter" value="18" />
     <servers />
   </component>
   <component name="TypeScriptGeneratedFilesManager">
@@ -235,6 +243,7 @@
     <MESSAGE value="Add the ability to add DA user account dynamically from ENV file. For example:&#10;&#10;If we want to create another user for example the 3rd user, we must supply this 5 variables in ENV file ending with the same suffix in this case is 3. You can choose whatever suffix number, the best practice is the suffix should be unique.&#10;&#10;DA_USER_USERNAME3=&quot;myxuser&quot;&#10;DA_USER_USERPASS3=&quot;x12321xxx&quot;&#10;DA_USER_EMAIL3=&quot;webmaster@masternom.com&quot;&#10;DA_USER_DOMAIN3=&quot;masternom.com&quot;&#10;DA_USER_PACKAGE_NAME3=&quot;USER_UNLIMITED&quot;&#10;&#10;This user will be created automatically by Directadmin. Make sure to supply all the information for this 3rd user. If one of the information is missing, DA will not create this user for example domain is missing or email is not set from ENV for this user:&#10;&#10;DA_USER_USERNAME3=&quot;myxuser&quot;&#10;DA_USER_USERPASS3=&quot;x12321xxx&quot;&#10;DA_USER_EMAIL3=&quot;&quot;&#10;DA_USER_PACKAGE_NAME3=&quot;USER_UNLIMITED&quot;&#10;&#10;Then maxisetup will trigger error and tell that domain and email is not set for this user." />
     <MESSAGE value="Able to select suricata version in ENV file.&#10;Remove unused variables" />
     <MESSAGE value="Add the ability to login as another user and add multiple domains into itself. For example to add multiple domain for a user muser use the following format in ENV file:&#10;=====&#10;DA_USER_USERNAME2=&quot;muser&quot;&#10;DA_USER_USERPASS2=&quot;password&quot;&#10;DA_USER_EMAIL2=&quot;webmaster@kalibmedia.com&quot;&#10;DA_USER_DOMAIN2=&quot;kalibmedia.com kalibtv.com kalibtest.com&quot;&#10;DA_USER_PACKAGE_NAME2=&quot;USER_UNLIMITED&quot;&#10;DA_USER_DOMAIN_ENABLE_SSL2=&quot;yes&quot;&#10;=====&#10;&#10;The script will automatically login as user 'muser' and add the 3 domains for itself&#10;&#10;Now the API authentication can be passed dynamically. For example for this user use the following syntax:&#10;&#10;start+${role_user}+${role_password}&#10;&#10;I use the symbol + instead of _ because '+' is a unique and useless character which cannot be used as password in DA.&#10;&#10;The previous API auth call has changed. eg: from start_admin change to start+admin" />
-    <option name="LAST_COMMIT_MESSAGE" value="Add the ability to login as another user and add multiple domains into itself. For example to add multiple domain for a user muser use the following format in ENV file:&#10;=====&#10;DA_USER_USERNAME2=&quot;muser&quot;&#10;DA_USER_USERPASS2=&quot;password&quot;&#10;DA_USER_EMAIL2=&quot;webmaster@kalibmedia.com&quot;&#10;DA_USER_DOMAIN2=&quot;kalibmedia.com kalibtv.com kalibtest.com&quot;&#10;DA_USER_PACKAGE_NAME2=&quot;USER_UNLIMITED&quot;&#10;DA_USER_DOMAIN_ENABLE_SSL2=&quot;yes&quot;&#10;=====&#10;&#10;The script will automatically login as user 'muser' and add the 3 domains for itself&#10;&#10;Now the API authentication can be passed dynamically. For example for this user use the following syntax:&#10;&#10;start+${role_user}+${role_password}&#10;&#10;I use the symbol + instead of _ because '+' is a unique and useless character which cannot be used as password in DA.&#10;&#10;The previous API auth call has changed. eg: from start_admin change to start+admin" />
+    <MESSAGE value="Update maxida --api to use any users to use that API (before only owner can use) (note maxida is a private repo)&#10;Update maxisetup DA API to set DKIM and obtained DKIM value. This value is important to be used by external DNS. For example, we can use linode API to update this DKIM value automatically as external DNS record. Linode API will be coming soon ..." />
+    <option name="LAST_COMMIT_MESSAGE" value="Update maxida --api to use any users to use that API (before only owner can use) (note maxida is a private repo)&#10;Update maxisetup DA API to set DKIM and obtained DKIM value. This value is important to be used by external DNS. For example, we can use linode API to update this DKIM value automatically as external DNS record. Linode API will be coming soon ..." />
   </component>
 </project>
