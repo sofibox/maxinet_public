@@ -1,7 +1,7 @@
 #!/bin/bash
 # =~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~
 # Author: Arafat Ali Email: arafat@sofibox.com
-# Version 0.3.4.7-beta
+# Version 0.3.4.8-beta
 # This is an initial server hardening script for CentOS and Debian.
 # Compatible 100% with Directadmin. Supported OS: CentOS + Debian (Planned on FreeBSD)
 # You can choose to install as the other stack server such as LEMP, Laravel etc defined in ENV file (TODO)
@@ -3258,6 +3258,14 @@ function configure_da_accounts() {
             # linode_api_admin "add-dns-record" "${this_da_user_domain}." "5" "TXT" "${spf_val}"
 
           fi
+
+          # Now we request ssl certificate for this. I will be using wildcard certificate
+          # Directadmin supports external DNS to have wildcard but the feature is still beta
+          # By default at this time, the future is still beta and need to be enabled manually:
+          # https://www.directadmin.com/features.php?id=2122 . Another info: https://directadmin.com/features.php?id=2825
+          # Note that, the skin released for this feature is not enabled by default but the function is finished
+          # To enable wildcard external DNS, we use dns_ttl=1 to enable the beta skin.
+
           if [ "${da_user_domain_count}" -gt 1 ]; then
             echo "[${SCRIPT_NAME}]: This user ${this_da_user_uname} has ${da_user_domain_count} domains" 2>&1 | tee -a "${REPORT_FILE}"
             _pause 2
