@@ -10,9 +10,7 @@
     <select />
   </component>
   <component name="ChangeListManager">
-    <list default="true" id="113c828c-9a32-4b24-ab1e-978ce50c6320" name="Default Changelist" comment="Add the ability to switch DA installation from beta to stable or vise versa based on Poralix idea:&#10; &#10; Switch to stable version -&gt; maxida --switch-da stable or switch to beta version -&gt; maxida --switch-da beta&#10; &#10; Switching to beta version is useful to test beta function of Directadmin. For example the wildcard certificate using external DNS is supported in beta version of DA only.&#10;&#10;TODO: Planning to integrate script with wildcard certificate installation using Lego">
-      <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-    </list>
+    <list default="true" id="113c828c-9a32-4b24-ab1e-978ce50c6320" name="Default Changelist" comment="1) Update maxida to use custombuild and directadmin functionalities.&#10;&#10;For example to set directadmin ssl=1 use the following:&#10;maxida --da set ssl 1&#10;&#10;To check Directadmin ssl setting:&#10;&#10;maxida --da get ssl&#10;output: ssl=1&#10;&#10;To reboot DA: &#10;maxida --reboot-da or maxida --da reboot&#10;&#10;To build lesencrypt package: &#10;maxida --cb letsencrypt&#10;&#10;To edit directadmin.conf: maxida --edit-daconf&#10;&#10;To edit custombuild options.conf: maxida --edit-cbconf&#10;&#10;To run DA in debug mode: &#10;maxida --debug or maxida --da debug&#10;&#10;=====&#10;&#10;2) Minor change to maxisetup" />
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
     <option name="HIGHLIGHT_NON_ACTIVE_CHANGELIST" value="false" />
@@ -49,15 +47,13 @@
     </key>
   </component>
   <component name="RunManager">
-    <configuration default="true" type="ArquillianTestNG" factoryName="" nameIsGenerated="true">
+    <configuration default="true" type="ArquillianJUnit" factoryName="" nameIsGenerated="true">
       <option name="arquillianRunConfiguration">
         <value>
           <option name="containerStateName" value="" />
         </value>
       </option>
-      <option name="TEST_OBJECT" value="CLASS" />
-      <properties />
-      <listeners />
+      <option name="TEST_OBJECT" value="class" />
       <method v="2">
         <option name="Make" enabled="true" />
       </method>
@@ -91,6 +87,7 @@
       <workItem from="1611668636777" duration="220000" />
       <workItem from="1611676976866" duration="1907000" />
       <workItem from="1611720592625" duration="501000" />
+      <workItem from="1611759532844" duration="255000" />
     </task>
     <task id="LOCAL-00001" summary="Initial release from beta Version 0.3.2.7-beta">
       <created>1610639956771</created>
@@ -232,7 +229,14 @@
       <option name="project" value="LOCAL" />
       <updated>1611720786588</updated>
     </task>
-    <option name="localTasksCounter" value="21" />
+    <task id="LOCAL-00021" summary="1) Update maxida to use custombuild and directadmin functionalities.&#10;&#10;For example to set directadmin ssl=1 use the following:&#10;maxida --da set ssl 1&#10;&#10;To check Directadmin ssl setting:&#10;&#10;maxida --da get ssl&#10;output: ssl=1&#10;&#10;To reboot DA: &#10;maxida --reboot-da or maxida --da reboot&#10;&#10;To build lesencrypt package: &#10;maxida --cb letsencrypt&#10;&#10;To edit directadmin.conf: maxida --edit-daconf&#10;&#10;To edit custombuild options.conf: maxida --edit-cbconf&#10;&#10;To run DA in debug mode: &#10;maxida --debug or maxida --da debug&#10;&#10;=====&#10;&#10;2) Minor change to maxisetup">
+      <created>1611759582431</created>
+      <option name="number" value="00021" />
+      <option name="presentableId" value="LOCAL-00021" />
+      <option name="project" value="LOCAL" />
+      <updated>1611759582431</updated>
+    </task>
+    <option name="localTasksCounter" value="22" />
     <servers />
   </component>
   <component name="TypeScriptGeneratedFilesManager">
@@ -272,6 +276,7 @@
     <MESSAGE value="Update DA API to be able to obtain the value of domain DNS record, dmarc, spf and dkim. These 3 values are important to have in order to prevent website or email spams. We will pass this value to external DNS such as linode (if it's enabled in ENV file as the external DNS provider)" />
     <MESSAGE value="Add additional information about the script feature" />
     <MESSAGE value="Add the ability to switch DA installation from beta to stable or vise versa based on Poralix idea:&#10; &#10; Switch to stable version -&gt; maxida --switch-da stable or switch to beta version -&gt; maxida --switch-da beta&#10; &#10; Switching to beta version is useful to test beta function of Directadmin. For example the wildcard certificate using external DNS is supported in beta version of DA only.&#10;&#10;TODO: Planning to integrate script with wildcard certificate installation using Lego" />
-    <option name="LAST_COMMIT_MESSAGE" value="Add the ability to switch DA installation from beta to stable or vise versa based on Poralix idea:&#10; &#10; Switch to stable version -&gt; maxida --switch-da stable or switch to beta version -&gt; maxida --switch-da beta&#10; &#10; Switching to beta version is useful to test beta function of Directadmin. For example the wildcard certificate using external DNS is supported in beta version of DA only.&#10;&#10;TODO: Planning to integrate script with wildcard certificate installation using Lego" />
+    <MESSAGE value="1) Update maxida to use custombuild and directadmin functionalities.&#10;&#10;For example to set directadmin ssl=1 use the following:&#10;maxida --da set ssl 1&#10;&#10;To check Directadmin ssl setting:&#10;&#10;maxida --da get ssl&#10;output: ssl=1&#10;&#10;To reboot DA: &#10;maxida --reboot-da or maxida --da reboot&#10;&#10;To build lesencrypt package: &#10;maxida --cb letsencrypt&#10;&#10;To edit directadmin.conf: maxida --edit-daconf&#10;&#10;To edit custombuild options.conf: maxida --edit-cbconf&#10;&#10;To run DA in debug mode: &#10;maxida --debug or maxida --da debug&#10;&#10;=====&#10;&#10;2) Minor change to maxisetup" />
+    <option name="LAST_COMMIT_MESSAGE" value="1) Update maxida to use custombuild and directadmin functionalities.&#10;&#10;For example to set directadmin ssl=1 use the following:&#10;maxida --da set ssl 1&#10;&#10;To check Directadmin ssl setting:&#10;&#10;maxida --da get ssl&#10;output: ssl=1&#10;&#10;To reboot DA: &#10;maxida --reboot-da or maxida --da reboot&#10;&#10;To build lesencrypt package: &#10;maxida --cb letsencrypt&#10;&#10;To edit directadmin.conf: maxida --edit-daconf&#10;&#10;To edit custombuild options.conf: maxida --edit-cbconf&#10;&#10;To run DA in debug mode: &#10;maxida --debug or maxida --da debug&#10;&#10;=====&#10;&#10;2) Minor change to maxisetup" />
   </component>
 </project>
