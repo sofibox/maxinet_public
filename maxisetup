@@ -1,7 +1,7 @@
 #!/bin/bash
 # =~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~
 # Author: Arafat Ali Email: arafat@sofibox.com
-# Version 0.3.4.8-beta
+# Version 0.3.4.9-beta
 # This is an initial server hardening script for CentOS and Debian.
 # Compatible 100% with Directadmin. Supported OS: CentOS + Debian (Planned on FreeBSD)
 # You can choose to install as the other stack server such as LEMP, Laravel etc defined in ENV file (TODO)
@@ -11,7 +11,7 @@
 # URL (public): github.com/sofibox/maxisetup_public | (private) github.com/sofibox/maxisetup (need access token)
 # TODO enable --dry-run (that will simulate testing for this script)
 # =~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~
-
+#set -euxo pipefail
 # This function is used to handle exit trap
 _trap_with_args() {
   local func
@@ -132,6 +132,263 @@ function restart_da() {
 }
 
 function linode_api_admin() {
+  local action
+  shift
+  action="$1"
+  linode_max_page=2
+  #linode_api_admin "get-domain-id" "maxibi.com"
+  if [[ "${action}" == "get-domain-id" ]]; then
+    shift
+    local domain_id domain
+    domain="$1"
+    dis_args="${*:2}"
+    if [[ -n "${dis_args}" ]]; then
+      echo "Warning, extra arguments discarded: ${dis_args}"
+    fi
+    if [ $# -ge 1 ]; then
+      domain_id=$(${LINODE_CLI_BIN} domains list --json --pretty | ${JQ_BIN} ".[] | select(.domain == \"${domain}\") | .id")
+      # Traditional way without jq:
+      #domain_id=$(${LINODE_CLI_BIN} domains list --domain "${domain}" --pretty --json | grep -F '"id":' | sed -r 's/[^0-9]//g')
+      if [ -n "${domain_id}" ]; then
+        # Here is the real result for domain ID:
+        echo "${domain_id}"
+      else
+        echo "Error, no ID found for domain ${domain}"
+        _exit 1
+      fi
+    else
+      echo "Error, usage: linode_api_admin ${action} <domain_name>"
+      _exit 2
+    fi
+
+  #linode_api_admin "add-dns-record" "maxibi.com" "TXT" "x._domainkey" "*i..2uiu1KJM@#9IU@J()!@IJI92" "5"
+  elif [[ "${action}" == "add-dns-record" ]]; then
+    shift
+    local domain name ttl type value domain_id dis_args add_dns_record retval
+    domain="$1"
+    type="$2"
+    name="$3"
+    value="$4"
+    # Linode ttl_sec is not replaced in API but it's working (bug?)
+    ttl="$5"
+    dis_args="${*:6}"
+
+    if [[ -n "${dis_args}" ]]; then
+      echo "Warning, extra arguments discarded: ${dis_args}"
+    fi
+    if [ $# -ge 5 ]; then
+      echo "Checking domain ID for domain ${domain} ..."
+      # domain_id=$(${LINODE_CLI_BIN} domains list --domain "${domain}" --pretty --json | grep -F '"id":' | sed -r 's/[^0-9]//g')
+      domain_id=$(${LINODE_CLI_BIN} domains list --json --pretty | ${JQ_BIN} ".[] | select(.domain == \"${domain}\") | .id")
+      if [ -n "${domain_id}" ]; then
+        # Here is the real result for domain ID:
+        # echo "${domain_id}"
+        echo "Adding new record name ..."
+
+        add_dns_record=$(
+          ${LINODE_CLI_BIN} domains records-create "${domain_id}" --pretty --json \
+            --type "${type}" --name "${name}" --target "${value}" --ttl_sec "${ttl}"
+        )
+        retval=$?
+        if [ ${retval} = 0 ]; then
+          echo "Success, record has been successfully added into linode DNS management"
+        else
+          echo "Error [${retval}], something is wrong when adding DNS record into linode DNS management"
+          _exit ${retval}
+        fi
+
+        echo "${add_dns_record}"
+        return ${retval}
+
+      else
+        echo "Error, no ID found for domain ${domain}"
+        _exit 1
+      fi
+    else
+      echo "Error, usage: linode_api_admin ${action} <domain_name> <record_type> <record_name> <record_value> <record_ttl>"
+      _exit 2
+    fi
+    # linode_api_admin "delete-dns-record" <domain_name> <record_name> <record_type>
+  elif [[ "${action}" == "delete-dns-record" ]]; then
+    shift
+    local domain name dis_args record_id record_ids record_ids_count
+    domain="$1"
+    # Record name
+    name="$2"
+    type="$3"
+    dis_args="${*:4}"
+
+    if [[ -n "${dis_args}" ]]; then
+      echo "Warning, extra arguments discarded: ${dis_args}"
+    fi
+
+    if [ $# -ge 3 ]; then
+      echo "Checking record for domain ${domain} with record name ${name} and type ${type} ..."
+      #domain_id=$(${LINODE_CLI_BIN} --pretty --json domains list --domain "${domain}" | grep -F '"id":' | sed -r 's/[^0-9]//g')
+      domain_id=$(${LINODE_CLI_BIN} --json --pretty domains list | ${JQ_BIN} ".[] | select(.domain == \"${domain}\") | .id")
+      if [ -n "${domain_id}" ]; then
+        #${LINODE_CLI_BIN} --pretty --json domains records-list --page 2 "${domain_id}"
+        # Domain ID is correct now we execute next statement:
+        # The record list is huge, use loop to scan based on maximum $linode_max_page
+        #count=2
+        #record_ids=$(${LINODE_CLI_BIN} --pretty --json domains records-list --page ${count} "${domain_id}" | ${JQ_BIN} ".[] | select((.name == \"${name}\") and (.type==\"${type}\")) | .id")
+        #record_ids=$(${LINODE_CLI_BIN} --pretty --json domains records-list --page ${count} "${domain_id}" | ${JQ_BIN} ".[] | select((.name == \"${name}\") and (.type==\"${type}\")) | .id | first")
+        #echo "${record_ids}"
+        count=1
+        while [[ ${count} -le ${linode_max_page} ]]; do
+          record_ids=$(${LINODE_CLI_BIN} --pretty --json domains records-list --page ${count} "${domain_id}" | ${JQ_BIN} ".[] | select((.name == \"${name}\") and (.type==\"${type}\")) | .id")
+          #  # Without using jq (traditional way):
+          #  #| grep \"name\"": \"${name}\"" -B 1 \
+          #  #| sed -r 's/[^0-9]//g' #\
+          #  #| head -n 1
+          # Break if found result for that page
+          if [[ -n ${record_ids} ]]; then
+            break
+          fi
+          ((count++))
+        done
+        # Without -n condition, the record will be counted as 1 even it's empty line
+        if [[ -n "${record_ids}" ]]; then
+          record_ids_count=$(echo "${record_ids}" | wc -l)
+          #echo "${record_ids}"
+          echo "Total record ID found for the record name ${name} is ${record_ids_count}"
+          #c2=1
+          #exit 1
+          #record_ids_count=$(echo "${record_ids}" | wc -l)
+          echo "Deleting ${record_ids_count} record(s):"
+          success=0
+          for record_id in ${record_ids}; do
+            #Debug:
+            echo "Deleting record ID ${record_id} ..."
+            ${LINODE_CLI_BIN} --json --pretty domains records-delete "${domain_id}" "${record_id}"
+            retval=$?
+            if [ "${retval}" = 0 ]; then
+              echo "OK, record ID ${record_id} has been deleted successfully."
+              # Do next deletion
+              ((success++))
+            else
+              echo "Error [${retval}], delete failed for record ID ${record_id}"
+              # Do next deletion
+            fi
+          done
+          echo ""
+          if [ "${success}" == "${record_ids_count}" ]; then
+            echo "OK, ${success} out of ${record_ids_count} record(s) has been successfully deleted"
+
+          elif [[ "${success}" -eq 1 && "${success}" -lt "${record_ids_count}" ]]; then
+            echo "Warning, only ${success} out of ${record_ids_count} record(s) has been successfully deleted"
+          else
+            echo "Warning, no record has been deleted"
+          fi
+        else
+          # Useful variable for future reference
+          record_ids_count=0
+          echo "Error, no record ID with record name ${name} and type ${type} is found for domain ${domain}"
+          _exit 1
+        fi
+
+        return 0
+      else
+        echo "Error, no domain ID found for domain ${domain}"
+        _exit 1
+      fi
+      return 0
+    else
+      echo "Error, usage: linode_api_admin ${action} <domain_name> <record_name> <record_type>"
+      _exit 2
+    fi
+
+  # In linode for record, only 3 things can be updated: name, value and TTL.
+  # maxidns --linode "update-dns-record" <domain_name> <record_type> <record_name> <record_value> <record_ttl>
+  elif [[ "${action}" == "update-dns-record" ]]; then
+    shift
+    #echo "add-dns-record"
+    local domain type name value dis_args record_id record_ids record_ids_count
+    domain="$1"
+    # Record name
+    type="$2"
+    name="$3"
+    value="$4"
+    ttl="$5"
+    dis_args="${*:6}"
+
+    if [[ -n "${dis_args}" ]]; then
+      echo "Warning, extra arguments discarded: ${dis_args}"
+    fi
+
+    if [ $# -ge 5 ]; then
+      echo "Checking record for domain ${domain} with record name ${name} and type ${type} ..."
+      #domain_id=$(${LINODE_CLI_BIN} --pretty --json domains list --domain "${domain}" | grep -F '"id":' | sed -r 's/[^0-9]//g')
+      domain_id=$(${LINODE_CLI_BIN} --json --pretty domains list | ${JQ_BIN} ".[] | select(.domain == \"${domain}\") | .id")
+      if [ -n "${domain_id}" ]; then
+        count=1
+        while [[ ${count} -le ${linode_max_page} ]]; do
+          record_ids=$(${LINODE_CLI_BIN} --pretty --json domains records-list --page ${count} "${domain_id}" | ${JQ_BIN} ".[] | select((.name == \"${name}\") and (.type==\"${type}\")) | .id")
+          # Break if found result for that page
+          if [[ -n ${record_ids} ]]; then
+            break
+          fi
+          ((count++))
+        done
+        # Without -n condition, the record will be counted as 1 even it's empty line
+        if [[ -n "${record_ids}" ]]; then
+          record_ids_count=$(echo "${record_ids}" | wc -l)
+          #echo "${record_ids}"
+          echo "Total record ID found for the record name ${name} is ${record_ids_count}"
+          echo "Updating ${record_ids_count} record(s):"
+          success=0
+          for record_id in ${record_ids}; do
+            #Debug:
+            echo "Updating record ID ${record_id} ..."
+            ${LINODE_CLI_BIN} --json --pretty domains records-update "${domain_id}" "${record_id}" --name "${name}" --target "${value}" --ttl_sec "${ttl}"
+            retval=$?
+            if [ "${retval}" = 0 ]; then
+              echo "OK, record ID ${record_id} has been updated successfully updated."
+              # Do next update
+              ((success++))
+            else
+              echo "Error [${retval}], update failed for record ID ${record_id}"
+              # Do next update
+            fi
+          done
+          echo ""
+          if [ "${success}" == "${record_ids_count}" ]; then
+            echo "OK, ${success} out of ${record_ids_count} record(s) has been successfully updated"
+
+          elif [[ "${success}" -eq 1 && "${success}" -lt "${record_ids_count}" ]]; then
+            echo "Warning, only ${success} out of ${record_ids_count} record(s) has been successfully updated"
+          else
+            echo "Warning, no record has been updated"
+          fi
+        else
+          # Useful variable for future reference
+          record_ids_count=0
+          echo "Error, no record ID with record name ${name} and type ${type} is found for domain ${domain}"
+          _exit 1
+        fi
+      else
+        echo "Error, no domain ID found for domain ${domain}"
+        _exit 1
+      fi
+      return 0
+    else
+      echo "Error, usage: linode_api_admin ${action} <domain_name> <record_type> <record_name> <record_value> <record_ttl>"
+      _exit 2
+    fi
+
+  else
+    if [ -z "${action}" ]; then
+      echo "Error, the given action argument is empty: "
+      echo "Usage: linode_api_admin ${action} <domain_name> <record_name>"
+    else
+      echo "Error, the given action argument '${action}' does not exist"
+    fi
+    _exit 1
+  fi
+
+}
+
+function digitalocean_api_admin() {
   :
 }
 # da_api_admin <action> <action-option-arguments>
@@ -3140,7 +3397,6 @@ function configure_maxicode() {
 }
 # Create any extra admin accounts here
 function configure_admin_accounts() {
-  rm -rf "${CONF_PATH}/${FUNCNAME[0]}_executed"
   if [ ! -f "${CONF_PATH}/${FUNCNAME[0]}_executed" ]; then
     echo "[${SCRIPT_NAME}]: Executing ${FUNCNAME[0]} ..." 2>&1 | tee -a "${REPORT_FILE}"
     # Currently we only have owner account, now we create an admin account, we create admin here
@@ -3161,7 +3417,6 @@ function configure_admin_accounts() {
 }
 # Create reseller or user accounts here including packages and more
 function configure_da_accounts() {
-  rm -rf "${CONF_PATH}/${FUNCNAME[0]}_executed"
   if [ ! -f "${CONF_PATH}/${FUNCNAME[0]}_executed" ]; then
     echo "[${SCRIPT_NAME}]: Executing ${FUNCNAME[0]} ..." 2>&1 | tee -a "${REPORT_FILE}"
     local da_admin_packages_list da_user_packages_list gc count
@@ -3261,10 +3516,34 @@ function configure_da_accounts() {
 
           if [ "${EXTERNAL_DNS_PROVIDER}" == "linode" ]; then
             echo "[${SCRIPT_NAME}]: DNS provider is set to linode" 2>&1 | tee -a "${REPORT_FILE}"
-            # TODO implement linode API before enabling this
-            # linode_api_admin "add-dns-record" "x._domainkey" "5" "TXT" "${dkim_val}"
-            # linode_api_admin "add-dns-record" "_dmarc." "5" "TXT" "${spf_val}"
-            # linode_api_admin "add-dns-record" "${this_da_user_domain}." "5" "TXT" "${spf_val}"
+            echo "[${SCRIPT_NAME}]: Installing linode-cli ..." 2>&1 | tee -a "${REPORT_FILE}"
+
+            pip3 install linode-cli --upgrade
+            echo "[${SCRIPT_NAME}]: Configuring linode-cli using expect ..." 2>&1 | tee -a "${REPORT_FILE}"
+
+            apt-get -y install expect
+            LINODE_CLI=$(expect -c "
+              set timeout 3
+              spawn linode-cli
+              expect \"Personal Access Token:\"
+              send \"${DNS_PROVIDER_API_KEY}\r\"
+              expect \"Default Region (Optional):\"
+              send \"\r\"
+              expect \"Default Type of Linode (Optional):\"
+              send \"\r\"
+              expect \"Default Image (Optional):\"
+              send \"\r\"
+              expect eof
+              ")
+            echo "Result: "
+            echo "${LINODE_CLI}"
+            # TODO Testing
+            linode_api_admin "delete-dns-record" "${da_user_domain_first}" "x._domainkey" "TXT"
+            linode_api_admin "delete-dns-record" "${da_user_domain_first}" "_dmarc." "TXT"
+            linode_api_admin "delete-dns-record" "${da_user_domain_first}" "${da_user_domain_first}" "TXT"
+            linode_api_admin "add-dns-record" "${da_user_domain_first}" "TXT" "x._domainkey" "${dkim_val}" "5"
+            linode_api_admin "add-dns-record" "${da_user_domain_first}" "TXT" "_dmarc." "${dmarc_val}" "5"
+            linode_api_admin "add-dns-record" "${da_user_domain_first}" "TXT" "${da_user_domain_first}" "${spf_val}" "5"
           elif [ "${EXTERNAL_DNS_PROVIDER}" == "digitalocean" ]; then
 
             echo "[${SCRIPT_NAME}]: DNS provider is set to digitalocean" 2>&1 | tee -a "${REPORT_FILE}"
@@ -3303,10 +3582,13 @@ function configure_da_accounts() {
               echo "The spf value for this domain ${domain} is: ${spf_val}"
               if [ "${EXTERNAL_DNS_PROVIDER}" == "linode" ]; then
                 echo "[${SCRIPT_NAME}]: DNS provider is set to linode" 2>&1 | tee -a "${REPORT_FILE}"
-                # TODO implement linode API before enabling this
-                # linode_api_admin "add-dns-record" "x._domainkey" "5" "TXT" "${dkim_val}"
-                # linode_api_admin "add-dns-record" "_dmarc." "5" "TXT" "${spf_val}"
-                # linode_api_admin "add-dns-record" "${domain}." "5" "TXT" "${spf_val}"
+                # TODO Testing
+                linode_api_admin "delete-dns-record" "${domain}" "x._domainkey" "TXT"
+                linode_api_admin "delete-dns-record" "${domain}" "_dmarc." "TXT"
+                linode_api_admin "delete-dns-record" "${domain}" "${domain}" "TXT"
+                linode_api_admin "add-dns-record" "${domain}" "TXT" "x._domainkey" "${dkim_val}" "5"
+                linode_api_admin "add-dns-record" "${domain}" "TXT" "_dmarc." "${dmarc_val}" "5"
+                linode_api_admin "add-dns-record" "${domain}" "TXT" "${domain}" "${spf_val}" "5"
 
               elif [ "${EXTERNAL_DNS_PROVIDER}" == "digitalocean" ]; then
                 echo "[${SCRIPT_NAME}]: DNS provider is set to digitalocean" 2>&1 | tee -a "${REPORT_FILE}"
@@ -3551,6 +3833,11 @@ configure_maxicata
 if [ "${INSTALL_TYPE}" == "DIRECTADMIN" ]; then
   # Must run this functions (configure_da_ssl) after running CSF because we need to make sure all appropriate ports are opened to request certs
   # Warning do not overused configure_da_ssl function because when requesting the same cert for the same domain 7 times for a week, you will get blocked.
+  # This will set the hosting to SSL:
+  configure_da_ssl_pre
+  #exit 1
+  configure_da_ssl  #OK
+  #exit 1
   configure_da_sql  #OK
   #exit 1
   configure_da_mail #OK but need to test again
@@ -3564,7 +3851,7 @@ if [ "${INSTALL_TYPE}" == "DIRECTADMIN" ]; then
   build_da_custom_conf
   #exit 1
   harden_da
-  #exit
+  #exit 1
   configure_admin_accounts
   #exit 1
   # After creating admin accounts, we configure dns template before creating user accounts so they can use new DNS template
@@ -3577,12 +3864,6 @@ if [ "${INSTALL_TYPE}" == "DIRECTADMIN" ]; then
   configure_da_geoip
   #exit 1
   configure_da_skins
-  #exit 1
-  # At this point we can login without using SSL, Make sure to clear browser cache
-  # This will set the hosting to SSL:
-  configure_da_ssl_pre
-  #exit 1
-  configure_da_ssl #OK
   #exit 1
 fi
 #exit 1
