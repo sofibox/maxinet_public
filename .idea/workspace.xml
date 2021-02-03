@@ -10,10 +10,7 @@
     <select />
   </component>
   <component name="ChangeListManager">
-    <list default="true" id="113c828c-9a32-4b24-ab1e-978ce50c6320" name="Default Changelist" comment="Add extra commands in maxida&#10;Disable https redirect for all domains (useful to test)&#10;&#10;Fixed, suricata version select version missing variable&#10;Fixed memcached status installation paused and stopped the script from continuing&#10;&#10;Add checking to select DNS provider external or local&#10;&#10;Move ssl configuration after created DA accounts">
-      <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/maxisetup" beforeDir="false" afterPath="$PROJECT_DIR$/maxisetup" afterDir="false" />
-    </list>
+    <list default="true" id="113c828c-9a32-4b24-ab1e-978ce50c6320" name="Default Changelist" comment="Update maxida argument&#10;Add new alpha version of maxidns&#10;Implemented linode_api_admin through linode-cli" />
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
     <option name="HIGHLIGHT_NON_ACTIVE_CHANGELIST" value="false" />
@@ -50,15 +47,13 @@
     </key>
   </component>
   <component name="RunManager">
-    <configuration default="true" type="ArquillianTestNG" factoryName="" nameIsGenerated="true">
+    <configuration default="true" type="ArquillianJUnit" factoryName="" nameIsGenerated="true">
       <option name="arquillianRunConfiguration">
         <value>
           <option name="containerStateName" value="" />
         </value>
       </option>
-      <option name="TEST_OBJECT" value="CLASS" />
-      <properties />
-      <listeners />
+      <option name="TEST_OBJECT" value="class" />
       <method v="2">
         <option name="Make" enabled="true" />
       </method>
@@ -94,6 +89,7 @@
       <workItem from="1611720592625" duration="501000" />
       <workItem from="1611759532844" duration="255000" />
       <workItem from="1611810652589" duration="1907000" />
+      <workItem from="1612218855745" duration="84000" />
     </task>
     <task id="LOCAL-00001" summary="Initial release from beta Version 0.3.2.7-beta">
       <created>1610639956771</created>
@@ -249,7 +245,14 @@
       <option name="project" value="LOCAL" />
       <updated>1611810696555</updated>
     </task>
-    <option name="localTasksCounter" value="23" />
+    <task id="LOCAL-00023" summary="Update maxida argument&#10;Add new alpha version of maxidns&#10;Implemented linode_api_admin through linode-cli">
+      <created>1612218929309</created>
+      <option name="number" value="00023" />
+      <option name="presentableId" value="LOCAL-00023" />
+      <option name="project" value="LOCAL" />
+      <updated>1612218929309</updated>
+    </task>
+    <option name="localTasksCounter" value="24" />
     <servers />
   </component>
   <component name="TypeScriptGeneratedFilesManager">
@@ -291,6 +294,7 @@
     <MESSAGE value="Add the ability to switch DA installation from beta to stable or vise versa based on Poralix idea:&#10; &#10; Switch to stable version -&gt; maxida --switch-da stable or switch to beta version -&gt; maxida --switch-da beta&#10; &#10; Switching to beta version is useful to test beta function of Directadmin. For example the wildcard certificate using external DNS is supported in beta version of DA only.&#10;&#10;TODO: Planning to integrate script with wildcard certificate installation using Lego" />
     <MESSAGE value="1) Update maxida to use custombuild and directadmin functionalities.&#10;&#10;For example to set directadmin ssl=1 use the following:&#10;maxida --da set ssl 1&#10;&#10;To check Directadmin ssl setting:&#10;&#10;maxida --da get ssl&#10;output: ssl=1&#10;&#10;To reboot DA: &#10;maxida --reboot-da or maxida --da reboot&#10;&#10;To build lesencrypt package: &#10;maxida --cb letsencrypt&#10;&#10;To edit directadmin.conf: maxida --edit-daconf&#10;&#10;To edit custombuild options.conf: maxida --edit-cbconf&#10;&#10;To run DA in debug mode: &#10;maxida --debug or maxida --da debug&#10;&#10;=====&#10;&#10;2) Minor change to maxisetup" />
     <MESSAGE value="Add extra commands in maxida&#10;Disable https redirect for all domains (useful to test)&#10;&#10;Fixed, suricata version select version missing variable&#10;Fixed memcached status installation paused and stopped the script from continuing&#10;&#10;Add checking to select DNS provider external or local&#10;&#10;Move ssl configuration after created DA accounts" />
-    <option name="LAST_COMMIT_MESSAGE" value="Add extra commands in maxida&#10;Disable https redirect for all domains (useful to test)&#10;&#10;Fixed, suricata version select version missing variable&#10;Fixed memcached status installation paused and stopped the script from continuing&#10;&#10;Add checking to select DNS provider external or local&#10;&#10;Move ssl configuration after created DA accounts" />
+    <MESSAGE value="Update maxida argument&#10;Add new alpha version of maxidns&#10;Implemented linode_api_admin through linode-cli" />
+    <option name="LAST_COMMIT_MESSAGE" value="Update maxida argument&#10;Add new alpha version of maxidns&#10;Implemented linode_api_admin through linode-cli" />
   </component>
 </project>
