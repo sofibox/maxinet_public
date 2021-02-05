@@ -1,7 +1,7 @@
 #!/bin/bash
 # =~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~
 # Author: Arafat Ali Email: arafat@sofibox.com
-# Version 0.3.5.1-beta
+# Version 0.3.6.0-beta
 # This is an initial server hardening script for CentOS and Debian.
 # Compatible 100% with Directadmin. Supported OS: CentOS + Debian (Planned on FreeBSD)
 # You can choose to install as the other stack server such as LEMP, Laravel etc defined in ENV file (TODO)
@@ -735,11 +735,25 @@ function da_api_admin() {
       echo "Value of record_out_display is: ${record_out_display}" 2>&1 | tee -a "${REPORT_FILE}"
       echo "===" 2>&1 | tee -a "${REPORT_FILE}"
       #curl --request "${method}" --user "${api_username}":"${api_password}" --data "${data}" "${ssl}://${BOX_HOSTNAME_FQDN}:${DA_PORT}/${command}" | grep 'v=DKIM1' | awk '{for(i=6;i<=NF;++i)printf $i""FS ; print ""}' | sed -e 's/^"//' -e 's/"$//'
-      input=$(curl --request "${method}" --user "${api_username}":"${api_password}" --data "${data}" "${ssl}://${BOX_HOSTNAME_FQDN}:${DA_PORT}/${command}" | jq -r ".records[] | select((.name==\"${record_name}\") and (.type==\"${record_type}\") and (.value | contains(\"${record_contains_val}\"))) | ${record_out_display}" | sed -e 's/^"//' -e 's/"$//')
+      curl --silent --request "${method}" --user "${api_username}":"${api_password}" --data "${data}" "${ssl}://${BOX_HOSTNAME_FQDN}:${DA_PORT}/${command}" | jq -r ".records[] | select((.name==\"${record_name}\") and (.type==\"${record_type}\") and (.value | contains(\"${record_contains_val}\"))) | ${record_out_display}" | sed -e 's/^"//' -e 's/"$//' | tr -d '\0'
       retval=$?
-      echo "${input}"
-      # get out based on return value
+      # get out based on return value (prevent next statement from running)
       return ${retval}
+      # da_api_admin "create-user-email" "maxibi.com" "webmaster" "1232123" "0" "200"
+    elif [ "${action}" == "create-user-email" ]; then
+      local mail_domain mail_user mail_pass mail_quota mail_limit
+      shift
+      mail_domain="$1"
+      mail_user="$2"
+      mail_pass="$3"
+      mail_quota="$4"
+      mail_limit="$5"
+      command="CMD_API_EMAIL_POP"
+      #https://www.directadmin.com/features.php?id=2587 not sure if this useful
+      data="user=${mail_user}&passwd=${mail_pass}&passwd2=${mail_pass}&quota=${mail_quota}&limit=${mail_limit}&domain=${mail_domain}&json=yes&action=create"
+      method="POST"
+      echo "Now, executing API with action name: ${action}" 2>&1 | tee -a "${REPORT_FILE}"
+
     else
       echo "[${SCRIPT_NAME}]: The API action '${action}' does not exist!" 2>&1 | tee -a "${REPORT_FILE}"
       _exit 1
@@ -749,9 +763,8 @@ function da_api_admin() {
     echo "---" 2>&1 | tee -a "${REPORT_FILE}"
     echo "[${SCRIPT_NAME}]: Status: " 2>&1 | tee -a "${REPORT_FILE}"
     echo "=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~" 2>&1 | tee -a "${REPORT_FILE}"
-    echo ""
-    input=$(curl --request "${method}" --user "${api_username}":"${api_password}" --data "${data}" "${ssl}://${BOX_HOSTNAME_FQDN}:${DA_PORT}/${command}")
-    echo "${input}"
+    echo "" 2>&1 | tee -a "${REPORT_FILE}"
+    curl --silent --request "${method}" --user "${api_username}":"${api_password}" --data "${data}" "${ssl}://${BOX_HOSTNAME_FQDN}:${DA_PORT}/${command}" | tr -d '\0' 2>&1 | tee -a "${REPORT_FILE}"
     echo "=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~" 2>&1 | tee -a "${REPORT_FILE}"
     echo "" 2>&1 | tee -a "${REPORT_FILE}"
 
@@ -1679,7 +1692,7 @@ configure_csf() {
         echo "-----------------" 2>&1 | tee -a "${REPORT_FILE}"
         grep ^TCP_IN /etc/csf/csf.conf 2>&1 | tee -a "${REPORT_FILE}"
         echo "" 2>&1 | tee -a "${REPORT_FILE}"
-        echo "If you do NOT see the port listed, press ctrl-c to immediately abort the script (you can add port missing port in maxi.env), then re-run this setup" 2>&1 | tee -a "${REPORT_FILE}"
+        echo "If you do NOT see the port listed, press ctrl-c to immediately abort the script (you can add port missing port in maxisetup.conf), then re-run this setup" 2>&1 | tee -a "${REPORT_FILE}"
         echo "If you DO, the port correctly added, press enter to continue" 2>&1 | tee -a "${REPORT_FILE}"
         _pause 60
         if [ "${DISTRO_ID}" == "centos" ]; then
@@ -2893,7 +2906,7 @@ function configure_maxicode() {
 
   if [ ! -f "${CONF_PATH}/${FUNCNAME[0]}_executed" ]; then
     echo "[${SCRIPT_NAME}]: Executing ${FUNCNAME[0]} ..." 2>&1 | tee -a "${REPORT_FILE}"
-      maxicode_bin="/usr/local/maxicode/maxicode"
+    maxicode_bin="/usr/local/maxicode/maxicode"
     if [ -f ${maxicode_bin} ]; then
       echo "[${SCRIPT_NAME}]: Creating symlink and executable for ${maxicode_bin} ..." 2>&1 | tee -a "${REPORT_FILE}"
       chmod +x ${maxicode_bin}
@@ -3312,7 +3325,7 @@ function configure_maxicata() {
       _exit 1
     fi
 
-    # Writing a new maxicata.env file (all sensitive variables should be declared in maxi.env and pass here)
+    # Writing a new maxicata.env file (all sensitive variables should be declared in maxisetup.conf and pass here)
     echo "[${SCRIPT_NAME}]: Writing new maxicata.env file ..." 2>&1 | tee -a "${REPORT_FILE}"
     sleep 1
     {
@@ -3465,8 +3478,8 @@ function configure_admin_accounts() {
     echo "[${SCRIPT_NAME}]: Executing ${FUNCNAME[0]} ..." 2>&1 | tee -a "${REPORT_FILE}"
     # Currently we only have owner account, now we create an admin account, we create admin here
     # We will use this account to fully manage DA instead of owner for security but for API we only use DA owner account
-    #echo "[${SCRIPT_NAME}]: Restarting directadmin before configuring Directadmin accounts ..." 2>&1 | tee -a "${REPORT_FILE}"
-    #restart_da
+    echo "[${SCRIPT_NAME}]: Restarting directadmin before configuring Directadmin accounts ..." 2>&1 | tee -a "${REPORT_FILE}"
+    restart_da
     echo "[${SCRIPT_NAME}]: Creating a new DA admin account ..." 2>&1 | tee -a "${REPORT_FILE}"
     #_pause 2
     # Start owner session to use API (it will automatically destroy after execution or use da_api_admin "end+owner" to destroy manually
@@ -3491,7 +3504,6 @@ function configure_admin_accounts() {
 }
 # Create reseller or user accounts here including packages and more
 function configure_da_accounts() {
-  # TODO Pending (Fix small issue on nullbytes error when DKIM character generated by DA has weird character) ... Do not use yet.
   # Manually create user account first
   #rm -f "${CONF_PATH}/${FUNCNAME[0]}_executed"
   if [ ! -f "${CONF_PATH}/${FUNCNAME[0]}_executed" ]; then
@@ -3499,8 +3511,9 @@ function configure_da_accounts() {
 
     local da_admin_packages_list da_user_packages_list gc count
     local da_user_unames #da_user_passwords da_user_emails da_user_domains da_user_package_names
-    local this_da_user_uname this_da_user_password this_da_user_email this_da_user_domain this_da_user_package_name
-    local da_user_count domains
+    local this_da_user_uname this_da_user_password this_da_user_system_email this_da_user_mail_users
+    local this_da_user_mail_passwords this_da_user_domains this_da_user_package_name this_da_user_domain_enable_ssl
+    local da_user_count
     local dkim_val dmarc_val spf_val
     da_admin_packages_list="/usr/local/directadmin/data/admin/packages.list"
     da_user_packages_list="/usr/local/directadmin/data/users/${DA_RESELLER_USERNAME1}/packages.list"
@@ -3516,8 +3529,8 @@ function configure_da_accounts() {
     # Check if reseller package is created
     # https://forum.directadmin.com/threads/server-migration-how-to-use-the-existing-configuration-during-setup.62937/
     # https://forum.directadmin.com/threads/default-user-package-s-for-resellers.49156/
-    #echo "[${SCRIPT_NAME}]: Restarting directadmin before configuring Directadmin accounts ..." 2>&1 | tee -a "${REPORT_FILE}"
-    #restart_da
+    echo "[${SCRIPT_NAME}]: Restarting directadmin before configuring Directadmin accounts ..." 2>&1 | tee -a "${REPORT_FILE}"
+    restart_da
     # First create reseller unlimited package
 
     # Make sure admin account is created first (da_api_admin will check this)
@@ -3565,26 +3578,26 @@ function configure_da_accounts() {
     echo "${da_user_unames}" 2>&1 | tee -a "${REPORT_FILE}"
     echo "Total: ${da_user_count}" 2>&1 | tee -a "${REPORT_FILE}"
     echo "---==---" 2>&1 | tee -a "${REPORT_FILE}"
-
-    #da_user_passwords="${!DA_USER_USERPASS@}"
-    #da_user_emails="${!DA_USER_EMAIL@}"
-    #da_user_domains="${!DA_USER_DOMAIN@}"
-    #da_user_package_names="${!DA_USER_PACKAGE_NAME@}"
     local count_user
     count_user=1
     while [[ ${count_user} -le ${da_user_count} ]]; do
       echo "Executing while loop: count=${count_user} while less than da_user_count ${da_user_count}"
       typeset -n "this_da_user_uname"="DA_USER_USERNAME${count_user}"
       typeset -n "this_da_user_password"="DA_USER_USERPASS${count_user}"
-      typeset -n "this_da_user_email"="DA_USER_EMAIL${count_user}"
-      typeset -n "this_da_user_domain"="DA_USER_DOMAIN${count_user}"
+      typeset -n "this_da_user_system_email"="DA_USER_SYSTEM_EMAIL${count_user}"
+      typeset -n "this_da_user_mail_users"="DA_USER_MAIL_USER${count_user}"
+      typeset -n "this_da_user_mail_passwords"="DA_USER_MAIL_PASSWORD${count_user}"
+      typeset -n "this_da_user_domains"="DA_USER_DOMAIN${count_user}"
       typeset -n "this_da_user_package_name"="DA_USER_PACKAGE_NAME${count_user}"
       typeset -n "this_da_user_domain_enable_ssl"="DA_USER_DOMAIN_ENABLE_SSL${count_user}"
+
       echo "=========== start value ========="
       echo "this_da_user_uname = ${this_da_user_uname}"
       echo "this_da_user_password = ${this_da_user_password}"
-      echo "this_da_user_email = ${this_da_user_email}"
-      echo "this_da_user_domain = ${this_da_user_domain}"
+      echo "this_da_user_system_email = ${this_da_user_system_email}"
+      echo "this_da_user_mail_users = ${this_da_user_mail_users}"
+      echo "this_da_user_mail_passwords = ${this_da_user_mail_passwords}"
+      echo "this_da_user_domains = ${this_da_user_domains}"
       echo "this_da_user_package_name = ${this_da_user_package_name}"
       echo "this_da_user_domain_enable_ssl = ${this_da_user_domain_enable_ssl}"
       echo "=========== end value ========="
@@ -3594,11 +3607,22 @@ function configure_da_accounts() {
       if [ -z "${this_da_user_password}" ]; then
         echo "[${SCRIPT_NAME}]: [Skipped]: Warning user ${this_da_user_uname} is set but doesn't have password set in ENV file. Please check configuration file " 2>&1 | tee -a "${REPORT_FILE}"
         _exit 1
-      elif [ -z "${this_da_user_email}" ]; then
-        echo "[${SCRIPT_NAME}]: [Skipped]: Warning user ${this_da_user_uname} is set but doesn't have email set in ENV file. Please check configuration file " 2>&1 | tee -a "${REPORT_FILE}"
+
+      elif [ -z "${this_da_user_system_email}" ]; then
+        echo "[${SCRIPT_NAME}]: [Skipped]: Warning user ${this_da_user_uname} is set but doesn't have system email set in ENV file. Please check configuration file " 2>&1 | tee -a "${REPORT_FILE}"
         _exit 1
-      elif [ -z "${this_da_user_domain}" ]; then
+      elif [ -z "${this_da_user_mail_users}" ]; then
+        echo "[${SCRIPT_NAME}]: [Skipped]: Warning user ${this_da_user_uname} is set but doesn't have email inbox set in ENV file. Please check configuration file " 2>&1 | tee -a "${REPORT_FILE}"
+        _exit 1
+      elif [ -z "${this_da_user_mail_passwords}" ]; then
+        echo "[${SCRIPT_NAME}]: [Skipped]: Warning user ${this_da_user_uname} is set but doesn't have email password set in ENV file. Please check configuration file " 2>&1 | tee -a "${REPORT_FILE}"
+        _exit 1
+        # Just use a normal variable to check (even it is array)
+      elif [ -z "${this_da_user_domains}" ]; then
         echo "[${SCRIPT_NAME}]: [Skipped]: Warning user ${this_da_user_uname} is set but doesn't have domain set in ENV file. Please check configuration file " 2>&1 | tee -a "${REPORT_FILE}"
+        _exit 1
+      elif [ ${#this_da_user_mail_users[@]} -ne ${#this_da_user_mail_passwords[@]} ]; then
+        echo "[${SCRIPT_NAME}]: [Skipped]: Warning user ${this_da_user_uname} have mail users and mail passwords defined with different length of array" 2>&1 | tee -a "${REPORT_FILE}"
         _exit 1
       elif [ -z "${this_da_user_package_name}" ]; then
         echo "[${SCRIPT_NAME}]: [Skipped]: Warning user ${this_da_user_uname} is set but doesn't have package name set in ENV file. Please check configuration file " 2>&1 | tee -a "${REPORT_FILE}"
@@ -3609,33 +3633,30 @@ function configure_da_accounts() {
       else
         echo "[${SCRIPT_NAME}]: OK user ${this_da_user_uname} has all variables set from ENV with the following: " 2>&1 | tee -a "${REPORT_FILE}"
         # Debug
-
-        echo "${this_da_user_uname} | ${this_da_user_password} | ${this_da_user_email} | ${this_da_user_domain} | ${this_da_user_package_name} | ${this_da_user_domain_enable_ssl}"
-
+        echo "${this_da_user_uname} | ${this_da_user_password} | ${this_da_user_system_email} | ${this_da_user_domains} | ${this_da_user_package_name} | ${this_da_user_domain_enable_ssl}"
         echo "Checking user package ${this_da_user_package_name} ..."
         _pause 2
         gc=$(grep -ic "${this_da_user_package_name}" "${da_user_packages_list}")
         if [ "${gc}" -gt 0 ]; then
           echo "[${SCRIPT_NAME}]: [${SCRIPT_NAME}]: Found package ${this_da_user_package_name}" 2>&1 | tee -a "${REPORT_FILE}"
           # The total domain count for this user
-          da_user_domain_count=$(echo "${this_da_user_domain}" | wc -w)
+          da_user_domain_count="${#this_da_user_domains[@]}"
           # The first domain is used to create account (default domain for that user)
-          da_user_domain_first=$(echo "${this_da_user_domain}" | awk '{ print $1 }')
+          da_user_domain_first=$(echo "${this_da_user_domains[@]}" | awk '{ print $1 }')
           echo "-=-=-=-=-=-=-="
           echo " This user ${this_da_user_uname} has the following domain(s): "
-          echo "${this_da_user_domain}"
+          echo "${this_da_user_domains}"
           echo "Domain count: ${da_user_domain_count}"
           echo "The first domain is: ${da_user_domain_first}"
           echo "-=-=-=-=-=-=-="
           echo "[${SCRIPT_NAME}]: Authenticating DA API for user for default reseller user ..." 2>&1 | tee -a "${REPORT_FILE}"
           echo "Creating user account ${this_da_user_uname} using the following details: "
-
-          echo "Username: ${this_da_user_uname} | Email: ${this_da_user_email} | Password: ${this_da_user_password} | Default (First) domain: ${da_user_domain_first} | Package selection: ${this_da_user_package_name}"
+          echo "Username: ${this_da_user_uname} | Email: ${this_da_user_system_email} | Password: ${this_da_user_password} | Default (First) domain: ${da_user_domain_first} | Package selection: ${this_da_user_package_name}"
           echo "~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~"
           _pause 2
           # Use reseller to create user account and its default domain:
           da_api_admin "start+reseller"
-          da_api_admin "create-user-account" "${this_da_user_uname}" "${this_da_user_email}" "${this_da_user_password}" "${da_user_domain_first}" "${this_da_user_package_name}"
+          da_api_admin "create-user-account" "${this_da_user_uname}" "${this_da_user_system_email}" "${this_da_user_password}" "${da_user_domain_first}" "${this_da_user_package_name}"
           echo "~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~"
           echo "[${SCRIPT_NAME}]: Enabling email DKIM for the domain ${da_user_domain_first} ..." 2>&1 | tee -a "${REPORT_FILE}"
           echo "~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~"
@@ -3653,13 +3674,11 @@ function configure_da_accounts() {
           # END DEBUG
           # Make sure if duplicated entry found, just return 1 line with tail -n 1
 
-          dkim_val=$(da_api_admin "get-dns-zone" "${da_user_domain_first}" "x._domainkey+TXT+v=DKIM1+.value" | tail -n 1)
+          dkim_val=$(da_api_admin "get-dns-zone" "${da_user_domain_first}" "x._domainkey+TXT+v=DKIM1+.value" | tail -n 1) || exit 1
           dkim_val_count=$(echo "${dkim_val}" | wc -l)
-
-          dmarc_val=$(da_api_admin "get-dns-zone" "${da_user_domain_first}" "_dmarc+TXT+v=DMARC1+.value" | tail -n 1)
+          dmarc_val=$(da_api_admin "get-dns-zone" "${da_user_domain_first}" "_dmarc+TXT+v=DMARC1+.value" | tail -n 1) || exit 1
           dmarc_val_count=$(echo "${dmarc_val}" | wc -l)
-
-          spf_val=$(da_api_admin "get-dns-zone" "${da_user_domain_first}" "${da_user_domain_first}.+TXT+v=spf1+.value" | tail -n 1)
+          spf_val=$(da_api_admin "get-dns-zone" "${da_user_domain_first}" "${da_user_domain_first}.+TXT+v=spf1+.value" | tail -n 1) || exit 1
           spf_val_count=$(echo "${spf_val}" | wc -l)
 
           echo "=-=-=-=-=-=-=-=-=-=-"
@@ -3729,89 +3748,88 @@ function configure_da_accounts() {
           if [ "${da_user_domain_count}" -gt 1 ]; then
             echo "[${SCRIPT_NAME}]: This user ${this_da_user_uname} has more than 1 domains" 2>&1 | tee -a "${REPORT_FILE}"
             sleep 2
-            domains="${this_da_user_domain}"
             echo ""
-            for domain in ${domains}; do
+            for extra_domain in "${this_da_user_domains[@]}"; do
               # Don't add first domain, we did that before
-              if [ "${domain}" == "${da_user_domain_first}" ]; then
+              if [ "${extra_domain}" == "${da_user_domain_first}" ]; then
                 echo "[${SCRIPT_NAME}]: Skipped adding the default domain: ${da_user_domain_first}"
                 sleep 2
                 continue
               fi
 
-              echo "[${SCRIPT_NAME}]: Creating extra domain ${domain} for ${this_da_user_uname} ..." 2>&1 | tee -a "${REPORT_FILE}"
+              echo "[${SCRIPT_NAME}]: Creating extra domain ${extra_domain} for ${this_da_user_uname} ..." 2>&1 | tee -a "${REPORT_FILE}"
               echo "~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~"
-              _pause 2
+              #_pause 2
               # Calling user authentication
               echo "[${SCRIPT_NAME}]: Authenticating DA API for user ${this_da_user_uname} ..." 2>&1 | tee -a "${REPORT_FILE}"
               da_api_admin "start+${this_da_user_uname}+${this_da_user_password}"
-              da_api_admin "create-user-domain" "${domain}"
+              da_api_admin "create-user-domain" "${extra_domain}"
               echo "~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~"
 
-              echo "[${SCRIPT_NAME}]: Enabling email DKIM for extra domain ${domain} for user ${this_da_user_uname} ..." 2>&1 | tee -a "${REPORT_FILE}"
+              echo "[${SCRIPT_NAME}]: Enabling email DKIM for extra domain ${extra_domain} for user ${this_da_user_uname} ..." 2>&1 | tee -a "${REPORT_FILE}"
               echo "~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~"
-              _pause 2
+              #_pause 2
 
-              da_api_admin "enable-email-dkim" "${domain}"
+              da_api_admin "enable-email-dkim" "${extra_domain}"
               # Make sure if duplicated entry found, just return 1 line with tail -n 1
-              dkim_val=$(da_api_admin "get-dns-zone" "${domain}" "x._domainkey+TXT+v=DKIM1+.value" | tail -n 1)
+              dkim_val=$(da_api_admin "get-dns-zone" "${extra_domain}" "x._domainkey+TXT+v=DKIM1+.value" | tail -n 1) || exit 1
               dkim_val_count=$(echo "${dkim_val}" | wc -l)
 
-              dmarc_val=$(da_api_admin "get-dns-zone" "${domain}" "_dmarc+TXT+v=DMARC1+.value" | tail -n 1)
+              dmarc_val=$(da_api_admin "get-dns-zone" "${extra_domain}" "_dmarc+TXT+v=DMARC1+.value" | tail -n 1) || exit 1
               dmarc_val_count=$(echo "${dmarc_val}" | wc -l)
 
-              spf_val=$(da_api_admin "get-dns-zone" "${domain}" "${domain}.+TXT+v=spf1+.value" | tail -n 1)
+              spf_val=$(da_api_admin "get-dns-zone" "${extra_domain}" "${extra_domain}.+TXT+v=spf1+.value" | tail -n 1) || exit 1
               spf_val_count=$(echo "${spf_val}" | wc -l)
 
               echo "=-=-=-=-=-=-=-=-=-=-"
-              echo "There is/are ${dkim_val_count} dkim value for this domain ${domain}. First value is: ${dkim_val}"
-              echo "There is/are ${dmarc_val_count} dmarc value for this domain ${domain}. First value is: ${dmarc_val}"
-              echo "There is/are ${spf_val_count} spf value for this domain ${domain}. First value is: ${spf_val}"
+              echo "There is/are ${dkim_val_count} dkim value for this extra_domain ${extra_domain}. First value is: ${dkim_val}"
+              echo "There is/are ${dmarc_val_count} dmarc value for this extra_domain ${extra_domain}. First value is: ${dmarc_val}"
+              echo "There is/are ${spf_val_count} spf value for this extra_domain ${extra_domain}. First value is: ${spf_val}"
               echo "=-=-=-=-=-=-=-=-=-=-"
               echo "~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~"
 
               if [ "${EXTERNAL_DNS_PROVIDER}" == "linode" ]; then
                 echo "[${SCRIPT_NAME}]: DNS provider is set to linode. Using linode API" 2>&1 | tee -a "${REPORT_FILE}"
 
-                echo "Deleting dns record x._domainkey for ${domain}" 2>&1 | tee -a "${REPORT_FILE}"
+                echo "Deleting dns record x._domainkey for ${extra_domain}" 2>&1 | tee -a "${REPORT_FILE}"
                 echo "~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~" 2>&1 | tee -a "${REPORT_FILE}"
                 #_pause 2
-                linode_api_admin "delete-dns-record" "${domain}" "x._domainkey" "TXT"
+                linode_api_admin "delete-dns-record" "${extra_domain}" "x._domainkey" "TXT"
                 echo "~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~" 2>&1 | tee -a "${REPORT_FILE}"
                 echo "" 2>&1 | tee -a "${REPORT_FILE}"
 
-                echo "Deleting dns record _dmarc. for ${domain}" 2>&1 | tee -a "${REPORT_FILE}"
+                echo "Deleting dns record _dmarc. for ${extra_domain}" 2>&1 | tee -a "${REPORT_FILE}"
                 echo "~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~" 2>&1 | tee -a "${REPORT_FILE}"
                 #_pause 2
-                linode_api_admin "delete-dns-record" "${domain}" "_dmarc" "TXT" 2>&1 | tee -a "${REPORT_FILE}"
+                linode_api_admin "delete-dns-record" "${extra_domain}" "_dmarc" "TXT" 2>&1 | tee -a "${REPORT_FILE}"
                 echo "~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~" 2>&1 | tee -a "${REPORT_FILE}"
                 echo "" 2>&1 | tee -a "${REPORT_FILE}"
 
-                echo "Deleting dns record for ${domain}" 2>&1 | tee -a "${REPORT_FILE}"
+                echo "Deleting dns record for ${extra_domain}" 2>&1 | tee -a "${REPORT_FILE}"
                 echo "~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~" 2>&1 | tee -a "${REPORT_FILE}"
                 #_pause 2
-                linode_api_admin "delete-dns-record" "${domain}" "" "TXT" 2>&1 | tee -a "${REPORT_FILE}"
+                linode_api_admin "delete-dns-record" "${extra_domain}" "" "TXT" 2>&1 | tee -a "${REPORT_FILE}"
                 echo "~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~" 2>&1 | tee -a "${REPORT_FILE}"
                 echo "" 2>&1 | tee -a "${REPORT_FILE}"
 
-                echo "Adding record for x._domainkey for ${domain}" 2>&1 | tee -a "${REPORT_FILE}"
+                echo "Adding record for x._domainkey for ${extra_domain}" 2>&1 | tee -a "${REPORT_FILE}"
                 echo "~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~" 2>&1 | tee -a "${REPORT_FILE}"
                 #_pause 2
-                linode_api_admin "add-dns-record" "${domain}" "TXT" "x._domainkey" "${dkim_val}" "5" 2>&1 | tee -a "${REPORT_FILE}"
+                linode_api_admin "add-dns-record" "${extra_domain}" "TXT" "x._domainkey" "${dkim_val}" "5" 2>&1 | tee -a "${REPORT_FILE}"
                 echo "~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~" 2>&1 | tee -a "${REPORT_FILE}"
                 echo "" 2>&1 | tee -a "${REPORT_FILE}"
 
-                echo "Adding record for _dmarc for ${domain}" 2>&1 | tee -a "${REPORT_FILE}"
+                echo "Adding record for _dmarc for ${extra_domain}" 2>&1 | tee -a "${REPORT_FILE}"
                 echo "~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~" 2>&1 | tee -a "${REPORT_FILE}"
                 #_pause 2
-                linode_api_admin "add-dns-record" "${domain}" "TXT" "_dmarc" "${dmarc_val}" "5" 2>&1 | tee -a "${REPORT_FILE}"
+                linode_api_admin "add-dns-record" "${extra_domain}" "TXT" "_dmarc" "${dmarc_val}" "5" 2>&1 | tee -a "${REPORT_FILE}"
                 echo "~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~" 2>&1 | tee -a "${REPORT_FILE}"
                 echo "" 2>&1 | tee -a "${REPORT_FILE}"
 
-                echo "Adding dns record for ${domain} with empty name (provide the hostname)" 2>&1 | tee -a "${REPORT_FILE}"
+                echo "Adding dns record for ${extra_domain} with empty name (provide the hostname)" 2>&1 | tee -a "${REPORT_FILE}"
                 echo "~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~" 2>&1 | tee -a "${REPORT_FILE}"
                 #_pause 2
-                linode_api_admin "add-dns-record" "${domain}" "TXT" "${domain}" "${spf_val}" "5" 2>&1 | tee -a "${REPORT_FILE}"
+                linode_api_admin "add-dns-record" "${extra_domain}" "TXT" "${extra_domain}" "${spf_val}" "5" 2>&1 | tee -a "${REPORT_FILE}"
                 echo "~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~" 2>&1 | tee -a "${REPORT_FILE}"
                 echo "" 2>&1 | tee -a "${REPORT_FILE}"
               elif
@@ -3852,9 +3870,86 @@ function configure_da_domain_ssl() {
 
 # Creat email here (maybe everything should be configure in account)
 function configure_da_emails() {
-  :
-  # Here we create emails for specific domains based on the ENV variable: DA_USER_EMAIL{?}
-  # Where email can have 1 or more
+  rm -f "${CONF_PATH}/${FUNCNAME[0]}_executed"
+  if [ ! -f "${CONF_PATH}/${FUNCNAME[0]}_executed" ]; then
+    echo "[${SCRIPT_NAME}]: Executing ${FUNCNAME[0]} ..." 2>&1 | tee -a "${REPORT_FILE}"
+    local da_user_mail_users da_user_mail_users_count count_mail_user
+    local this_da_user_username this_da_user_userpass this_da_user_mail_users this_da_user_mail_passwords
+    local this_da_user_mail_users_count this_da_user_mail_password_count
+    local count_n mail_user mail_domain
+    # Get all variables set for DA_USER_MAIL_USER[index]:
+    da_user_mail_users="${!DA_USER_MAIL_USER@}"
+    # Calculate the total for the total variable of DA_USER_MAIL_USER
+    da_user_mail_users_count=$(echo "${da_user_mail_users}" | wc -w)
+    # Debug:
+    echo "DA_USER_MAIL_USERS: ${da_user_mail_users}"
+    echo "DA_USER_MAIL_USERS_COUNT: ${da_user_mail_users_count}"
+    # Initial value to start looping
+    count_mail_user=1
+    while [[ ${count_mail_user} -le ${da_user_mail_users_count} ]]; do
+      echo "=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~="
+      echo "COUNT_MAIL_USER INDEX = ${count_mail_user}"
+      echo ""
+      # Assign all variables from the config file as array index
+      typeset -n "this_da_user_username"="DA_USER_USERNAME${count_mail_user}"
+      typeset -n "this_da_user_userpass"="DA_USER_USERPASS${count_mail_user}"
+      typeset -n "this_da_user_mail_users"="DA_USER_MAIL_USER${count_mail_user}"
+      typeset -n "this_da_user_mail_passwords"="DA_USER_MAIL_PASSWORD${count_mail_user}"
+      # Error checking for missing variable values:
+      if [ -z "${this_da_user_username}" ]; then
+        echo "[${SCRIPT_NAME}]: [Skipped]: Warning, no user_name is set in ENV file for this mail_user. Please check configuration file " 2>&1 | tee -a "${REPORT_FILE}"
+        _exit 1
+      elif [ -z "${this_da_user_userpass}" ]; then
+        echo "[${SCRIPT_NAME}]: [Skipped]: Warning, no user_password is set in ENV file for this mail_user. Please check configuration file " 2>&1 | tee -a "${REPORT_FILE}"
+        _exit 1
+      elif [ -z "${this_da_user_mail_users}" ]; then
+        echo "[${SCRIPT_NAME}]: [Skipped]: Warning, no user_emails is set in ENV file for this mail_user. Please check configuration file " 2>&1 | tee -a "${REPORT_FILE}"
+        _exit 1
+      elif [ -z "${this_da_user_mail_passwords}" ]; then
+        echo "[${SCRIPT_NAME}]: [Skipped]: Warning, no user_email_passwords is set in ENV file for this mail_user. Please check configuration file " 2>&1 | tee -a "${REPORT_FILE}"
+        _exit 1
+      elif [ ${#this_da_user_mail_users[@]} -ne ${#this_da_user_mail_passwords[@]} ]; then
+        echo "[${SCRIPT_NAME}]: [Skipped]: Warning, mail users and mail passwords defined with different length of array" 2>&1 | tee -a "${REPORT_FILE}"
+        _exit 1
+      else
+        this_da_user_mail_users_count="${#this_da_user_mail_users[@]}"
+        this_da_user_mail_password_count="${#this_da_user_mail_passwords[@]}"
+        # Debug
+        echo "this_da_user_mail_users: ${this_da_user_mail_users[*]}"
+        echo "this_da_user_mail_passwords: ${this_da_user_mail_passwords[*]}"
+        echo "mail_user_count: ${this_da_user_mail_users_count}"
+        echo "mail_password_count: ${this_da_user_mail_password_count}"
+        count_n=0
+        while [ ${count_n} -le $((this_da_user_mail_users_count - 1)) ]; do
+          echo "=~=~=~=~+~Count: ${count_n}+~+~=~+~+~+~+"
+
+          mail_user=$(echo "${this_da_user_mail_users[count_n]}" | awk -F'@' '{ print $1 }')
+          mail_domain=$(echo "${this_da_user_mail_users[count_n]}" | awk -F'@' '{ print $2 }')
+          mail_password=${this_da_user_mail_passwords[count_n]}
+
+          echo "DA user_username: ${this_da_user_username}"
+          echo "DA user_userpass: ${this_da_user_userpass}"
+          echo "The full user email address: [${count_n}]: ${this_da_user_mail_users[count_n]}"
+          echo "The mail_username (no @domain.com): ${mail_user}"
+          echo "The mail_domain: ${mail_domain}"
+          echo "The mail_password:[${count_n}]: ${this_da_user_mail_passwords[count_n]}"
+          echo "=~=~=~=~+~+~+~=~+~+=~+~+=~+~+=~+~+=~+=~+~+"
+          # Now we got all variables for creating email:
+          # Call API here:
+          da_api_admin "start+${this_da_user_username}+${this_da_user_userpass}"
+          da_api_admin "create-user-email" "${mail_domain}" "${mail_user}" "${mail_password}" "0" "200"
+          ((count_n++))
+        done
+        ((count_mail_user++))
+        echo "=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~="
+      fi
+    done
+    check_finish_reboot "${FUNCNAME[0]}"
+  else
+    echo "[${SCRIPT_NAME}]: [Skipped]: ${FUNCNAME[0]} has ran before" 2>&1 | tee -a "${REPORT_FILE}"
+    echo "=~=~=~=~=~=~=~=~=~" 2>&1 | tee -a "${REPORT_FILE}"
+  fi
+
 }
 
 # This is used to install extra packages like ncdu, htop and more
@@ -3929,14 +4024,14 @@ else
 fi
 # ============End of locking===============
 
-ENVIRONMENT_FILE="${SCRIPT_PATH}/maxi.env"
-if [ -s "${ENVIRONMENT_FILE}" ]; then
-  #if bash_errs=$(bash -n "${ENVIRONMENT_FILE}" 2>&1); then
+CONFIG_FILE="${SCRIPT_PATH}/maxisetup.conf"
+if [ -s "${CONFIG_FILE}" ]; then
+  #if bash_errs=$(bash -n "${CONFIG_FILE}" 2>&1); then
   # This doesn't actually source it. It just test if source is working.
   # Seems like source doesn't actually return proper return code
   # I wrote a pretty good answer to handle this here:
   # https://stackoverflow.com/questions/46577973/how-to-syntax-check-a-shell-script-before-sourcing-it/65650773#65650773
-  source_errs=$(source "${ENVIRONMENT_FILE}" 2>&1 >/dev/null)
+  source_errs=$(source "${CONFIG_FILE}" 2>&1 >/dev/null)
   # get the return code
   retval=$?
   #echo "${retval}"
@@ -3950,23 +4045,23 @@ if [ -s "${ENVIRONMENT_FILE}" ]; then
       _exit 1
     else
       echo "${str_comm} with no syntax error"
-      echo "[${SCRIPT_NAME}]: Sourcing environment file from ${ENVIRONMENT_FILE} ..."
-      source "${ENVIRONMENT_FILE}"
+      echo "[${SCRIPT_NAME}]: Sourcing environment file from ${CONFIG_FILE} ..."
+      source "${CONFIG_FILE}"
     fi
     #else
-    #   echo "[${SCRIPT_NAME}]: [Warning]: The source command returns an error code of ${retval} when sourcing ${ENVIRONMENT_FILE}:" 2>&1 | tee -a "${REPORT_FILE_ERROR}"
+    #   echo "[${SCRIPT_NAME}]: [Warning]: The source command returns an error code of ${retval} when sourcing ${CONFIG_FILE}:" 2>&1 | tee -a "${REPORT_FILE_ERROR}"
     #  echo "Error details:"
     #  printf "%s\n" "${source_errs}"
     #  _exit 1
     #fi
   else
-    echo "[${SCRIPT_NAME}]: [Warning]: The source command returns an error code of ${retval} when sourcing ${ENVIRONMENT_FILE}:" 2>&1 | tee -a "${REPORT_FILE_ERROR}"
+    echo "[${SCRIPT_NAME}]: [Warning]: The source command returns an error code of ${retval} when sourcing ${CONFIG_FILE}:" 2>&1 | tee -a "${REPORT_FILE_ERROR}"
     echo "Error details:"
     printf "%s\n" "${source_errs}"
     _exit 1
   fi
 else
-  echo "[${SCRIPT_NAME}]: Error, ${ENVIRONMENT_FILE} does not exist or empty. Need this configuration file" 2>&1 | tee -a "${REPORT_FILE_ERROR}"
+  echo "[${SCRIPT_NAME}]: Error, ${CONFIG_FILE} does not exist or empty. Need this configuration file" 2>&1 | tee -a "${REPORT_FILE_ERROR}"
   _exit 1
 fi
 
@@ -4124,6 +4219,6 @@ echo ""
 script_time
 echo "========== Installation Completed ==========" 2>&1 | tee -a "${REPORT_FILE}"
 echo ""
-echo "[${SCRIPT_NAME}]: Destroying ${ENVIRONMENT_FILE} file in 60 seconds ..." 2>&1 | tee -a "${REPORT_FILE}"
+echo "[${SCRIPT_NAME}]: Destroying ${CONFIG_FILE} file in 60 seconds ..." 2>&1 | tee -a "${REPORT_FILE}"
 _pause 60
-shred -uvz "${ENVIRONMENT_FILE}"
+shred -uvz "${CONFIG_FILE}"
