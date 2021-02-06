@@ -67,6 +67,12 @@ DA_USER_MAIL_USER1=("email1@maxibi.com" "email2@maxibi.com")
 DA_USER_MAIL_PASSWORD1=("*mailpassword1" "*mailpassword2")
 # user domain, can declare multiple domains here
 DA_USER_DOMAIN1=("maxibi.com")
+# Format: <subdomain1.subdomain2>+<rootdomain>
+# Use plus '+' instead of dot '.'
+# because there is no easy way to determine root domain when it has long subdomains due to huge number of TLD
+# and those TLD names need to be maintained frequently especially from https://publicsuffix.org/
+# you can declare multi subdomains like sub1.sub2.sub3.sub4.sub5+maxibi.com
+DA_USER_SUBDOMAIN1=("sales+maxibi.com" "login+maxibi.com" "sub1.sub2+maxibi.com")
 # user package name, make sure this package name is created first by reseller (the code will check for you)
 DA_USER_PACKAGE_NAME1="USER_UNLIMITED"
 # enable/disable ssl certificate for all domains for this user enable="yes", disable="no"
@@ -75,14 +81,16 @@ DA_USER_DOMAIN_ENABLE_SSL1="yes"
 # Add more user from here (using the same format above and add postfix index):
 # Can add multiple domains, and emails: eg:
 # Remember that mailuser and password must have the same array length (script will check this)
-#DA_USER_MAIL_USER2
-#DA_USER_USERPASS2
-#DA_USER_SYSTEM_EMAIL2
-#DA_USER_MAIL_USER2
-#DA_USER_MAIL_PASSWORD2
-#DA_USER_DOMAIN2
-#DA_USER_PACKAGE_NAME2
-#DA_USER_DOMAIN_ENABLE_SSL2
+#DA_USER_MAIL_USER2=
+#DA_USER_USERPASS2=
+#DA_USER_SYSTEM_EMAIL2=
+#DA_USER_MAIL_USER2=
+#DA_USER_MAIL_PASSWORD2=
+#DA_USER_DOMAIN2=
+#DA_USER_SUBDOMAIN2=
+#DA_USER_PACKAGE_NAME2=
+#DA_USER_DOMAIN_ENABLE_SSL2=
+# === DA user end ===
 
 # DA_ADMIN_SQLPASS is for DA sql password (eg: phpmyadmin login) Password cannot contains this character [ ]
 DA_ADMIN_SQLPASS=*long-secured-password*"

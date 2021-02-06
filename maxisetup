@@ -1,7 +1,7 @@
 #!/bin/bash
 # =~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~
 # Author: Arafat Ali Email: arafat@sofibox.com
-# Version 0.3.7.0-beta
+# Version 0.3.7.1-beta
 # This is an initial server hardening script for CentOS and Debian.
 # Compatible 100% with Directadmin. Supported OS: CentOS + Debian (Planned on FreeBSD)
 # You can choose to install as the other stack server such as LEMP, Laravel etc defined in config file (TODO)
@@ -762,7 +762,16 @@ function da_api_admin() {
       data="user=${mail_user}&passwd=${mail_pass}&passwd2=${mail_pass}&quota=${mail_quota}&limit=${mail_limit}&domain=${mail_domain}&json=yes&action=create"
       method="POST"
       echo "Now, executing API with action name: ${action}" 2>&1 | tee -a "${REPORT_FILE}"
-
+    # da_api_admin "create-user-subdomain" "maxibi.com" "sales"
+    elif [ "${action}" == "create-user-subdomain" ]; then
+      local root_domain sub_domain
+      shift
+      root_domain="$1"
+      sub_domain="$2"
+      # CMD_API_SUBDOMAIN AND CMD_API_SUBDOMAINS are the same thing: https://www.directadmin.com/features.php?id=1589
+      command="CMD_API_SUBDOMAIN"
+      data="domain=${root_domain}&subdomain=${sub_domain}&json=yes&action=create"
+      method="POST"
     else
       echo "[${SCRIPT_NAME}]: The API action '${action}' does not exist!" 2>&1 | tee -a "${REPORT_FILE}"
       _exit 1
@@ -3510,7 +3519,7 @@ function configure_da_skins() {
 
 # Create any extra admin accounts here
 function configure_admin_accounts() {
-  rm -f "${CONF_PATH}/${FUNCNAME[0]}_executed"
+  #rm -f "${CONF_PATH}/${FUNCNAME[0]}_executed"
   if [ ! -f "${CONF_PATH}/${FUNCNAME[0]}_executed" ]; then
     echo "[${SCRIPT_NAME}]: Executing ${FUNCNAME[0]} ..." 2>&1 | tee -a "${REPORT_FILE}"
     # Currently we only have owner account, now we create an admin account, we create admin here
@@ -3542,7 +3551,7 @@ function configure_admin_accounts() {
 # Create reseller or user accounts here including packages and more
 function configure_da_accounts() {
   # Manually create user account first
-  rm -f "${CONF_PATH}/${FUNCNAME[0]}_executed"
+  #rm -f "${CONF_PATH}/${FUNCNAME[0]}_executed"
   if [ ! -f "${CONF_PATH}/${FUNCNAME[0]}_executed" ]; then
     echo "[${SCRIPT_NAME}]: Executing ${FUNCNAME[0]} ..." 2>&1 | tee -a "${REPORT_FILE}"
 
@@ -3899,9 +3908,88 @@ function configure_da_accounts() {
 
 }
 
+function configure_da_subdomains() {
+  rm -f "${CONF_PATH}/${FUNCNAME[0]}_executed"
+  if [ ! -f "${CONF_PATH}/${FUNCNAME[0]}_executed" ]; then
+    echo "[${SCRIPT_NAME}]: Executing ${FUNCNAME[0]} ..." 2>&1 | tee -a "${REPORT_FILE}"
+    local da_user_subdomains da_user_subdomains_count this_da_user_username this_da_user_userpass this_da_user_subdomains
+    local this_da_user_subdomains_count
+    local count_x count_n sub_domain root_domain
+    # Get list of all user subdomains
+    da_user_subdomains="${!DA_USER_SUBDOMAIN@}"
+    # Count the total subdomains
+    da_user_subdomains_count=$(echo "${da_user_subdomains}" | wc -w)
+    # Debug:
+    echo "da_user_subdomains: ${da_user_subdomains}" 2>&1 | tee -a "${REPORT_FILE}"
+    echo "da_user_subdomains_count ${da_user_subdomains_count}" 2>&1 | tee -a "${REPORT_FILE}"
+    # initial value to loop
+    count_x=1
+    while [[ ${count_x} -le ${da_user_subdomains_count} ]]; do
+      echo "=~=~=~=~=~=~=~=~=~+~+~+~=~=~" 2>&1 | tee -a "${REPORT_FILE}"
+      echo "count_user_domain = ${count_x}" 2>&1 | tee -a "${REPORT_FILE}"
+      echo "" 2>&1 | tee -a "${REPORT_FILE}"
+      typeset -n "this_da_user_username"="DA_USER_USERNAME${count_x}"
+      typeset -n "this_da_user_userpass"="DA_USER_USERPASS${count_x}"
+      #typeset -n "this_da_user_domains"="DA_USER_DOMAIN${count_x}"
+      typeset -n "this_da_user_subdomains"="DA_USER_SUBDOMAIN${count_x}"
+
+      # Error checking:
+      if [ -z "${this_da_user_username}" ]; then
+        echo "[${SCRIPT_NAME}]: [Skipped]: Warning, no user_name is set in config file for this user ${this_da_user_username}. Please check configuration file " 2>&1 | tee -a "${REPORT_FILE}"
+        _exit 1
+      elif [ -z "${this_da_user_userpass}" ]; then
+        echo "[${SCRIPT_NAME}]: [Skipped]: Warning, no user_password is set in config file for this user ${this_da_user_username}. Please check configuration file " 2>&1 | tee -a "${REPORT_FILE}"
+        _exit 1
+      #elif [ -z "${this_da_user_domains}" ]; then
+      #  echo "[${SCRIPT_NAME}]: [Skipped]: Warning, user domains not set for this user ${this_da_user_username}. Please check configuration file " 2>&1 | tee -a "${REPORT_FILE}"
+      #  _exit 1
+      elif [ -z "${this_da_user_subdomains}" ]; then
+        echo "[${SCRIPT_NAME}]: [Skipped]: Warning, user subdomains not set for this user ${this_da_user_username}. Please check configuration file " 2>&1 | tee -a "${REPORT_FILE}"
+        _exit 1
+      fi
+
+      # Debug:
+      #this_da_user_domains="${this_da_user_domains[*]}"
+      echo "this_da_user_username: ${this_da_user_username}" 2>&1 | tee -a "${REPORT_FILE}"
+      echo "this_da_user_userpass: ${this_da_user_userpass}" 2>&1 | tee -a "${REPORT_FILE}"
+      #echo "this_da_user_domains: ${this_da_user_domains[*]}" 2>&1 | tee -a "${REPORT_FILE}"
+      echo "this_da_user_subdomains: ${this_da_user_subdomains[*]}" 2>&1 | tee -a "${REPORT_FILE}"
+      this_da_user_subdomains_count="${#this_da_user_subdomains[@]}"
+
+      count_n=0
+      while [ ${count_n} -le $((this_da_user_subdomains_count - 1)) ]; do
+        echo "------------------------" 2>&1 | tee -a "${REPORT_FILE}"
+        echo "Total count: ${count_n}" 2>&1 | tee -a "${REPORT_FILE}"
+        sub_domain=$(echo "${this_da_user_subdomains[count_n]}" | awk -F'+' '{ print $1 }')
+        root_domain=$(echo "${this_da_user_subdomains[count_n]}" | awk -F'+' '{ print $2 }')
+        # Debug
+        echo "Sub_domain is: ${sub_domain}" 2>&1 | tee -a "${REPORT_FILE}"
+        echo "Root_domain is: ${root_domain}" 2>&1 | tee -a "${REPORT_FILE}"
+        echo "" 2>&1 | tee -a "${REPORT_FILE}"
+
+        # Now we got sub_domain and root_domain, call the da_api_admin:
+        # da_api_admin "create-user-subdomain" "<root_domain>" "<subdomain>"
+        # Start the user login authentication:
+        da_api_admin "start+${this_da_user_username}+${this_da_user_userpass}"
+
+        da_api_admin "create-user-subdomain" "${root_domain}" "${sub_domain}"
+
+        ((count_n++))
+      done
+
+      ((count_x++))
+    done
+
+    check_finish_reboot "${FUNCNAME[0]}"
+  else
+    echo "[${SCRIPT_NAME}]: [Skipped]: ${FUNCNAME[0]} has ran before" 2>&1 | tee -a "${REPORT_FILE}"
+    echo "=~=~=~=~=~=~=~=~=~" 2>&1 | tee -a "${REPORT_FILE}"
+  fi
+}
+
 # Creat email here (maybe everything should be configure in account)
 function configure_da_emails() {
-  rm -f "${CONF_PATH}/${FUNCNAME[0]}_executed"
+  #rm -f "${CONF_PATH}/${FUNCNAME[0]}_executed"
   if [ ! -f "${CONF_PATH}/${FUNCNAME[0]}_executed" ]; then
     echo "[${SCRIPT_NAME}]: Executing ${FUNCNAME[0]} ..." 2>&1 | tee -a "${REPORT_FILE}"
     local da_user_mail_users da_user_mail_users_count count_mail_user
@@ -4234,10 +4322,12 @@ if [ "${INSTALL_TYPE}" == "DIRECTADMIN" ]; then
   configure_da_dns_templates
   #exit 1
   configure_da_accounts
-  # exit 1
-  configure_da_domain_ssl
+  #exit 1
+  configure_da_subdomains
   #exit 1
   configure_da_emails
+  # exit 1
+  configure_da_domain_ssl
   #exit 1
   configure_da_memcached
   #exit 1
