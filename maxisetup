@@ -1,10 +1,10 @@
 #!/bin/bash
 # =~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~
 # Author: Arafat Ali Email: arafat@sofibox.com
-# Version 0.3.6.0-beta
+# Version 0.3.7.0-beta
 # This is an initial server hardening script for CentOS and Debian.
 # Compatible 100% with Directadmin. Supported OS: CentOS + Debian (Planned on FreeBSD)
-# You can choose to install as the other stack server such as LEMP, Laravel etc defined in ENV file (TODO)
+# You can choose to install as the other stack server such as LEMP, Laravel etc defined in config file (TODO)
 # In Directadmin, it will setup Directadmin from scratch, secure its installation with many security best practices
 # At the end of installation, you will get a secured Directadmin control panel without needed to tweak more
 # You can always re-run this script to resume installation if it's halt due to known error or script has performed reboot
@@ -137,7 +137,7 @@ function linode_api_admin() {
   if ! command -v linode-cli &>/dev/null; then
     echo "[${SCRIPT_NAME}]: Warning, missing linode-cli component. This utility requires linode-cli to be installed."
     if ! command -v pip3 &>/dev/null; then
-      echo "[${SCRIPT_NAME}]: Installing python3-ipi ..." 2>&1 | tee -a "${REPORT_FILE}"
+      echo "[${SCRIPT_NAME}]: Installing python3-pip ..." 2>&1 | tee -a "${REPORT_FILE}"
       sleep 1
       apt-get -y install python3-pip
     fi
@@ -164,9 +164,11 @@ function linode_api_admin() {
     echo "Result: "
     echo "${LINODE_CLI}"
   fi
+  # Remove expect
+  apt-get -y remove expect
 
   if ! command -v jq &>/dev/null; then
-    echo "[${SCRIPT_NAME}]: Warning, missing jq component. This utility requires jq to be installed."
+    echo "[${SCRIPT_NAME}]: Warning, missing jq component. This utility requires jq to be installed." 2>&1 | tee -a "${REPORT_FILE}"
     echo "[${SCRIPT_NAME}]: Installing jq ..." 2>&1 | tee -a "${REPORT_FILE}"
     apt-get -y install jq
   fi
@@ -185,7 +187,7 @@ function linode_api_admin() {
     domain="$1"
     dis_args="${*:2}"
     if [[ -n "${dis_args}" ]]; then
-      echo "Warning, extra arguments discarded: ${dis_args}"
+      echo "[${SCRIPT_NAME}]: Warning, extra arguments discarded: ${dis_args}" 2>&1 | tee -a "${REPORT_FILE}"
     fi
     if [ $# -ge 1 ]; then
       domain_id=$(${LINODE_CLI_BIN} domains list --json --pretty | ${JQ_BIN} ".[] | select(.domain == \"${domain}\") | .id")
@@ -195,11 +197,11 @@ function linode_api_admin() {
         # Here is the real result for domain ID:
         echo "${domain_id}"
       else
-        echo "Error, no ID found for domain ${domain}"
+        echo "[${SCRIPT_NAME}]: Error, no ID found for domain ${domain}" 2>&1 | tee -a "${REPORT_FILE}"
         return 1
       fi
     else
-      echo "Error, usage: linode_api_admin ${action} <domain_name>"
+      echo "[${SCRIPT_NAME}]: Error, usage: linode_api_admin ${action} <domain_name>" 2>&1 | tee -a "${REPORT_FILE}"
       return 2
     fi
 
@@ -216,36 +218,38 @@ function linode_api_admin() {
     dis_args="${*:6}"
 
     if [[ -n "${dis_args}" ]]; then
-      echo "Warning, extra arguments discarded: ${dis_args}"
+      echo "[${SCRIPT_NAME}]: Warning, extra arguments discarded: ${dis_args}" 2>&1 | tee -a "${REPORT_FILE}"
     fi
     if [ $# -ge 5 ]; then
-      echo "Checking domain ID for domain ${domain} ..."
+      echo "[${SCRIPT_NAME}]: Checking domain ID for domain ${domain} ..." 2>&1 | tee -a "${REPORT_FILE}"
       # domain_id=$(${LINODE_CLI_BIN} domains list --domain "${domain}" --pretty --json | grep -F '"id":' | sed -r 's/[^0-9]//g')
       domain_id=$(${LINODE_CLI_BIN} domains list --json --pretty | ${JQ_BIN} ".[] | select(.domain == \"${domain}\") | .id")
       if [ -n "${domain_id}" ]; then
         # Here is the real result for domain ID:
         # echo "${domain_id}"
-        echo "Adding new record name ..."
+        echo "[${SCRIPT_NAME}]: Adding new DNS record name ${name} in linode ..." 2>&1 | tee -a "${REPORT_FILE}"
 
         add_dns_record=$(${LINODE_CLI_BIN} domains records-create "${domain_id}" --pretty --json \
           --type "${type}" --name "${name}" --target "${value}" --ttl_sec "${ttl}")
         retval=$?
         if [ ${retval} = 0 ]; then
-          echo "Success, record has been successfully added into linode DNS management"
+          echo "=~=~=~=~=~=~=~=~=~=~=" 2>&1 | tee -a "${REPORT_FILE}"
+          echo "Success, record has been successfully added into linode DNS management" 2>&1 | tee -a "${REPORT_FILE}"
         else
-          echo "Error [${retval}], something is wrong when adding DNS record into linode DNS management"
+          echo "Error [${retval}], something is wrong when adding DNS record into linode DNS management" 2>&1 | tee -a "${REPORT_FILE}"
           _exit ${retval}
         fi
 
         echo "${add_dns_record}"
+        echo "=~=~=~=~=~=~=~=~=~=~=" 2>&1 | tee -a "${REPORT_FILE}"
         return ${retval}
 
       else
-        echo "Error, no ID found for domain ${domain}"
+        echo "[${SCRIPT_NAME}]: Error, no ID found for domain ${domain}" 2>&1 | tee -a "${REPORT_FILE}"
         return 1
       fi
     else
-      echo "Error, usage: linode_api_admin ${action} <domain_name> <record_type> <record_name> <record_value> <record_ttl>"
+      echo "[${SCRIPT_NAME}]: Error, usage: linode_api_admin ${action} <domain_name> <record_type> <record_name> <record_value> <record_ttl>" 2>&1 | tee -a "${REPORT_FILE}"
       _exit 2
     fi
     # linode_api_admin "delete-dns-record" <domain_name> <record_name> <record_type>
@@ -259,11 +263,11 @@ function linode_api_admin() {
     dis_args="${*:4}"
 
     if [[ -n "${dis_args}" ]]; then
-      echo "Warning, extra arguments discarded: ${dis_args}"
+      echo "[${SCRIPT_NAME}]: Warning, extra arguments discarded: ${dis_args}" 2>&1 | tee -a "${REPORT_FILE}"
     fi
 
     if [ $# -ge 3 ]; then
-      echo "Checking record for domain ${domain} with record name ${name} and type ${type} ..."
+      echo "Checking record for domain ${domain} with record name ${name} and type ${type} ..." 2>&1 | tee -a "${REPORT_FILE}"
       #domain_id=$(${LINODE_CLI_BIN} --pretty --json domains list --domain "${domain}" | grep -F '"id":' | sed -r 's/[^0-9]//g')
       domain_id=$(${LINODE_CLI_BIN} domains list --json --pretty | ${JQ_BIN} ".[] | select(.domain == \"${domain}\") | .id")
       if [ -n "${domain_id}" ]; then
@@ -291,51 +295,54 @@ function linode_api_admin() {
         if [[ -n "${record_ids}" ]]; then
           record_ids_count=$(echo "${record_ids}" | wc -l)
           #echo "${record_ids}"
-          echo "Total record ID found for the record name ${name} is ${record_ids_count}"
+          echo "[${SCRIPT_NAME}]: Total record ID found for the record name ${name} is ${record_ids_count}" 2>&1 | tee -a "${REPORT_FILE}"
           #c2=1
           #exit 1
           #record_ids_count=$(echo "${record_ids}" | wc -l)
-          echo "Deleting ${record_ids_count} record(s):"
+          echo "[${SCRIPT_NAME}]: Deleting ${record_ids_count} record(s):" 2>&1 | tee -a "${REPORT_FILE}"
           success=0
           for record_id in ${record_ids}; do
             #Debug:
-            echo "Deleting record ID ${record_id} ..."
+            echo "[${SCRIPT_NAME}]: Deleting record ID ${record_id} ..." 2>&1 | tee -a "${REPORT_FILE}"
             ${LINODE_CLI_BIN} --json --pretty domains records-delete "${domain_id}" "${record_id}"
             retval=$?
             if [ "${retval}" = 0 ]; then
-              echo "OK, record ID ${record_id} has been deleted successfully."
+              echo "=~=~=~=~=~=~=~=~=~=~=" 2>&1 | tee -a "${REPORT_FILE}"
+              echo "OK, record ID ${record_id} has been deleted successfully." 2>&1 | tee -a "${REPORT_FILE}"
               # Do next deletion
               ((success++))
             else
-              echo "Error [${retval}], delete failed for record ID ${record_id}"
+              echo "Error [${retval}], delete failed for record ID ${record_id}" 2>&1 | tee -a "${REPORT_FILE}"
               # Do next deletion
             fi
           done
-          echo ""
+          echo "" 2>&1 | tee -a "${REPORT_FILE}"
           if [ "${success}" == "${record_ids_count}" ]; then
-            echo "OK, ${success} out of ${record_ids_count} record(s) has been successfully deleted"
+            echo "OK, ${success} out of ${record_ids_count} record(s) has been successfully deleted" 2>&1 | tee -a "${REPORT_FILE}"
 
           elif [[ "${success}" -eq 1 && "${success}" -lt "${record_ids_count}" ]]; then
-            echo "Warning, only ${success} out of ${record_ids_count} record(s) has been successfully deleted"
+            echo "Warning, only ${success} out of ${record_ids_count} record(s) has been successfully deleted" 2>&1 | tee -a "${REPORT_FILE}"
           else
-            echo "Warning, no record has been deleted"
+            echo "Warning, no record has been deleted" 2>&1 | tee -a "${REPORT_FILE}"
           fi
+          echo "=~=~=~=~=~=~=~=~=~=~=" 2>&1 | tee -a "${REPORT_FILE}"
+          echo "" 2>&1 | tee -a "${REPORT_FILE}"
         else
           # Useful variable for future reference
           record_ids_count=0
-          echo "Error, no record ID with record name ${name} and type ${type} is found for domain ${domain}"
+          echo "[${SCRIPT_NAME}]: Error, no record ID with record name ${name} and type ${type} is found for domain ${domain}" 2>&1 | tee -a "${REPORT_FILE}"
           # Don't exit
           return 1
         fi
 
         return 0
       else
-        echo "Error, no domain ID found for domain ${domain}"
+        echo "[${SCRIPT_NAME}]: Error, no domain ID found for domain ${domain}" 2>&1 | tee -a "${REPORT_FILE}"
         return 1
       fi
       return 0
     else
-      echo "Error, usage: linode_api_admin ${action} <domain_name> <record_name> <record_type>"
+      echo "[${SCRIPT_NAME}]: Error, usage: linode_api_admin ${action} <domain_name> <record_name> <record_type>" 2>&1 | tee -a "${REPORT_FILE}"
       _exit 2
     fi
 
@@ -354,11 +361,11 @@ function linode_api_admin() {
     dis_args="${*:6}"
 
     if [[ -n "${dis_args}" ]]; then
-      echo "Warning, extra arguments discarded: ${dis_args}"
+      echo "[${SCRIPT_NAME}]: Warning, extra arguments discarded: ${dis_args}" 2>&1 | tee -a "${REPORT_FILE}"
     fi
 
     if [ $# -ge 5 ]; then
-      echo "Checking record for domain ${domain} with record name ${name} and type ${type} ..."
+      echo "[${SCRIPT_NAME}]: Checking record for domain ${domain} with record name ${name} and type ${type} ..." 2>&1 | tee -a "${REPORT_FILE}"
       #domain_id=$(${LINODE_CLI_BIN} --pretty --json domains list --domain "${domain}" | grep -F '"id":' | sed -r 's/[^0-9]//g')
       domain_id=$(${LINODE_CLI_BIN} --json --pretty domains list | ${JQ_BIN} ".[] | select(.domain == \"${domain}\") | .id")
       if [ -n "${domain_id}" ]; then
@@ -375,54 +382,56 @@ function linode_api_admin() {
         if [[ -n "${record_ids}" ]]; then
           record_ids_count=$(echo "${record_ids}" | wc -l)
           #echo "${record_ids}"
-          echo "Total record ID found for the record name ${name} is ${record_ids_count}"
-          echo "Updating ${record_ids_count} record(s):"
+          echo "[${SCRIPT_NAME}]: Total record ID found for the record name ${name} is ${record_ids_count}" 2>&1 | tee -a "${REPORT_FILE}"
+          echo "[${SCRIPT_NAME}]: Updating ${record_ids_count} record(s):" 2>&1 | tee -a "${REPORT_FILE}"
           success=0
           for record_id in ${record_ids}; do
             #Debug:
-            echo "Updating record ID ${record_id} ..."
+            echo "[${SCRIPT_NAME}]: Updating record ID ${record_id} ..." 2>&1 | tee -a "${REPORT_FILE}"
             ${LINODE_CLI_BIN} --json --pretty domains records-update "${domain_id}" "${record_id}" --name "${name}" --target "${value}" --ttl_sec "${ttl}"
             retval=$?
             if [ "${retval}" = 0 ]; then
-              echo "OK, record ID ${record_id} has been updated successfully updated."
+              echo "=~=~=~=~=~=~=~=~=~=~=" 2>&1 | tee -a "${REPORT_FILE}"
+              echo "OK, record ID ${record_id} has been updated successfully updated." 2>&1 | tee -a "${REPORT_FILE}"
               # Do next update
               ((success++))
             else
-              echo "Error [${retval}], update failed for record ID ${record_id}"
+              echo "Error [${retval}], update failed for record ID ${record_id}" 2>&1 | tee -a "${REPORT_FILE}"
               # Do next update
             fi
           done
           echo ""
           if [ "${success}" == "${record_ids_count}" ]; then
-            echo "OK, ${success} out of ${record_ids_count} record(s) has been successfully updated"
+            echo "OK, ${success} out of ${record_ids_count} record(s) has been successfully updated" 2>&1 | tee -a "${REPORT_FILE}"
 
           elif [[ "${success}" -eq 1 && "${success}" -lt "${record_ids_count}" ]]; then
-            echo "Warning, only ${success} out of ${record_ids_count} record(s) has been successfully updated"
+            echo "Warning, only ${success} out of ${record_ids_count} record(s) has been successfully updated" 2>&1 | tee -a "${REPORT_FILE}"
           else
-            echo "Warning, no record has been updated"
+            echo "Warning, no record has been updated" 2>&1 | tee -a "${REPORT_FILE}"
           fi
+          echo "=~=~=~=~=~=~=~=~=~=~=" 2>&1 | tee -a "${REPORT_FILE}"
         else
           # Useful variable for future reference
           record_ids_count=0
-          echo "Error, no record ID with record name ${name} and type ${type} is found for domain ${domain}"
+          echo "[${SCRIPT_NAME}]: Error, no record ID with record name ${name} and type ${type} is found for domain ${domain}" 2>&1 | tee -a "${REPORT_FILE}"
           return 1
         fi
       else
-        echo "Error, no domain ID found for domain ${domain}"
+        echo "[${SCRIPT_NAME}]: Error, no domain ID found for domain ${domain}" 2>&1 | tee -a "${REPORT_FILE}"
         return 1
       fi
       return 0
     else
-      echo "Error, usage: linode_api_admin ${action} <domain_name> <record_type> <record_name> <record_value> <record_ttl>"
+      echo "[${SCRIPT_NAME}]: Error, usage: linode_api_admin ${action} <domain_name> <record_type> <record_name> <record_value> <record_ttl>" 2>&1 | tee -a "${REPORT_FILE}"
       _exit 2
     fi
 
   else
     if [ -z "${action}" ]; then
-      echo "Error, the given action argument is empty: "
-      echo "Usage: linode_api_admin ${action} <domain_name> <record_name>"
+      echo "[${SCRIPT_NAME}]: Error, the given action argument is empty: " 2>&1 | tee -a "${REPORT_FILE}"
+      echo "[${SCRIPT_NAME}]: Usage: linode_api_admin ${action} <domain_name> <record_name>" 2>&1 | tee -a "${REPORT_FILE}"
     else
-      echo "Error, the given action argument '${action}' does not exist"
+      echo "[${SCRIPT_NAME}]: Error, the given action argument '${action}' does not exist" 2>&1 | tee -a "${REPORT_FILE}"
     fi
     _exit 1
   fi
@@ -440,7 +449,7 @@ function da_api_admin() {
   #echo "Continuing in 2 seconds ..."
   #sleep 2
   local api_username api_password
-  local command data method input filter_cmd #decoded_status
+  local command data method filter_cmd #decoded_status
   local action username email password
   local owner_main_auth owner_new_list admin_new_list admin_list reseller_new_list admin_ori_list admin_main_auth
   local reseller_main_auth user_main_auth user_new_list
@@ -486,21 +495,21 @@ function da_api_admin() {
       rm -f "${TEMP_PATH}"/api/*
       echo "Authenticating DA API with start+owner"
       if [ -n "${owner_new_list}" ]; then
-        #echo "[${SCRIPT_NAME}]: Found main owner account ${owner_new_list} matched in ENV file. Creating API session file authentication for ${owner_new_list} ..." 2>&1 | tee -a "${REPORT_FILE}"
+        #echo "[${SCRIPT_NAME}]: Found main owner account ${owner_new_list} matched in config file. Creating API session file authentication for ${owner_new_list} ..." 2>&1 | tee -a "${REPORT_FILE}"
         touch "${owner_main_auth}"
         {
           echo "DA_OWNER_USERNAME1=\"${DA_OWNER_USERNAME1}"\"
           echo "DA_OWNER_USERPASS1=\"${DA_OWNER_USERPASS1}"\"
         } >"${owner_main_auth}"
       else
-        echo "[${SCRIPT_NAME}]: Error, no main owner account matched in ENV file. Please create owner first!" 2>&1 | tee -a "${REPORT_FILE}"
+        echo "[${SCRIPT_NAME}]: Error, no main owner account matched in config file. Please create owner first!" 2>&1 | tee -a "${REPORT_FILE}"
         _exit 1
       fi
     elif [ "${action}" == "start+admin" ]; then
       rm -f "${TEMP_PATH}"/api/*
       echo "Authenticating DA API with start+admin"
       if [ -n "${admin_new_list}" ]; then
-        #echo "[${SCRIPT_NAME}]: Found main admin account ${admin_new_list} matched in ENV file. Creating API session file authentication for ${admin_new_list} ..." 2>&1 | tee -a "${REPORT_FILE}"
+        #echo "[${SCRIPT_NAME}]: Found main admin account ${admin_new_list} matched in config file. Creating API session file authentication for ${admin_new_list} ..." 2>&1 | tee -a "${REPORT_FILE}"
         touch "${admin_main_auth}"
         {
           echo "DA_ADMIN_USERNAME1=\"${DA_ADMIN_USERNAME1}"\"
@@ -508,21 +517,21 @@ function da_api_admin() {
           echo "DA_ADMIN_USERPASS1=\"${DA_ADMIN_USERPASS1}"\"
         } >"${admin_main_auth}"
       else
-        echo "[${SCRIPT_NAME}]: Error, no main admin account matched in ENV file. Please create admin first!" 2>&1 | tee -a "${REPORT_FILE}"
+        echo "[${SCRIPT_NAME}]: Error, no main admin account matched in config file. Please create admin first!" 2>&1 | tee -a "${REPORT_FILE}"
         _exit 1
       fi
     elif [ "${action}" == "start+reseller" ]; then
       rm -f "${TEMP_PATH}"/api/*
       echo "Authenticating DA API with start+reseller"
       if [ -n "${reseller_new_list}" ]; then
-        #echo "[${SCRIPT_NAME}]: Found main reseller account ${reseller_new_list} matched in ENV file. Creating API session file authentication for ${reseller_new_list} ..." 2>&1 | tee -a "${REPORT_FILE}"
+        #echo "[${SCRIPT_NAME}]: Found main reseller account ${reseller_new_list} matched in config file. Creating API session file authentication for ${reseller_new_list} ..." 2>&1 | tee -a "${REPORT_FILE}"
         touch "${reseller_main_auth}"
         {
           echo "DA_RESELLER_USERNAME1=\"${DA_RESELLER_USERNAME1}"\"
           echo "DA_RESELLER_USERPASS1=\"${DA_RESELLER_USERPASS1}"\"
         } >"${reseller_main_auth}"
       else
-        echo "[${SCRIPT_NAME}]: Error, no main reseller account matched in ENV file. Please create reseller first!" 2>&1 | tee -a "${REPORT_FILE}"
+        echo "[${SCRIPT_NAME}]: Error, no main reseller account matched in config file. Please create reseller first!" 2>&1 | tee -a "${REPORT_FILE}"
         _exit 1
       fi
 
@@ -531,14 +540,14 @@ function da_api_admin() {
       echo "Authenticating DA API with start+user"
       if [ -n "${user_new_list}" ]; then
 
-        #echo "[${SCRIPT_NAME}]: Found main user account ${user_new_list} matched in ENV file. Creating API session file authentication for ${user_new_list}..." 2>&1 | tee -a "${REPORT_FILE}"
+        #echo "[${SCRIPT_NAME}]: Found main user account ${user_new_list} matched in config file. Creating API session file authentication for ${user_new_list}..." 2>&1 | tee -a "${REPORT_FILE}"
         touch "${user_main_auth}"
         {
           echo "DA_USER_USERNAME1=\"${DA_USER_USERNAME1}"\"
           echo "DA_USER_USERPASS1=\"${DA_USER_USERPASS1}"\"
         } >"${user_main_auth}"
       else
-        echo "[${SCRIPT_NAME}]: Error, no main user account matched in ENV file. Please create user first!" 2>&1 | tee -a "${REPORT_FILE}"
+        echo "[${SCRIPT_NAME}]: Error, no main user account matched in config file. Please create user first!" 2>&1 | tee -a "${REPORT_FILE}"
         _exit 1
       fi
     fi
@@ -918,7 +927,7 @@ function pre_setup() {
   fi
 
 }
-# Get the latest scripts from private repo (need to have private token defined in ENV)
+# Get the latest scripts from private repo (need to have private token defined in config)
 # This private repo contains lots of security scripts for Linux (c) by Arafat Ali (aka MaXi32)
 # can re-run this to re-clone (update latest codes)
 get_latest_maxisetup() {
@@ -1185,7 +1194,7 @@ function configure_net() {
         echo "[${SCRIPT_NAME}]: Warning, the network needs to be turned off in order to be able to rename to new LAN interface" 2>&1 | tee -a "${REPORT_FILE}"
         echo "[${SCRIPT_NAME}]: ** Warning, If you are on SSH, you will be disconnected from SSH" 2>&1 | tee -a "${REPORT_FILE}"
         echo "[${SCRIPT_NAME}]: *** Warning, you will not see the following operations and system will reboot automatically. You can re-run this script again to continue setup" 2>&1 | tee -a "${REPORT_FILE}"
-        # Because the script reboot, we need to re-run this function to check if interface is already set like in the ENV file
+        # Because the script reboot, we need to re-run this function to check if interface is already set like in the config file
         # TODO fix this with background process
         _pause
         ip link set "${current_lan}" down
@@ -1205,7 +1214,7 @@ function configure_net() {
       cat /dev/null >/var/run/reboot-required
       sleep 1
     else
-      echo "[${SCRIPT_NAME}]: [Skipped]: OK, current LAN interface name is same with NIC_INTERFACE_NAME from env" 2>&1 | tee -a "${REPORT_FILE}"
+      echo "[${SCRIPT_NAME}]: [Skipped]: OK, current LAN interface name is same with NIC_INTERFACE_NAME from config file" 2>&1 | tee -a "${REPORT_FILE}"
     fi
     check_finish_reboot "${FUNCNAME[0]}"
   else
@@ -1793,7 +1802,7 @@ function install_da_pre() {
     elif [ "${DA_INSTALL_TYPE}" == "AUTO" ]; then
       echo "[${SCRIPT_NAME}]: [Notice]: Directadmin installation type is set to AUTO. Directadmin will install all default options including CSF" 2>&1 | tee -a "${REPORT_FILE}"
     else
-      echo "[${SCRIPT_NAME}]: Error, invalid installation type set for Directadmin in env file." 2>&1 | tee -a "${REPORT_FILE}"
+      echo "[${SCRIPT_NAME}]: Error, invalid installation type set for Directadmin in config file." 2>&1 | tee -a "${REPORT_FILE}"
       _exit 1
     fi
     check_finish_reboot "${FUNCNAME[0]}"
@@ -2132,7 +2141,7 @@ function configure_da_ssl() {
 }
 
 function change_da_auth() {
-  # This function change the directadmin username and password from default to yours (based on env file)
+  # This function change the directadmin username and password from default to yours (based on config file)
   # It also has more options to secure DA installation. Example maybe this one we can create 2 step authentication
   if [ ! -f "${CONF_PATH}/${FUNCNAME[0]}_executed" ]; then
     echo "[${SCRIPT_NAME}]: Executing ${FUNCNAME[0]} ..." 2>&1 | tee -a "${REPORT_FILE}"
@@ -2676,7 +2685,7 @@ function configure_nginx_apache() {
     sleep 1
     sed -i 's|^ServerTokens .*|ServerTokens Prod|' /etc/httpd/conf/extra/httpd-default.conf
     sed -i 's|^ServerSignature .*|ServerSignature Off|' /etc/httpd/conf/extra/httpd-default.conf
-    # Restarting web server based on ENV
+    # Restarting web server based on config file
     restart_da_web_server
     check_finish_reboot "${FUNCNAME[0]}"
   else
@@ -3061,12 +3070,12 @@ EOF
 # maxida is used to manage directadmin functionalities including APIs.
 function configure_maxida() {
   if [ ! -f "${CONF_PATH}/${FUNCNAME[0]}_executed" ]; then
-    local maxida_bin maxida_env_sample maxida_env
+    local maxida_bin maxida_conf_sample maxida_conf
     echo "[${SCRIPT_NAME}]: Executing ${FUNCNAME[0]} ..." 2>&1 | tee -a "${REPORT_FILE}"
     echo "[${SCRIPT_NAME}]: Configuring maxida installation in maxicode ..." 2>&1 | tee -a "${REPORT_FILE}"
     maxida_bin="/usr/local/maxicode/maxida/maxida"
-    maxida_env_sample="/usr/local/maxicode/maxida/maxida.env.sample"
-    maxida_env="/usr/local/maxicode/maxida/maxida.env"
+    maxida_conf_sample="/usr/local/maxicode/maxida/maxida.conf.sample"
+    maxida_conf="/usr/local/maxicode/maxida/maxida.conf"
     if [ -f ${maxida_bin} ]; then
       echo "[${SCRIPT_NAME}]: Creating symlink and executable for ${maxida_bin} ..." 2>&1 | tee -a "${REPORT_FILE}"
       sleep 1
@@ -3078,18 +3087,18 @@ function configure_maxida() {
       _exit 1
     fi
 
-    if [ -f ${maxida_env_sample} ]; then
-      cp "${maxida_env_sample}" "${maxida_env}"
+    if [ -f ${maxida_conf_sample} ]; then
+      cp "${maxida_conf_sample}" "${maxida_conf}"
       # Here we create environment variables to use maxida API (Directadmin API). Very important to supply initial authentication
-      echo "[${SCRIPT_NAME}]: Creating environment variable for maxida at ${maxida_env} ..." 2>&1 | tee -a "${REPORT_FILE}"
+      echo "[${SCRIPT_NAME}]: Creating environment variable for maxida at ${maxida_conf} ..." 2>&1 | tee -a "${REPORT_FILE}"
       sleep 1
       # Put admin authentication:
-      sed -i "s/^API_USERNAME=.*/API_USERNAME=\"${DA_OWNER_USERNAME1}\"/" ${maxida_env}
-      sed -i "s/^API_USERPASS=.*/API_USERPASS=\"${DA_OWNER_USERPASS1}\"/" ${maxida_env}
-      sed -i "s/^BOX_HOSTNAME_FQDN=.*/BOX_HOSTNAME_FQDN=\"${BOX_HOSTNAME_FQDN}\"/" ${maxida_env}
-      sed -i "s/^DA_PORT=.*/DA_PORT=\"${DA_PORT}\"/" ${maxida_env}
+      sed -i "s/^API_USERNAME=.*/API_USERNAME=\"${DA_OWNER_USERNAME1}\"/" ${maxida_conf}
+      sed -i "s/^API_USERPASS=.*/API_USERPASS=\"${DA_OWNER_USERPASS1}\"/" ${maxida_conf}
+      sed -i "s/^BOX_HOSTNAME_FQDN=.*/BOX_HOSTNAME_FQDN=\"${BOX_HOSTNAME_FQDN}\"/" ${maxida_conf}
+      sed -i "s/^DA_PORT=.*/DA_PORT=\"${DA_PORT}\"/" ${maxida_conf}
     else
-      echo "[${SCRIPT_NAME}]: Warning, maxida.env doesn't exist in /usr/local/maxicode !" 2>&1 | tee -a "${REPORT_FILE}"
+      echo "[${SCRIPT_NAME}]: Warning, maxida.conf doesn't exist in /usr/local/maxicode !" 2>&1 | tee -a "${REPORT_FILE}"
       _exit 1
     fi
 
@@ -3188,7 +3197,7 @@ function configure_maxicata() {
     suricata_select_version="${SURICATA_SELECT_VERSION}"
     # If you think the future version of suricata installation will follow below step then put suricata_select_version="${latest_suricata_version}"
     if [ "${latest_suricata_version}" != "${suricata_select_version}" ]; then
-      echo "[${SCRIPT_NAME}]: Warning, suricata latest version is: ${latest_suricata_version} but selected version in ENV file is ${SURICATA_SELECT_VERSION}" 2>&1 | tee -a "${REPORT_FILE}"
+      echo "[${SCRIPT_NAME}]: Warning, suricata latest version is: ${latest_suricata_version} but selected version in config file is ${SURICATA_SELECT_VERSION}" 2>&1 | tee -a "${REPORT_FILE}"
     fi
     # Below is the installation for Suricata 6.0.1. Sometimes new version release and the way how to install Suricata is not the same like previous one
     # Sometimes new version has extra library so we need to check how to install this.
@@ -3355,6 +3364,34 @@ function configure_maxicata() {
   fi
 }
 
+# For managing cloud storage. Like mounting cloud storage, send file or receive file from cloud. maxicloud will handle that.
+function configure_maxicloud() {
+  # TODO configure maxicloud
+  local maxicloud_bin maxicloud_conf maxicloud_conf_sample
+  maxicloud_bin="/usr/local/maxicode/maxicloud/maxicloud"
+  maxicloud_conf="/usr/local/maxicode/maxicloud/maxicloud.conf"
+  maxicloud_conf_sample="/usr/local/maxicode/maxicloud/maxicloud.conf.sample"
+
+  if [ -f ${maxicloud_conf_sample} ]; then
+    echo "[${SCRIPT_NAME}]: Copying maxicloud sample config into ${maxicloud_conf} ..." 2>&1 | tee -a "${REPORT_FILE}"
+    cp -f ${maxicloud_conf_sample} ${maxicloud_conf}
+  else
+    echo "[${SCRIPT_NAME}]: Warning, the sample config file ${maxicloud_conf_sample} does not exist. Please inspect the file!" 2>&1 | tee -a "${REPORT_FILE}"
+    _exit 1
+  fi
+  if [ -f ${maxicloud_bin} ]; then
+    echo "[${SCRIPT_NAME}]: Creating symlink and executable for ${maxicloud_bin} ..." 2>&1 | tee -a "${REPORT_FILE}"
+    sleep 1
+    chmod +x ${maxicloud_bin}
+    # Symbolic name
+    ln -s ${maxicloud_bin} /usr/local/bin
+  else
+    echo "[${SCRIPT_NAME}]: Warning, maxicloud doesn't exist in /usr/local/maxicode !" 2>&1 | tee -a "${REPORT_FILE}"
+    _exit 1
+  fi
+
+}
+
 # This will install OS memcached and php memcached extension
 function configure_da_memcached() {
   if [ ! -f "${CONF_PATH}/${FUNCNAME[0]}_executed" ]; then
@@ -3473,7 +3510,7 @@ function configure_da_skins() {
 
 # Create any extra admin accounts here
 function configure_admin_accounts() {
-  #rm -f "${CONF_PATH}/${FUNCNAME[0]}_executed"
+  rm -f "${CONF_PATH}/${FUNCNAME[0]}_executed"
   if [ ! -f "${CONF_PATH}/${FUNCNAME[0]}_executed" ]; then
     echo "[${SCRIPT_NAME}]: Executing ${FUNCNAME[0]} ..." 2>&1 | tee -a "${REPORT_FILE}"
     # Currently we only have owner account, now we create an admin account, we create admin here
@@ -3505,7 +3542,7 @@ function configure_admin_accounts() {
 # Create reseller or user accounts here including packages and more
 function configure_da_accounts() {
   # Manually create user account first
-  #rm -f "${CONF_PATH}/${FUNCNAME[0]}_executed"
+  rm -f "${CONF_PATH}/${FUNCNAME[0]}_executed"
   if [ ! -f "${CONF_PATH}/${FUNCNAME[0]}_executed" ]; then
     echo "[${SCRIPT_NAME}]: Executing ${FUNCNAME[0]} ..." 2>&1 | tee -a "${REPORT_FILE}"
 
@@ -3570,10 +3607,10 @@ function configure_da_accounts() {
     da_api_admin "start+reseller"
     da_api_admin "create-user-package" "${DA_USER_PACKAGE_NAME1}"
     echo "~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~"
-    # Create user dynamically based on ENV files
+    # Create user dynamically based on config files
     da_user_unames="${!DA_USER_USERNAME@}"
     da_user_count=$(echo "${da_user_unames}" | wc -w)
-    echo "List of users information from ENV is: " 2>&1 | tee -a "${REPORT_FILE}"
+    echo "List of users information from config is: " 2>&1 | tee -a "${REPORT_FILE}"
     echo "---==---" 2>&1 | tee -a "${REPORT_FILE}"
     echo "${da_user_unames}" 2>&1 | tee -a "${REPORT_FILE}"
     echo "Total: ${da_user_count}" 2>&1 | tee -a "${REPORT_FILE}"
@@ -3605,33 +3642,33 @@ function configure_da_accounts() {
       echo "Checking if all variables for ${this_da_user_uname} is set and not empty ..."
       _pause 1
       if [ -z "${this_da_user_password}" ]; then
-        echo "[${SCRIPT_NAME}]: [Skipped]: Warning user ${this_da_user_uname} is set but doesn't have password set in ENV file. Please check configuration file " 2>&1 | tee -a "${REPORT_FILE}"
+        echo "[${SCRIPT_NAME}]: [Skipped]: Warning user ${this_da_user_uname} is set but doesn't have password set in config file. Please check configuration file " 2>&1 | tee -a "${REPORT_FILE}"
         _exit 1
 
       elif [ -z "${this_da_user_system_email}" ]; then
-        echo "[${SCRIPT_NAME}]: [Skipped]: Warning user ${this_da_user_uname} is set but doesn't have system email set in ENV file. Please check configuration file " 2>&1 | tee -a "${REPORT_FILE}"
+        echo "[${SCRIPT_NAME}]: [Skipped]: Warning user ${this_da_user_uname} is set but doesn't have system email set in config file. Please check configuration file " 2>&1 | tee -a "${REPORT_FILE}"
         _exit 1
       elif [ -z "${this_da_user_mail_users}" ]; then
-        echo "[${SCRIPT_NAME}]: [Skipped]: Warning user ${this_da_user_uname} is set but doesn't have email inbox set in ENV file. Please check configuration file " 2>&1 | tee -a "${REPORT_FILE}"
+        echo "[${SCRIPT_NAME}]: [Skipped]: Warning user ${this_da_user_uname} is set but doesn't have email inbox set in config file. Please check configuration file " 2>&1 | tee -a "${REPORT_FILE}"
         _exit 1
       elif [ -z "${this_da_user_mail_passwords}" ]; then
-        echo "[${SCRIPT_NAME}]: [Skipped]: Warning user ${this_da_user_uname} is set but doesn't have email password set in ENV file. Please check configuration file " 2>&1 | tee -a "${REPORT_FILE}"
+        echo "[${SCRIPT_NAME}]: [Skipped]: Warning user ${this_da_user_uname} is set but doesn't have email password set in config file. Please check configuration file " 2>&1 | tee -a "${REPORT_FILE}"
         _exit 1
         # Just use a normal variable to check (even it is array)
       elif [ -z "${this_da_user_domains}" ]; then
-        echo "[${SCRIPT_NAME}]: [Skipped]: Warning user ${this_da_user_uname} is set but doesn't have domain set in ENV file. Please check configuration file " 2>&1 | tee -a "${REPORT_FILE}"
+        echo "[${SCRIPT_NAME}]: [Skipped]: Warning user ${this_da_user_uname} is set but doesn't have domain set in config file. Please check configuration file " 2>&1 | tee -a "${REPORT_FILE}"
         _exit 1
       elif [ ${#this_da_user_mail_users[@]} -ne ${#this_da_user_mail_passwords[@]} ]; then
         echo "[${SCRIPT_NAME}]: [Skipped]: Warning user ${this_da_user_uname} have mail users and mail passwords defined with different length of array" 2>&1 | tee -a "${REPORT_FILE}"
         _exit 1
       elif [ -z "${this_da_user_package_name}" ]; then
-        echo "[${SCRIPT_NAME}]: [Skipped]: Warning user ${this_da_user_uname} is set but doesn't have package name set in ENV file. Please check configuration file " 2>&1 | tee -a "${REPORT_FILE}"
+        echo "[${SCRIPT_NAME}]: [Skipped]: Warning user ${this_da_user_uname} is set but doesn't have package name set in config file. Please check configuration file " 2>&1 | tee -a "${REPORT_FILE}"
         _exit 1
       elif [ -z "${this_da_user_domain_enable_ssl}" ]; then
-        echo "[${SCRIPT_NAME}]: [Skipped]: Warning user ${this_da_user_uname} is set but doesn't have domain enable ssl set in ENV file. Please check configuration file " 2>&1 | tee -a "${REPORT_FILE}"
+        echo "[${SCRIPT_NAME}]: [Skipped]: Warning user ${this_da_user_uname} is set but doesn't have domain enable ssl set in config file. Please check configuration file " 2>&1 | tee -a "${REPORT_FILE}"
         _exit 1
       else
-        echo "[${SCRIPT_NAME}]: OK user ${this_da_user_uname} has all variables set from ENV with the following: " 2>&1 | tee -a "${REPORT_FILE}"
+        echo "[${SCRIPT_NAME}]: OK user ${this_da_user_uname} has all variables set from config with the following: " 2>&1 | tee -a "${REPORT_FILE}"
         # Debug
         echo "${this_da_user_uname} | ${this_da_user_password} | ${this_da_user_system_email} | ${this_da_user_domains} | ${this_da_user_package_name} | ${this_da_user_domain_enable_ssl}"
         echo "Checking user package ${this_da_user_package_name} ..."
@@ -3862,12 +3899,6 @@ function configure_da_accounts() {
 
 }
 
-function configure_da_domain_ssl() {
-  :
-  # Here we configure SSL for specific domains we want based on the ENV variable: DA_USER_DOMAIN_ENABLE_SSL{?}
-  # Where Domain can have 1 or more
-}
-
 # Creat email here (maybe everything should be configure in account)
 function configure_da_emails() {
   rm -f "${CONF_PATH}/${FUNCNAME[0]}_executed"
@@ -3897,16 +3928,16 @@ function configure_da_emails() {
       typeset -n "this_da_user_mail_passwords"="DA_USER_MAIL_PASSWORD${count_mail_user}"
       # Error checking for missing variable values:
       if [ -z "${this_da_user_username}" ]; then
-        echo "[${SCRIPT_NAME}]: [Skipped]: Warning, no user_name is set in ENV file for this mail_user. Please check configuration file " 2>&1 | tee -a "${REPORT_FILE}"
+        echo "[${SCRIPT_NAME}]: [Skipped]: Warning, no user_name is set in config file for this mail_user. Please check configuration file " 2>&1 | tee -a "${REPORT_FILE}"
         _exit 1
       elif [ -z "${this_da_user_userpass}" ]; then
-        echo "[${SCRIPT_NAME}]: [Skipped]: Warning, no user_password is set in ENV file for this mail_user. Please check configuration file " 2>&1 | tee -a "${REPORT_FILE}"
+        echo "[${SCRIPT_NAME}]: [Skipped]: Warning, no user_password is set in config file for this mail_user. Please check configuration file " 2>&1 | tee -a "${REPORT_FILE}"
         _exit 1
       elif [ -z "${this_da_user_mail_users}" ]; then
-        echo "[${SCRIPT_NAME}]: [Skipped]: Warning, no user_emails is set in ENV file for this mail_user. Please check configuration file " 2>&1 | tee -a "${REPORT_FILE}"
+        echo "[${SCRIPT_NAME}]: [Skipped]: Warning, no user_emails is set in config file for this mail_user. Please check configuration file " 2>&1 | tee -a "${REPORT_FILE}"
         _exit 1
       elif [ -z "${this_da_user_mail_passwords}" ]; then
-        echo "[${SCRIPT_NAME}]: [Skipped]: Warning, no user_email_passwords is set in ENV file for this mail_user. Please check configuration file " 2>&1 | tee -a "${REPORT_FILE}"
+        echo "[${SCRIPT_NAME}]: [Skipped]: Warning, no user_email_passwords is set in config file for this mail_user. Please check configuration file " 2>&1 | tee -a "${REPORT_FILE}"
         _exit 1
       elif [ ${#this_da_user_mail_users[@]} -ne ${#this_da_user_mail_passwords[@]} ]; then
         echo "[${SCRIPT_NAME}]: [Skipped]: Warning, mail users and mail passwords defined with different length of array" 2>&1 | tee -a "${REPORT_FILE}"
@@ -3950,6 +3981,15 @@ function configure_da_emails() {
     echo "=~=~=~=~=~=~=~=~=~" 2>&1 | tee -a "${REPORT_FILE}"
   fi
 
+}
+
+function configure_da_domain_ssl() {
+  :
+  # TODO make sure to check what file is created when requesting certificate on user domain
+  # TODO test this file if it can restore from cloud backup (need maxicloud: TODO)
+
+  # Here we configure SSL for specific domains we want based on the config variable: DA_USER_DOMAIN_ENABLE_SSL{?}
+  # Where Domain can have 1 or more
 }
 
 # This is used to install extra packages like ncdu, htop and more
@@ -4161,6 +4201,8 @@ configure_maxida
 configure_maxiaide
 #exit 1
 configure_maxicata
+#exit 1
+configure_maxicloud
 # Need to restart first before running next commands after enable IPv6 because 'tentative status issue with ethX + nginx'.
 # If I don't restart, I won't be able to request cert and letsencrypt will complain about firewall.
 #configure_logs
@@ -4191,7 +4233,6 @@ if [ "${INSTALL_TYPE}" == "DIRECTADMIN" ]; then
   # After creating admin accounts, we configure dns template before creating user accounts so they can use new DNS template
   configure_da_dns_templates
   #exit 1
-  # Need to fix - Create manually for now
   configure_da_accounts
   # exit 1
   configure_da_domain_ssl

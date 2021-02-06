@@ -10,10 +10,8 @@
     <select />
   </component>
   <component name="ChangeListManager">
-    <list default="true" id="113c828c-9a32-4b24-ab1e-978ce50c6320" name="Default Changelist" comment="Add maxicode installation to upgrade maxicode binary when it has update from git. Command to update:&#10;&#10;maxicode --update all (to update all maxicode scripts)&#10;&#10;maxicode --update &lt;package_name&gt; (to update specific maxicode script)&#10;&#10;Add initial sample maxicode.env.sample&#10;&#10;Improved DA API 'get-dns-zone' to use json format (it was in TODO list)&#10;&#10;Changed description of configure_maxibox, it's used for backup not updating maxicode binary.&#10;&#10;Created execution script for maxicode">
+    <list default="true" id="113c828c-9a32-4b24-ab1e-978ce50c6320" name="Default Changelist" comment="Fixed nullbytes error on DA API call when using curl (was in TODO list)&#10;&#10;Added the ability to add multiple email for a specific DA user. A new file config to add user with multiple emails is as follow:&#10;&#10;# Use this new format to create another extra user:&#10;&#10;DA_USER_USERNAME2=&quot;da_maxi&quot;&#10;DA_USER_USERPASS2=&quot;*strongpassword&quot;&#10;DA_USER_SYSTEM_EMAIL2=&quot;maxi32@blackhatworld.com&quot;&#10;# user mail account (array index must match between mail_account and mail_password):&#10;DA_USER_MAIL_USER2=(&quot;maxi32@blackhatworld.com&quot; &quot;info@microsoft.com&quot; &quot;sales@dell.com&quot; &quot;sales@acer.com&quot;)&#10;# user mail password (array index must match between mail_account and mail_password):&#10;DA_USER_MAIL_PASSWORD2=(&quot;password1&quot; &quot;password2&quot; &quot;password3&quot; &quot;password4&quot;)&#10;DA_USER_DOMAIN2=(&quot;dell.com&quot; &quot;microsoft.com&quot; &quot;acer.com&quot; &quot;blackhatworld.com&quot; &quot;zone-h.com&quot;)&#10;DA_USER_PACKAGE_NAME2=&quot;USER_UNLIMITED&quot;&#10;DA_USER_DOMAIN_ENABLE_SSL2=&quot;yes&quot;&#10;&#10;===&#10;The above config variables will:&#10;1) Create DA user call da_maxi, assign a default system email as maxi32@blackhatworld.com and a default domain dell.com, if you want microsoft.com to be the default domain, put it as the first index in the array&#10;2) Create all domains specified in DA_USER_DOMAIN array&#10;3) Create all email accounts specified in DA_USER_MAIL_USER array. DA_USER_MAIL_USER array depends on DA_USER_MAIL_PASSWORD array to assign each password for email accounts.&#10;&#10;Added new API action for Directadmin &quot;create-user-email&quot;&#10;&#10;Modified config file (previously called env file) to use real array declaration. &#10;&#10;Now maxi.env is renamed to maxisetup.conf">
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/maxi.env.sample" beforeDir="false" afterPath="$PROJECT_DIR$/maxisetup.conf.sample" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/maxisetup" beforeDir="false" afterPath="$PROJECT_DIR$/maxisetup" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -51,15 +49,13 @@
     </key>
   </component>
   <component name="RunManager">
-    <configuration default="true" type="ArquillianTestNG" factoryName="" nameIsGenerated="true">
+    <configuration default="true" type="ArquillianJUnit" factoryName="" nameIsGenerated="true">
       <option name="arquillianRunConfiguration">
         <value>
           <option name="containerStateName" value="" />
         </value>
       </option>
-      <option name="TEST_OBJECT" value="CLASS" />
-      <properties />
-      <listeners />
+      <option name="TEST_OBJECT" value="class" />
       <method v="2">
         <option name="Make" enabled="true" />
       </method>
@@ -99,7 +95,7 @@
       <workItem from="1612328072902" duration="431000" />
       <workItem from="1612328605749" duration="15000" />
       <workItem from="1612424397725" duration="99000" />
-      <workItem from="1612563031331" duration="364000" />
+      <workItem from="1612563031331" duration="1107000" />
     </task>
     <task id="LOCAL-00001" summary="Initial release from beta Version 0.3.2.7-beta">
       <created>1610639956771</created>
@@ -276,7 +272,14 @@
       <option name="project" value="LOCAL" />
       <updated>1612424484085</updated>
     </task>
-    <option name="localTasksCounter" value="26" />
+    <task id="LOCAL-00026" summary="Fixed nullbytes error on DA API call when using curl (was in TODO list)&#10;&#10;Added the ability to add multiple email for a specific DA user. A new file config to add user with multiple emails is as follow:&#10;&#10;# Use this new format to create another extra user:&#10;&#10;DA_USER_USERNAME2=&quot;da_maxi&quot;&#10;DA_USER_USERPASS2=&quot;*strongpassword&quot;&#10;DA_USER_SYSTEM_EMAIL2=&quot;maxi32@blackhatworld.com&quot;&#10;# user mail account (array index must match between mail_account and mail_password):&#10;DA_USER_MAIL_USER2=(&quot;maxi32@blackhatworld.com&quot; &quot;info@microsoft.com&quot; &quot;sales@dell.com&quot; &quot;sales@acer.com&quot;)&#10;# user mail password (array index must match between mail_account and mail_password):&#10;DA_USER_MAIL_PASSWORD2=(&quot;password1&quot; &quot;password2&quot; &quot;password3&quot; &quot;password4&quot;)&#10;DA_USER_DOMAIN2=(&quot;dell.com&quot; &quot;microsoft.com&quot; &quot;acer.com&quot; &quot;blackhatworld.com&quot; &quot;zone-h.com&quot;)&#10;DA_USER_PACKAGE_NAME2=&quot;USER_UNLIMITED&quot;&#10;DA_USER_DOMAIN_ENABLE_SSL2=&quot;yes&quot;&#10;&#10;===&#10;The above config variables will:&#10;1) Create DA user call da_maxi, assign a default system email as maxi32@blackhatworld.com and a default domain dell.com, if you want microsoft.com to be the default domain, put it as the first index in the array&#10;2) Create all domains specified in DA_USER_DOMAIN array&#10;3) Create all email accounts specified in DA_USER_MAIL_USER array. DA_USER_MAIL_USER array depends on DA_USER_MAIL_PASSWORD array to assign each password for email accounts.&#10;&#10;Added new API action for Directadmin &quot;create-user-email&quot;&#10;&#10;Modified config file (previously called env file) to use real array declaration. &#10;&#10;Now maxi.env is renamed to maxisetup.conf">
+      <created>1612563591068</created>
+      <option name="number" value="00026" />
+      <option name="presentableId" value="LOCAL-00026" />
+      <option name="project" value="LOCAL" />
+      <updated>1612563591068</updated>
+    </task>
+    <option name="localTasksCounter" value="27" />
     <servers />
   </component>
   <component name="TypeScriptGeneratedFilesManager">
@@ -295,7 +298,6 @@
     <option name="oldMeFiltersMigrated" value="true" />
   </component>
   <component name="VcsManagerConfiguration">
-    <MESSAGE value="Fixed maxicata directory creation (small changes)&#10;Change code to use built-in maxicata function to init config" />
     <MESSAGE value="Add required components installation and custom env file for maxicata (private code)" />
     <MESSAGE value="Fixed minor bug on extra curly bracket for MAXICATA_AIPDB_REPORT_URL variable for Maxicata script&#10;Maxicata - Fixed bug awk code empty. Re-add code file srch.awk" />
     <MESSAGE value="Add maxiperm installation" />
@@ -320,6 +322,7 @@
     <MESSAGE value="Update maxida argument&#10;Add new alpha version of maxidns&#10;Implemented linode_api_admin through linode-cli" />
     <MESSAGE value="Update linode API installation&#10;Fixed minor issue domain ID not found in linode API when requesting domain ID for a given domain.&#10;Fixed API exit when looping&#10;Add extra debugging texts&#10;Show latest DA version before installing DA.&#10;Add restart_da when executing configure_admin_accounts and configure_da_accounts&#10;Fixed loop count expression" />
     <MESSAGE value="Add maxicode installation to upgrade maxicode binary when it has update from git. Command to update:&#10;&#10;maxicode --update all (to update all maxicode scripts)&#10;&#10;maxicode --update &lt;package_name&gt; (to update specific maxicode script)&#10;&#10;Add initial sample maxicode.env.sample&#10;&#10;Improved DA API 'get-dns-zone' to use json format (it was in TODO list)&#10;&#10;Changed description of configure_maxibox, it's used for backup not updating maxicode binary.&#10;&#10;Created execution script for maxicode" />
-    <option name="LAST_COMMIT_MESSAGE" value="Add maxicode installation to upgrade maxicode binary when it has update from git. Command to update:&#10;&#10;maxicode --update all (to update all maxicode scripts)&#10;&#10;maxicode --update &lt;package_name&gt; (to update specific maxicode script)&#10;&#10;Add initial sample maxicode.env.sample&#10;&#10;Improved DA API 'get-dns-zone' to use json format (it was in TODO list)&#10;&#10;Changed description of configure_maxibox, it's used for backup not updating maxicode binary.&#10;&#10;Created execution script for maxicode" />
+    <MESSAGE value="Fixed nullbytes error on DA API call when using curl (was in TODO list)&#10;&#10;Added the ability to add multiple email for a specific DA user. A new file config to add user with multiple emails is as follow:&#10;&#10;# Use this new format to create another extra user:&#10;&#10;DA_USER_USERNAME2=&quot;da_maxi&quot;&#10;DA_USER_USERPASS2=&quot;*strongpassword&quot;&#10;DA_USER_SYSTEM_EMAIL2=&quot;maxi32@blackhatworld.com&quot;&#10;# user mail account (array index must match between mail_account and mail_password):&#10;DA_USER_MAIL_USER2=(&quot;maxi32@blackhatworld.com&quot; &quot;info@microsoft.com&quot; &quot;sales@dell.com&quot; &quot;sales@acer.com&quot;)&#10;# user mail password (array index must match between mail_account and mail_password):&#10;DA_USER_MAIL_PASSWORD2=(&quot;password1&quot; &quot;password2&quot; &quot;password3&quot; &quot;password4&quot;)&#10;DA_USER_DOMAIN2=(&quot;dell.com&quot; &quot;microsoft.com&quot; &quot;acer.com&quot; &quot;blackhatworld.com&quot; &quot;zone-h.com&quot;)&#10;DA_USER_PACKAGE_NAME2=&quot;USER_UNLIMITED&quot;&#10;DA_USER_DOMAIN_ENABLE_SSL2=&quot;yes&quot;&#10;&#10;===&#10;The above config variables will:&#10;1) Create DA user call da_maxi, assign a default system email as maxi32@blackhatworld.com and a default domain dell.com, if you want microsoft.com to be the default domain, put it as the first index in the array&#10;2) Create all domains specified in DA_USER_DOMAIN array&#10;3) Create all email accounts specified in DA_USER_MAIL_USER array. DA_USER_MAIL_USER array depends on DA_USER_MAIL_PASSWORD array to assign each password for email accounts.&#10;&#10;Added new API action for Directadmin &quot;create-user-email&quot;&#10;&#10;Modified config file (previously called env file) to use real array declaration. &#10;&#10;Now maxi.env is renamed to maxisetup.conf" />
+    <option name="LAST_COMMIT_MESSAGE" value="Fixed nullbytes error on DA API call when using curl (was in TODO list)&#10;&#10;Added the ability to add multiple email for a specific DA user. A new file config to add user with multiple emails is as follow:&#10;&#10;# Use this new format to create another extra user:&#10;&#10;DA_USER_USERNAME2=&quot;da_maxi&quot;&#10;DA_USER_USERPASS2=&quot;*strongpassword&quot;&#10;DA_USER_SYSTEM_EMAIL2=&quot;maxi32@blackhatworld.com&quot;&#10;# user mail account (array index must match between mail_account and mail_password):&#10;DA_USER_MAIL_USER2=(&quot;maxi32@blackhatworld.com&quot; &quot;info@microsoft.com&quot; &quot;sales@dell.com&quot; &quot;sales@acer.com&quot;)&#10;# user mail password (array index must match between mail_account and mail_password):&#10;DA_USER_MAIL_PASSWORD2=(&quot;password1&quot; &quot;password2&quot; &quot;password3&quot; &quot;password4&quot;)&#10;DA_USER_DOMAIN2=(&quot;dell.com&quot; &quot;microsoft.com&quot; &quot;acer.com&quot; &quot;blackhatworld.com&quot; &quot;zone-h.com&quot;)&#10;DA_USER_PACKAGE_NAME2=&quot;USER_UNLIMITED&quot;&#10;DA_USER_DOMAIN_ENABLE_SSL2=&quot;yes&quot;&#10;&#10;===&#10;The above config variables will:&#10;1) Create DA user call da_maxi, assign a default system email as maxi32@blackhatworld.com and a default domain dell.com, if you want microsoft.com to be the default domain, put it as the first index in the array&#10;2) Create all domains specified in DA_USER_DOMAIN array&#10;3) Create all email accounts specified in DA_USER_MAIL_USER array. DA_USER_MAIL_USER array depends on DA_USER_MAIL_PASSWORD array to assign each password for email accounts.&#10;&#10;Added new API action for Directadmin &quot;create-user-email&quot;&#10;&#10;Modified config file (previously called env file) to use real array declaration. &#10;&#10;Now maxi.env is renamed to maxisetup.conf" />
   </component>
 </project>
