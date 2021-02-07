@@ -60,6 +60,7 @@ DA_USER_USERNAME1="da_user"
 # user password, must be maximum of 64 characters and doesn't contain the plus character '+'
 DA_USER_USERPASS1="*long-secured-password*"
 # user system email, where is used for DA to send email, system email should only have 1 email
+DA_USER_SYSTEM_EMAIL1="webmaster@maxibi.com"
 # user mail account, where array index must match between mail_account and mail_password
 # If one mail. eg: DA_USER_MAIL_USER1=("test@test.com")
 DA_USER_MAIL_USER1=("email1@maxibi.com" "email2@maxibi.com")
@@ -77,7 +78,13 @@ DA_USER_SUBDOMAIN1=("sales+maxibi.com" "login+maxibi.com" "sub1.sub2+maxibi.com"
 DA_USER_PACKAGE_NAME1="USER_UNLIMITED"
 # enable/disable ssl certificate for all domains for this user enable="yes", disable="no"
 DA_USER_DOMAIN_ENABLE_SSL1="yes"
-
+# Define SSL provider for each domain here
+# <ssl_provider>:<root_domain>:subdomain1.subdomain2+subdomain2.subdomain3+subdomainx
+# ssl_provider such as letsencrypt, digicert etc:
+# The root domain should be ssled by default
+DA_USER_SSL_SUB_NAME1=("letsencrypt:maxibi.com:www+ftp+mail+pop+smtp+sales")
+# Add more user from here (using the same format above):
+# Can add multiple domains, and emails
 # Add more user from here (using the same format above and add postfix index):
 # Can add multiple domains, and emails: eg:
 # Remember that mailuser and password must have the same array length (script will check this)
@@ -90,6 +97,7 @@ DA_USER_DOMAIN_ENABLE_SSL1="yes"
 #DA_USER_SUBDOMAIN2=
 #DA_USER_PACKAGE_NAME2=
 #DA_USER_DOMAIN_ENABLE_SSL2=
+#DA_USER_SSL_SUB_NAME2=
 # === DA user end ===
 
 # DA_ADMIN_SQLPASS is for DA sql password (eg: phpmyadmin login) Password cannot contains this character [ ]
