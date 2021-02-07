@@ -4314,6 +4314,7 @@ echo "Welcome to Sofibox Host Installation Script" 2>&1 | tee -a "${REPORT_FILE}
 echo "This script is part of Sofibox/MaxiNet implementation" 2>&1 | tee -a "${REPORT_FILE}"
 echo "Author: Arafat Ali | Email: arafat@sofibox.com" 2>&1 | tee -a "${REPORT_FILE}"
 echo "Sofibox/MaxiNet was developed by Sofibox" 2>&1 | tee -a "${REPORT_FILE}"
+echo "URL: http://www.sofibox.com  =~=~=~=~=  " 2>&1 | tee -a "${REPORT_FILE}"
 echo "=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~" 2>&1 | tee -a "${REPORT_FILE}"
 echo ""
 
