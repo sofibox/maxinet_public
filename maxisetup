@@ -1,7 +1,7 @@
 #!/bin/bash
 # =~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~
 # Author: Arafat Ali Email: arafat@sofibox.com
-# Version 0.3.7.2-beta
+# Version 0.3.7.3-beta
 # This is an initial server hardening script for CentOS and Debian.
 # Compatible 100% with Directadmin. Supported OS: CentOS + Debian (Planned on FreeBSD)
 # You can choose to install as the other stack server such as LEMP, Laravel etc defined in config file (TODO)
@@ -229,8 +229,10 @@ function linode_api_admin() {
         # echo "${domain_id}"
         echo "[${SCRIPT_NAME}]: Adding new DNS record name ${name} in linode ..." 2>&1 | tee -a "${REPORT_FILE}"
 
-        add_dns_record=$(${LINODE_CLI_BIN} domains records-create "${domain_id}" --pretty --json \
-          --type "${type}" --name "${name}" --target "${value}" --ttl_sec "${ttl}")
+        add_dns_record=$(
+          ${LINODE_CLI_BIN} domains records-create "${domain_id}" --pretty --json \
+          --type "${type}" --name "${name}" --target "${value}" --ttl_sec "${ttl}"
+        )
         retval=$?
         if [ ${retval} = 0 ]; then
           echo "=~=~=~=~=~=~=~=~=~=~=" 2>&1 | tee -a "${REPORT_FILE}"
@@ -3184,10 +3186,10 @@ function configure_maxicata() {
     apt-get install make autoconf automake libtool
     # Required by suricata:
     apt-get -y install libpcre3 libpcre3-dbg libpcre3-dev build-essential libpcap-dev \
-      libnet1-dev libyaml-0-2 libyaml-dev pkg-config zlib1g zlib1g-dev liblz4-dev \
-      libcap-ng-dev libcap-ng0 libmagic-dev libjansson-dev libnspr4-dev \
-      libnss3-dev libgeoip-dev liblua5.1-dev libhiredis-dev libevent-dev \
-      python-yaml python3-distutils python3-pip #rustc cargo
+    libnet1-dev libyaml-0-2 libyaml-dev pkg-config zlib1g zlib1g-dev liblz4-dev \
+    libcap-ng-dev libcap-ng0 libmagic-dev libjansson-dev libnspr4-dev \
+    libnss3-dev libgeoip-dev liblua5.1-dev libhiredis-dev libevent-dev \
+    python-yaml python3-distutils python3-pip #rustc cargo
     pip3 install PyYAML
     # Do not install rustc and cargo
     # This will fix this error -> ERROR: Suricata now requires Rust to build (Debian has bug with rustc package)
@@ -4456,6 +4458,16 @@ echo ""
 script_time
 echo "========== Installation Completed ==========" 2>&1 | tee -a "${REPORT_FILE}"
 echo ""
-echo "[${SCRIPT_NAME}]: Destroying ${CONFIG_FILE} file in 60 seconds ..." 2>&1 | tee -a "${REPORT_FILE}"
-_pause 60
+echo "[${SCRIPT_NAME}]: Destroying setup information in 120 seconds ..." 2>&1 | tee -a "${REPORT_FILE}"
+_pause 120
+# Destroy the setup config deeply
 shred -uvz "${CONFIG_FILE}"
+# Remove all setup information (except CONF_PATH)
+rm -rf "${LOG_PATH}"
+#rm -rf "${CONF_PATH}"
+rm -rf "${DATA_PATH}"
+rm -rf "${CODE_PATH}"
+rm -rf "${TEMP_PATH}"
+rm -rf "${INST_TEMP_DIR}"
+# Clear bash history
+history -c
