@@ -1,7 +1,7 @@
 #!/bin/bash
 # =~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~
 # Author: Arafat Ali Email: arafat@sofibox.com
-# Version 0.3.7.3-beta
+# Version 0.3.7.4-beta
 # This is an initial server hardening script for CentOS and Debian.
 # Compatible 100% with Directadmin. Supported OS: CentOS + Debian (Planned on FreeBSD)
 # You can choose to install as the other stack server such as LEMP, Laravel etc defined in config file (TODO)
@@ -11,57 +11,78 @@
 # URL (public): github.com/sofibox/maxisetup_public | (private) github.com/sofibox/maxisetup (need access token)
 # TODO enable --dry-run (that will simulate testing for this script)
 # =~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~
-#set -euxo pipefail
-# This function is used to handle exit trap
-_trap_with_args() {
-  local func
-  func="$1"
+# set code debug:
+# set -euxo pipefail
+# ""
+# This function is used to handle exit trap that can accept multiple trap arguments
+# syntax: _traps <trap_clean_function> SIG1 SIG2 SIG3 OTHER_SIG ...
+# eg: _traps _trap_cleanup QUIT INT TERM EXIT
+function _traps() {
+  local clean_func
+  clean_func="$1"
   shift
   for sig; do
+    # Test each signal from function called
     # shellcheck disable=SC2064
-    trap "${func} ${sig}" "${sig}"
+    # include shellcheck disable directive because: https://github.com/koalaman/shellcheck/issues/2131
+    trap "${clean_func} ${sig}" "${sig}"
   done
 }
 
-function cleanup() {
+# This function is used by _traps function to clean exit
+function _trap_cleanup() {
+  # The first argument will have the name of the trap signal executed:
   # echo "Trapped: $1"
   ((CTRL_C_COUNT++))
+  # Check if the locking directory is exist, if yes, remove it
   if [ -d "${LOCK_DIR}" ]; then
     rm -rf "${LOCK_DIR}"
     echo ""
     echo "[${SCRIPT_NAME}]: OK, locked flag removed from ${LOCK_DIR}"
   fi
-  if [[ $CTRL_C_COUNT == 1 ]]; then
+  # this if condition will determine that this cleanup function is only called a single time CTRL_C_COUNT=1
+  # this function might be called several times because we passed long arguments for trap to call this function
+  if [[ ${CTRL_C_COUNT} == 1 ]]; then
     echo ""
+    # if the trapped signal is INT (interactive) then we know this is interactive exit executed by a user.
     if [ "$1" == "INT" ]; then
+      # so print the current user who terminated this script
       echo "[${SCRIPT_NAME}]: *** Warning, this script has been terminated by user: ${USER}! ***"
     else
+      # for other trap signals, we just print out the trap signal
       echo "[${SCRIPT_NAME}]: This script has been terminated with signal: ${1}"
     fi
+    echo ""
     echo "-------------------------------END-----------------------------------------"
   fi
+  # clean exit
   exit 1
 }
-# This function get the OS ID and version number
+# This function gets the operating system ID and version number
+# syntax: get_linux_os <id|version>
+# eg: get_linux_os id | sample output: centos
 function get_linux_os() {
   local arg distro_id distro_version
-  arg="${1}"
-  # Check OS distribution version
+  arg="$1"
   # any new Linux distribution must have this (it is a standard file os checking for linux)
   if [ -e /etc/os-release ]; then
+    # get the distro ID from /etc/os-release and make sure it is in lowercase format without any double quotations
     distro_id=$(awk -F= '$1 == "ID" {print $2}' /etc/os-release | LC_ALL=C tr '[:upper:]' '[:lower:]' | tr -d "\"")
     distro_version=$(awk -F= '$1 == "VERSION_ID" {print $2}' /etc/os-release | tr -d "\"")
-  # but just in case (small case) if it doesn't have this then we can use lsb_release command
+  # but just in case (a small case) if it doesn't have this then we can use lsb_release command
   elif type lsb_release >/dev/null 2>&1; then
+    # get the distro id using lsb_release function.
+    # if the ID has uppercase letter, cover it to lowercase
     distro_id=$(lsb_release -si | LC_ALL=C tr '[:upper:]' '[:lower:]')
     distro_version=$(lsb_release -sr)
-  # or if that doesn't exist at all, we use the standard checking version format: "Linux <version>"
+  # else if that doesn't exist at all, we can use the standard checking version format: "Linux <version>"
   else
-    # But using this we should terminate this script because we only need single distribution ID (eg: debian)
+    # this will not printout a single distribution ID that we want (it prints out the Generic Linux kernel version)
+    # but using this we should terminate this script because we only need single distribution ID (eg: debian)
     distro_id=$(uname -s)
     distro_version=$(uname -r)
   fi
-
+  # return values here with echo
   if [ "${arg}" == "id" ]; then
     echo "${distro_id}"
   elif [ "${arg}" == "version" ]; then
@@ -70,33 +91,40 @@ function get_linux_os() {
 
 }
 
-# Pause terminal, press enter or wait within <duration_in_seconds> to continue the next command
-# eg: _pause (no timeout. need to press enter to continue)
-# eg: _pause 10 (wait 10 seconds or press enter to continue)
+# This function will pause the current running terminal
+# It will interactively ask to press enter or wait within <duration_in_seconds> to continue the next command
+# syntax: _pause <optional_duration>
+# eg: _pause | no timeout means we need to press enter to continue
+# eg: _pause 10 | wait 10 seconds or press enter to continue
 function _pause() {
   local duration=$1
   # If argument is not an integer, we disable read timeout
   if [[ ${duration} =~ ^[0-9]+$ ]]; then
-    read -t "${duration}" -r -s -n 1 -p "[${SCRIPT_NAME}]: Press any key or wait ${duration} second(s) to continue or press (Ctrl+c) to cancel ..." 2>&1 | tee -a "${REPORT_FILE}"
+    read -t "${duration}" -r -s -n 1 -p "[${SCRIPT_NAME}]: Press any key or wait within ${duration} second(s) to continue or press (Ctrl+c) to cancel ..." 2>&1 | tee -a "${REPORT_FILE}"
   else
-    read -r -s -n 1 -p "[${SCRIPT_NAME}]: Press any key to continue or press (Ctrl+c) to cancel ..." 2>&1 | tee -a "${REPORT_FILE}"
+    read -r -s -n 1 -p "[${SCRIPT_NAME}]: Terminal is paused! Press any key to continue or press (Ctrl+c) to cancel ..." 2>&1 | tee -a "${REPORT_FILE}"
   fi
   echo ""
 
 }
-# Pause terminal with exit return code
-# Use _ symbol to not override exit function
+# This function is used to terminate a current running script.
+# pass the normal exit code
+# syntax: _exit <exit_code>
+# eg: _exit 3
 function _exit() {
-  read -r -s -n 1 -p "[${SCRIPT_NAME}]: Press any key to exit ..." 2>&1 | tee -a "${REPORT_FILE}"
-  echo ""
   exit "$1"
 }
 
+# This function is used to reboot the system using force reboot -r now without any arguments
+# syntax _reboot
 function _reboot() {
+  # an exit ASCII symbol invented by MaXi32
   echo "--<]--"
   echo "[${SCRIPT_NAME}]: Rebooting system ..." 2>&1 | tee -a "${REPORT_FILE}"
   shutdown -r now
 }
+# This function display the current time spent for running this script.
+# It uses the built-in bash SECONDS to get the real execution statement
 function script_time() {
   local spent_secs hrs mins secs
   spent_secs=${SECONDS}
@@ -105,6 +133,8 @@ function script_time() {
   secs=$((spent_secs - hrs * 3600 - mins * 60))
   printf "[${SCRIPT_NAME}]: Time spent: %02d H:%02d M :%02d S\n" ${hrs} ${mins} ${secs} 2>&1 | tee -a "${REPORT_FILE}"
 }
+# This function will shift the current directory into another directory specified in argument
+# it will terminate with return error code 1 if the specified path in argument given is not valid
 function cd_to_path() {
   local to_path="$1"
   echo "[${SCRIPT_NAME}]: Entering directory ${to_path} ..." 2>&1 | tee -a "${REPORT_FILE}"
@@ -114,26 +144,28 @@ function cd_to_path() {
   }
 }
 
-# This function allows DA to restart quickly but we don't take priority on other tasks.
-# this is a very important script to run before restarting DA.
-# without this, you will notice few errors because we disturb task.queue
+# This function allows Directadmin to restart quickly but we don't take priority on other pending tasks.
+# Better to restart DA with task.queue (this is what most documentation do) because DA needs to respect task.queue process
 function restart_da() {
   if [ ! -s /usr/local/directadmin/data/task.queue ]; then
     echo "[${SCRIPT_NAME}]: Restarting Directadmin ..." 2>&1 | tee -a "${REPORT_FILE}"
+    # Writing restart query in task.queue
     echo "action=directadmin&value=restart" >>/usr/local/directadmin/data/task.queue
+    # Force restart with debugging level d2000
+    # this is optional because we knew no other pending tasks will be running at this condition
     /usr/local/directadmin/dataskq d2000
-    # Better to restart DA with task.queue (this is what most documentation do) because DA needs to respect task.queue process
   else
     echo "[${SCRIPT_NAME}]: Warning, Directadmin task.queue still has pending task(s) to be executed. Waiting 10 seconds to finish the pending task(s) ..." 2>&1 | tee -a "${REPORT_FILE}"
     sleep 10
-    # Recursive function call again until condition satisfied
+    # recursive function call again to recheck the task.queue content until condition satisfied and Directadmin will restart in clean mode
     restart_da
   fi
 }
-
+# This is a linode API function used to manage linode DNS record
 function linode_api_admin() {
   #echo "Continuing in 2 seconds ..."
   #sleep 2
+  local retval
   if ! command -v linode-cli &>/dev/null; then
     echo "[${SCRIPT_NAME}]: Warning, missing linode-cli component. This utility requires linode-cli to be installed."
     if ! command -v pip3 &>/dev/null; then
@@ -148,6 +180,7 @@ function linode_api_admin() {
     echo "[${SCRIPT_NAME}]: Configuring linode-cli using expect ..." 2>&1 | tee -a "${REPORT_FILE}"
     sleep 1
     apt-get -y install expect
+    # Configuring the linode-cli using expect at the background
     LINODE_CLI=$(expect -c "
               set timeout 3
               spawn linode-cli
@@ -161,20 +194,36 @@ function linode_api_admin() {
               send \"\r\"
               expect eof
               ")
+    # Display the result of expect configuration for linode-cli
     echo "Result: "
     echo "${LINODE_CLI}"
-    # Remove expect
+    # Remove expect we don't need it
     apt-get -y remove expect
+
   fi
 
+  # Make sure jq is installed
   if ! command -v jq &>/dev/null; then
     echo "[${SCRIPT_NAME}]: Warning, missing jq component. This utility requires jq to be installed." 2>&1 | tee -a "${REPORT_FILE}"
     echo "[${SCRIPT_NAME}]: Installing jq ..." 2>&1 | tee -a "${REPORT_FILE}"
     apt-get -y install jq
+
   fi
-  # We have checked to make sure this binary is installed above
-  LINODE_CLI_BIN=$(command -v linode-cli)
-  JQ_BIN=$(command -v jq)
+
+  # Do another check for the second time
+  if command -v linode-cli &>/dev/null; then
+    LINODE_CLI_BIN=$(command -v linode-cli)
+  else
+    echo "[${SCRIPT_NAME}]: Warning, unable to find linode-cli binary. Please inspect why" 2>&1 | tee -a "${REPORT_FILE}"
+    _exit 1
+  fi
+  # Do another check for the second time
+  if command -v jq &>/dev/null; then
+    JQ_BIN=$(command -v jq)
+  else
+    echo "[${SCRIPT_NAME}]: Warning, unable to find jq binary. Please inspect why" 2>&1 | tee -a "${REPORT_FILE}"
+    _exit 1
+  fi
 
   local action
   #shift
@@ -229,10 +278,8 @@ function linode_api_admin() {
         # echo "${domain_id}"
         echo "[${SCRIPT_NAME}]: Adding new DNS record name ${name} in linode ..." 2>&1 | tee -a "${REPORT_FILE}"
 
-        add_dns_record=$(
-          ${LINODE_CLI_BIN} domains records-create "${domain_id}" --pretty --json \
-          --type "${type}" --name "${name}" --target "${value}" --ttl_sec "${ttl}"
-        )
+        add_dns_record=$(${LINODE_CLI_BIN} domains records-create "${domain_id}" --pretty --json \
+          --type "${type}" --name "${name}" --target "${value}" --ttl_sec "${ttl}")
         retval=$?
         if [ ${retval} = 0 ]; then
           echo "=~=~=~=~=~=~=~=~=~=~=" 2>&1 | tee -a "${REPORT_FILE}"
@@ -806,7 +853,7 @@ function da_api_admin() {
     echo "[${SCRIPT_NAME}]: Status: " 2>&1 | tee -a "${REPORT_FILE}"
     echo "=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~" 2>&1 | tee -a "${REPORT_FILE}"
     echo "" 2>&1 | tee -a "${REPORT_FILE}"
-    curl --silent --request "${method}" --user "${api_username}":"${api_password}" --data "${data}" "${ssl}://${BOX_HOSTNAME_FQDN}:${DA_PORT}/${command}" | tr -d '\0' 2>&1 | tee -a "${REPORT_FILE}"
+    curl --silent --request "${method}" --user "${api_username}":"${api_password}" --data "${data}" "${ssl}://${BOX_HOSTNAME_FQDN}:${DA_PORT}/${command}" | tr -d '\0'
     echo "=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~" 2>&1 | tee -a "${REPORT_FILE}"
     echo "" 2>&1 | tee -a "${REPORT_FILE}"
 
@@ -3176,7 +3223,7 @@ function configure_maxicata() {
   # rm -f "${CONF_PATH}/configure_maxicata_executed"
   if [ ! -f "${CONF_PATH}/${FUNCNAME[0]}_executed" ]; then
     echo "[${SCRIPT_NAME}]: Executing ${FUNCNAME[0]} ..." 2>&1 | tee -a "${REPORT_FILE}"
-    local latest_suricata_version suricata_select_version maxicata_bin maxirbl_bin # suricata_conf suricata_service is_masked
+    local latest_suricata_version suricata_preferred_version maxicata_bin maxirbl_bin # suricata_conf suricata_service is_masked
     # suricata_conf="/etc/suricata/suricata.yaml"
     # Instruction: https://forum.suricata.io/t/install-suricata-6-0-1-on-debian-10-from-source/992
     # Install required components for suricata:
@@ -3186,10 +3233,10 @@ function configure_maxicata() {
     apt-get install make autoconf automake libtool
     # Required by suricata:
     apt-get -y install libpcre3 libpcre3-dbg libpcre3-dev build-essential libpcap-dev \
-    libnet1-dev libyaml-0-2 libyaml-dev pkg-config zlib1g zlib1g-dev liblz4-dev \
-    libcap-ng-dev libcap-ng0 libmagic-dev libjansson-dev libnspr4-dev \
-    libnss3-dev libgeoip-dev liblua5.1-dev libhiredis-dev libevent-dev \
-    python-yaml python3-distutils python3-pip #rustc cargo
+      libnet1-dev libyaml-0-2 libyaml-dev pkg-config zlib1g zlib1g-dev liblz4-dev \
+      libcap-ng-dev libcap-ng0 libmagic-dev libjansson-dev libnspr4-dev \
+      libnss3-dev libgeoip-dev liblua5.1-dev libhiredis-dev libevent-dev \
+      python-yaml python3-distutils python3-pip #rustc cargo
     pip3 install PyYAML
     # Do not install rustc and cargo
     # This will fix this error -> ERROR: Suricata now requires Rust to build (Debian has bug with rustc package)
@@ -3227,23 +3274,23 @@ function configure_maxicata() {
     # For CentOS rpm package will install only version 5. So the best is to compile from source using this trick:
     cd_to_path "${INST_TEMP_DIR}"
     latest_suricata_version=$(curl 'https://www.openinfosecfoundation.org/download/' | grep -oP 'href="suricata-\K[0-9]+\.[0-9]+\.[0-9]+' | sort -t. -rn -k1,1 -k2,2 -k3,3 | head -1)
-    suricata_select_version="${SURICATA_SELECT_VERSION}"
+    suricata_preferred_version="${SURICATA_SELECT_VERSION}"
     # If you think the future version of suricata installation will follow below step then put suricata_select_version="${latest_suricata_version}"
-    if [ "${latest_suricata_version}" != "${suricata_select_version}" ]; then
+    if [ "${latest_suricata_version}" != "${suricata_preferred_version}" ]; then
       echo "[${SCRIPT_NAME}]: Warning, suricata latest version is: ${latest_suricata_version} but selected version in config file is ${SURICATA_SELECT_VERSION}" 2>&1 | tee -a "${REPORT_FILE}"
     fi
     # Below is the installation for Suricata 6.0.1. Sometimes new version release and the way how to install Suricata is not the same like previous one
     # Sometimes new version has extra library so we need to check how to install this.
-    echo "[${SCRIPT_NAME}]: Removing suricata downloaded file suricata-${suricata_select_version}.tar.gz ..." 2>&1 | tee -a "${REPORT_FILE}"
+    echo "[${SCRIPT_NAME}]: Removing suricata downloaded file suricata-${suricata_preferred_version}.tar.gz ..." 2>&1 | tee -a "${REPORT_FILE}"
     sleep 1
-    rm -fv "${INST_TEMP_DIR}/suricata-${suricata_select_version}.tar.gz"
-    echo "[${SCRIPT_NAME}]: Downloading suricata latest version-${suricata_select_version} ..." 2>&1 | tee -a "${REPORT_FILE}"
+    rm -fv "${INST_TEMP_DIR}/suricata-${suricata_preferred_version}.tar.gz"
+    echo "[${SCRIPT_NAME}]: Downloading suricata latest version-${suricata_preferred_version} ..." 2>&1 | tee -a "${REPORT_FILE}"
     sleep 1
-    wget "https://www.openinfosecfoundation.org/download/suricata-${suricata_select_version}.tar.gz"
-    echo "[${SCRIPT_NAME}]: Extracting suricata version-${suricata_select_version} ..." 2>&1 | tee -a "${REPORT_FILE}"
+    wget "https://www.openinfosecfoundation.org/download/suricata-${suricata_preferred_version}.tar.gz"
+    echo "[${SCRIPT_NAME}]: Extracting suricata version-${suricata_preferred_version} ..." 2>&1 | tee -a "${REPORT_FILE}"
     sleep 1
-    tar xzvf "suricata-${suricata_select_version}.tar.gz"
-    cd_to_path "suricata-${suricata_select_version}/"
+    tar xzvf "suricata-${suricata_preferred_version}.tar.gz"
+    cd_to_path "suricata-${suricata_preferred_version}/"
     echo "[${SCRIPT_NAME}]: Configuring script for getting ready to build suricata ... " 2>&1 | tee -a "${REPORT_FILE}"
     sleep 1
     # Dont enable IPS because we will integrate blocking with CSF (using my script called maxicode/maxicata)
@@ -3400,29 +3447,36 @@ function configure_maxicata() {
 # For managing cloud storage. Like mounting cloud storage, send file or receive file from cloud. maxicloud will handle that.
 function configure_maxicloud() {
   # TODO configure maxicloud
-  local maxicloud_bin maxicloud_conf maxicloud_conf_sample
-  maxicloud_bin="/usr/local/maxicode/maxicloud/maxicloud"
-  maxicloud_conf="/usr/local/maxicode/maxicloud/maxicloud.conf"
-  maxicloud_conf_sample="/usr/local/maxicode/maxicloud/maxicloud.conf.sample"
+  if [ ! -f "${CONF_PATH}/${FUNCNAME[0]}_executed" ]; then
+    local maxiaide_bin
+    echo "[${SCRIPT_NAME}]: Executing ${FUNCNAME[0]} ..." 2>&1 | tee -a "${REPORT_FILE}"
+    local maxicloud_bin maxicloud_conf maxicloud_conf_sample
+    maxicloud_bin="/usr/local/maxicode/maxicloud/maxicloud"
+    maxicloud_conf="/usr/local/maxicode/maxicloud/maxicloud.conf"
+    maxicloud_conf_sample="/usr/local/maxicode/maxicloud/maxicloud.conf.sample"
 
-  if [ -f ${maxicloud_conf_sample} ]; then
-    echo "[${SCRIPT_NAME}]: Copying maxicloud sample config into ${maxicloud_conf} ..." 2>&1 | tee -a "${REPORT_FILE}"
-    cp -f ${maxicloud_conf_sample} ${maxicloud_conf}
+    if [ -f ${maxicloud_conf_sample} ]; then
+      echo "[${SCRIPT_NAME}]: Copying maxicloud sample config into ${maxicloud_conf} ..." 2>&1 | tee -a "${REPORT_FILE}"
+      cp -f ${maxicloud_conf_sample} ${maxicloud_conf}
+    else
+      echo "[${SCRIPT_NAME}]: Warning, the sample config file ${maxicloud_conf_sample} does not exist. Please inspect the file!" 2>&1 | tee -a "${REPORT_FILE}"
+      _exit 1
+    fi
+    if [ -f ${maxicloud_bin} ]; then
+      echo "[${SCRIPT_NAME}]: Creating symlink and executable for ${maxicloud_bin} ..." 2>&1 | tee -a "${REPORT_FILE}"
+      sleep 1
+      chmod +x ${maxicloud_bin}
+      # Symbolic name
+      ln -s ${maxicloud_bin} /usr/local/bin
+    else
+      echo "[${SCRIPT_NAME}]: Warning, maxicloud doesn't exist in /usr/local/maxicode !" 2>&1 | tee -a "${REPORT_FILE}"
+      _exit 1
+    fi
+    check_finish_reboot "${FUNCNAME[0]}"
   else
-    echo "[${SCRIPT_NAME}]: Warning, the sample config file ${maxicloud_conf_sample} does not exist. Please inspect the file!" 2>&1 | tee -a "${REPORT_FILE}"
-    _exit 1
+    echo "[${SCRIPT_NAME}]: [Skipped]: ${FUNCNAME[0]} has ran before" 2>&1 | tee -a "${REPORT_FILE}"
+    echo "=~=~=~=~=~=~=~=~=~" 2>&1 | tee -a "${REPORT_FILE}"
   fi
-  if [ -f ${maxicloud_bin} ]; then
-    echo "[${SCRIPT_NAME}]: Creating symlink and executable for ${maxicloud_bin} ..." 2>&1 | tee -a "${REPORT_FILE}"
-    sleep 1
-    chmod +x ${maxicloud_bin}
-    # Symbolic name
-    ln -s ${maxicloud_bin} /usr/local/bin
-  else
-    echo "[${SCRIPT_NAME}]: Warning, maxicloud doesn't exist in /usr/local/maxicode !" 2>&1 | tee -a "${REPORT_FILE}"
-    _exit 1
-  fi
-
 }
 
 # This will install OS memcached and php memcached extension
@@ -3542,8 +3596,8 @@ function configure_da_skins() {
 }
 
 # Create any extra admin accounts here
-function configure_admin_accounts() {
-  #rm -f "${CONF_PATH}/${FUNCNAME[0]}_executed"
+# Only DA owner can create admin account
+function configure_da_admin_accounts() {
   if [ ! -f "${CONF_PATH}/${FUNCNAME[0]}_executed" ]; then
     echo "[${SCRIPT_NAME}]: Executing ${FUNCNAME[0]} ..." 2>&1 | tee -a "${REPORT_FILE}"
     # Currently we only have owner account, now we create an admin account, we create admin here
@@ -3556,13 +3610,26 @@ function configure_admin_accounts() {
     # Here means owner login and create admin account
 
     echo "[${SCRIPT_NAME}]: Creating an admin user account ${DA_ADMIN_USERNAME1} ..." 2>&1 | tee -a "${REPORT_FILE}"
-    _pause 2
+    #_pause 2
     echo "~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~"
     echo "[${SCRIPT_NAME}]: Authenticating DA API for user for default owner user ..." 2>&1 | tee -a "${REPORT_FILE}"
     da_api_admin "start+owner"
     #exit 1
     da_api_admin "create-admin-account" "${DA_ADMIN_USERNAME1}" "${DA_ADMIN_EMAIL1}" "${DA_ADMIN_USERPASS1}"
-    _pause 2
+    #_pause 2
+    echo "~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~"
+
+    # No need domain for admin for security
+
+    # First create reseller unlimited package
+    # Make sure admin account is created first (da_api_admin will check this)
+    echo "[${SCRIPT_NAME}]: Creating reseller unlimited package with the following name: ${DA_RESELLER_PACKAGE_NAME1} ..." 2>&1 | tee -a "${REPORT_FILE}"
+    echo "~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~"
+    #_pause 2
+    echo "[${SCRIPT_NAME}]: Authenticating DA API for user for default admin user ..." 2>&1 | tee -a "${REPORT_FILE}"
+    # Use admin to create reseller (dont use owner)
+    da_api_admin "start+admin"
+    da_api_admin "create-reseller-package" "${DA_RESELLER_PACKAGE_NAME1}"
     echo "~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~"
 
     check_finish_reboot "${FUNCNAME[0]}"
@@ -3572,60 +3639,320 @@ function configure_admin_accounts() {
   fi
 
 }
-# Create reseller or user accounts here including packages and more
-function configure_da_accounts() {
-  # Manually create user account first
-  #rm -f "${CONF_PATH}/${FUNCNAME[0]}_executed"
+# Create reseller accounts here including packages and reseller and all domains
+# All reseller users depend on admin account. So, we must create at least an admin account
+# Then we use this admin account to assign reseller package
+# After a reseller package is created then we can create reseller account
+# In package creation, do not use anonymous FTP accounts, do not use SSH access (for security)
+function configure_da_reseller_accounts() {
+  #rm -rf "${CONF_PATH}/${FUNCNAME[0]}_executed"
   if [ ! -f "${CONF_PATH}/${FUNCNAME[0]}_executed" ]; then
     echo "[${SCRIPT_NAME}]: Executing ${FUNCNAME[0]} ..." 2>&1 | tee -a "${REPORT_FILE}"
-
-    local da_admin_packages_list da_user_packages_list gc count
-    local da_user_unames #da_user_passwords da_user_emails da_user_domains da_user_package_names
-    local this_da_user_uname this_da_user_password this_da_user_system_email this_da_user_mail_users
-    local this_da_user_mail_passwords this_da_user_domains this_da_user_package_name this_da_user_domain_enable_ssl
-    local da_user_count
-    local dkim_val dmarc_val spf_val
-    da_admin_packages_list="/usr/local/directadmin/data/admin/packages.list"
-    da_user_packages_list="/usr/local/directadmin/data/users/${DA_RESELLER_USERNAME1}/packages.list"
-    # ALL API documentation: https://www.directadmin.com/search_versions.php?query=CMD_API
-    # Create CURL action for API: https://help.directadmin.com/item.php?id=580
-    # How to debug API: https://help.directadmin.com/item.php?id=356
-    # https://help.directadmin.com/item.php?id=293
-
-    # We already have owner account
-    # Must create a reseller package first before create reseller account
-    # In package creation, do not use anonymous FTP accounts, do not use SSH access (for security)
-
-    # Check if reseller package is created
-    # https://forum.directadmin.com/threads/server-migration-how-to-use-the-existing-configuration-during-setup.62937/
-    # https://forum.directadmin.com/threads/default-user-package-s-for-resellers.49156/
+    local da_reseller_packages_list gc
+    # Inside this file contains list of packages for admin and reseller (use this file for checking)
+    da_reseller_packages_list="/usr/local/directadmin/data/admin/packages.list"
+    # Restarting Directadmin to be safe
     echo "[${SCRIPT_NAME}]: Restarting directadmin before configuring Directadmin accounts ..." 2>&1 | tee -a "${REPORT_FILE}"
     restart_da
-    # First create reseller unlimited package
 
-    # Make sure admin account is created first (da_api_admin will check this)
-    echo "[${SCRIPT_NAME}]: Creating reseller unlimited package with the following name: ${DA_RESELLER_PACKAGE_NAME1} ..." 2>&1 | tee -a "${REPORT_FILE}"
-    echo "~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~"
-    _pause 2
-    echo "[${SCRIPT_NAME}]: Authenticating DA API for user for default admin user ..." 2>&1 | tee -a "${REPORT_FILE}"
+    local da_reseller_unames da_reseller_count count_r
 
-    da_api_admin "start+admin"
-    da_api_admin "create-reseller-package" "${DA_RESELLER_PACKAGE_NAME1}"
-    echo "~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~"
+    local this_da_reseller_uname this_da_reseller_password this_da_reseller_system_email \
+      this_da_reseller_mail_users this_da_reseller_mail_passwords this_da_reseller_domains \
+      this_da_reseller_ip_type this_da_reseller_package_name this_da_reseller_domain_enable_ssl
 
-    echo "[${SCRIPT_NAME}]: Checking if package name ${DA_RESELLER_PACKAGE_NAME1} was created ..." 2>&1 | tee -a "${REPORT_FILE}"
-    _pause 2
-    gc=$(grep -ic "${DA_RESELLER_PACKAGE_NAME1}" "${da_admin_packages_list}")
-    if [ "${gc}" -gt 0 ]; then
-      echo "[${SCRIPT_NAME}]: Found package ${DA_RESELLER_PACKAGE_NAME1}. Creating reseller ${DA_RESELLER_USERNAME1} account using default package name ${DA_RESELLER_PACKAGE_NAME1} ..." 2>&1 | tee -a "${REPORT_FILE}"
-      # Use admin account to create reseller
-      _pause 2
-      da_api_admin "create-reseller-account" "${DA_RESELLER_USERNAME1}" "${DA_RESELLER_EMAIL1}" "${DA_RESELLER_USERPASS1}" "${DA_RESELLER_DOMAIN1}" "${DA_RESELLER_PACKAGE_NAME1}" "${DA_RESELLER_IP_TYPE1}"
-      #da_api_admin "end+admin" # optional command, it will destroy session automatically
-    else
-      echo "[${SCRIPT_NAME}]: Warning, ${DA_RESELLER_PACKAGE_NAME1} does not exist in ${da_admin_packages_list}. Please inspect why!" 2>&1 | tee -a "${REPORT_FILE}"
-      _exit 1
-    fi
+    # Get reseller account information dynamically based on the config files:
+    da_reseller_unames="${!DA_RESELLER_USERNAME@}"
+    # Count the total number of reseller account
+    da_reseller_count=$(echo "${da_reseller_unames}" | wc -w)
+    # Debug variables:
+    echo "List of resellers information from config is: " 2>&1 | tee -a "${REPORT_FILE}"
+    echo "==---==---==" 2>&1 | tee -a "${REPORT_FILE}"
+    echo "${da_reseller_unames}" 2>&1 | tee -a "${REPORT_FILE}"
+    echo "Total reseller: ${da_reseller_count}" 2>&1 | tee -a "${REPORT_FILE}"
+    echo "==---==---==" 2>&1 | tee -a "${REPORT_FILE}"
+    echo "" 2>&1 | tee -a "${REPORT_FILE}"
+
+    count_r=1
+    while [[ ${count_r} -le ${da_reseller_count} ]]; do
+      echo "" 2>&1 | tee -a "${REPORT_FILE}"
+      echo "=========== start DEBUG value ========="
+      echo "Executing while loop: count=${count_r} while less than da_user_count ${da_reseller_count}"
+      typeset -n "this_da_reseller_uname"="DA_RESELLER_USERNAME${count_r}"
+      typeset -n "this_da_reseller_password"="DA_RESELLER_USERPASS${count_r}"
+      typeset -n "this_da_reseller_system_email"="DA_RESELLER_SYSTEM_EMAIL${count_r}"
+      typeset -n "this_da_reseller_mail_users"="DA_RESELLER_MAIL_USER${count_r}"
+      typeset -n "this_da_reseller_mail_passwords"="DA_RESELLER_MAIL_PASSWORD${count_r}"
+      typeset -n "this_da_reseller_domains"="DA_RESELLER_DOMAIN${count_r}"
+      typeset -n "this_da_reseller_ip_type"="DA_RESELLER_IP_TYPE${count_r}"
+      typeset -n "this_da_reseller_package_name"="DA_RESELLER_PACKAGE_NAME${count_r}"
+      typeset -n "this_da_reseller_domain_enable_ssl"="DA_RESELLER_DOMAIN_ENABLE_SSL${count_r}"
+      echo "this_da_reseller_uname = ${this_da_reseller_uname}" 2>&1 | tee -a "${REPORT_FILE}"
+      echo "this_da_reseller_password = ${this_da_reseller_password}" 2>&1 | tee -a "${REPORT_FILE}"
+      echo "this_da_reseller_system_email = ${this_da_reseller_system_email}" 2>&1 | tee -a "${REPORT_FILE}"
+      echo "this_da_reseller_mail_users = ${this_da_reseller_mail_users[*]}" 2>&1 | tee -a "${REPORT_FILE}"
+      echo "this_da_reseller_mail_passwords = ${this_da_reseller_mail_passwords[*]}" 2>&1 | tee -a "${REPORT_FILE}"
+      echo "this_da_reseller_domains = ${this_da_reseller_domains[*]}" 2>&1 | tee -a "${REPORT_FILE}"
+      echo "this_da_reseller_ip_type = ${this_da_reseller_ip_type}" 2>&1 | tee -a "${REPORT_FILE}"
+      echo "this_da_reseller_package_name = ${this_da_reseller_package_name}" 2>&1 | tee -a "${REPORT_FILE}"
+      echo "this_da_reseller_domain_enable_ssl = ${this_da_reseller_domain_enable_ssl}" 2>&1 | tee -a "${REPORT_FILE}"
+      echo "=========== end DEBUG value ===========" 2>&1 | tee -a "${REPORT_FILE}"
+      echo "" 2>&1 | tee -a "${REPORT_FILE}"
+      echo "Checking if all variables for ${this_da_reseller_uname} is set and not empty ..." 2>&1 | tee -a "${REPORT_FILE}"
+      _pause 1
+      if [ -z "${this_da_reseller_password}" ]; then
+        echo "[${SCRIPT_NAME}]: [Skipped]: Warning, reseller ${this_da_reseller_uname} doesn't have password set in config file. Please check configuration file" 2>&1 | tee -a "${REPORT_FILE}"
+        _exit 1
+      elif [ -z "${this_da_reseller_system_email}" ]; then
+        echo "[${SCRIPT_NAME}]: [Skipped]: Warning, reseller ${this_da_reseller_uname} doesn't have system email set in config file. Please check configuration file" 2>&1 | tee -a "${REPORT_FILE}"
+        _exit 1
+      elif [ -z "${this_da_reseller_mail_users}" ]; then
+        echo "[${SCRIPT_NAME}]: [Skipped]: Warning, reseller ${this_da_reseller_uname} doesn't have email inbox set in config file. Please check configuration file" 2>&1 | tee -a "${REPORT_FILE}"
+        _exit 1
+      elif [ -z "${this_da_reseller_mail_passwords}" ]; then
+        echo "[${SCRIPT_NAME}]: [Skipped]: Warning, reseller ${this_da_reseller_uname} doesn't have email password set in config file. Please check configuration file" 2>&1 | tee -a "${REPORT_FILE}"
+        _exit 1
+        # Just use a normal variable to check (even it is array)
+      elif [ -z "${this_da_reseller_domains}" ]; then
+        echo "[${SCRIPT_NAME}]: [Skipped]: Warning, reseller ${this_da_reseller_uname} doesn't have domain set in config file. Please check configuration file " 2>&1 | tee -a "${REPORT_FILE}"
+        _exit 1
+      elif [ ${#this_da_reseller_mail_users[@]} -ne ${#this_da_reseller_mail_passwords[@]} ]; then
+        echo "[${SCRIPT_NAME}]: [Skipped]: Warning, reseller ${this_da_reseller_uname} have mail users and mail passwords defined with different length of array" 2>&1 | tee -a "${REPORT_FILE}"
+        _exit 1
+      elif [ -z "${this_da_reseller_ip_type}" ]; then
+        echo "[${SCRIPT_NAME}]: [Skipped]: Warning, reseller ${this_da_reseller_uname} doesn't have ip type set in config file. Please check configuration file " 2>&1 | tee -a "${REPORT_FILE}"
+        _exit 1
+      elif [ -z "${this_da_reseller_package_name}" ]; then
+        echo "[${SCRIPT_NAME}]: [Skipped]: Warning, reseller ${this_da_reseller_uname} doesn't have package name set in config file. Please check configuration file " 2>&1 | tee -a "${REPORT_FILE}"
+        _exit 1
+      elif [ -z "${this_da_reseller_domain_enable_ssl}" ]; then
+        echo "[${SCRIPT_NAME}]: [Skipped]: Warning, user ${this_da_reseller_uname} doesn't have domain enable ssl set in config file. Please check configuration file " 2>&1 | tee -a "${REPORT_FILE}"
+        _exit 1
+      else
+        echo "[${SCRIPT_NAME}]: OK, reseller ${this_da_reseller_uname} has all variables set from config file: " 2>&1 | tee -a "${REPORT_FILE}"
+        # Debug
+        echo "${this_da_reseller_uname} | ${this_da_reseller_password} | ${this_da_reseller_system_email} | ${this_da_reseller_mail_users[*]} | ${this_da_reseller_domains[*]} | ${this_da_reseller_ip_type} |  ${this_da_reseller_package_name} | ${this_da_reseller_domain_enable_ssl}"
+
+        # Check if reseller package is created
+        # https://forum.directadmin.com/threads/server-migration-how-to-use-the-existing-configuration-during-setup.62937/
+        # https://forum.directadmin.com/threads/default-user-package-s-for-resellers.49156/
+
+        echo "[${SCRIPT_NAME}]: Checking if reseller package name ${this_da_reseller_package_name} was created by admin before ..." 2>&1 | tee -a "${REPORT_FILE}"
+        _pause 2
+        gc=$(grep -ic "${this_da_reseller_package_name}" "${da_reseller_packages_list}")
+        if [ "${gc}" -gt 0 ]; then
+
+          # The total domain count for this reseller
+          da_reseller_domain_count="${#this_da_reseller_domains[@]}"
+          # The first domain is used to create account (default domain for that reseller)
+          da_reseller_domain_first=$(echo "${this_da_reseller_domains[@]}" | awk '{ print $1 }')
+          echo "-=-=-=-=-=-=-=" 2>&1 | tee -a "${REPORT_FILE}"
+          echo "This reseller ${this_da_reseller_uname} has the following domain(s): " 2>&1 | tee -a "${REPORT_FILE}"
+          echo "${this_da_reseller_domains}" 2>&1 | tee -a "${REPORT_FILE}"
+          echo "Domain count: ${da_reseller_domain_count}" 2>&1 | tee -a "${REPORT_FILE}"
+          echo "The first domain is: ${da_reseller_domain_first}" 2>&1 | tee -a "${REPORT_FILE}"
+          echo "-=-=-=-=-=-=-=" 2>&1 | tee -a "${REPORT_FILE}"
+
+          # Use admin to create reseller account and its default domain:
+          echo "[${SCRIPT_NAME}]: Authenticating Directadmin API as a default admin (first admin account) ..." 2>&1 | tee -a "${REPORT_FILE}"
+          da_api_admin "start+admin"
+          echo "Creating reseller account ${this_da_reseller_uname} using the following details: "
+          echo "Username: ${this_da_reseller_uname} | Email: ${this_da_reseller_system_email} | Password: ${this_da_reseller_password} | Default (First) domain: ${da_reseller_domain_first} | Package selection: ${this_da_reseller_package_name}"
+          #_pause 2
+          echo "~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~" 2>&1 | tee -a "${REPORT_FILE}"
+          da_api_admin "create-reseller-account" "${this_da_reseller_uname}" "${this_da_reseller_system_email}" "${this_da_reseller_password}" "${da_reseller_domain_first}" "${this_da_reseller_package_name}" "${this_da_reseller_ip_type}"
+          echo "~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~" 2>&1 | tee -a "${REPORT_FILE}"
+
+          # Use each reseller account to enable its own email DKIM
+          echo "[${SCRIPT_NAME}]: Authenticating Directadmin API as reseller ${this_da_reseller_uname} ..." 2>&1 | tee -a "${REPORT_FILE}"
+          # Use reseller account to configure variable settings like DKIM or DNS
+          da_api_admin "start+${this_da_reseller_uname}+${this_da_reseller_password}"
+          echo "[${SCRIPT_NAME}]: Enabling email DKIM for the domain ${da_reseller_domain_first} ..." 2>&1 | tee -a "${REPORT_FILE}"
+          #_pause 2
+          echo "~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~" 2>&1 | tee -a "${REPORT_FILE}"
+          da_api_admin "enable-email-dkim" "${da_reseller_domain_first}"
+
+          # Get the DKIM DMARC and SPF record from Directadmin local DNS:
+          echo "Getting DKIM, DMARC and SPF from Directadmin local DNS ..." 2>&1 | tee -a "${REPORT_FILE}"
+          echo "~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~" 2>&1 | tee -a "${REPORT_FILE}"
+          dkim_val=$(da_api_admin "get-dns-zone" "${da_reseller_domain_first}" "x._domainkey+TXT+v=DKIM1+.value" | tail -n 1) || exit 1
+          dkim_val_count=$(echo "${dkim_val}" | wc -l)
+          dmarc_val=$(da_api_admin "get-dns-zone" "${da_reseller_domain_first}" "_dmarc+TXT+v=DMARC1+.value" | tail -n 1) || exit 1
+          dmarc_val_count=$(echo "${dmarc_val}" | wc -l)
+          spf_val=$(da_api_admin "get-dns-zone" "${da_reseller_domain_first}" "${da_reseller_domain_first}.+TXT+v=spf1+.value" | tail -n 1) || exit 1
+          spf_val_count=$(echo "${spf_val}" | wc -l)
+          echo "There is/are ${dkim_val_count} dkim value for this reseller domain ${da_reseller_domain_first}. First value is: ${dkim_val}" 2>&1 | tee -a "${REPORT_FILE}"
+          echo "There is/are ${dmarc_val_count} dmarc value for this reseller domain ${da_reseller_domain_first}. First value is: ${dmarc_val}" 2>&1 | tee -a "${REPORT_FILE}"
+          echo "There is/are ${spf_val_count} spf value for this reseller domain ${da_reseller_domain_first}. First value is: ${spf_val}" 2>&1 | tee -a "${REPORT_FILE}"
+          echo "~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~" 2>&1 | tee -a "${REPORT_FILE}"
+
+          if [ "${EXTERNAL_DNS_PROVIDER}" == "linode" ]; then
+            echo "[${SCRIPT_NAME}]: External DNS provider for domain ${da_reseller_domain_first} is set to linode [Using linode API ...]" 2>&1 | tee -a "${REPORT_FILE}"
+            echo "Deleting external DNS record on linode for domain ${da_reseller_domain_first} with the following details: "
+            echo "1) Name: x._domainkey | Type: TXT" 2>&1 | tee -a "${REPORT_FILE}"
+            #_pause 2
+            echo "-----" 2>&1 | tee -a "${REPORT_FILE}"
+            linode_api_admin "delete-dns-record" "${da_reseller_domain_first}" "x._domainkey" "TXT"
+            echo "-----" 2>&1 | tee -a "${REPORT_FILE}"
+            echo "2) Name: _dmarc | Type: TXT" 2>&1 | tee -a "${REPORT_FILE}"
+            #_pause 2
+            echo "-----" 2>&1 | tee -a "${REPORT_FILE}"
+            linode_api_admin "delete-dns-record" "${da_reseller_domain_first}" "_dmarc" "TXT" 2>&1 | tee -a "${REPORT_FILE}"
+            echo "-----" 2>&1 | tee -a "${REPORT_FILE}"
+            echo "3) Name: @ | Type: TXT" 2>&1 | tee -a "${REPORT_FILE}"
+            #_pause 2
+            echo "-----" 2>&1 | tee -a "${REPORT_FILE}"
+            linode_api_admin "delete-dns-record" "${da_reseller_domain_first}" "" "TXT" 2>&1 | tee -a "${REPORT_FILE}"
+            echo "-----" 2>&1 | tee -a "${REPORT_FILE}"
+            echo "" 2>&1 | tee -a "${REPORT_FILE}"
+            echo "End deleting DNS record on linode ======= " 2>&1 | tee -a "${REPORT_FILE}"
+
+            echo "Adding external DNS record on linode for domain ${da_reseller_domain_first} with the following details: "
+
+            echo "1) Name: x._domainkey | Value: ${dkim_val} | Type: TXT | TTL: 5" 2>&1 | tee -a "${REPORT_FILE}"
+            echo "" 2>&1 | tee -a "${REPORT_FILE}"
+            #_pause 2
+            echo "-----" 2>&1 | tee -a "${REPORT_FILE}"
+            linode_api_admin "add-dns-record" "${da_reseller_domain_first}" "TXT" "x._domainkey" "${dkim_val}" "5" 2>&1 | tee -a "${REPORT_FILE}"
+            echo "-----" 2>&1 | tee -a "${REPORT_FILE}"
+            echo "" 2>&1 | tee -a "${REPORT_FILE}"
+
+            echo "2) Name: _dmarc | Value: ${dmarc_val} | Type: TXT | TTL: 5" 2>&1 | tee -a "${REPORT_FILE}"
+            echo "" 2>&1 | tee -a "${REPORT_FILE}"
+            #_pause 2
+            echo "-----" 2>&1 | tee -a "${REPORT_FILE}"
+            linode_api_admin "add-dns-record" "${da_reseller_domain_first}" "TXT" "_dmarc" "${dmarc_val}" "5" 2>&1 | tee -a "${REPORT_FILE}"
+            echo "-----" 2>&1 | tee -a "${REPORT_FILE}"
+            echo "" 2>&1 | tee -a "${REPORT_FILE}"
+
+            echo "3) Name: ${da_reseller_domain_first} | Value: ${spf_val} | Type: TXT | TTL: 5" 2>&1 | tee -a "${REPORT_FILE}"
+            echo "" 2>&1 | tee -a "${REPORT_FILE}"
+            #_pause 2
+            echo "-----" 2>&1 | tee -a "${REPORT_FILE}"
+            linode_api_admin "add-dns-record" "${da_reseller_domain_first}" "TXT" "${da_reseller_domain_first}" "${spf_val}" "5" 2>&1 | tee -a "${REPORT_FILE}"
+            echo "-----" 2>&1 | tee -a "${REPORT_FILE}"
+            echo "" 2>&1 | tee -a "${REPORT_FILE}"
+
+          elif [ "${EXTERNAL_DNS_PROVIDER}" == "digitalocean" ]; then
+            echo "[${SCRIPT_NAME}]: External DNS provider for domain ${da_reseller_domain_first} is set to digitalocean [Using digitalocean API ...]" 2>&1 | tee -a "${REPORT_FILE}"
+            # Call digitalocean_api_admin
+          #elif other provider
+          elif [ "${EXTERNAL_DNS_PROVIDER}" == "local" ]; then
+            echo "[${SCRIPT_NAME}]: External DNS provider for domain ${da_reseller_domain_first} is set to local" 2>&1 | tee -a "${REPORT_FILE}"
+            # Do nothing because it's local DNS managed by Directadmin
+          fi
+
+          # This will be executed if reseller has more than 1 domains. We add the extra domains here and skipped the default domain:
+          if [ "${da_reseller_domain_count}" -gt 1 ]; then
+            echo "[${SCRIPT_NAME}]: This reseller ${this_da_reseller_uname} has ${da_reseller_domain_count} domain(s)" 2>&1 | tee -a "${REPORT_FILE}"
+            #sleep 1
+            echo ""
+            for extra_domain in "${this_da_reseller_domains[@]}"; do
+              # Don't add first domain, we did that before
+              if [ "${extra_domain}" == "${da_reseller_domain_first}" ]; then
+                echo "[${SCRIPT_NAME}]: Skipped adding the default domain: ${da_reseller_domain_first}"
+                #sleep 1
+                continue
+              fi
+
+              echo "[${SCRIPT_NAME}]: Creating extra domain ${extra_domain} for reseller ${this_da_reseller_uname} ..." 2>&1 | tee -a "${REPORT_FILE}"
+
+              #_pause 2
+              # Calling reseller authentication
+              echo "[${SCRIPT_NAME}]: Authenticating Directadmin API for reseller ${this_da_reseller_uname} ..." 2>&1 | tee -a "${REPORT_FILE}"
+              da_api_admin "start+${this_da_reseller_uname}+${this_da_reseller_password}"
+              echo "-----" 2>&1 | tee -a "${REPORT_FILE}"
+              da_api_admin "create-reseller-domain" "${extra_domain}"
+              echo "-----" 2>&1 | tee -a "${REPORT_FILE}"
+
+              echo "[${SCRIPT_NAME}]: Enabling email DKIM for extra domain ${extra_domain} for reseller ${this_da_reseller_uname} ..." 2>&1 | tee -a "${REPORT_FILE}"
+              #_pause 2
+              echo "-----" 2>&1 | tee -a "${REPORT_FILE}"
+              da_api_admin "enable-email-dkim" "${extra_domain}"
+              echo "-----" 2>&1 | tee -a "${REPORT_FILE}"
+              echo "Getting DKIM, DMARC and SPF from Directadmin local DNS ..." 2>&1 | tee -a "${REPORT_FILE}"
+              echo "~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~" 2>&1 | tee -a "${REPORT_FILE}"
+              # Make sure if duplicated entry found, just return 1 line with tail -n 1
+              dkim_val=$(da_api_admin "get-dns-zone" "${extra_domain}" "x._domainkey+TXT+v=DKIM1+.value" | tail -n 1) || exit 1
+              dkim_val_count=$(echo "${dkim_val}" | wc -l)
+              dmarc_val=$(da_api_admin "get-dns-zone" "${extra_domain}" "_dmarc+TXT+v=DMARC1+.value" | tail -n 1) || exit 1
+              dmarc_val_count=$(echo "${dmarc_val}" | wc -l)
+              spf_val=$(da_api_admin "get-dns-zone" "${extra_domain}" "${extra_domain}.+TXT+v=spf1+.value" | tail -n 1) || exit 1
+              spf_val_count=$(echo "${spf_val}" | wc -l)
+              echo "There is/are ${dkim_val_count} dkim value for this extra_domain ${extra_domain}. First value is: ${dkim_val}"
+              echo "There is/are ${dmarc_val_count} dmarc value for this extra_domain ${extra_domain}. First value is: ${dmarc_val}"
+              echo "There is/are ${spf_val_count} spf value for this extra_domain ${extra_domain}. First value is: ${spf_val}"
+              echo "~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~" 2>&1 | tee -a "${REPORT_FILE}"
+
+              if [ "${EXTERNAL_DNS_PROVIDER}" == "linode" ]; then
+                echo "[${SCRIPT_NAME}]: External DNS provider for domain ${extra_domain} is set to linode [Using linode API ...]" 2>&1 | tee -a "${REPORT_FILE}"
+                echo "Deleting external DNS record on linode for domain ${extra_domain} with the following details: "
+                echo "1) Name: x._domainkey | Type: TXT" 2>&1 | tee -a "${REPORT_FILE}"
+                echo "" 2>&1 | tee -a "${REPORT_FILE}"
+                #_pause 2
+                echo "-----" 2>&1 | tee -a "${REPORT_FILE}"
+                linode_api_admin "delete-dns-record" "${extra_domain}" "x._domainkey" "TXT"
+                echo "-----" 2>&1 | tee -a "${REPORT_FILE}"
+                echo "2) Name: _dmarc | Type: TXT" 2>&1 | tee -a "${REPORT_FILE}"
+                echo "" 2>&1 | tee -a "${REPORT_FILE}"
+                #_pause 2
+                echo "-----" 2>&1 | tee -a "${REPORT_FILE}"
+                linode_api_admin "delete-dns-record" "${extra_domain}" "_dmarc" "TXT" 2>&1 | tee -a "${REPORT_FILE}"
+                echo "-----" 2>&1 | tee -a "${REPORT_FILE}"
+                echo "3) Name: @ | Type: TXT" 2>&1 | tee -a "${REPORT_FILE}"
+                echo "" 2>&1 | tee -a "${REPORT_FILE}"
+                #_pause 2
+                echo "-----" 2>&1 | tee -a "${REPORT_FILE}"
+                linode_api_admin "delete-dns-record" "${extra_domain}" "" "TXT" 2>&1 | tee -a "${REPORT_FILE}"
+                echo "-----" 2>&1 | tee -a "${REPORT_FILE}"
+                echo "" 2>&1 | tee -a "${REPORT_FILE}"
+                echo "End deleting DNS record on linode ======= " 2>&1 | tee -a "${REPORT_FILE}"
+
+                echo "Adding external DNS record on linode for domain ${extra_domain} with the following details: "
+
+                echo "1) Name: x._domainkey | Value: ${dkim_val} | Type: TXT | TTL: 5" 2>&1 | tee -a "${REPORT_FILE}"
+                echo "" 2>&1 | tee -a "${REPORT_FILE}"
+                #_pause 2
+                echo "-----" 2>&1 | tee -a "${REPORT_FILE}"
+                linode_api_admin "add-dns-record" "${extra_domain}" "TXT" "x._domainkey" "${dkim_val}" "5" 2>&1 | tee -a "${REPORT_FILE}"
+                echo "-----" 2>&1 | tee -a "${REPORT_FILE}"
+                echo "" 2>&1 | tee -a "${REPORT_FILE}"
+
+                echo "2) Name: _dmarc | Value: ${dmarc_val} | Type: TXT | TTL: 5" 2>&1 | tee -a "${REPORT_FILE}"
+                echo "" 2>&1 | tee -a "${REPORT_FILE}"
+                #_pause 2
+                echo "-----" 2>&1 | tee -a "${REPORT_FILE}"
+                linode_api_admin "add-dns-record" "${extra_domain}" "TXT" "_dmarc" "${dmarc_val}" "5" 2>&1 | tee -a "${REPORT_FILE}"
+                echo "-----" 2>&1 | tee -a "${REPORT_FILE}"
+                echo "" 2>&1 | tee -a "${REPORT_FILE}"
+                echo "3) Name: ${extra_domain} | Value: ${spf_val} | Type: TXT | TTL: 5" 2>&1 | tee -a "${REPORT_FILE}"
+                echo "" 2>&1 | tee -a "${REPORT_FILE}"
+                #_pause 2
+                echo "-----" 2>&1 | tee -a "${REPORT_FILE}"
+                linode_api_admin "add-dns-record" "${extra_domain}" "TXT" "${extra_domain}" "${spf_val}" "5" 2>&1 | tee -a "${REPORT_FILE}"
+                echo "-----" 2>&1 | tee -a "${REPORT_FILE}"
+                echo "" 2>&1 | tee -a "${REPORT_FILE}"
+
+              elif [ "${EXTERNAL_DNS_PROVIDER}" == "digitalocean" ]; then
+                echo "[${SCRIPT_NAME}]: External DNS provider for domain ${extra_domain} is set to digitalocean [Using digitalocean API ...]" 2>&1 | tee -a "${REPORT_FILE}"
+                # Call digitalocean_api_admin
+              #elif other provider
+              elif [ "${EXTERNAL_DNS_PROVIDER}" == "local" ]; then
+                echo "[${SCRIPT_NAME}]: External DNS provider for domain ${extra_domain} is set to local" 2>&1 | tee -a "${REPORT_FILE}"
+                # Do nothing because it's local DNS managed by Directadmin
+              fi
+            done
+          fi
+        else
+          echo "[${SCRIPT_NAME}]: Warning, ${this_da_reseller_package_name} does not exist in ${da_reseller_packages_list}. Please inspect why!" 2>&1 | tee -a "${REPORT_FILE}"
+          _exit 1
+        fi
+      fi
+      ((count_r++))
+      echo "count_r is now: ${count_r}" 2>&1 | tee -a "${REPORT_FILE}"
+      #sleep 10
+    done
+    # Loop here END
 
     # Now we create user unlimited package
     # Make sure reseller account is created first (da_api_admin will check this)
@@ -3634,12 +3961,37 @@ function configure_da_accounts() {
     # Assign DA_USER_PACKAGE_NAME1 because it's the first package for user
     echo "[${SCRIPT_NAME}]: Creating user unlimited package with the following name: ${DA_USER_PACKAGE_NAME1} ..." 2>&1 | tee -a "${REPORT_FILE}"
     echo "~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~"
-    _pause 2
+    #_pause 2
     echo "[${SCRIPT_NAME}]: Authenticating DA API for user for default reseller user ..." 2>&1 | tee -a "${REPORT_FILE}"
-
     da_api_admin "start+reseller"
     da_api_admin "create-user-package" "${DA_USER_PACKAGE_NAME1}"
     echo "~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~"
+
+    check_finish_reboot "${FUNCNAME[0]}"
+  else
+    echo "[${SCRIPT_NAME}]: [Skipped]: ${FUNCNAME[0]} has ran before" 2>&1 | tee -a "${REPORT_FILE}"
+    echo "=~=~=~=~=~=~=~=~=~" 2>&1 | tee -a "${REPORT_FILE}"
+  fi
+}
+# This will create user accounts and domains
+function configure_da_user_accounts() {
+  # Manually create user account first
+  #rm -f "${CONF_PATH}/${FUNCNAME[0]}_executed"
+  if [ ! -f "${CONF_PATH}/${FUNCNAME[0]}_executed" ]; then
+    echo "[${SCRIPT_NAME}]: Executing ${FUNCNAME[0]} ..." 2>&1 | tee -a "${REPORT_FILE}"
+    local da_user_packages_list gc count #da_admin_packages_list
+    local da_user_unames                 #da_user_passwords da_user_emails da_user_domains da_user_package_names
+    local this_da_user_uname this_da_user_password this_da_user_system_email this_da_user_mail_users
+    local this_da_user_mail_passwords this_da_user_domains this_da_user_package_name this_da_user_domain_enable_ssl
+    local da_user_count
+    local dkim_val dmarc_val spf_val
+
+    da_user_packages_list="/usr/local/directadmin/data/users/${DA_RESELLER_USERNAME1}/packages.list"
+    # ALL API documentation: https://www.directadmin.com/search_versions.php?query=CMD_API
+    # Create CURL action for API: https://help.directadmin.com/item.php?id=580
+    # How to debug API: https://help.directadmin.com/item.php?id=356
+    # https://help.directadmin.com/item.php?id=293
+
     # Create user dynamically based on config files
     da_user_unames="${!DA_USER_USERNAME@}"
     da_user_count=$(echo "${da_user_unames}" | wc -w)
@@ -3705,7 +4057,7 @@ function configure_da_accounts() {
         # Debug
         echo "${this_da_user_uname} | ${this_da_user_password} | ${this_da_user_system_email} | ${this_da_user_domains} | ${this_da_user_package_name} | ${this_da_user_domain_enable_ssl}"
         echo "Checking user package ${this_da_user_package_name} ..."
-        _pause 2
+        #_pause 2
         gc=$(grep -ic "${this_da_user_package_name}" "${da_user_packages_list}")
         if [ "${gc}" -gt 0 ]; then
           echo "[${SCRIPT_NAME}]: [${SCRIPT_NAME}]: Found package ${this_da_user_package_name}" 2>&1 | tee -a "${REPORT_FILE}"
@@ -3723,14 +4075,14 @@ function configure_da_accounts() {
           echo "Creating user account ${this_da_user_uname} using the following details: "
           echo "Username: ${this_da_user_uname} | Email: ${this_da_user_system_email} | Password: ${this_da_user_password} | Default (First) domain: ${da_user_domain_first} | Package selection: ${this_da_user_package_name}"
           echo "~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~"
-          _pause 2
+          #_pause 2
           # Use reseller to create user account and its default domain:
           da_api_admin "start+reseller"
           da_api_admin "create-user-account" "${this_da_user_uname}" "${this_da_user_system_email}" "${this_da_user_password}" "${da_user_domain_first}" "${this_da_user_package_name}"
           echo "~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~"
           echo "[${SCRIPT_NAME}]: Enabling email DKIM for the domain ${da_user_domain_first} ..." 2>&1 | tee -a "${REPORT_FILE}"
           echo "~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~"
-          _pause 2
+          #_pause 2
           echo "[${SCRIPT_NAME}]: Authenticating DA API for user ${this_da_user_uname} ..." 2>&1 | tee -a "${REPORT_FILE}"
           # Use user account to configure variable settings like DKIM or DNS
           da_api_admin "start+${this_da_user_uname}+${this_da_user_password}"
@@ -3817,13 +4169,13 @@ function configure_da_accounts() {
           # This will be executed if user has more than 1 domains. We add the extra domains here and skipped the default domain:
           if [ "${da_user_domain_count}" -gt 1 ]; then
             echo "[${SCRIPT_NAME}]: This user ${this_da_user_uname} has more than 1 domains" 2>&1 | tee -a "${REPORT_FILE}"
-            sleep 2
+            #sleep 1
             echo ""
             for extra_domain in "${this_da_user_domains[@]}"; do
               # Don't add first domain, we did that before
               if [ "${extra_domain}" == "${da_user_domain_first}" ]; then
                 echo "[${SCRIPT_NAME}]: Skipped adding the default domain: ${da_user_domain_first}"
-                sleep 2
+                #sleep 1
                 continue
               fi
 
@@ -3932,13 +4284,108 @@ function configure_da_accounts() {
 
 }
 
-function configure_da_subdomains() {
+function configure_da_reseller_subdomains() {
+  if [ ! -f "${CONF_PATH}/${FUNCNAME[0]}_executed" ]; then
+    echo "[${SCRIPT_NAME}]: Executing ${FUNCNAME[0]} ..." 2>&1 | tee -a "${REPORT_FILE}"
+    local da_reseller_subdomains da_reseller_subdomains_count this_da_reseller_username this_da_reseller_userpass \
+      this_da_reseller_subdomains this_da_reseller_subdomains_count
+    local count_x count_n count_o sub_domain sub_domains_raw sub_domains root_domain
+    # Get list of all reseller subdomains
+    da_reseller_subdomains="${!DA_RESELLER_SUBDOMAIN@}"
+    # Count the total subdomains
+    da_reseller_subdomains_count=$(echo "${da_reseller_subdomains}" | wc -w)
+    # Debug:
+    echo "da_reseller_subdomains: ${da_reseller_subdomains}" 2>&1 | tee -a "${REPORT_FILE}"
+    echo "da_reseller_subdomains_count ${da_reseller_subdomains_count}" 2>&1 | tee -a "${REPORT_FILE}"
+    # initial value to loop
+    count_x=1
+    while [[ ${count_x} -le ${da_reseller_subdomains_count} ]]; do
+      echo "=~=~=~=~=~=~=~=~=~+~+~+~=~=~" 2>&1 | tee -a "${REPORT_FILE}"
+      echo "count_reseller_domain_loop = ${count_x}" 2>&1 | tee -a "${REPORT_FILE}"
+      echo "" 2>&1 | tee -a "${REPORT_FILE}"
+      typeset -n "this_da_reseller_username"="DA_RESELLER_USERNAME${count_x}"
+      typeset -n "this_da_reseller_userpass"="DA_RESELLER_USERPASS${count_x}"
+      typeset -n "this_da_reseller_subdomains"="DA_RESELLER_SUBDOMAIN${count_x}"
+
+      # Error checking:
+      if [ -z "${this_da_reseller_username}" ]; then
+        echo "[${SCRIPT_NAME}]: [Skipped]: Warning, no user name is set in config file for this reseller ${this_da_reseller_username}. Please check configuration file " 2>&1 | tee -a "${REPORT_FILE}"
+        _exit 1
+      elif [ -z "${this_da_reseller_userpass}" ]; then
+        echo "[${SCRIPT_NAME}]: [Skipped]: Warning, no user password is set in config file for this user ${this_da_reseller_username}. Please check configuration file " 2>&1 | tee -a "${REPORT_FILE}"
+        _exit 1
+      elif [ -z "${this_da_reseller_subdomains}" ]; then
+        echo "[${SCRIPT_NAME}]: [Skipped]: Warning, no user subdomains is set for this user ${this_da_reseller_username}. Please check configuration file " 2>&1 | tee -a "${REPORT_FILE}"
+        _exit 1
+      fi
+
+      # Debug:
+      echo "this_da_reseller_username: ${this_da_reseller_username}" 2>&1 | tee -a "${REPORT_FILE}"
+      echo "this_da_reseller_userpass: ${this_da_reseller_userpass}" 2>&1 | tee -a "${REPORT_FILE}"
+      echo "this_da_reseller_subdomains: ${this_da_reseller_subdomains[*]}" 2>&1 | tee -a "${REPORT_FILE}"
+      this_da_reseller_subdomains_count="${#this_da_reseller_subdomains[@]}"
+
+      count_n=0
+      while [ ${count_n} -le $((this_da_reseller_subdomains_count - 1)) ]; do
+        echo "------------------------" 2>&1 | tee -a "${REPORT_FILE}"
+        echo "Total count: ${count_n}" 2>&1 | tee -a "${REPORT_FILE}"
+
+        #sub_domain=$(echo "${this_da_reseller_subdomains[count_n]}" | awk -F'+' '{ print $1 }')
+        #root_domain=$(echo "${this_da_reseller_subdomains[count_n]}" | awk -F'+' '{ print $2 }')
+
+        root_domain=$(echo "${this_da_reseller_subdomains[count_n]}" | awk -F':' '{ print $1 }')
+        sub_domains_raw=$(echo "${this_da_reseller_subdomains[count_n]}" | awk -F':' '{ print $2 }')
+        # Debug
+
+        sub_domains=$(echo "${sub_domains_raw}" | awk -F'+' '{for (i=1;i<=NF;i++)print $i}')
+        count_o=0
+        for sub_domain in ${sub_domains}; do
+          echo "count_o: ${count_o}"
+          # Debug
+          echo "Sub_domain is: ${sub_domain}" 2>&1 | tee -a "${REPORT_FILE}"
+          echo "Root_domain is: ${root_domain}" 2>&1 | tee -a "${REPORT_FILE}"
+          echo "" 2>&1 | tee -a "${REPORT_FILE}"
+
+          # Now we got sub_domain and root_domain, call the da_api_admin:
+          # reseller and user share the same API
+          # da_api_admin "create-user-subdomain" "<root_domain>" "<subdomain>"
+          # Start the user login authentication:
+          da_api_admin "start+${this_da_reseller_username}+${this_da_reseller_userpass}"
+          da_api_admin "create-user-subdomain" "${root_domain}" "${sub_domain}"
+
+          # Also add subdomain for linode API here
+          #linode_api_admin "delete-dns-record" <domain_name> <record_name> <record_type>
+          linode_api_admin "delete-dns-record" "${root_domain}" "${sub_domain}" "A"
+          linode_api_admin "delete-dns-record" "${root_domain}" "${sub_domain}" "AAAA"
+
+          #linode_api_admin "add-dns-record" "maxibi.com" "TXT" "x._domainkey" "*i..2uiu1KJM@#9IU@J()!@IJI92" "5"
+          linode_api_admin "add-dns-record" "${root_domain}" "A" "${sub_domain}" "${IPV4_ADD0}" "5"
+          linode_api_admin "add-dns-record" "${root_domain}" "AAAA" "${sub_domain}" "${IPV6_ADD}" "5"
+          echo "" 2>&1 | tee -a "${REPORT_FILE}"
+
+          ((count_o++))
+        done
+        ((count_n++))
+      done
+
+      ((count_x++))
+    done
+
+    check_finish_reboot "${FUNCNAME[0]}"
+  else
+    echo "[${SCRIPT_NAME}]: [Skipped]: ${FUNCNAME[0]} has ran before" 2>&1 | tee -a "${REPORT_FILE}"
+    echo "=~=~=~=~=~=~=~=~=~" 2>&1 | tee -a "${REPORT_FILE}"
+  fi
+
+}
+
+function configure_da_user_subdomains() {
   #rm -f "${CONF_PATH}/${FUNCNAME[0]}_executed"
   if [ ! -f "${CONF_PATH}/${FUNCNAME[0]}_executed" ]; then
     echo "[${SCRIPT_NAME}]: Executing ${FUNCNAME[0]} ..." 2>&1 | tee -a "${REPORT_FILE}"
     local da_user_subdomains da_user_subdomains_count this_da_user_username this_da_user_userpass this_da_user_subdomains
     local this_da_user_subdomains_count
-    local count_x count_n sub_domain root_domain
+    local count_x count_n sub_domain sub_domains sub_domains_raw root_domain
     # Get list of all user subdomains
     da_user_subdomains="${!DA_USER_SUBDOMAIN@}"
     # Count the total subdomains
@@ -3984,28 +4431,38 @@ function configure_da_subdomains() {
       while [ ${count_n} -le $((this_da_user_subdomains_count - 1)) ]; do
         echo "------------------------" 2>&1 | tee -a "${REPORT_FILE}"
         echo "Total count: ${count_n}" 2>&1 | tee -a "${REPORT_FILE}"
-        sub_domain=$(echo "${this_da_user_subdomains[count_n]}" | awk -F'+' '{ print $1 }')
-        root_domain=$(echo "${this_da_user_subdomains[count_n]}" | awk -F'+' '{ print $2 }')
-        # Debug
-        echo "Sub_domain is: ${sub_domain}" 2>&1 | tee -a "${REPORT_FILE}"
-        echo "Root_domain is: ${root_domain}" 2>&1 | tee -a "${REPORT_FILE}"
-        echo "" 2>&1 | tee -a "${REPORT_FILE}"
 
-        # Now we got sub_domain and root_domain, call the da_api_admin:
-        # da_api_admin "create-user-subdomain" "<root_domain>" "<subdomain>"
-        # Start the user login authentication:
-        da_api_admin "start+${this_da_user_username}+${this_da_user_userpass}"
-        da_api_admin "create-user-subdomain" "${root_domain}" "${sub_domain}"
+        # sub_domain=$(echo "${this_da_user_subdomains[count_n]}" | awk -F'+' '{ print $1 }')
+        # root_domain=$(echo "${this_da_user_subdomains[count_n]}" | awk -F'+' '{ print $2 }')
 
-        # Also add subdomain for linode API here
+        root_domain=$(echo "${this_da_user_subdomains[count_n]}" | awk -F':' '{ print $1 }')
+        sub_domains_raw=$(echo "${this_da_user_subdomains[count_n]}" | awk -F':' '{ print $2 }')
 
-        #linode_api_admin "delete-dns-record" <domain_name> <record_name> <record_type>
-        linode_api_admin "delete-dns-record" "${root_domain}" "${sub_domain}" "A"
-        linode_api_admin "delete-dns-record" "${root_domain}" "${sub_domain}" "AAAA"
+        sub_domains=$(echo "${sub_domains_raw}" | awk -F'+' '{for (i=1;i<=NF;i++)print $i}')
+        count_o=0
+        for sub_domain in ${sub_domains}; do
+          echo "count_o: ${count_o}"
+          # Debug
+          echo "Sub_domain is: ${sub_domain}" 2>&1 | tee -a "${REPORT_FILE}"
+          echo "Root_domain is: ${root_domain}" 2>&1 | tee -a "${REPORT_FILE}"
+          # Now we got sub_domain and root_domain, call the da_api_admin:
+          # da_api_admin "create-user-subdomain" "<root_domain>" "<subdomain>"
+          # Start the user login authentication:
+          da_api_admin "start+${this_da_user_username}+${this_da_user_userpass}"
+          da_api_admin "create-user-subdomain" "${root_domain}" "${sub_domain}"
+          # Also add subdomain for linode API here
 
-        #linode_api_admin "add-dns-record" "maxibi.com" "TXT" "x._domainkey" "*i..2uiu1KJM@#9IU@J()!@IJI92" "5"
-        linode_api_admin "add-dns-record" "${root_domain}" "A" "${sub_domain}" "${IPV4_ADD0}" "5"
-        linode_api_admin "add-dns-record" "${root_domain}" "AAAA" "${sub_domain}" "${IPV6_ADD}" "5"
+          #linode_api_admin "delete-dns-record" <domain_name> <record_name> <record_type>
+          linode_api_admin "delete-dns-record" "${root_domain}" "${sub_domain}" "A"
+          linode_api_admin "delete-dns-record" "${root_domain}" "${sub_domain}" "AAAA"
+
+          #linode_api_admin "add-dns-record" "maxibi.com" "TXT" "x._domainkey" "*i..2uiu1KJM@#9IU@J()!@IJI92" "5"
+          linode_api_admin "add-dns-record" "${root_domain}" "A" "${sub_domain}" "${IPV4_ADD0}" "5"
+          linode_api_admin "add-dns-record" "${root_domain}" "AAAA" "${sub_domain}" "${IPV6_ADD}" "5"
+          echo "" 2>&1 | tee -a "${REPORT_FILE}"
+
+          ((count_o++))
+        done
 
         ((count_n++))
       done
@@ -4019,9 +4476,93 @@ function configure_da_subdomains() {
     echo "=~=~=~=~=~=~=~=~=~" 2>&1 | tee -a "${REPORT_FILE}"
   fi
 }
+function configure_da_reseller_emails() {
+
+  #rm -f "${CONF_PATH}/${FUNCNAME[0]}_executed"
+  if [ ! -f "${CONF_PATH}/${FUNCNAME[0]}_executed" ]; then
+    echo "[${SCRIPT_NAME}]: Executing ${FUNCNAME[0]} ..." 2>&1 | tee -a "${REPORT_FILE}"
+    local da_reseller_mail_users da_reseller_mail_users_count count_x
+    local this_da_reseller_username this_da_reseller_userpass this_da_reseller_mail_users \
+      this_da_reseller_mail_passwords this_da_reseller_mail_users_count this_da_reseller_mail_password_count
+    local count_n mail_user mail_domain
+    # Get all variables set for DA_RESELLER_MAIL_USER[index]:
+    da_reseller_mail_users="${!DA_RESELLER_MAIL_USER@}"
+    # Calculate the total for the total variable of DA_USER_MAIL_USER
+    da_reseller_mail_users_count=$(echo "${da_reseller_mail_users}" | wc -w)
+    # Debug:
+    echo "DA_RESELLER_MAIL_USERS: ${da_reseller_mail_users}"
+    echo "DA_RESELLER_MAIL_USERS_COUNT: ${da_reseller_mail_users_count}"
+    # Initial value to start looping
+    count_x=1
+    while [[ ${count_x} -le ${da_reseller_mail_users_count} ]]; do
+      echo "=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~="
+      echo "COUNT_MAIL_USER INDEX = ${count_x}"
+      echo ""
+      # Assign all variables from the config file as array index
+      typeset -n "this_da_reseller_username"="DA_RESELLER_USERNAME${count_x}"
+      typeset -n "this_da_reseller_userpass"="DA_RESELLER_USERPASS${count_x}"
+      typeset -n "this_da_reseller_mail_users"="DA_RESELLER_MAIL_USER${count_x}"
+      typeset -n "this_da_reseller_mail_passwords"="DA_RESELLER_MAIL_PASSWORD${count_x}"
+      # Error checking for missing variable values:
+      if [ -z "${this_da_reseller_username}" ]; then
+        echo "[${SCRIPT_NAME}]: [Skipped]: Warning, no user_name is set in config file for this reseller ${this_da_reseller_username}. Please check configuration file " 2>&1 | tee -a "${REPORT_FILE}"
+        _exit 1
+      elif [ -z "${this_da_reseller_userpass}" ]; then
+        echo "[${SCRIPT_NAME}]: [Skipped]: Warning, no user_password is set in config file for this reseller ${this_da_reseller_username}. Please check configuration file " 2>&1 | tee -a "${REPORT_FILE}"
+        _exit 1
+      elif [ -z "${this_da_reseller_mail_users}" ]; then
+        echo "[${SCRIPT_NAME}]: [Skipped]: Warning, no user_emails is set in config file for this reseller ${this_da_reseller_username}. Please check configuration file " 2>&1 | tee -a "${REPORT_FILE}"
+        _exit 1
+      elif [ -z "${this_da_reseller_mail_passwords}" ]; then
+        echo "[${SCRIPT_NAME}]: [Skipped]: Warning, no user_email_passwords is set in config file for this reseller ${this_da_reseller_username}. Please check configuration file " 2>&1 | tee -a "${REPORT_FILE}"
+        _exit 1
+      elif [ ${#this_da_reseller_mail_users[@]} -ne ${#this_da_reseller_mail_passwords[@]} ]; then
+        echo "[${SCRIPT_NAME}]: [Skipped]: Warning, mail users and mail passwords defined with different length of array" 2>&1 | tee -a "${REPORT_FILE}"
+        _exit 1
+      else
+        this_da_reseller_mail_users_count="${#this_da_reseller_mail_users[@]}"
+        this_da_reseller_mail_password_count="${#this_da_reseller_mail_passwords[@]}"
+        # Debug
+        echo "this_da_reseller_mail_users: ${this_da_reseller_mail_users[*]}"
+        echo "this_da_reseller_mail_passwords: ${this_da_reseller_mail_passwords[*]}"
+        echo "mail_reseller_count: ${this_da_reseller_mail_users_count}"
+        echo "mail_password_count: ${this_da_reseller_mail_password_count}"
+        count_n=0
+        while [ ${count_n} -le $((this_da_reseller_mail_users_count - 1)) ]; do
+          echo "=~=~=~=~+~Count: ${count_n}+~+~=~+~+~+~+"
+
+          mail_user=$(echo "${this_da_reseller_mail_users[count_n]}" | awk -F'@' '{ print $1 }')
+          mail_domain=$(echo "${this_da_reseller_mail_users[count_n]}" | awk -F'@' '{ print $2 }')
+          mail_password=${this_da_reseller_mail_passwords[count_n]}
+
+          echo "DA reseller_username: ${this_da_reseller_username}"
+          echo "DA reseller_userpass: ${this_da_reseller_userpass}"
+          echo "The full user email address: [${count_n}]: ${this_da_reseller_mail_users[count_n]}"
+          echo "The mail_username (no @domain.com): ${mail_user}"
+          echo "The mail_domain: ${mail_domain}"
+          echo "The mail_password:[${count_n}]: ${this_da_reseller_mail_passwords[count_n]}"
+          echo "=~=~=~=~+~+~+~=~+~+=~+~+=~+~+=~+~+=~+=~+~+"
+          # Now we got all variables for creating email:
+          # Call API here:
+          da_api_admin "start+${this_da_reseller_username}+${this_da_reseller_userpass}"
+          # Reseller and user share the same API
+          da_api_admin "create-user-email" "${mail_domain}" "${mail_user}" "${mail_password}" "0" "200"
+          ((count_n++))
+        done
+        ((count_x++))
+        echo "=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~="
+      fi
+    done
+    check_finish_reboot "${FUNCNAME[0]}"
+  else
+    echo "[${SCRIPT_NAME}]: [Skipped]: ${FUNCNAME[0]} has ran before" 2>&1 | tee -a "${REPORT_FILE}"
+    echo "=~=~=~=~=~=~=~=~=~" 2>&1 | tee -a "${REPORT_FILE}"
+  fi
+
+}
 
 # Creat email here (maybe everything should be configure in account)
-function configure_da_emails() {
+function configure_da_user_emails() {
   #rm -f "${CONF_PATH}/${FUNCNAME[0]}_executed"
   if [ ! -f "${CONF_PATH}/${FUNCNAME[0]}_executed" ]; then
     echo "[${SCRIPT_NAME}]: Executing ${FUNCNAME[0]} ..." 2>&1 | tee -a "${REPORT_FILE}"
@@ -4103,13 +4644,104 @@ function configure_da_emails() {
   fi
 
 }
+function configure_da_reseller_domain_ssl() {
+  # Here we configure SSL for specific domains we want based on the config variable: DA_RESELLER_DOMAIN_ENABLE_SSL{?}
+  # Where Domain can have 1 or more
+  #rm -f "${CONF_PATH}/${FUNCNAME[0]}_executed"
+  if [ ! -f "${CONF_PATH}/${FUNCNAME[0]}_executed" ]; then
+    echo "[${SCRIPT_NAME}]: Executing ${FUNCNAME[0]} ..." 2>&1 | tee -a "${REPORT_FILE}"
+    local da_reseller_ssl_sub_names da_reseller_ssl_sub_names_count
+    local this_da_reseller_uname this_da_reseller_userpass this_da_reseller_domain_enable_ssl \
+      this_da_reseller_ssl_sub_names
+    # Get all the reseller ssl_sub_names
+    da_reseller_ssl_sub_names="${!DA_RESELLER_SSL_SUB_NAME@}"
+    # Get the total count for reseller ssl_sub_names
+    da_reseller_ssl_sub_names_count=$(echo "${da_reseller_ssl_sub_names}" | wc -w)
 
-function configure_da_domain_ssl() {
+    count_x=1
+    while [[ ${count_x} -le ${da_reseller_ssl_sub_names_count} ]]; do
+      echo ""
+      echo "===== Loop count: ${count_x} ========="
+      typeset -n "this_da_reseller_username"="DA_RESELLER_USERNAME${count_x}"
+      typeset -n "this_da_reseller_userpass"="DA_RESELLER_USERPASS${count_x}"
+      typeset -n "this_da_reseller_domain_enable_ssl"="DA_RESELLER_DOMAIN_ENABLE_SSL${count_x}"
+      typeset -n "this_da_reseller_ssl_sub_names"="DA_RESELLER_SSL_SUB_NAME${count_x}"
+
+      echo "this_da_reseller_username: ${this_da_reseller_username}"
+      echo "this_da_reseller_userpass: ${this_da_reseller_userpass}"
+      echo "this_da_reseller_domain_enable_ssl: ${this_da_reseller_domain_enable_ssl}"
+      echo "this_da_reseller_ssl_sub_names: ${this_da_reseller_ssl_sub_names[*]}"
+      this_da_reseller_ssl_sub_names_count=${#this_da_reseller_ssl_sub_names[@]}
+      echo "=========================================="
+
+      if [[ ${this_da_reseller_domain_enable_ssl} == "yes" ]]; then
+        echo ""
+        echo "OK, This reseller is set to enable SSL"
+        count_n=0
+        while [ ${count_n} -le $((this_da_reseller_ssl_sub_names_count - 1)) ]; do
+          echo ""
+
+          ssl_provider=$(echo "${this_da_reseller_ssl_sub_names[count_n]}" | awk -F':' '{ print $1 }')
+          ssl_domain=$(echo "${this_da_reseller_ssl_sub_names[count_n]}" | awk -F':' '{ print $2 }')
+          ssl_subdomains_raw=$(echo "${this_da_reseller_ssl_sub_names[count_n]}" | awk -F':' '{ print $3 }')
+          # Debug
+          echo "==============---count_n = ${count_n} ---==============="
+          echo "SSL_PROVIDER: ${ssl_provider}"
+          echo "SSL_DOMAIN: ${ssl_domain}"
+          echo "SSL_SUBDOMAINS_RAW: ${ssl_subdomains_raw}"
+
+          ssl_subdomains=$(echo "${ssl_subdomains_raw}" | awk -F'+' '{for (i=0;i<=NF;i++)print $i}')
+          count_o=0
+          le_select_query=""
+          for ssl_subdomain in ${ssl_subdomains}; do
+            if [ ${count_o} = 0 ]; then
+              le_select[${count_o}]="${ssl_domain}"
+              ls="le_select${count_o}=${le_select[${count_o}]}"
+            else
+              le_select[${count_o}]="${ssl_subdomain}.${ssl_domain}"
+              ls="&le_select${count_o}=${le_select[${count_o}]}"
+            fi
+            le_select_query="${le_select_query}${ls}"
+            ((count_o++))
+          done
+
+          echo "LE_SELECT_QUERY: ${le_select_query}"
+          echo "================-------------------======================="
+          echo ""
+          # Now we got all variables. Call API here:
+          # da_api_admin "request-domain-ssl" <provider> <root_domain> <keysize> <encryption> <ssl_sub_domains_query>
+          # Seems like DA admin or owner level also can use this authentication to request certificate for user (I will verify this again)
+          da_api_admin "start+${this_da_reseller_username}+${this_da_reseller_userpass}"
+          # Most secure key now is secp521r1 and sha256
+          echo "Requesting SSL for domain ${ssl_domain} with the following query: ${le_select_query}"
+          echo "This might take sometimes ... (please wait)"
+          da_api_admin "request-domain-ssl" "${ssl_provider}" "${ssl_domain}" "secp521r1" "sha256" "${le_select_query}"
+          ((count_n++))
+        done
+
+      elif [[ ${this_da_user_domain_enable_ssl} == "no" ]]; then
+        echo "Warning This user is set to not enable SSL. Do nothing for this"
+      fi
+      echo ""
+      ((count_x++))
+
+    done
+    check_finish_reboot "${FUNCNAME[0]}"
+  else
+    echo "[${SCRIPT_NAME}]: [Skipped]: ${FUNCNAME[0]} has ran before" 2>&1 | tee -a "${REPORT_FILE}"
+    echo "=~=~=~=~=~=~=~=~=~" 2>&1 | tee -a "${REPORT_FILE}"
+  fi
+
+}
+function configure_da_user_domain_ssl() {
   # Here we configure SSL for specific domains we want based on the config variable: DA_USER_DOMAIN_ENABLE_SSL{?}
   # Where Domain can have 1 or more
   #rm -f "${CONF_PATH}/${FUNCNAME[0]}_executed"
   if [ ! -f "${CONF_PATH}/${FUNCNAME[0]}_executed" ]; then
     echo "[${SCRIPT_NAME}]: Executing ${FUNCNAME[0]} ..." 2>&1 | tee -a "${REPORT_FILE}"
+    local da_user_ssl_sub_names da_user_ssl_sub_names_count this_da_user_username this_da_user_userpass \
+      this_da_user_domain_enable_ssl this_da_user_ssl_sub_names this_da_user_ssl_sub_names_count
+    local ssl_provider ssl_domain ssl_subdomains_raw le_select_query le_s count_o count_n count_x
     # Get all the user ssl_sub_names
     da_user_ssl_sub_names="${!DA_USER_SSL_SUB_NAME@}"
     # Get the total count for user ssl_sub_names
@@ -4153,12 +4785,12 @@ function configure_da_domain_ssl() {
           for ssl_subdomain in ${ssl_subdomains}; do
             if [ ${count_o} = 0 ]; then
               le_select[${count_o}]="${ssl_domain}"
-              ls="le_select${count_o}=${le_select[${count_o}]}"
+              le_s="le_select${count_o}=${le_select[${count_o}]}"
             else
               le_select[${count_o}]="${ssl_subdomain}.${ssl_domain}"
-              ls="&le_select${count_o}=${le_select[${count_o}]}"
+              le_s="&le_select${count_o}=${le_select[${count_o}]}"
             fi
-            le_select_query="${le_select_query}${ls}"
+            le_select_query="${le_select_query}${le_s}"
             ((count_o++))
           done
           echo "---------------"
@@ -4208,7 +4840,7 @@ test1() {
 }
 CTRL_C_COUNT=0
 # IF SCRIPT EXIT UNSUCCESSFULLY, THEN WE CALL cleanup function
-_trap_with_args cleanup QUIT INT TERM EXIT
+_traps _trap_cleanup QUIT INT TERM EXIT
 SCRIPT_NAME=$(basename -- "$0")
 SCRIPT_PATH="$(dirname "$(readlink -f "$0")")"
 DATE_BIN=$(command -v date)
@@ -4413,29 +5045,46 @@ if [ "${INSTALL_TYPE}" == "DIRECTADMIN" ]; then
   configure_da_sql  #OK
   #exit 1
   configure_da_mail #OK but need to test again
-  # exit 1
+  #exit 1
   configure_da_ftp
   #exit 1
   configure_nginx_apache
-  # exit 1
+  #exit 1
   configure_web_apps_html
   #exit 1
   build_da_custom_conf
   #exit 1
   harden_da
   #exit 1
-  configure_admin_accounts
-  #exit 1
-  # After creating admin accounts, we configure dns template before creating user accounts so they can use new DNS template
+  # we configure dns template before creating admin, reseller and user accounts so they can use new DNS template
   configure_da_dns_templates
   #exit 1
-  configure_da_accounts
+  #rm -rf "${CONF_PATH}/configure_da_admin_accounts_executed"
+  configure_da_admin_accounts
   #exit 1
-  configure_da_subdomains
+  #rm -rf "${CONF_PATH}/configure_da_reseller_accounts_executed"
+  configure_da_reseller_accounts
   #exit 1
-  configure_da_emails
+  #rm -rf "${CONF_PATH}/configure_da_reseller_subdomains_executed"
+  configure_da_reseller_subdomains
   #exit 1
-  configure_da_domain_ssl
+  #rm -rf "${CONF_PATH}/configure_da_reseller_emails_executed"
+  configure_da_reseller_emails
+  #exit 1
+  #rm -rf "${CONF_PATH}/configure_da_reseller_domain_ssl_executed"
+  #configure_da_reseller_domain_ssl
+  #exit 1
+  #rm -rf "${CONF_PATH}/configure_da_user_accounts_executed"
+  configure_da_user_accounts
+  #exit 1
+  #rm -rf "${CONF_PATH}/configure_da_user_subdomains_executed"
+  configure_da_user_subdomains
+  #exit 1
+  #rm -rf "${CONF_PATH}/configure_da_user_emails_executed"
+  configure_da_user_emails
+  #exit 1
+  #rm -rf "${CONF_PATH}/configure_da_user_domain_ssl_executed"
+  configure_da_user_domain_ssl
   #exit 1
   configure_da_memcached
   #exit 1

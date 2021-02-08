@@ -45,13 +45,18 @@ DA_ADMIN_EMAIL1="admin@sofibox.com"
 # This is DA main reseller. Create at least one reseller here (cannot use '+' for password)
 DA_RESELLER_USERNAME1="da_reseller"
 DA_RESELLER_USERPASS1=*long-secured-password*"
-DA_RESELLER_EMAIL1="webmaster@sofibox.com"
+DA_RESELLER_SYSTEM_EMAIL1="webmaster@sofibox.com"
+DA_RESELLER_MAIL_USER1=("webmaster@sofibox.com" "info@sofibox.com")
+DA_RESELLER_MAIL_PASSWORD1=("A*longemailpass" "BlongemailPass*")
 # This is the main reseller package
 DA_RESELLER_PACKAGE_NAME1="RESELLER_UNLIMITED"
 # This is different from BOX_DOMAIN
-DA_RESELLER_DOMAIN1="sofibox.com"
+DA_RESELLER_DOMAIN1=("sofibox.com")
+DA_RESELLER_SUBDOMAIN1=("sofibox.com:sales+login+secure")
 # shared or assign - If shared, domain will use the server's main ip. assign will use one of the reseller's ips
 DA_RESELLER_IP_TYPE1="shared"
+DA_RESELLER_DOMAIN_ENABLE_SSL1="yes"
+DA_RESELLER_SSL_SUB_NAME1=("letsencrypt:sofibox.com:www+ftp+mail+pop+smtp+sales+secure+login")
 # === DA reseller end ===
 
 # === DA user start ===
@@ -73,7 +78,7 @@ DA_USER_DOMAIN1=("maxibi.com")
 # because there is no easy way to determine root domain when it has long subdomains due to huge number of TLD
 # and those TLD names need to be maintained frequently especially from https://publicsuffix.org/
 # you can declare multi subdomains like sub1.sub2.sub3.sub4.sub5+maxibi.com
-DA_USER_SUBDOMAIN1=("sales+maxibi.com" "login+maxibi.com" "sub1.sub2+maxibi.com")
+DA_USER_SUBDOMAIN1=("maxibi.com:sales+login")
 # user package name, make sure this package name is created first by reseller (the code will check for you)
 DA_USER_PACKAGE_NAME1="USER_UNLIMITED"
 # enable/disable ssl certificate for all domains for this user enable="yes", disable="no"

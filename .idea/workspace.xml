@@ -10,9 +10,8 @@
     <select />
   </component>
   <component name="ChangeListManager">
-    <list default="true" id="113c828c-9a32-4b24-ab1e-978ce50c6320" name="Default Changelist" comment="Add URL to sofibox.com">
+    <list default="true" id="113c828c-9a32-4b24-ab1e-978ce50c6320" name="Default Changelist" comment="Remove setup data and clear bash history automatically after 120 seconds after installation.">
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/maxisetup" beforeDir="false" afterPath="$PROJECT_DIR$/maxisetup" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -100,6 +99,7 @@
       <workItem from="1612563031331" duration="1107000" />
       <workItem from="1612595289583" duration="775000" />
       <workItem from="1612629728941" duration="375000" />
+      <workItem from="1612691163233" duration="82000" />
     </task>
     <task id="LOCAL-00001" summary="Initial release from beta Version 0.3.2.7-beta">
       <created>1610639956771</created>
@@ -304,7 +304,14 @@
       <option name="project" value="LOCAL" />
       <updated>1612689883995</updated>
     </task>
-    <option name="localTasksCounter" value="30" />
+    <task id="LOCAL-00030" summary="Remove setup data and clear bash history automatically after 120 seconds after installation.">
+      <created>1612690763741</created>
+      <option name="number" value="00030" />
+      <option name="presentableId" value="LOCAL-00030" />
+      <option name="project" value="LOCAL" />
+      <updated>1612690763741</updated>
+    </task>
+    <option name="localTasksCounter" value="31" />
     <servers />
   </component>
   <component name="TypeScriptGeneratedFilesManager">
@@ -323,7 +330,6 @@
     <option name="oldMeFiltersMigrated" value="true" />
   </component>
   <component name="VcsManagerConfiguration">
-    <MESSAGE value="Fixed maxiperm wrong binary name from 'maxiperm' to 'perm'&#10;Fixed awk not display result due to missing awk binary. So, added gawk requirement for maxicata and other scripts&#10;added configure_maxicode_pre function to install pre-requisite components for all maxicode" />
     <MESSAGE value="Initial release alpha version v0.1 of maxida (MaxiDA) to manage directadmin functionalities and APIs&#10;Add new function to create reseller package using API" />
     <MESSAGE value="Add API for creating reseller account&#10;Add missing file maxida.env for maxida script" />
     <MESSAGE value="Change reboot order before requesting SSL for Directadmin (Disable reboot after installing CSF)" />
@@ -348,6 +354,7 @@
     <MESSAGE value="Added maxicloud installation." />
     <MESSAGE value="Add the ability to create subdomains for a domain.&#10;&#10;The config file has new variable called: DA_USER_SUBDOMAIN[index]&#10;&#10;Example:&#10;# Format: &lt;subdomain1.subdomain2&gt;+&lt;rootdomain&gt;&#10;# Use plus '+' instead of dot '.'&#10;# because there is no easy way to determine root domain when it has long subdomains due to huge number of TLD&#10;# and those TLD names need to be maintained frequently especially from https://publicsuffix.org/&#10;# you can declare multi subdomains like sub1.sub2.sub3.sub4.sub5+maxibi.com&#10;&#10;DA_USER_SUBDOMAIN1=(&quot;sales+maxibi.com&quot; &quot;login+maxibi.com&quot; &quot;sub1.sub2+maxibi.com&quot; &quot;sub1.sub2+test.com.my&quot;)&#10;&#10;This will create subdomain of sales, login and sub1.sub2 for the domain maxibi.com AND sub1.sub2 for the domain test.com.my" />
     <MESSAGE value="Add URL to sofibox.com" />
-    <option name="LAST_COMMIT_MESSAGE" value="Add URL to sofibox.com" />
+    <MESSAGE value="Remove setup data and clear bash history automatically after 120 seconds after installation." />
+    <option name="LAST_COMMIT_MESSAGE" value="Remove setup data and clear bash history automatically after 120 seconds after installation." />
   </component>
 </project>
