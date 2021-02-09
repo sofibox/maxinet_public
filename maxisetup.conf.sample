@@ -77,8 +77,8 @@ DA_USER_DOMAIN1=("maxibi.com")
 # Use plus '+' instead of dot '.'
 # because there is no easy way to determine root domain when it has long subdomains due to huge number of TLD
 # and those TLD names need to be maintained frequently especially from https://publicsuffix.org/
-# you can declare multi subdomains like sub1.sub2.sub3.sub4.sub5+maxibi.com
-DA_USER_SUBDOMAIN1=("maxibi.com:sales+login")
+# you can declare multi subdomains like maxibi.com:sub1.sub2.sub3.sub4.sub5
+DA_USER_SUBDOMAIN1=("maxibi.com:sales+login+sub1.sub2.sub3")
 # user package name, make sure this package name is created first by reseller (the code will check for you)
 DA_USER_PACKAGE_NAME1="USER_UNLIMITED"
 # enable/disable ssl certificate for all domains for this user enable="yes", disable="no"
@@ -123,15 +123,16 @@ DA_LICENSE_ID="123456"
 DA_PORT="1192"
 DA_MODSECURITY_RULESET="comodo" # or owasp
 CB_WEB_SERVER_SOFTWARE="nginx_apache"
-ROUNDCUBE_CUSTOM_NAME="MyAwesomeMail"
 SETUP_DA_HOST_SSL="yes" # or "no"
 # When enable secure the custom directory with password
 SECURE_HTTPASSWD_LOGIN_ROUTE="yes"
 # Create phpmyadmin custom route here instead of using /pma, begin with /: eg /dbx123a.
+PHPMYADMIN_CUSTOM_NAME="MY Awesome Database"
 PHPMYADMIN_LOGIN_ROUTE="/dbarea51"
 HTTPASSWD_PHPMYADMIN_USERNAME="dbagent007"
 HTTPASSWD_PHPMYADMIN_PASS="*long-secured-password*"
 # Create roundcube custom route here instead of using /roundcube, begin with /: eg /mailx123
+ROUNDCUBE_CUSTOM_NAME="My Awesome Mail"
 ROUNDCUBE_LOGIN_ROUTE="/mailarea51"
 HTTPASSWD_ROUNDCUBE_USERNAME="mailagent007"
 HTTPASSWD_ROUNDCUBE_PASS="*long-secured-password*"
