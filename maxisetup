@@ -1,7 +1,7 @@
 #!/bin/bash
 # =~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~
 # Author: Arafat Ali Email: arafat@sofibox.com
-# Version 0.3.7.4-beta
+# Version 0.3.7.6-beta
 # This is an initial server hardening script for CentOS and Debian.
 # Compatible 100% with Directadmin. Supported OS: CentOS + Debian (Planned on FreeBSD)
 # You can choose to install as the other stack server such as LEMP, Laravel etc defined in config file (TODO)
@@ -89,6 +89,12 @@ function get_linux_os() {
     echo "${distro_version}"
   fi
 
+}
+function get_rnd_alpha() {
+  local length
+  length="$1"
+  tr -dc A-Za-z </dev/urandom | head -c "${length}"
+  echo ''
 }
 
 # This function will pause the current running terminal
@@ -498,7 +504,7 @@ function da_api_admin() {
   #echo "Continuing in 2 seconds ..."
   #sleep 2
   local api_username api_password
-  local command data method filter_cmd #decoded_status
+  local command data method filter_cmd response retval #decoded_status
   local action username email password
   local owner_main_auth owner_new_list admin_new_list admin_list reseller_new_list admin_ori_list admin_main_auth
   local reseller_main_auth user_main_auth user_new_list
@@ -843,6 +849,25 @@ function da_api_admin() {
         _exit 1
       fi
       method="POST"
+
+    # da_api_admin "set-da-logo" <skin_name> <logo_mode> <path_to_logo.png>
+    # skin_name: evolution, enhanced | logo_mode: dark-logo, default-logo
+    # eg: da_api_admin "set-da-logo" evolution dark-logo /home/tmp/logo_dark.png
+    elif [ "${action}" == "set-da-logo" ]; then
+      local skin_name logo_mode logo_path
+      shift
+      skin_name="$1"
+      logo_mode="$2"
+      logo_path="$3"
+      if [ "${logo_mode}" == "default-logo" ]; then
+        logo_mode="1"
+      else
+        logo_mode="2"
+      fi
+      command="CMD_SKINS"
+
+      data="action=upload_logo&file=${logo_path}&json=yes&name=${skin_name}&which=${logo_mode}"
+      method="POST"
     else
       echo "[${SCRIPT_NAME}]: The API action '${action}' does not exist!" 2>&1 | tee -a "${REPORT_FILE}"
       _exit 1
@@ -853,7 +878,7 @@ function da_api_admin() {
     echo "[${SCRIPT_NAME}]: Status: " 2>&1 | tee -a "${REPORT_FILE}"
     echo "=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~" 2>&1 | tee -a "${REPORT_FILE}"
     echo "" 2>&1 | tee -a "${REPORT_FILE}"
-    curl --silent --request "${method}" --user "${api_username}":"${api_password}" --data "${data}" "${ssl}://${BOX_HOSTNAME_FQDN}:${DA_PORT}/${command}" | tr -d '\0'
+    curl --silent --max-time 15 --request "${method}" --user "${api_username}":"${api_password}" --data "${data}" "${ssl}://${BOX_HOSTNAME_FQDN}:${DA_PORT}/${command}" | tr -d '\0'
     echo "=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~" 2>&1 | tee -a "${REPORT_FILE}"
     echo "" 2>&1 | tee -a "${REPORT_FILE}"
 
@@ -3582,17 +3607,63 @@ configure_da_dns_templates() {
 }
 
 # Configure DA skins like set the time format, set logo (focus on Evolution Skin)
-# No complete API yet, waiting for DA version 1.61.6 stable release
-function configure_da_skins() {
+function configure_da_admin_skins() {
   # We can customize this skin evolution based on this file /usr/local/directadmin/data/users/username/skin_customization/evolution/user_options.json
   if [ ! -f "${CONF_PATH}/${FUNCNAME[0]}_executed" ]; then
     echo "[${SCRIPT_NAME}]: Executing ${FUNCNAME[0]} ..." 2>&1 | tee -a "${REPORT_FILE}"
+    # 1) Configure Setting
+    # Pending
+
+    # 2) configure the Skin Options from menu
+    # a) Set logo
+    # There is no official documentation how to upload a directadmin logo using API.
+    # Da needs this home temporary folder to hold upload file
+    mkdir -p /home/tmp
+    default_logo_file="${DATA_PATH}/maxisetup/storage/os/${DISTRO_ID}/usr/local/directadmin/logo/default_logo.png"
+    # The upload file need to have random string append to it else it won't work:
+    # https://forum.directadmin.com/threads/cmd_api_skins-upload-skin-logo-via-curl-issue.63127/
+    # I use random length of 6 because I saw DA always generated length of 6 when append this random string to a file
+    default_logo_file_home="/home/tmp/logo.png$(get_rnd_alpha 6)"
+    dark_mode_logo_file="${DATA_PATH}/maxisetup/storage/os/${DISTRO_ID}/usr/local/directadmin/logo/dark_mode_logo.png"
+    dark_mode_logo_file_home="/home/tmp/logo2.png$(get_rnd_alpha 6)"
+
+    # Copy the logo files from storage data to the temporary home directory
+    cp "${default_logo_file}" "${default_logo_file_home}"
+    cp "${dark_mode_logo_file}" "${dark_mode_logo_file_home}"
+
+    # The files that need to be uploaded need to have nobody permission (else it wont work)
+    chown nobody:nogroup "${default_logo_file_home}"
+    chown nobody:nogroup "${dark_mode_logo_file_home}"
+
+    da_api_admin "start+owner"
+
+    if [ -f "${default_logo_file_home}" ]; then
+      da_api_admin "set-da-logo" evolution default-logo "${default_logo_file_home}"
+    else
+      echo "[${SCRIPT_NAME}]: Warning, file logo is missing from ${default_logo_file_home}" 2>&1 | tee -a "${REPORT_FILE}"
+      _exit 1
+    fi
+
+    if [ -f "${dark_mode_logo_file_home}" ]; then
+      da_api_admin "set-da-logo" evolution dark-logo "${dark_mode_logo_file_home}"
+    else
+      echo "[${SCRIPT_NAME}]: Warning, file logo is missing from ${dark_mode_logo_file_home}" 2>&1 | tee -a "${REPORT_FILE}"
+      _exit 1
+    fi
+
+    # Remove both temporary logo from the home directory
+    rm -f "${default_logo_file_home}"
+    rm -f "${dark_mode_logo_file_home}"
 
     check_finish_reboot "${FUNCNAME[0]}"
   else
     echo "[${SCRIPT_NAME}]: [Skipped]: ${FUNCNAME[0]} has ran before" 2>&1 | tee -a "${REPORT_FILE}"
     echo "=~=~=~=~=~=~=~=~=~" 2>&1 | tee -a "${REPORT_FILE}"
   fi
+}
+
+function configure_da_admin_admin_settings() {
+  :
 }
 
 # Create any extra admin accounts here
@@ -5072,7 +5143,8 @@ if [ "${INSTALL_TYPE}" == "DIRECTADMIN" ]; then
   configure_da_reseller_emails
   #exit 1
   #rm -rf "${CONF_PATH}/configure_da_reseller_domain_ssl_executed"
-  #configure_da_reseller_domain_ssl
+  # Don't worry if some domains are not able to have SSL because of the propagation problem using external DNS
+  configure_da_reseller_domain_ssl
   #exit 1
   #rm -rf "${CONF_PATH}/configure_da_user_accounts_executed"
   configure_da_user_accounts
@@ -5084,13 +5156,16 @@ if [ "${INSTALL_TYPE}" == "DIRECTADMIN" ]; then
   configure_da_user_emails
   #exit 1
   #rm -rf "${CONF_PATH}/configure_da_user_domain_ssl_executed"
+  # Don't worry if some domains are not able to have SSL because of the propagation problem using external DNS
   configure_da_user_domain_ssl
   #exit 1
   configure_da_memcached
   #exit 1
   configure_da_geoip
   #exit 1
-  configure_da_skins
+  # First configure the admin skins
+  #rm -rf "${CONF_PATH}/configure_da_admin_skins_executed"
+  configure_da_admin_skins
   #exit 1
 fi
 #exit 1
