@@ -1,7 +1,7 @@
 #!/bin/bash
 # =~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~
 # Author: Arafat Ali Email: arafat@sofibox.com
-# Version 0.3.7.7-beta
+# Version 0.3.7.8-beta
 # This is an initial server hardening script for CentOS and Debian.
 # Compatible 100% with Directadmin. Supported OS: CentOS + Debian (Planned on FreeBSD)
 # You can choose to install as the other stack server such as LEMP, Laravel etc defined in config file (TODO)
@@ -507,7 +507,7 @@ function da_api_admin() {
   #echo "Continuing in 2 seconds ..."
   #sleep 2
   local api_username api_password
-  local command data method filter_cmd response retval #decoded_status
+  local command data method filter_cmd is_start retval #decoded_status
   local action username email password
   local owner_main_auth owner_new_list admin_new_list admin_list reseller_new_list admin_ori_list admin_main_auth
   local reseller_main_auth user_main_auth user_new_list
@@ -538,20 +538,20 @@ function da_api_admin() {
   # This can be either username or role name
   role_user=$(echo "${action}" | awk -F'+' '{ print $2 }')
   role_password=$(echo "${action}" | awk -F'+' '{ print $3 }')
-  #da_api_admin "start+${da_user_uname}${role_password}"
-  if [ "${is_start}" == "start" ]; then
+  #da_api_admin "signas+${da_user_uname}${role_password}"
+  if [ "${is_start}" == "signas" ]; then
     user_extra_list=$(find /usr/local/directadmin/data/users/ -name "${role_user}" -type d)
     if [ -n "${user_extra_list}" ]; then
       rm -f "${TEMP_PATH}"/api/*
-      echo "Authenticating DA API with start+${role_user} ..."
+      echo "Authenticating DA API with signas+${role_user} ..."
       touch "${user_extra_auth}"
       {
         echo "DA_USER_EXTRA_USERNAME=\"${role_user}"\"
         echo "DA_USER_EXTRA_USERPASS=\"${role_password}"\"
       } >"${user_extra_auth}"
-    elif [ "${action}" == "start+owner" ]; then
+    elif [ "${action}" == "signas+owner" ]; then
       rm -f "${TEMP_PATH}"/api/*
-      echo "Authenticating DA API with start+owner"
+      echo "Authenticating DA API with signas+owner"
       if [ -n "${owner_new_list}" ]; then
         #echo "[${SCRIPT_NAME}]: Found main owner account ${owner_new_list} matched in config file. Creating API session file authentication for ${owner_new_list} ..." 2>&1 | tee -a "${REPORT_FILE}"
         touch "${owner_main_auth}"
@@ -563,9 +563,9 @@ function da_api_admin() {
         echo "[${SCRIPT_NAME}]: Error, no main owner account matched in config file. Please create owner first!" 2>&1 | tee -a "${REPORT_FILE}"
         _exit 1
       fi
-    elif [ "${action}" == "start+admin" ]; then
+    elif [ "${action}" == "signas+admin" ]; then
       rm -f "${TEMP_PATH}"/api/*
-      echo "Authenticating DA API with start+admin"
+      echo "Authenticating DA API with signas+admin"
       if [ -n "${admin_new_list}" ]; then
         #echo "[${SCRIPT_NAME}]: Found main admin account ${admin_new_list} matched in config file. Creating API session file authentication for ${admin_new_list} ..." 2>&1 | tee -a "${REPORT_FILE}"
         touch "${admin_main_auth}"
@@ -578,9 +578,9 @@ function da_api_admin() {
         echo "[${SCRIPT_NAME}]: Error, no main admin account matched in config file. Please create admin first!" 2>&1 | tee -a "${REPORT_FILE}"
         _exit 1
       fi
-    elif [ "${action}" == "start+reseller" ]; then
+    elif [ "${action}" == "signas+reseller" ]; then
       rm -f "${TEMP_PATH}"/api/*
-      echo "Authenticating DA API with start+reseller"
+      echo "Authenticating DA API with signas+reseller"
       if [ -n "${reseller_new_list}" ]; then
         #echo "[${SCRIPT_NAME}]: Found main reseller account ${reseller_new_list} matched in config file. Creating API session file authentication for ${reseller_new_list} ..." 2>&1 | tee -a "${REPORT_FILE}"
         touch "${reseller_main_auth}"
@@ -593,9 +593,9 @@ function da_api_admin() {
         _exit 1
       fi
 
-    elif [ "${action}" == "start+user" ]; then
+    elif [ "${action}" == "signas+user" ]; then
       rm -f "${TEMP_PATH}"/api/*
-      echo "Authenticating DA API with start+user"
+      echo "Authenticating DA API with signas+user"
       if [ -n "${user_new_list}" ]; then
 
         #echo "[${SCRIPT_NAME}]: Found main user account ${user_new_list} matched in config file. Creating API session file authentication for ${user_new_list}..." 2>&1 | tee -a "${REPORT_FILE}"
@@ -656,7 +656,7 @@ function da_api_admin() {
     #_pause 2
     api_username=$(sed -n 's/^DA_USER_USERNAME1=//p' "${user_main_auth}" | sed -e 's/^"//' -e 's/"$//')
     api_password=$(sed -n 's/^DA_USER_USERPASS1=//p' "${user_main_auth}" | sed -e 's/^"//' -e 's/"$//')
-  # At this stage, if user don't use start+<user> before calling API then it will use below with the condition the auth exist:
+  # At this stage, if user don't use signas+<user> before calling API then it will use below with the condition the auth exist:
   elif [ -n "${owner_new_list}" ]; then
     #echo "[${SCRIPT_NAME}]: Found auth file for ${DA_OWNER_USERNAME1}. Using authentication for this user ..." 2>&1 | tee -a "${REPORT_FILE}"
     #_pause 2
@@ -880,7 +880,37 @@ function da_api_admin() {
       #config will be stored in: username/skin_customizations/evolution/config.json
       db_route=$(echo "${PHPMYADMIN_LOGIN_ROUTE}" | sed 's/^\///')
       rc_route=$(echo "${ROUNDCUBE_LOGIN_ROUTE}" | sed 's/^\///')
-      data="json=yes&name=${skin_name}&action=save_config_json&config.json=%7B%22menu%22%3A%7B%22user%22%3A%5B%7B%22name%22%3A%22Account+Manager%22%2C%22icon%22%3A%22account-manager%22%2C%22enabled%22%3Atrue%2C%22columnSize%22%3A5%2C%22entries%22%3A%5B%7B%22route%22%3A%22%2Fuser%2Fdomains%22%2C%22name%22%3A%22Domain+Setup%22%2C%22icon%22%3A%22domain-setup%22%2C%22enabled%22%3Atrue%7D%2C%7B%22route%22%3A%22%2Fuser%2Fsubdomains%22%2C%22name%22%3A%22Subdomain+Management%22%2C%22icon%22%3A%22subdomain-management%22%2C%22enabled%22%3Atrue%7D%2C%7B%22route%22%3A%22%2Fuser%2Fdns%22%2C%22name%22%3A%22DNS+Management%22%2C%22icon%22%3A%22dns-management%22%2C%22enabled%22%3Atrue%7D%2C%7B%22route%22%3A%22%2Fuser%2Fssl%22%2C%22name%22%3A%22SSL+Certificates%22%2C%22icon%22%3A%22ssl%22%2C%22enabled%22%3Atrue%7D%2C%7B%22route%22%3A%22%2Fuser%2Fftp-accounts%22%2C%22name%22%3A%22FTP+Management%22%2C%22icon%22%3A%22ftp-management%22%2C%22enabled%22%3Atrue%7D%2C%7B%22route%22%3A%22%2Fuser%2Fdatabase%22%2C%22name%22%3A%22MySQL+Management%22%2C%22icon%22%3A%22mysql-management%22%2C%22enabled%22%3Atrue%7D%2C%7B%22route%22%3A%22%2Fuser%2Fdomain-pointers%22%2C%22name%22%3A%22Domain+Pointers%22%2C%22icon%22%3A%22domain-pointers%22%2C%22enabled%22%3Atrue%7D%2C%7B%22route%22%3A%22%2Fuser%2Fredirects%22%2C%22name%22%3A%22Site+Redirection%22%2C%22icon%22%3A%22site-redirection%22%2C%22enabled%22%3Atrue%7D%2C%7B%22route%22%3A%22%2Fuser%2Fhotlinks%22%2C%22name%22%3A%22Hotlinks+Protection%22%2C%22icon%22%3A%22hotlinks%22%2C%22enabled%22%3Atrue%7D%2C%7B%22route%22%3A%22%2Fuser%2Fphp-settings%22%2C%22name%22%3A%22PHP+Settings%22%2C%22icon%22%3A%22php-configuration%22%2C%22enabled%22%3Atrue%7D%5D%7D%2C%7B%22name%22%3A%22E-mail+Manager%22%2C%22icon%22%3A%22email-manager%22%2C%22enabled%22%3Atrue%2C%22columnSize%22%3A5%2C%22entries%22%3A%5B%7B%22route%22%3A%22%2Fuser%2Femail%2Faccounts%22%2C%22name%22%3A%22E-mail+Accounts%22%2C%22icon%22%3A%22email-accounts%22%2C%22enabled%22%3Atrue%7D%2C%7B%22route%22%3A%22%2Fuser%2Femail%2Fforwarders%22%2C%22name%22%3A%22Forwarders%22%2C%22icon%22%3A%22forwarders%22%2C%22enabled%22%3Atrue%7D%2C%7B%22route%22%3A%22%2Fuser%2Femail%2Fautoresponders%22%2C%22name%22%3A%22Autoresponders%22%2C%22icon%22%3A%22autoresponders%22%2C%22enabled%22%3Atrue%7D%2C%7B%22route%22%3A%22%2Fuser%2Femail%2Fvacations%22%2C%22name%22%3A%22Vacation+Messages%22%2C%22icon%22%3A%22vacation-messages%22%2C%22enabled%22%3Atrue%7D%2C%7B%22route%22%3A%22%2Fuser%2Femail%2Fspamassassin%22%2C%22name%22%3A%22Spamassassin+Setup%22%2C%22icon%22%3A%22spamassassin%22%2C%22enabled%22%3Atrue%7D%2C%7B%22route%22%3A%22%2Fuser%2Femail%2Ffilters%22%2C%22name%22%3A%22SPAM+Filters%22%2C%22icon%22%3A%22spam-filters%22%2C%22enabled%22%3Atrue%7D%2C%7B%22route%22%3A%22%2Fuser%2Femail%2Flists%22%2C%22name%22%3A%22Mailing+Lists%22%2C%22icon%22%3A%22mailing-lists%22%2C%22enabled%22%3Atrue%7D%2C%7B%22route%22%3A%22%2Fuser%2Fdns%2Fmx-records%22%2C%22name%22%3A%22MX+Records%22%2C%22icon%22%3A%22mx-records%22%2C%22enabled%22%3Atrue%7D%5D%7D%2C%7B%22icon%22%3A%22advanced-features%22%2C%22name%22%3A%22Advanced+Features%22%2C%22enabled%22%3Atrue%2C%22columnSize%22%3A5%2C%22entries%22%3A%5B%7B%22route%22%3A%22%2Fuser%2Fhandlers%22%2C%22name%22%3A%22Apache+Handlers%22%2C%22icon%22%3A%22apache-handlers%22%2C%22enabled%22%3Atrue%7D%2C%7B%22route%22%3A%22%2Fuser%2Femail%2Fcatch-all%22%2C%22name%22%3A%22Catch-All+E-mail%22%2C%22icon%22%3A%22catch-all-email%22%2C%22enabled%22%3Atrue%7D%2C%7B%22route%22%3A%22%2Fuser%2Fbackup%22%2C%22name%22%3A%22Create%2FRestore+Backups%22%2C%22icon%22%3A%22create-restore-backup%22%2C%22enabled%22%3Atrue%7D%2C%7B%22route%22%3A%22%2Fuser%2Fcronjobs%22%2C%22name%22%3A%22Cron+Jobs%22%2C%22icon%22%3A%22cron-jobs%22%2C%22enabled%22%3Atrue%7D%2C%7B%22route%22%3A%22%2Fuser%2Ferror-pages%22%2C%22name%22%3A%22Custom+Error+Pages%22%2C%22icon%22%3A%22custom-error-pages%22%2C%22enabled%22%3Atrue%7D%2C%7B%22route%22%3A%22%2Fuser%2Fmimetypes%22%2C%22name%22%3A%22Mime+Types%22%2C%22icon%22%3A%22mime-types%22%2C%22enabled%22%3Atrue%7D%2C%7B%22route%22%3A%22%2Fuser%2Fsecurity-questions%22%2C%22name%22%3A%22Security+Questions%22%2C%22icon%22%3A%22security-questions%22%2C%22enabled%22%3Atrue%7D%2C%7B%22route%22%3A%22%2Fuser%2Ftwo-step-auth%22%2C%22name%22%3A%22Two-Step+Authentication%22%2C%22icon%22%3A%22two-step-auth%22%2C%22enabled%22%3Atrue%7D%2C%7B%22route%22%3A%22%2Fuser%2Fprotected-directories%22%2C%22name%22%3A%22Password+Protected+Directories%22%2C%22icon%22%3A%22password-protected-directories%22%2C%22enabled%22%3Atrue%7D%2C%7B%22route%22%3A%22%2Fuser%2Fssh-keys%22%2C%22name%22%3A%22SSH+Keys%22%2C%22icon%22%3A%22ssh-keys%22%2C%22enabled%22%3Atrue%7D%2C%7B%22route%22%3A%22%2Fuser%2Fmodsecurity%22%2C%22name%22%3A%22ModSecurity%22%2C%22icon%22%3A%22mod-security%22%2C%22enabled%22%3Atrue%7D%5D%7D%2C%7B%22icon%22%3A%22system-information%22%2C%22name%22%3A%22System+Info+%26+Files%22%2C%22enabled%22%3Atrue%2C%22columnSize%22%3A5%2C%22entries%22%3A%5B%7B%22href%22%3A%22%2FCMD_FILE_MANAGER%22%2C%22newTab%22%3Atrue%2C%22name%22%3A%22File+Manager%22%2C%22icon%22%3A%22file-manager%22%2C%22enabled%22%3Atrue%7D%2C%7B%22route%22%3A%22%2Fuser%2Fperl-modules%22%2C%22name%22%3A%22Installed+Perl+Modules%22%2C%22icon%22%3A%22installed-perl-modules%22%2C%22enabled%22%3Atrue%7D%2C%7B%22route%22%3A%22%2Fuser%2Fsystem-info%22%2C%22name%22%3A%22System+Information%22%2C%22icon%22%3A%22server-information%22%2C%22enabled%22%3Atrue%7D%2C%7B%22route%22%3A%22%2Fuser%2Fstats%22%2C%22name%22%3A%22Site+Summary+%2F+Statistics+%2F+Logs%22%2C%22icon%22%3A%22site-summary%22%2C%22enabled%22%3Atrue%7D%5D%7D%2C%7B%22icon%22%3A%22extra-features%22%2C%22name%22%3A%22Extra+Features%22%2C%22enabled%22%3Atrue%2C%22columnSize%22%3A5%2C%22entries%22%3A%5B%7B%22href%22%3A%22%7CWEBAPPS_SSL%7C%3A%2F%2F%7CHOSTNAME%7C%2Fsquirrelmail%22%2C%22name%22%3A%22Webmail%3A+Squirrelmail%22%2C%22enabled%22%3Afalse%2C%22newTab%22%3Atrue%2C%22slug%22%3A%22squirrelmail%22%2C%22icon%22%3A%22squirellmail%22%7D%2C%7B%22href%22%3A%22%7CWEBAPPS_SSL%7C%3A%2F%2F%7CHOSTNAME%7C%2F${rc_route}%22%2C%22name%22%3A%22Mail%3A+${ROUNDCUBE_CUSTOM_NAME}%22%2C%22enabled%22%3Atrue%2C%22newTab%22%3Atrue%2C%22slug%22%3A%22roundcube%22%2C%22icon%22%3A%22roundcube%22%7D%2C%7B%22route%22%3A%22phpmyadmin%22%2C%22name%22%3A%22phpMyAdmin%22%2C%22enabled%22%3Afalse%2C%22icon%22%3A%22phpmyadmin%22%7D%2C%7B%22route%22%3A%22plugins%22%2C%22name%22%3A%22Plugins+will+be+inserted+after+this+entry%22%2C%22enabled%22%3Afalse%2C%22icon%22%3A%22%22%7D%2C%7B%22name%22%3A%22DB%3A++${PHPMYADMIN_CUSTOM_NAME}%22%2C%22href%22%3A%22%7CWEBAPPS_SSL%7C%3A%2F%2F%7CHOSTNAME%7C%2F${db_route}%22%2C%22newTab%22%3Atrue%2C%22enabled%22%3Atrue%2C%22icon%22%3A%22phpmyadmin%22%7D%5D%7D%2C%7B%22icon%22%3A%22support-help%22%2C%22name%22%3A%22Support+%26+Help%22%2C%22enabled%22%3Atrue%2C%22columnSize%22%3A5%2C%22entries%22%3A%5B%7B%22href%22%3A%22%7B%7Bhelp%7D%7D%22%2C%22name%22%3A%22Help%22%2C%22enabled%22%3Atrue%2C%22newTab%22%3Atrue%2C%22icon%22%3A%22help%22%7D%2C%7B%22route%22%3A%22%2Fuser%2Fcreate-ticket%22%2C%22name%22%3A%22Create+Ticket%22%2C%22enabled%22%3Atrue%2C%22icon%22%3A%22create-ticket%22%7D%2C%7B%22route%22%3A%22%2Fuser%2Fmessages%22%2C%22name%22%3A%22Support+Center%22%2C%22enabled%22%3Atrue%2C%22icon%22%3A%22support-center%22%7D%5D%7D%5D%2C%22reseller%22%3A%5B%7B%22name%22%3A%22Account+Manager%22%2C%22icon%22%3A%22account-manager%22%2C%22enabled%22%3Atrue%2C%22columnSize%22%3A3%2C%22entries%22%3A%5B%7B%22route%22%3A%22%2Freseller%2Fcreate-user%22%2C%22name%22%3A%22Add+New+User%22%2C%22enabled%22%3Atrue%2C%22icon%22%3A%22add-new-user%22%7D%2C%7B%22route%22%3A%22%2Freseller%2Fusers%22%2C%22name%22%3A%22List+Users%22%2C%22enabled%22%3Atrue%2C%22icon%22%3A%22list-users%22%7D%2C%7B%22route%22%3A%22%2Freseller%2Fuser-packages%22%2C%22name%22%3A%22Manage+User+Packages%22%2C%22enabled%22%3Atrue%2C%22icon%22%3A%22manage-user-packages%22%7D%2C%7B%22route%22%3A%22%2Freseller%2Fpasswords%22%2C%22name%22%3A%22Change+Passwords%22%2C%22enabled%22%3Atrue%2C%22icon%22%3A%22change-passwords%22%7D%2C%7B%22route%22%3A%22%2Freseller%2Fedit-user-message%22%2C%22name%22%3A%22Edit+User+Message%22%2C%22enabled%22%3Atrue%2C%22icon%22%3A%22edit-user-message%22%7D%2C%7B%22route%22%3A%22%2Freseller%2Fsuspension-message%22%2C%22name%22%3A%22Suspension+Message%22%2C%22enabled%22%3Atrue%2C%22icon%22%3A%22edit-user-message%22%7D%5D%7D%2C%7B%22name%22%3A%22Server+Manager%22%2C%22icon%22%3A%22server-manager%22%2C%22enabled%22%3Atrue%2C%22columnSize%22%3A5%2C%22entries%22%3A%5B%7B%22route%22%3A%22%2Freseller%2Fip-config%22%2C%22name%22%3A%22IP+Management%22%2C%22enabled%22%3Atrue%2C%22icon%22%3A%22ip-management%22%7D%2C%7B%22route%22%3A%22%2Freseller%2Fnameservers%22%2C%22name%22%3A%22Name+Servers%22%2C%22enabled%22%3Atrue%2C%22icon%22%3A%22name-servers%22%7D%2C%7B%22route%22%3A%22%2Fuser%2Fssh-keys%22%2C%22name%22%3A%22SSH+Keys%22%2C%22enabled%22%3Atrue%2C%22icon%22%3A%22ssh-keys%22%7D%5D%7D%2C%7B%22name%22%3A%22Reseller+Tools%22%2C%22icon%22%3A%22reseller-tools%22%2C%22enabled%22%3Atrue%2C%22columnSize%22%3A5%2C%22entries%22%3A%5B%7B%22route%22%3A%22%2Freseller%2Fbackups%22%2C%22name%22%3A%22Manage+User+Backups%22%2C%22enabled%22%3Atrue%2C%22icon%22%3A%22manage-user-backups%22%7D%2C%7B%22route%22%3A%22%2Freseller%2Fmessage-users%22%2C%22name%22%3A%22Message+All+Users%22%2C%22enabled%22%3Atrue%2C%22icon%22%3A%22message-all-users%22%7D%2C%7B%22route%22%3A%22%2Freseller%2Fskins%22%2C%22name%22%3A%22Skin+Manager%22%2C%22enabled%22%3Atrue%2C%22icon%22%3A%22skin-manager%22%7D%2C%7B%22route%22%3A%22%2Freseller%2Fcustomize-skin%22%2C%22name%22%3A%22Customize+Evolution+Skin%22%2C%22enabled%22%3Atrue%2C%22icon%22%3A%22customize-evolution-skin%22%7D%5D%7D%2C%7B%22name%22%3A%22System+Info+%26+Files%22%2C%22icon%22%3A%22system-information%22%2C%22enabled%22%3Atrue%2C%22columnSize%22%3A5%2C%22entries%22%3A%5B%7B%22href%22%3A%22%2FCMD_FILE_MANAGER%22%2C%22newTab%22%3Atrue%2C%22name%22%3A%22File+Manager%22%2C%22enabled%22%3Atrue%2C%22icon%22%3A%22file-manager%22%7D%2C%7B%22route%22%3A%22%2Freseller%2Fsystem-info%22%2C%22name%22%3A%22System+Information%22%2C%22enabled%22%3Atrue%2C%22icon%22%3A%22system-info%22%7D%2C%7B%22route%22%3A%22%2Freseller%2Fstats%22%2C%22name%22%3A%22Reseller+Statistics%22%2C%22enabled%22%3Atrue%2C%22icon%22%3A%22reseller-statistics%22%7D%5D%7D%2C%7B%22name%22%3A%22Extra+Features%22%2C%22icon%22%3A%22extra-features%22%2C%22enabled%22%3Atrue%2C%22columnSize%22%3A5%2C%22entries%22%3A%5B%7B%22href%22%3A%22%7CWEBAPPS_SSL%7C%3A%2F%2F%7CHOSTNAME%7C%2Fsquirrelmail%22%2C%22name%22%3A%22Webmail%3A+Squirrelmail%22%2C%22enabled%22%3Afalse%2C%22newTab%22%3Atrue%2C%22slug%22%3A%22squirrelmail%22%2C%22icon%22%3A%22squirellmail%22%7D%2C%7B%22href%22%3A%22%7CWEBAPPS_SSL%7C%3A%2F%2F%7CHOSTNAME%7C%2Fwebmail%22%2C%22name%22%3A%22Webmail%3A+UebiMiau%22%2C%22enabled%22%3Afalse%2C%22newTab%22%3Atrue%2C%22slug%22%3A%22uebimiau%22%2C%22icon%22%3A%22uebimiau%22%7D%2C%7B%22href%22%3A%22%7CWEBAPPS_SSL%7C%3A%2F%2F%7CHOSTNAME%7C%2F${rc_route}%22%2C%22name%22%3A%22Mail%3A+${ROUNDCUBE_CUSTOM_NAME}%22%2C%22enabled%22%3Atrue%2C%22newTab%22%3Atrue%2C%22slug%22%3A%22roundcube%22%2C%22icon%22%3A%22roundcube%22%7D%2C%7B%22route%22%3A%22phpmyadmin%22%2C%22name%22%3A%22phpMyAdmin%22%2C%22enabled%22%3Afalse%2C%22icon%22%3A%22phpmyadmin%22%7D%2C%7B%22route%22%3A%22plugins%22%2C%22name%22%3A%22Plugins+will+be+inserted+after+this+entry%22%2C%22enabled%22%3Afalse%2C%22icon%22%3A%22%22%7D%2C%7B%22name%22%3A%22DB%3A+${PHPMYADMIN_CUSTOM_NAME}%22%2C%22href%22%3A%22%7CWEBAPPS_SSL%7C%3A%2F%2F%7CHOSTNAME%7C%2F${db_route}%22%2C%22newTab%22%3Atrue%2C%22enabled%22%3Atrue%2C%22icon%22%3A%22phpmyadmin%22%7D%5D%7D%2C%7B%22name%22%3A%22Support+%26+Help%22%2C%22icon%22%3A%22support-help%22%2C%22enabled%22%3Atrue%2C%22columnSize%22%3A5%2C%22entries%22%3A%5B%7B%22href%22%3A%22%7B%7Bhelp%7D%7D%22%2C%22name%22%3A%22Help%22%2C%22enabled%22%3Atrue%2C%22newTab%22%3Atrue%2C%22icon%22%3A%22help%22%7D%2C%7B%22route%22%3A%22%2Freseller%2Ftickets%22%2C%22name%22%3A%22Manage+Tickets%22%2C%22enabled%22%3Atrue%2C%22icon%22%3A%22manage-tickets%22%7D%2C%7B%22route%22%3A%22%2Freseller%2Ftickets%2Fcreate%22%2C%22name%22%3A%22Create+Ticket%22%2C%22enabled%22%3Atrue%2C%22icon%22%3A%22create-ticket%22%7D%5D%7D%5D%2C%22admin%22%3A%5B%7B%22name%22%3A%22Account+Manager%22%2C%22icon%22%3A%22account-manager%22%2C%22enabled%22%3Atrue%2C%22columnSize%22%3A4%2C%22entries%22%3A%5B%7B%22route%22%3A%22%2Fadmin%2Fusers%2Fadmins%2Fcreate%22%2C%22name%22%3A%22Create+Administrator%22%2C%22enabled%22%3Atrue%2C%22icon%22%3A%22create-administrator%22%7D%2C%7B%22route%22%3A%22%2Fadmin%2Fusers%2Fadmins%22%2C%22name%22%3A%22List+Administrators%22%2C%22enabled%22%3Atrue%2C%22icon%22%3A%22list-administrators%22%7D%2C%7B%22route%22%3A%22%2Fadmin%2Fpasswords%22%2C%22name%22%3A%22Change+Passwords%22%2C%22enabled%22%3Atrue%2C%22icon%22%3A%22change-passwords%22%7D%2C%7B%22route%22%3A%22%2Fadmin%2Fusers%2Fresellers%2Fcreate%22%2C%22name%22%3A%22Create+Reseller%22%2C%22enabled%22%3Atrue%2C%22icon%22%3A%22create-reseller%22%7D%2C%7B%22route%22%3A%22%2Fadmin%2Fusers%2Fresellers%22%2C%22name%22%3A%22List+Resellers%22%2C%22enabled%22%3Atrue%2C%22icon%22%3A%22list-resellers%22%7D%2C%7B%22route%22%3A%22%2Fadmin%2Freseller-packages%22%2C%22name%22%3A%22Manage+Reseller+Packages%22%2C%22enabled%22%3Atrue%2C%22icon%22%3A%22manage-reseller-packages%22%7D%2C%7B%22route%22%3A%22%2Fadmin%2Fusers%22%2C%22name%22%3A%22Show+All+Users%22%2C%22enabled%22%3Atrue%2C%22icon%22%3A%22show-all-users%22%7D%2C%7B%22route%22%3A%22%2Fadmin%2Fusers%2Fmove%22%2C%22name%22%3A%22Move+Users+between+Resellers%22%2C%22enabled%22%3Atrue%2C%22icon%22%3A%22move-users-between-resellers%22%7D%2C%7B%22route%22%3A%22%2Fadmin%2Fsuspension-message%22%2C%22name%22%3A%22Suspension+Message%22%2C%22enabled%22%3Atrue%2C%22icon%22%3A%22edit-user-message%22%7D%5D%7D%2C%7B%22name%22%3A%22Server+Manager%22%2C%22icon%22%3A%22server-manager%22%2C%22enabled%22%3Atrue%2C%22columnSize%22%3A3%2C%22entries%22%3A%5B%7B%22route%22%3A%22%2Fadmin%2Fsettings%22%2C%22name%22%3A%22Administrator+Settings%22%2C%22enabled%22%3Atrue%2C%22icon%22%3A%22administrator-settings%22%7D%2C%7B%22route%22%3A%22%2Fadmin%2Fcustom-httpd%22%2C%22name%22%3A%22Custom+HTTPD+Configurations%22%2C%22enabled%22%3Atrue%2C%22icon%22%3A%22custom-httpd-configuration%22%7D%2C%7B%22route%22%3A%22%2Fadmin%2Fdns%22%2C%22name%22%3A%22DNS+Administration%22%2C%22enabled%22%3Atrue%2C%22icon%22%3A%22dns-administration%22%7D%2C%7B%22route%22%3A%22%2Fadmin%2Fip-manager%22%2C%22name%22%3A%22IP+Management%22%2C%22enabled%22%3Atrue%2C%22icon%22%3A%22ip-management%22%7D%2C%7B%22route%22%3A%22%2Fadmin%2Fmulti-server%22%2C%22name%22%3A%22Multi+Server+Setup%22%2C%22enabled%22%3Atrue%2C%22icon%22%3A%22multi-server-setup%22%7D%2C%7B%22route%22%3A%22%2Fadmin%2Fphp-safe-mode%22%2C%22name%22%3A%22PHP+Configuration%22%2C%22enabled%22%3Atrue%2C%22icon%22%3A%22php-configuration%22%7D%2C%7B%22route%22%3A%22%2Fuser%2Fssh-keys%22%2C%22name%22%3A%22SSH+Keys%22%2C%22enabled%22%3Atrue%2C%22icon%22%3A%22ssh-keys%22%7D%2C%7B%22route%22%3A%22%2Fadmin%2Fmodsecurity%22%2C%22name%22%3A%22ModSecurity%22%2C%22enabled%22%3Atrue%2C%22icon%22%3A%22%22%7D%5D%7D%2C%7B%22name%22%3A%22Admin+Tools%22%2C%22icon%22%3A%22admin-tools%22%2C%22enabled%22%3Atrue%2C%22columnSize%22%3A3%2C%22entries%22%3A%5B%7B%22route%22%3A%22%2Fadmin%2Fbackups%22%2C%22name%22%3A%22Admin+Backup%2FTransfer%22%2C%22enabled%22%3Atrue%2C%22icon%22%3A%22admin-backup-transfer%22%7D%2C%7B%22route%22%3A%22%2Fadmin%2Fbrute-force-monitor%22%2C%22name%22%3A%22Brute+Force+Monitor%22%2C%22enabled%22%3Atrue%2C%22icon%22%3A%22brute-force-monitor%22%7D%2C%7B%22route%22%3A%22%2Fadmin%2Fprocess-monitor%22%2C%22name%22%3A%22Process+Monitor%22%2C%22enabled%22%3Atrue%2C%22icon%22%3A%22process-monitor%22%7D%2C%7B%22route%22%3A%22%2Fadmin%2Fmail-queue%22%2C%22name%22%3A%22Mail+Queue+Administration%22%2C%22enabled%22%3Atrue%2C%22icon%22%3A%22mail-queue-administration%22%7D%2C%7B%22route%22%3A%22%2Fadmin%2Fservices%22%2C%22name%22%3A%22Service+Monitor%22%2C%22enabled%22%3Atrue%2C%22icon%22%3A%22service-monitor%22%7D%2C%7B%22route%22%3A%22%2Fadmin%2Fsystem-backup%22%2C%22name%22%3A%22System+Backup%22%2C%22enabled%22%3Atrue%2C%22icon%22%3A%22system-backup%22%7D%2C%7B%22route%22%3A%22%2Freseller%2Fcustomize-skin%22%2C%22name%22%3A%22Customize+Evolution+Skin%22%2C%22enabled%22%3Atrue%2C%22icon%22%3A%22customize-evolution-skin%22%7D%2C%7B%22slug%22%3A%22rspamd%22%2C%22href%22%3A%22%2FCMD_RSPAMD_SOCK%2F%22%2C%22name%22%3A%22Rspamd+spam+filtering+system%22%2C%22enabled%22%3Atrue%2C%22icon%22%3A%22spam-metrics%22%2C%22newTab%22%3Atrue%7D%2C%7B%22slug%22%3A%22netdata%22%2C%22href%22%3A%22%2FCMD_NETDATA_SOCK%22%2C%22name%22%3A%22Netdata+server+metrics%22%2C%22enabled%22%3Atrue%2C%22icon%22%3A%22netdata%22%2C%22newTab%22%3Atrue%7D%5D%7D%2C%7B%22name%22%3A%22System+Info+%26+Files%22%2C%22icon%22%3A%22system-information%22%2C%22enabled%22%3Atrue%2C%22columnSize%22%3A3%2C%22entries%22%3A%5B%7B%22route%22%3A%22%2Fadmin%2Fcron-jobs%22%2C%22name%22%3A%22All+User+Cron+Jobs%22%2C%22enabled%22%3Atrue%2C%22icon%22%3A%22all-user-cron-jobs%22%7D%2C%7B%22href%22%3A%22%2FCMD_FILE_MANAGER%22%2C%22newTab%22%3Atrue%2C%22name%22%3A%22File+Manager%22%2C%22enabled%22%3Atrue%2C%22icon%22%3A%22file-manager%22%7D%2C%7B%22route%22%3A%22%2Fadmin%2Ffile-editor%22%2C%22name%22%3A%22File+Editor%22%2C%22enabled%22%3Atrue%2C%22icon%22%3A%22file-editor%22%7D%2C%7B%22route%22%3A%22%2Fadmin%2Fsystem-info%22%2C%22name%22%3A%22System+Information%22%2C%22enabled%22%3Atrue%2C%22icon%22%3A%22system-information%22%7D%2C%7B%22route%22%3A%22%2Fadmin%2Flog-viewer%22%2C%22name%22%3A%22Log+Viewer%22%2C%22enabled%22%3Atrue%2C%22icon%22%3A%22log-viewer%22%7D%2C%7B%22route%22%3A%22%2Fadmin%2Fstats%22%2C%22name%22%3A%22Complete+Usage+Statistics%22%2C%22enabled%22%3Atrue%2C%22icon%22%3A%22complete-usage-statistics%22%7D%5D%7D%2C%7B%22name%22%3A%22Extra+Features%22%2C%22icon%22%3A%22extra-features%22%2C%22enabled%22%3Atrue%2C%22columnSize%22%3A5%2C%22entries%22%3A%5B%7B%22slug%22%3A%22squirrelmail%22%2C%22href%22%3A%22%7CWEBAPPS_SSL%7C%3A%2F%2F%7CHOSTNAME%7C%2Fsquirrelmail%22%2C%22name%22%3A%22Webmail%3A+Squirrelmail%22%2C%22enabled%22%3Afalse%2C%22newTab%22%3Atrue%2C%22icon%22%3A%22squirellmail%22%7D%2C%7B%22slug%22%3A%22uebimiau%22%2C%22href%22%3A%22%7CWEBAPPS_SSL%7C%3A%2F%2F%7CHOSTNAME%7C%2Fwebmail%22%2C%22name%22%3A%22Webmail%3A+UebiMiau%22%2C%22enabled%22%3Afalse%2C%22newTab%22%3Atrue%2C%22icon%22%3A%22uebimiau%22%7D%2C%7B%22slug%22%3A%22roundcube%22%2C%22href%22%3A%22%7CWEBAPPS_SSL%7C%3A%2F%2F%7CHOSTNAME%7C%2F${rc_route}%22%2C%22name%22%3A%22Mail%3A+${ROUNDCUBE_CUSTOM_NAME}%22%2C%22enabled%22%3Atrue%2C%22newTab%22%3Atrue%2C%22icon%22%3A%22roundcube%22%7D%2C%7B%22name%22%3A%22DB%3A+${PHPMYADMIN_CUSTOM_NAME}%22%2C%22href%22%3A%22%7CWEBAPPS_SSL%7C%3A%2F%2F%7CHOSTNAME%7C%2F${db_route}%22%2C%22newTab%22%3Atrue%2C%22enabled%22%3Atrue%2C%22icon%22%3A%22phpmyadmin%22%7D%2C%7B%22route%22%3A%22phpmyadmin%22%2C%22name%22%3A%22phpMyAdmin%22%2C%22enabled%22%3Afalse%2C%22icon%22%3A%22phpmyadmin%22%7D%2C%7B%22route%22%3A%22plugins%22%2C%22name%22%3A%22Plugins+will+be+inserted+after+this+entry%22%2C%22enabled%22%3Afalse%2C%22icon%22%3A%22%22%7D%2C%7B%22route%22%3A%22%2Fadmin%2Fplugin-manager%22%2C%22name%22%3A%22Plugin+Manager%22%2C%22enabled%22%3Atrue%2C%22icon%22%3A%22plugin-manager%22%7D%5D%7D%2C%7B%22name%22%3A%22Support+%26+Help%22%2C%22icon%22%3A%22support-help%22%2C%22enabled%22%3Atrue%2C%22columnSize%22%3A5%2C%22entries%22%3A%5B%7B%22href%22%3A%22%7B%7Bhelp%7D%7D%22%2C%22name%22%3A%22Help%22%2C%22enabled%22%3Atrue%2C%22newTab%22%3Atrue%2C%22icon%22%3A%22help%22%7D%2C%7B%22route%22%3A%22%2Freseller%2Ftickets%22%2C%22name%22%3A%22Manage+Tickets%22%2C%22enabled%22%3Atrue%2C%22icon%22%3A%22manage-tickets%22%7D%2C%7B%22route%22%3A%22%2Fadmin%2Flicense%22%2C%22name%22%3A%22Licensing+%2F+Updates%22%2C%22enabled%22%3Atrue%2C%22icon%22%3A%22licensing-updates%22%7D%5D%7D%5D%7D%2C%22colors%22%3A%7B%22primary-dark%22%3A%7B%22hue%22%3A196%2C%22saturation%22%3A100%2C%22lightness%22%3A32.34%2C%22alpha%22%3A100%7D%2C%22safe%22%3A%7B%22hue%22%3A140%2C%22saturation%22%3A41%2C%22lightness%22%3A56%7D%2C%22danger%22%3A%7B%22hue%22%3A20%2C%22saturation%22%3A76%2C%22lightness%22%3A47%7D%2C%22neutral%22%3A%7B%22hue%22%3A180%2C%22saturation%22%3A0.448430493273541%2C%22lightness%22%3A43.72549019607843%7D%7D%2C%22dateFormats%22%3A%7B%22datetime%22%3A%22d%2FM%2Fyyyy+HH%3Amm%3Ass++a%22%2C%22date%22%3A%22d+MMM%2C+yyy%22%2C%22weekStart%22%3A%22monday%22%7D%2C%22theme%22%3A%22%22%2C%22forcedMode%22%3A%22dark%22%7D"
+      # Set the grid layout
+      default_layout="defaultLayout%22%3A%22grid%22%2C%22"
+      data="json=yes&name=evolution&action=save_config_json&config.json=%7B%22menu%22%3A%7B%22user%22%3A%5B%7B%22name%22%3A%22Account+Manager%22%2C%22icon%22%3A%22account-manager%22%2C%22enabled%22%3Atrue%2C%22columnSize%22%3A5%2C%22entries%22%3A%5B%7B%22route%22%3A%22%2Fuser%2Fdomains%22%2C%22name%22%3A%22Domain+Setup%22%2C%22icon%22%3A%22domain-setup%22%2C%22enabled%22%3Atrue%7D%2C%7B%22route%22%3A%22%2Fuser%2Fsubdomains%22%2C%22name%22%3A%22Subdomain+Management%22%2C%22icon%22%3A%22subdomain-management%22%2C%22enabled%22%3Atrue%7D%2C%7B%22route%22%3A%22%2Fuser%2Fdns%22%2C%22name%22%3A%22DNS+Management%22%2C%22icon%22%3A%22dns-management%22%2C%22enabled%22%3Atrue%7D%2C%7B%22route%22%3A%22%2Fuser%2Fssl%22%2C%22name%22%3A%22SSL+Certificates%22%2C%22icon%22%3A%22ssl%22%2C%22enabled%22%3Atrue%7D%2C%7B%22route%22%3A%22%2Fuser%2Fftp-accounts%22%2C%22name%22%3A%22FTP+Management%22%2C%22icon%22%3A%22ftp-management%22%2C%22enabled%22%3Atrue%7D%2C%7B%22route%22%3A%22%2Fuser%2Fdatabase%22%2C%22name%22%3A%22MySQL+Management%22%2C%22icon%22%3A%22mysql-management%22%2C%22enabled%22%3Atrue%7D%2C%7B%22route%22%3A%22%2Fuser%2Fdomain-pointers%22%2C%22name%22%3A%22Domain+Pointers%22%2C%22icon%22%3A%22domain-pointers%22%2C%22enabled%22%3Atrue%7D%2C%7B%22route%22%3A%22%2Fuser%2Fredirects%22%2C%22name%22%3A%22Site+Redirection%22%2C%22icon%22%3A%22site-redirection%22%2C%22enabled%22%3Atrue%7D%2C%7B%22route%22%3A%22%2Fuser%2Fhotlinks%22%2C%22name%22%3A%22Hotlinks+Protection%22%2C%22icon%22%3A%22hotlinks%22%2C%22enabled%22%3Atrue%7D%2C%7B%22route%22%3A%22%2Fuser%2Fphp-settings%22%2C%22name%22%3A%22PHP+Settings%22%2C%22icon%22%3A%22php-configuration%22%2C%22enabled%22%3Atrue%7D%5D%7D%2C%7B%22name%22%3A%22E-mail+Manager%22%2C%22icon%22%3A%22email-manager%22%2C%22enabled%22%3Atrue%2C%22columnSize%22%3A5%2C%22entries%22%3A%5B%7B%22route%22%3A%22%2Fuser%2Femail%2Faccounts%22%2C%22name%22%3A%22E-mail+Accounts%22%2C%22icon%22%3A%22email-accounts%22%2C%22enabled%22%3Atrue%7D%2C%7B%22route%22%3A%22%2Fuser%2Femail%2Fforwarders%22%2C%22name%22%3A%22Forwarders%22%2C%22icon%22%3A%22forwarders%22%2C%22enabled%22%3Atrue%7D%2C%7B%22route%22%3A%22%2Fuser%2Femail%2Fautoresponders%22%2C%22name%22%3A%22Autoresponders%22%2C%22icon%22%3A%22autoresponders%22%2C%22enabled%22%3Atrue%7D%2C%7B%22route%22%3A%22%2Fuser%2Femail%2Fvacations%22%2C%22name%22%3A%22Vacation+Messages%22%2C%22icon%22%3A%22vacation-messages%22%2C%22enabled%22%3Atrue%7D%2C%7B%22route%22%3A%22%2Fuser%2Femail%2Fspamassassin%22%2C%22name%22%3A%22Spamassassin+Setup%22%2C%22icon%22%3A%22spamassassin%22%2C%22enabled%22%3Atrue%7D%2C%7B%22route%22%3A%22%2Fuser%2Femail%2Ffilters%22%2C%22name%22%3A%22SPAM+Filters%22%2C%22icon%22%3A%22spam-filters%22%2C%22enabled%22%3Atrue%7D%2C%7B%22route%22%3A%22%2Fuser%2Femail%2Flists%22%2C%22name%22%3A%22Mailing+Lists%22%2C%22icon%22%3A%22mailing-lists%22%2C%22enabled%22%3Atrue%7D%2C%7B%22route%22%3A%22%2Fuser%2Fdns%2Fmx-records%22%2C%22name%22%3A%22MX+Records%22%2C%22icon%22%3A%22mx-records%22%2C%22enabled%22%3Atrue%7D%5D%7D%2C%7B%22icon%22%3A%22advanced-features%22%2C%22name%22%3A%22Advanced+Features%22%2C%22enabled%22%3Atrue%2C%22columnSize%22%3A5%2C%22entries%22%3A%5B%7B%22route%22%3A%22%2Fuser%2Fhandlers%22%2C%22name%22%3A%22Apache+Handlers%22%2C%22icon%22%3A%22apache-handlers%22%2C%22enabled%22%3Atrue%7D%2C%7B%22route%22%3A%22%2Fuser%2Femail%2Fcatch-all%22%2C%22name%22%3A%22Catch-All+E-mail%22%2C%22icon%22%3A%22catch-all-email%22%2C%22enabled%22%3Atrue%7D%2C%7B%22route%22%3A%22%2Fuser%2Fbackup%22%2C%22name%22%3A%22Create%2FRestore+Backups%22%2C%22icon%22%3A%22create-restore-backup%22%2C%22enabled%22%3Atrue%7D%2C%7B%22route%22%3A%22%2Fuser%2Fcronjobs%22%2C%22name%22%3A%22Cron+Jobs%22%2C%22icon%22%3A%22cron-jobs%22%2C%22enabled%22%3Atrue%7D%2C%7B%22route%22%3A%22%2Fuser%2Ferror-pages%22%2C%22name%22%3A%22Custom+Error+Pages%22%2C%22icon%22%3A%22custom-error-pages%22%2C%22enabled%22%3Atrue%7D%2C%7B%22route%22%3A%22%2Fuser%2Fmimetypes%22%2C%22name%22%3A%22Mime+Types%22%2C%22icon%22%3A%22mime-types%22%2C%22enabled%22%3Atrue%7D%2C%7B%22route%22%3A%22%2Fuser%2Fsecurity-questions%22%2C%22name%22%3A%22Security+Questions%22%2C%22icon%22%3A%22security-questions%22%2C%22enabled%22%3Atrue%7D%2C%7B%22route%22%3A%22%2Fuser%2Ftwo-step-auth%22%2C%22name%22%3A%22Two-Step+Authentication%22%2C%22icon%22%3A%22two-step-auth%22%2C%22enabled%22%3Atrue%7D%2C%7B%22route%22%3A%22%2Fuser%2Fprotected-directories%22%2C%22name%22%3A%22Password+Protected+Directories%22%2C%22icon%22%3A%22password-protected-directories%22%2C%22enabled%22%3Atrue%7D%2C%7B%22route%22%3A%22%2Fuser%2Fssh-keys%22%2C%22name%22%3A%22SSH+Keys%22%2C%22icon%22%3A%22ssh-keys%22%2C%22enabled%22%3Atrue%7D%2C%7B%22route%22%3A%22%2Fuser%2Fmodsecurity%22%2C%22name%22%3A%22ModSecurity%22%2C%22icon%22%3A%22mod-security%22%2C%22enabled%22%3Atrue%7D%5D%7D%2C%7B%22icon%22%3A%22system-information%22%2C%22name%22%3A%22System+Info+%26+Files%22%2C%22enabled%22%3Atrue%2C%22columnSize%22%3A5%2C%22entries%22%3A%5B%7B%22href%22%3A%22%2FCMD_FILE_MANAGER%22%2C%22newTab%22%3Atrue%2C%22name%22%3A%22File+Manager%22%2C%22icon%22%3A%22file-manager%22%2C%22enabled%22%3Atrue%7D%2C%7B%22route%22%3A%22%2Fuser%2Fperl-modules%22%2C%22name%22%3A%22Installed+Perl+Modules%22%2C%22icon%22%3A%22installed-perl-modules%22%2C%22enabled%22%3Atrue%7D%2C%7B%22route%22%3A%22%2Fuser%2Fsystem-info%22%2C%22name%22%3A%22System+Information%22%2C%22icon%22%3A%22server-information%22%2C%22enabled%22%3Atrue%7D%2C%7B%22route%22%3A%22%2Fuser%2Fstats%22%2C%22name%22%3A%22Site+Summary+%2F+Statistics+%2F+Logs%22%2C%22icon%22%3A%22site-summary%22%2C%22enabled%22%3Atrue%7D%5D%7D%2C%7B%22icon%22%3A%22extra-features%22%2C%22name%22%3A%22Extra+Features%22%2C%22enabled%22%3Atrue%2C%22columnSize%22%3A5%2C%22entries%22%3A%5B%7B%22href%22%3A%22%7CWEBAPPS_SSL%7C%3A%2F%2F%7CHOSTNAME%7C%2Fsquirrelmail%22%2C%22name%22%3A%22Webmail%3A+Squirrelmail%22%2C%22enabled%22%3Afalse%2C%22newTab%22%3Atrue%2C%22slug%22%3A%22squirrelmail%22%2C%22icon%22%3A%22squirellmail%22%7D%2C%7B%22href%22%3A%22%7CWEBAPPS_SSL%7C%3A%2F%2F%7CHOSTNAME%7C%2F${rc_route}%22%2C%22name%22%3A%22Mail%3A+${ROUNDCUBE_CUSTOM_NAME}%22%2C%22enabled%22%3Atrue%2C%22newTab%22%3Atrue%2C%22slug%22%3A%22roundcube%22%2C%22icon%22%3A%22roundcube%22%7D%2C%7B%22route%22%3A%22phpmyadmin%22%2C%22name%22%3A%22phpMyAdmin%22%2C%22enabled%22%3Afalse%2C%22icon%22%3A%22phpmyadmin%22%7D%2C%7B%22route%22%3A%22plugins%22%2C%22name%22%3A%22Plugins+will+be+inserted+after+this+entry%22%2C%22enabled%22%3Afalse%2C%22icon%22%3A%22%22%7D%2C%7B%22name%22%3A%22DB%3A++${PHPMYADMIN_CUSTOM_NAME}%22%2C%22href%22%3A%22%7CWEBAPPS_SSL%7C%3A%2F%2F%7CHOSTNAME%7C%2F${db_route}%22%2C%22newTab%22%3Atrue%2C%22enabled%22%3Atrue%2C%22icon%22%3A%22phpmyadmin%22%7D%5D%7D%2C%7B%22icon%22%3A%22support-help%22%2C%22name%22%3A%22Support+%26+Help%22%2C%22enabled%22%3Atrue%2C%22columnSize%22%3A5%2C%22entries%22%3A%5B%7B%22href%22%3A%22%7B%7Bhelp%7D%7D%22%2C%22name%22%3A%22Help%22%2C%22enabled%22%3Atrue%2C%22newTab%22%3Atrue%2C%22icon%22%3A%22help%22%7D%2C%7B%22route%22%3A%22%2Fuser%2Fcreate-ticket%22%2C%22name%22%3A%22Create+Ticket%22%2C%22enabled%22%3Atrue%2C%22icon%22%3A%22create-ticket%22%7D%2C%7B%22route%22%3A%22%2Fuser%2Fmessages%22%2C%22name%22%3A%22Support+Center%22%2C%22enabled%22%3Atrue%2C%22icon%22%3A%22support-center%22%7D%5D%7D%5D%2C%22reseller%22%3A%5B%7B%22name%22%3A%22Account+Manager%22%2C%22icon%22%3A%22account-manager%22%2C%22enabled%22%3Atrue%2C%22columnSize%22%3A3%2C%22entries%22%3A%5B%7B%22route%22%3A%22%2Freseller%2Fcreate-user%22%2C%22name%22%3A%22Add+New+User%22%2C%22enabled%22%3Atrue%2C%22icon%22%3A%22add-new-user%22%7D%2C%7B%22route%22%3A%22%2Freseller%2Fusers%22%2C%22name%22%3A%22List+Users%22%2C%22enabled%22%3Atrue%2C%22icon%22%3A%22list-users%22%7D%2C%7B%22route%22%3A%22%2Freseller%2Fuser-packages%22%2C%22name%22%3A%22Manage+User+Packages%22%2C%22enabled%22%3Atrue%2C%22icon%22%3A%22manage-user-packages%22%7D%2C%7B%22route%22%3A%22%2Freseller%2Fpasswords%22%2C%22name%22%3A%22Change+Passwords%22%2C%22enabled%22%3Atrue%2C%22icon%22%3A%22change-passwords%22%7D%2C%7B%22route%22%3A%22%2Freseller%2Fedit-user-message%22%2C%22name%22%3A%22Edit+User+Message%22%2C%22enabled%22%3Atrue%2C%22icon%22%3A%22edit-user-message%22%7D%2C%7B%22route%22%3A%22%2Freseller%2Fsuspension-message%22%2C%22name%22%3A%22Suspension+Message%22%2C%22enabled%22%3Atrue%2C%22icon%22%3A%22edit-user-message%22%7D%5D%7D%2C%7B%22name%22%3A%22Server+Manager%22%2C%22icon%22%3A%22server-manager%22%2C%22enabled%22%3Atrue%2C%22columnSize%22%3A5%2C%22entries%22%3A%5B%7B%22route%22%3A%22%2Freseller%2Fip-config%22%2C%22name%22%3A%22IP+Management%22%2C%22enabled%22%3Atrue%2C%22icon%22%3A%22ip-management%22%7D%2C%7B%22route%22%3A%22%2Freseller%2Fnameservers%22%2C%22name%22%3A%22Name+Servers%22%2C%22enabled%22%3Atrue%2C%22icon%22%3A%22name-servers%22%7D%2C%7B%22route%22%3A%22%2Fuser%2Fssh-keys%22%2C%22name%22%3A%22SSH+Keys%22%2C%22enabled%22%3Atrue%2C%22icon%22%3A%22ssh-keys%22%7D%5D%7D%2C%7B%22name%22%3A%22Reseller+Tools%22%2C%22icon%22%3A%22reseller-tools%22%2C%22enabled%22%3Atrue%2C%22columnSize%22%3A5%2C%22entries%22%3A%5B%7B%22route%22%3A%22%2Freseller%2Fbackups%22%2C%22name%22%3A%22Manage+User+Backups%22%2C%22enabled%22%3Atrue%2C%22icon%22%3A%22manage-user-backups%22%7D%2C%7B%22route%22%3A%22%2Freseller%2Fmessage-users%22%2C%22name%22%3A%22Message+All+Users%22%2C%22enabled%22%3Atrue%2C%22icon%22%3A%22message-all-users%22%7D%2C%7B%22route%22%3A%22%2Freseller%2Fskins%22%2C%22name%22%3A%22Skin+Manager%22%2C%22enabled%22%3Atrue%2C%22icon%22%3A%22skin-manager%22%7D%2C%7B%22route%22%3A%22%2Freseller%2Fcustomize-skin%22%2C%22name%22%3A%22Customize+Evolution+Skin%22%2C%22enabled%22%3Atrue%2C%22icon%22%3A%22customize-evolution-skin%22%7D%5D%7D%2C%7B%22name%22%3A%22System+Info+%26+Files%22%2C%22icon%22%3A%22system-information%22%2C%22enabled%22%3Atrue%2C%22columnSize%22%3A5%2C%22entries%22%3A%5B%7B%22href%22%3A%22%2FCMD_FILE_MANAGER%22%2C%22newTab%22%3Atrue%2C%22name%22%3A%22File+Manager%22%2C%22enabled%22%3Atrue%2C%22icon%22%3A%22file-manager%22%7D%2C%7B%22route%22%3A%22%2Freseller%2Fsystem-info%22%2C%22name%22%3A%22System+Information%22%2C%22enabled%22%3Atrue%2C%22icon%22%3A%22system-info%22%7D%2C%7B%22route%22%3A%22%2Freseller%2Fstats%22%2C%22name%22%3A%22Reseller+Statistics%22%2C%22enabled%22%3Atrue%2C%22icon%22%3A%22reseller-statistics%22%7D%5D%7D%2C%7B%22name%22%3A%22Extra+Features%22%2C%22icon%22%3A%22extra-features%22%2C%22enabled%22%3Atrue%2C%22columnSize%22%3A5%2C%22entries%22%3A%5B%7B%22href%22%3A%22%7CWEBAPPS_SSL%7C%3A%2F%2F%7CHOSTNAME%7C%2Fsquirrelmail%22%2C%22name%22%3A%22Webmail%3A+Squirrelmail%22%2C%22enabled%22%3Afalse%2C%22newTab%22%3Atrue%2C%22slug%22%3A%22squirrelmail%22%2C%22icon%22%3A%22squirellmail%22%7D%2C%7B%22href%22%3A%22%7CWEBAPPS_SSL%7C%3A%2F%2F%7CHOSTNAME%7C%2Fwebmail%22%2C%22name%22%3A%22Webmail%3A+UebiMiau%22%2C%22enabled%22%3Afalse%2C%22newTab%22%3Atrue%2C%22slug%22%3A%22uebimiau%22%2C%22icon%22%3A%22uebimiau%22%7D%2C%7B%22href%22%3A%22%7CWEBAPPS_SSL%7C%3A%2F%2F%7CHOSTNAME%7C%2F${rc_route}%22%2C%22name%22%3A%22Mail%3A+${ROUNDCUBE_CUSTOM_NAME}%22%2C%22enabled%22%3Atrue%2C%22newTab%22%3Atrue%2C%22slug%22%3A%22roundcube%22%2C%22icon%22%3A%22roundcube%22%7D%2C%7B%22route%22%3A%22phpmyadmin%22%2C%22name%22%3A%22phpMyAdmin%22%2C%22enabled%22%3Afalse%2C%22icon%22%3A%22phpmyadmin%22%7D%2C%7B%22route%22%3A%22plugins%22%2C%22name%22%3A%22Plugins+will+be+inserted+after+this+entry%22%2C%22enabled%22%3Afalse%2C%22icon%22%3A%22%22%7D%2C%7B%22name%22%3A%22DB%3A+${PHPMYADMIN_CUSTOM_NAME}%22%2C%22href%22%3A%22%7CWEBAPPS_SSL%7C%3A%2F%2F%7CHOSTNAME%7C%2F${db_route}%22%2C%22newTab%22%3Atrue%2C%22enabled%22%3Atrue%2C%22icon%22%3A%22phpmyadmin%22%7D%5D%7D%2C%7B%22name%22%3A%22Support+%26+Help%22%2C%22icon%22%3A%22support-help%22%2C%22enabled%22%3Atrue%2C%22columnSize%22%3A5%2C%22entries%22%3A%5B%7B%22href%22%3A%22%7B%7Bhelp%7D%7D%22%2C%22name%22%3A%22Help%22%2C%22enabled%22%3Atrue%2C%22newTab%22%3Atrue%2C%22icon%22%3A%22help%22%7D%2C%7B%22route%22%3A%22%2Freseller%2Ftickets%22%2C%22name%22%3A%22Manage+Tickets%22%2C%22enabled%22%3Atrue%2C%22icon%22%3A%22manage-tickets%22%7D%2C%7B%22route%22%3A%22%2Freseller%2Ftickets%2Fcreate%22%2C%22name%22%3A%22Create+Ticket%22%2C%22enabled%22%3Atrue%2C%22icon%22%3A%22create-ticket%22%7D%5D%7D%5D%2C%22admin%22%3A%5B%7B%22name%22%3A%22Account+Manager%22%2C%22icon%22%3A%22account-manager%22%2C%22enabled%22%3Atrue%2C%22columnSize%22%3A4%2C%22entries%22%3A%5B%7B%22route%22%3A%22%2Fadmin%2Fusers%2Fadmins%2Fcreate%22%2C%22name%22%3A%22Create+Administrator%22%2C%22enabled%22%3Atrue%2C%22icon%22%3A%22create-administrator%22%7D%2C%7B%22route%22%3A%22%2Fadmin%2Fusers%2Fadmins%22%2C%22name%22%3A%22List+Administrators%22%2C%22enabled%22%3Atrue%2C%22icon%22%3A%22list-administrators%22%7D%2C%7B%22route%22%3A%22%2Fadmin%2Fpasswords%22%2C%22name%22%3A%22Change+Passwords%22%2C%22enabled%22%3Atrue%2C%22icon%22%3A%22change-passwords%22%7D%2C%7B%22route%22%3A%22%2Fadmin%2Fusers%2Fresellers%2Fcreate%22%2C%22name%22%3A%22Create+Reseller%22%2C%22enabled%22%3Atrue%2C%22icon%22%3A%22create-reseller%22%7D%2C%7B%22route%22%3A%22%2Fadmin%2Fusers%2Fresellers%22%2C%22name%22%3A%22List+Resellers%22%2C%22enabled%22%3Atrue%2C%22icon%22%3A%22list-resellers%22%7D%2C%7B%22route%22%3A%22%2Fadmin%2Freseller-packages%22%2C%22name%22%3A%22Manage+Reseller+Packages%22%2C%22enabled%22%3Atrue%2C%22icon%22%3A%22manage-reseller-packages%22%7D%2C%7B%22route%22%3A%22%2Fadmin%2Fusers%22%2C%22name%22%3A%22Show+All+Users%22%2C%22enabled%22%3Atrue%2C%22icon%22%3A%22show-all-users%22%7D%2C%7B%22route%22%3A%22%2Fadmin%2Fusers%2Fmove%22%2C%22name%22%3A%22Move+Users+between+Resellers%22%2C%22enabled%22%3Atrue%2C%22icon%22%3A%22move-users-between-resellers%22%7D%2C%7B%22route%22%3A%22%2Fadmin%2Fsuspension-message%22%2C%22name%22%3A%22Suspension+Message%22%2C%22enabled%22%3Atrue%2C%22icon%22%3A%22edit-user-message%22%7D%5D%7D%2C%7B%22name%22%3A%22Server+Manager%22%2C%22icon%22%3A%22server-manager%22%2C%22enabled%22%3Atrue%2C%22columnSize%22%3A3%2C%22entries%22%3A%5B%7B%22route%22%3A%22%2Fadmin%2Fsettings%22%2C%22name%22%3A%22Administrator+Settings%22%2C%22enabled%22%3Atrue%2C%22icon%22%3A%22administrator-settings%22%7D%2C%7B%22route%22%3A%22%2Fadmin%2Fcustom-httpd%22%2C%22name%22%3A%22Custom+HTTPD+Configurations%22%2C%22enabled%22%3Atrue%2C%22icon%22%3A%22custom-httpd-configuration%22%7D%2C%7B%22route%22%3A%22%2Fadmin%2Fdns%22%2C%22name%22%3A%22DNS+Administration%22%2C%22enabled%22%3Atrue%2C%22icon%22%3A%22dns-administration%22%7D%2C%7B%22route%22%3A%22%2Fadmin%2Fip-manager%22%2C%22name%22%3A%22IP+Management%22%2C%22enabled%22%3Atrue%2C%22icon%22%3A%22ip-management%22%7D%2C%7B%22route%22%3A%22%2Fadmin%2Fmulti-server%22%2C%22name%22%3A%22Multi+Server+Setup%22%2C%22enabled%22%3Atrue%2C%22icon%22%3A%22multi-server-setup%22%7D%2C%7B%22route%22%3A%22%2Fadmin%2Fphp-safe-mode%22%2C%22name%22%3A%22PHP+Configuration%22%2C%22enabled%22%3Atrue%2C%22icon%22%3A%22php-configuration%22%7D%2C%7B%22route%22%3A%22%2Fuser%2Fssh-keys%22%2C%22name%22%3A%22SSH+Keys%22%2C%22enabled%22%3Atrue%2C%22icon%22%3A%22ssh-keys%22%7D%2C%7B%22route%22%3A%22%2Fadmin%2Fmodsecurity%22%2C%22name%22%3A%22ModSecurity%22%2C%22enabled%22%3Atrue%2C%22icon%22%3A%22%22%7D%5D%7D%2C%7B%22name%22%3A%22Admin+Tools%22%2C%22icon%22%3A%22admin-tools%22%2C%22enabled%22%3Atrue%2C%22columnSize%22%3A3%2C%22entries%22%3A%5B%7B%22route%22%3A%22%2Fadmin%2Fbackups%22%2C%22name%22%3A%22Admin+Backup%2FTransfer%22%2C%22enabled%22%3Atrue%2C%22icon%22%3A%22admin-backup-transfer%22%7D%2C%7B%22route%22%3A%22%2Fadmin%2Fbrute-force-monitor%22%2C%22name%22%3A%22Brute+Force+Monitor%22%2C%22enabled%22%3Atrue%2C%22icon%22%3A%22brute-force-monitor%22%7D%2C%7B%22route%22%3A%22%2Fadmin%2Fprocess-monitor%22%2C%22name%22%3A%22Process+Monitor%22%2C%22enabled%22%3Atrue%2C%22icon%22%3A%22process-monitor%22%7D%2C%7B%22route%22%3A%22%2Fadmin%2Fmail-queue%22%2C%22name%22%3A%22Mail+Queue+Administration%22%2C%22enabled%22%3Atrue%2C%22icon%22%3A%22mail-queue-administration%22%7D%2C%7B%22route%22%3A%22%2Fadmin%2Fservices%22%2C%22name%22%3A%22Service+Monitor%22%2C%22enabled%22%3Atrue%2C%22icon%22%3A%22service-monitor%22%7D%2C%7B%22route%22%3A%22%2Fadmin%2Fsystem-backup%22%2C%22name%22%3A%22System+Backup%22%2C%22enabled%22%3Atrue%2C%22icon%22%3A%22system-backup%22%7D%2C%7B%22route%22%3A%22%2Freseller%2Fcustomize-skin%22%2C%22name%22%3A%22Customize+Evolution+Skin%22%2C%22enabled%22%3Atrue%2C%22icon%22%3A%22customize-evolution-skin%22%7D%2C%7B%22slug%22%3A%22rspamd%22%2C%22href%22%3A%22%2FCMD_RSPAMD_SOCK%2F%22%2C%22name%22%3A%22Rspamd+spam+filtering+system%22%2C%22enabled%22%3Atrue%2C%22icon%22%3A%22spam-metrics%22%2C%22newTab%22%3Atrue%7D%2C%7B%22slug%22%3A%22netdata%22%2C%22href%22%3A%22%2FCMD_NETDATA_SOCK%22%2C%22name%22%3A%22Netdata+server+metrics%22%2C%22enabled%22%3Atrue%2C%22icon%22%3A%22netdata%22%2C%22newTab%22%3Atrue%7D%5D%7D%2C%7B%22name%22%3A%22System+Info+%26+Files%22%2C%22icon%22%3A%22system-information%22%2C%22enabled%22%3Atrue%2C%22columnSize%22%3A3%2C%22entries%22%3A%5B%7B%22route%22%3A%22%2Fadmin%2Fcron-jobs%22%2C%22name%22%3A%22All+User+Cron+Jobs%22%2C%22enabled%22%3Atrue%2C%22icon%22%3A%22all-user-cron-jobs%22%7D%2C%7B%22href%22%3A%22%2FCMD_FILE_MANAGER%22%2C%22newTab%22%3Atrue%2C%22name%22%3A%22File+Manager%22%2C%22enabled%22%3Atrue%2C%22icon%22%3A%22file-manager%22%7D%2C%7B%22route%22%3A%22%2Fadmin%2Ffile-editor%22%2C%22name%22%3A%22File+Editor%22%2C%22enabled%22%3Atrue%2C%22icon%22%3A%22file-editor%22%7D%2C%7B%22route%22%3A%22%2Fadmin%2Fsystem-info%22%2C%22name%22%3A%22System+Information%22%2C%22enabled%22%3Atrue%2C%22icon%22%3A%22system-information%22%7D%2C%7B%22route%22%3A%22%2Fadmin%2Flog-viewer%22%2C%22name%22%3A%22Log+Viewer%22%2C%22enabled%22%3Atrue%2C%22icon%22%3A%22log-viewer%22%7D%2C%7B%22route%22%3A%22%2Fadmin%2Fstats%22%2C%22name%22%3A%22Complete+Usage+Statistics%22%2C%22enabled%22%3Atrue%2C%22icon%22%3A%22complete-usage-statistics%22%7D%5D%7D%2C%7B%22name%22%3A%22Extra+Features%22%2C%22icon%22%3A%22extra-features%22%2C%22enabled%22%3Atrue%2C%22columnSize%22%3A5%2C%22entries%22%3A%5B%7B%22slug%22%3A%22squirrelmail%22%2C%22href%22%3A%22%7CWEBAPPS_SSL%7C%3A%2F%2F%7CHOSTNAME%7C%2Fsquirrelmail%22%2C%22name%22%3A%22Webmail%3A+Squirrelmail%22%2C%22enabled%22%3Afalse%2C%22newTab%22%3Atrue%2C%22icon%22%3A%22squirellmail%22%7D%2C%7B%22slug%22%3A%22uebimiau%22%2C%22href%22%3A%22%7CWEBAPPS_SSL%7C%3A%2F%2F%7CHOSTNAME%7C%2Fwebmail%22%2C%22name%22%3A%22Webmail%3A+UebiMiau%22%2C%22enabled%22%3Afalse%2C%22newTab%22%3Atrue%2C%22icon%22%3A%22uebimiau%22%7D%2C%7B%22slug%22%3A%22roundcube%22%2C%22href%22%3A%22%7CWEBAPPS_SSL%7C%3A%2F%2F%7CHOSTNAME%7C%2F${rc_route}%22%2C%22name%22%3A%22Mail%3A+${ROUNDCUBE_CUSTOM_NAME}%22%2C%22enabled%22%3Atrue%2C%22newTab%22%3Atrue%2C%22icon%22%3A%22roundcube%22%7D%2C%7B%22name%22%3A%22DB%3A+${PHPMYADMIN_CUSTOM_NAME}%22%2C%22href%22%3A%22%7CWEBAPPS_SSL%7C%3A%2F%2F%7CHOSTNAME%7C%2F${db_route}%22%2C%22newTab%22%3Atrue%2C%22enabled%22%3Atrue%2C%22icon%22%3A%22phpmyadmin%22%7D%2C%7B%22route%22%3A%22phpmyadmin%22%2C%22name%22%3A%22phpMyAdmin%22%2C%22enabled%22%3Afalse%2C%22icon%22%3A%22phpmyadmin%22%7D%2C%7B%22route%22%3A%22plugins%22%2C%22name%22%3A%22Plugins+will+be+inserted+after+this+entry%22%2C%22enabled%22%3Afalse%2C%22icon%22%3A%22%22%7D%2C%7B%22route%22%3A%22%2Fadmin%2Fplugin-manager%22%2C%22name%22%3A%22Plugin+Manager%22%2C%22enabled%22%3Atrue%2C%22icon%22%3A%22plugin-manager%22%7D%5D%7D%2C%7B%22name%22%3A%22Support+%26+Help%22%2C%22icon%22%3A%22support-help%22%2C%22enabled%22%3Atrue%2C%22columnSize%22%3A5%2C%22entries%22%3A%5B%7B%22href%22%3A%22%7B%7Bhelp%7D%7D%22%2C%22name%22%3A%22Help%22%2C%22enabled%22%3Atrue%2C%22newTab%22%3Atrue%2C%22icon%22%3A%22help%22%7D%2C%7B%22route%22%3A%22%2Freseller%2Ftickets%22%2C%22name%22%3A%22Manage+Tickets%22%2C%22enabled%22%3Atrue%2C%22icon%22%3A%22manage-tickets%22%7D%2C%7B%22route%22%3A%22%2Fadmin%2Flicense%22%2C%22name%22%3A%22Licensing+%2F+Updates%22%2C%22enabled%22%3Atrue%2C%22icon%22%3A%22licensing-updates%22%7D%5D%7D%5D%7D%2C%22colors%22%3A%7B%22primary-dark%22%3A%7B%22hue%22%3A196%2C%22saturation%22%3A100%2C%22lightness%22%3A32.34%2C%22alpha%22%3A100%7D%2C%22safe%22%3A%7B%22hue%22%3A140%2C%22saturation%22%3A41%2C%22lightness%22%3A56%7D%2C%22danger%22%3A%7B%22hue%22%3A20%2C%22saturation%22%3A76%2C%22lightness%22%3A47%7D%2C%22neutral%22%3A%7B%22hue%22%3A180%2C%22saturation%22%3A0.448430493273541%2C%22lightness%22%3A43.72549019607843%7D%7D%2C%22${default_layout}dateFormats%22%3A%7B%22datetime%22%3A%22d%2FM%2Fyyyy+HH%3Amm%3Ass++a%22%2C%22date%22%3A%22d+MMM%2C+yyy%22%2C%22weekStart%22%3A%22monday%22%7D%2C%22theme%22%3A%22%22%2C%22forcedMode%22%3A%22dark%22%7D"
+      method="POST"
+      # da_api_admin "modify-user" da_user1 name "Arafat Ali"
+      # da_api_admin "modify-user" da_user2 nameserver "ns1.sofibox.com" "ns2.sofibox.com"
+    elif [ "${action}" == "modify-user" ]; then
+      shift
+      local setting da_user value1 value2 command
+      da_user="$1"
+      setting="$2"
+      value1="$3"
+      value2="$4"
+      command="CMD_API_MODIFY_USER"
+      if [ "${setting}" == "email" ]; then
+        data="user=${da_user}&evalue=${value1}&json=yes&action=single&email=yes"
+      elif [ "${setting}" == "name" ]; then
+        data="user=${da_user}&nvalue=${value1}&json=yes&action=single&name=yes"
+      elif [ "${setting}" == "nameserver" ]; then
+        if [[ -n "${value2}" ]]; then
+          data="user=${da_user}&ns1=${value1}&ns2=${value2}&json=yes&action=single&ns=yes"
+        else
+          echo "[${SCRIPT_NAME}]: Missing value2 argument for setting up ${setting}" 2>&1 | tee -a "${REPORT_FILE}"
+          _exit 1
+        fi
+      elif [ "${setting}" == "skin" ]; then
+        data="user=${da_user}&skinvalue=${value1}&json=yes&action=single&skin=yes"
+      else
+        echo "[${SCRIPT_NAME}]: The setting '${setting}' does not exist!" 2>&1 | tee -a "${REPORT_FILE}"
+        _exit 1
+      fi
       method="POST"
     else
       echo "[${SCRIPT_NAME}]: The API action '${action}' does not exist!" 2>&1 | tee -a "${REPORT_FILE}"
@@ -892,7 +922,8 @@ function da_api_admin() {
     echo "[${SCRIPT_NAME}]: Status: " 2>&1 | tee -a "${REPORT_FILE}"
     echo "=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~" 2>&1 | tee -a "${REPORT_FILE}"
     echo "" 2>&1 | tee -a "${REPORT_FILE}"
-    curl --silent --max-time 15 --request "${method}" --user "${api_username}":"${api_password}" --data "${data}" "${ssl}://${BOX_HOSTNAME_FQDN}:${DA_PORT}/${command}" | tr -d '\0'
+    #Dont use --max-time or decrease time out because letsencrypt API will need more time to request cert
+    curl --silent --request "${method}" --user "${api_username}":"${api_password}" --data "${data}" "${ssl}://${BOX_HOSTNAME_FQDN}:${DA_PORT}/${command}" | tr -d '\0'
     echo "=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~" 2>&1 | tee -a "${REPORT_FILE}"
     echo "" 2>&1 | tee -a "${REPORT_FILE}"
 
@@ -2176,9 +2207,9 @@ function configure_da_ssl_pre() {
     da_bin="/usr/local/directadmin/directadmin"
     cb_bin="/usr/local/directadmin/custombuild/build"
     # Not enabling this yet
-    #echo "[${SCRIPT_NAME}]: Setting directadmin ddns_ttl=1 at directadmin.conf ..." 2>&1 | tee -a "${REPORT_FILE}"
-    #sleep 1
-    #${da_bin} set ddns_ttl 1
+    # echo "[${SCRIPT_NAME}]: Setting directadmin ddns_ttl=1 at directadmin.conf ..." 2>&1 | tee -a "${REPORT_FILE}"
+    # sleep 1
+    # ${da_bin} set ddns_ttl 1
     # install the latest letsencrypt here (this will only get the latest letsencrypt.sh)
     echo "[${SCRIPT_NAME}]: Installing the latest letsencrypt.sh for Directadmin ..." 2>&1 | tee -a "${REPORT_FILE}"
     ${cb_bin} letsencrypt 2>&1 | tee -a "${REPORT_FILE}"
@@ -3625,7 +3656,7 @@ function configure_da_admin_skins() {
   # We can customize this skin evolution based on this file /usr/local/directadmin/data/users/username/skin_customization/evolution/user_options.json
   if [ ! -f "${CONF_PATH}/${FUNCNAME[0]}_executed" ]; then
     echo "[${SCRIPT_NAME}]: Executing ${FUNCNAME[0]} ..." 2>&1 | tee -a "${REPORT_FILE}"
-    da_api_admin "start+admin"
+    da_api_admin "signas+admin"
 
     # 1) misc options
     # Set the predefined setting
@@ -3666,10 +3697,6 @@ function configure_da_admin_skins() {
       _exit 1
     fi
 
-
-
-
-
     # Remove both temporary logo from the home directory
     rm -f "${default_logo_file_home}"
     rm -f "${dark_mode_logo_file_home}"
@@ -3684,7 +3711,20 @@ function configure_da_admin_skins() {
 function configure_da_admin_admin_settings() {
   :
 }
-
+function configure_da_owner_accounts() {
+  if [ ! -f "${CONF_PATH}/${FUNCNAME[0]}_executed" ]; then
+    echo "[${SCRIPT_NAME}]: Executing ${FUNCNAME[0]} ..." 2>&1 | tee -a "${REPORT_FILE}"
+    echo "Renaming owner account name to ${DA_OWNER_NAME1} ..."
+    da_api_admin "signas+owner"
+    da_api_admin "modify-user" "${DA_OWNER_USERNAME1}" "name" "${DA_OWNER_NAME1}"
+    echo "[${SCRIPT_NAME}]: Restarting directadmin before configuring Directadmin accounts ..." 2>&1 | tee -a "${REPORT_FILE}"
+    restart_da
+    check_finish_reboot "${FUNCNAME[0]}"
+  else
+    echo "[${SCRIPT_NAME}]: [Skipped]: ${FUNCNAME[0]} has ran before" 2>&1 | tee -a "${REPORT_FILE}"
+    echo "=~=~=~=~=~=~=~=~=~" 2>&1 | tee -a "${REPORT_FILE}"
+  fi
+}
 # Create any extra admin accounts here
 # Only DA owner can create admin account
 function configure_da_admin_accounts() {
@@ -3703,11 +3743,16 @@ function configure_da_admin_accounts() {
     #_pause 2
     echo "~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~"
     echo "[${SCRIPT_NAME}]: Authenticating DA API for user for default owner user ..." 2>&1 | tee -a "${REPORT_FILE}"
-    da_api_admin "start+admin"
+    # Must sign in as owner to create a new admin account
+    # If sign in as admin you get error admin not exist
+    da_api_admin "signas+owner"
     #exit 1
     da_api_admin "create-admin-account" "${DA_ADMIN_USERNAME1}" "${DA_ADMIN_EMAIL1}" "${DA_ADMIN_USERPASS1}"
     #_pause 2
     echo "~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~"
+
+    echo "Renaming admin account name to ${DA_ADMIN_NAME1} ..."
+    da_api_admin "modify-user" "${DA_ADMIN_USERNAME1}" "name" "${DA_ADMIN_NAME1}"
 
     # No need domain for admin for security
 
@@ -3717,8 +3762,8 @@ function configure_da_admin_accounts() {
     echo "~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~"
     #_pause 2
     echo "[${SCRIPT_NAME}]: Authenticating DA API for user for default admin user ..." 2>&1 | tee -a "${REPORT_FILE}"
-    # Use admin to create reseller (dont use owner)
-    da_api_admin "start+admin"
+    # Use admin to create reseller package (dont use owner for security purpose)
+    da_api_admin "signas+admin"
     da_api_admin "create-reseller-package" "${DA_RESELLER_PACKAGE_NAME1}"
     echo "~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~"
     check_finish_reboot "${FUNCNAME[0]}"
@@ -3768,6 +3813,7 @@ function configure_da_reseller_accounts() {
       echo "=========== start DEBUG value ========="
       echo "Executing while loop: count=${count_r} while less than da_user_count ${da_reseller_count}"
       typeset -n "this_da_reseller_uname"="DA_RESELLER_USERNAME${count_r}"
+      typeset -n "this_da_reseller_name"="DA_RESELLER_NAME${count_r}"
       typeset -n "this_da_reseller_password"="DA_RESELLER_USERPASS${count_r}"
       typeset -n "this_da_reseller_system_email"="DA_RESELLER_SYSTEM_EMAIL${count_r}"
       typeset -n "this_da_reseller_mail_users"="DA_RESELLER_MAIL_USER${count_r}"
@@ -3777,6 +3823,7 @@ function configure_da_reseller_accounts() {
       typeset -n "this_da_reseller_package_name"="DA_RESELLER_PACKAGE_NAME${count_r}"
       typeset -n "this_da_reseller_domain_enable_ssl"="DA_RESELLER_DOMAIN_ENABLE_SSL${count_r}"
       echo "this_da_reseller_uname = ${this_da_reseller_uname}" 2>&1 | tee -a "${REPORT_FILE}"
+      echo "this_da_reseller_name = ${this_da_reseller_name}" 2>&1 | tee -a "${REPORT_FILE}"
       echo "this_da_reseller_password = ${this_da_reseller_password}" 2>&1 | tee -a "${REPORT_FILE}"
       echo "this_da_reseller_system_email = ${this_da_reseller_system_email}" 2>&1 | tee -a "${REPORT_FILE}"
       echo "this_da_reseller_mail_users = ${this_da_reseller_mail_users[*]}" 2>&1 | tee -a "${REPORT_FILE}"
@@ -3789,7 +3836,10 @@ function configure_da_reseller_accounts() {
       echo "" 2>&1 | tee -a "${REPORT_FILE}"
       echo "Checking if all variables for ${this_da_reseller_uname} is set and not empty ..." 2>&1 | tee -a "${REPORT_FILE}"
       _pause 1
-      if [ -z "${this_da_reseller_password}" ]; then
+      if [ -z "${this_da_reseller_name}" ]; then
+        echo "[${SCRIPT_NAME}]: [Skipped]: Warning, reseller ${this_da_reseller_uname} doesn't have name set in config file. Please check configuration file" 2>&1 | tee -a "${REPORT_FILE}"
+        _exit 1
+      elif [ -z "${this_da_reseller_password}" ]; then
         echo "[${SCRIPT_NAME}]: [Skipped]: Warning, reseller ${this_da_reseller_uname} doesn't have password set in config file. Please check configuration file" 2>&1 | tee -a "${REPORT_FILE}"
         _exit 1
       elif [ -z "${this_da_reseller_system_email}" ]; then
@@ -3844,7 +3894,7 @@ function configure_da_reseller_accounts() {
 
           # Use admin to create reseller account and its default domain:
           echo "[${SCRIPT_NAME}]: Authenticating Directadmin API as a default admin (first admin account) ..." 2>&1 | tee -a "${REPORT_FILE}"
-          da_api_admin "start+admin"
+          da_api_admin "signas+admin"
           echo "Creating reseller account ${this_da_reseller_uname} using the following details: "
           echo "Username: ${this_da_reseller_uname} | Email: ${this_da_reseller_system_email} | Password: ${this_da_reseller_password} | Default (First) domain: ${da_reseller_domain_first} | Package selection: ${this_da_reseller_package_name}"
           #_pause 2
@@ -3852,10 +3902,14 @@ function configure_da_reseller_accounts() {
           da_api_admin "create-reseller-account" "${this_da_reseller_uname}" "${this_da_reseller_system_email}" "${this_da_reseller_password}" "${da_reseller_domain_first}" "${this_da_reseller_package_name}" "${this_da_reseller_ip_type}"
           echo "~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~" 2>&1 | tee -a "${REPORT_FILE}"
 
+          echo "Renaming reseller account name to ${this_da_reseller_name} ..."
+          # Still use the admin signas above to modify reseller info here:
+          da_api_admin "modify-user" "${this_da_reseller_uname}" "name" "${this_da_reseller_name}"
+
           # Use each reseller account to enable its own email DKIM
           echo "[${SCRIPT_NAME}]: Authenticating Directadmin API as reseller ${this_da_reseller_uname} ..." 2>&1 | tee -a "${REPORT_FILE}"
-          # Use reseller account to configure variable settings like DKIM or DNS
-          da_api_admin "start+${this_da_reseller_uname}+${this_da_reseller_password}"
+          # Use reseller account to configure its own user-level variable settings like DKIM or DNS
+          da_api_admin "signas+${this_da_reseller_uname}+${this_da_reseller_password}"
           echo "[${SCRIPT_NAME}]: Enabling email DKIM for the domain ${da_reseller_domain_first} ..." 2>&1 | tee -a "${REPORT_FILE}"
           #_pause 2
           echo "~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~" 2>&1 | tee -a "${REPORT_FILE}"
@@ -3949,7 +4003,7 @@ function configure_da_reseller_accounts() {
               #_pause 2
               # Calling reseller authentication
               echo "[${SCRIPT_NAME}]: Authenticating Directadmin API for reseller ${this_da_reseller_uname} ..." 2>&1 | tee -a "${REPORT_FILE}"
-              da_api_admin "start+${this_da_reseller_uname}+${this_da_reseller_password}"
+              da_api_admin "signas+${this_da_reseller_uname}+${this_da_reseller_password}"
               echo "-----" 2>&1 | tee -a "${REPORT_FILE}"
               da_api_admin "create-reseller-domain" "${extra_domain}"
               echo "-----" 2>&1 | tee -a "${REPORT_FILE}"
@@ -4052,7 +4106,7 @@ function configure_da_reseller_accounts() {
     echo "~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~"
     #_pause 2
     echo "[${SCRIPT_NAME}]: Authenticating DA API for user for default reseller user ..." 2>&1 | tee -a "${REPORT_FILE}"
-    da_api_admin "start+reseller"
+    da_api_admin "signas+reseller"
     da_api_admin "create-user-package" "${DA_USER_PACKAGE_NAME1}"
     echo "~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~"
 
@@ -4095,6 +4149,7 @@ function configure_da_user_accounts() {
       echo "Executing while loop: count=${count_user} while less than da_user_count ${da_user_count}"
       typeset -n "this_da_user_uname"="DA_USER_USERNAME${count_user}"
       typeset -n "this_da_user_password"="DA_USER_USERPASS${count_user}"
+      typeset -n "this_da_user_name"="DA_USER_NAME${count_user}"
       typeset -n "this_da_user_system_email"="DA_USER_SYSTEM_EMAIL${count_user}"
       typeset -n "this_da_user_mail_users"="DA_USER_MAIL_USER${count_user}"
       typeset -n "this_da_user_mail_passwords"="DA_USER_MAIL_PASSWORD${count_user}"
@@ -4105,6 +4160,7 @@ function configure_da_user_accounts() {
       echo "=========== start value ========="
       echo "this_da_user_uname = ${this_da_user_uname}"
       echo "this_da_user_password = ${this_da_user_password}"
+      echo "this_da_user_name = ${this_da_user_name}"
       echo "this_da_user_system_email = ${this_da_user_system_email}"
       echo "this_da_user_mail_users = ${this_da_user_mail_users}"
       echo "this_da_user_mail_passwords = ${this_da_user_mail_passwords}"
@@ -4115,7 +4171,10 @@ function configure_da_user_accounts() {
       echo ""
       echo "Checking if all variables for ${this_da_user_uname} is set and not empty ..."
       _pause 1
-      if [ -z "${this_da_user_password}" ]; then
+      if [ -z "${this_da_user_name}" ]; then
+        echo "[${SCRIPT_NAME}]: [Skipped]: Warning user ${this_da_user_uname} is set but doesn't have name set in config file. Please check configuration file " 2>&1 | tee -a "${REPORT_FILE}"
+        _exit 1
+      elif [ -z "${this_da_user_password}" ]; then
         echo "[${SCRIPT_NAME}]: [Skipped]: Warning user ${this_da_user_uname} is set but doesn't have password set in config file. Please check configuration file " 2>&1 | tee -a "${REPORT_FILE}"
         _exit 1
 
@@ -4166,15 +4225,19 @@ function configure_da_user_accounts() {
           echo "~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~"
           #_pause 2
           # Use reseller to create user account and its default domain:
-          da_api_admin "start+reseller"
+          da_api_admin "signas+reseller"
           da_api_admin "create-user-account" "${this_da_user_uname}" "${this_da_user_system_email}" "${this_da_user_password}" "${da_user_domain_first}" "${this_da_user_package_name}"
           echo "~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~"
           echo "[${SCRIPT_NAME}]: Enabling email DKIM for the domain ${da_user_domain_first} ..." 2>&1 | tee -a "${REPORT_FILE}"
           echo "~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~"
+
+          echo "Renaming user account name to ${this_da_user_name} ..."
+          da_api_admin "modify-user" "${this_da_user_uname}" "name" "${this_da_user_name}"
+
           #_pause 2
           echo "[${SCRIPT_NAME}]: Authenticating DA API for user ${this_da_user_uname} ..." 2>&1 | tee -a "${REPORT_FILE}"
           # Use user account to configure variable settings like DKIM or DNS
-          da_api_admin "start+${this_da_user_uname}+${this_da_user_password}"
+          da_api_admin "signas+${this_da_user_uname}+${this_da_user_password}"
           da_api_admin "enable-email-dkim" "${da_user_domain_first}"
 
           # START DEBUG:
@@ -4273,7 +4336,7 @@ function configure_da_user_accounts() {
               #_pause 2
               # Calling user authentication
               echo "[${SCRIPT_NAME}]: Authenticating DA API for user ${this_da_user_uname} ..." 2>&1 | tee -a "${REPORT_FILE}"
-              da_api_admin "start+${this_da_user_uname}+${this_da_user_password}"
+              da_api_admin "signas+${this_da_user_uname}+${this_da_user_password}"
               da_api_admin "create-user-domain" "${extra_domain}"
               echo "~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~"
 
@@ -4439,7 +4502,7 @@ function configure_da_reseller_subdomains() {
           # reseller and user share the same API
           # da_api_admin "create-user-subdomain" "<root_domain>" "<subdomain>"
           # Start the user login authentication:
-          da_api_admin "start+${this_da_reseller_username}+${this_da_reseller_userpass}"
+          da_api_admin "signas+${this_da_reseller_username}+${this_da_reseller_userpass}"
           da_api_admin "create-user-subdomain" "${root_domain}" "${sub_domain}"
 
           # Also add subdomain for linode API here
@@ -4537,7 +4600,7 @@ function configure_da_user_subdomains() {
           # Now we got sub_domain and root_domain, call the da_api_admin:
           # da_api_admin "create-user-subdomain" "<root_domain>" "<subdomain>"
           # Start the user login authentication:
-          da_api_admin "start+${this_da_user_username}+${this_da_user_userpass}"
+          da_api_admin "signas+${this_da_user_username}+${this_da_user_userpass}"
           da_api_admin "create-user-subdomain" "${root_domain}" "${sub_domain}"
           # Also add subdomain for linode API here
 
@@ -4633,7 +4696,7 @@ function configure_da_reseller_emails() {
           echo "=~=~=~=~+~+~+~=~+~+=~+~+=~+~+=~+~+=~+=~+~+"
           # Now we got all variables for creating email:
           # Call API here:
-          da_api_admin "start+${this_da_reseller_username}+${this_da_reseller_userpass}"
+          da_api_admin "signas+${this_da_reseller_username}+${this_da_reseller_userpass}"
           # Reseller and user share the same API
           da_api_admin "create-user-email" "${mail_domain}" "${mail_user}" "${mail_password}" "0" "200"
           ((count_n++))
@@ -4718,7 +4781,7 @@ function configure_da_user_emails() {
           echo "=~=~=~=~+~+~+~=~+~+=~+~+=~+~+=~+~+=~+=~+~+"
           # Now we got all variables for creating email:
           # Call API here:
-          da_api_admin "start+${this_da_user_username}+${this_da_user_userpass}"
+          da_api_admin "signas+${this_da_user_username}+${this_da_user_userpass}"
           da_api_admin "create-user-email" "${mail_domain}" "${mail_user}" "${mail_password}" "0" "200"
           ((count_n++))
         done
@@ -4741,12 +4804,11 @@ function configure_da_reseller_domain_ssl() {
     echo "[${SCRIPT_NAME}]: Executing ${FUNCNAME[0]} ..." 2>&1 | tee -a "${REPORT_FILE}"
     local da_reseller_ssl_sub_names da_reseller_ssl_sub_names_count
     local this_da_reseller_uname this_da_reseller_userpass this_da_reseller_domain_enable_ssl \
-      this_da_reseller_ssl_sub_names
+      this_da_reseller_ssl_sub_names retval
     # Get all the reseller ssl_sub_names
     da_reseller_ssl_sub_names="${!DA_RESELLER_SSL_SUB_NAME@}"
     # Get the total count for reseller ssl_sub_names
     da_reseller_ssl_sub_names_count=$(echo "${da_reseller_ssl_sub_names}" | wc -w)
-
     count_x=1
     while [[ ${count_x} -le ${da_reseller_ssl_sub_names_count} ]]; do
       echo ""
@@ -4779,35 +4841,46 @@ function configure_da_reseller_domain_ssl() {
           echo "SSL_DOMAIN: ${ssl_domain}"
           echo "SSL_SUBDOMAINS_RAW: ${ssl_subdomains_raw}"
 
-          ssl_subdomains=$(echo "${ssl_subdomains_raw}" | awk -F'+' '{for (i=0;i<=NF;i++)print $i}')
-          count_o=0
-          le_select_query=""
-          for ssl_subdomain in ${ssl_subdomains}; do
-            if [ ${count_o} = 0 ]; then
-              le_select[${count_o}]="${ssl_domain}"
-              ls="le_select${count_o}=${le_select[${count_o}]}"
+          if [ "${ssl_provider}" == "letsencrypt" ]; then
+            echo "Testing, requesting letsencrypt SSL certificate for domain ${ssl_domain} in staging mode ..."
+            staging=yes /usr/local/directadmin/scripts/letsencrypt.sh request "${ssl_domain}"
+            retval=$?
+            if [ ${retval} -ne 0 ]; then
+              echo "Warning, this domain ${ssl_domain} has issue when requesting ssl certificate in staging mode"
+              # TODO add the ability to resume failed certificate request for reseller (when rerun this script)
             else
-              le_select[${count_o}]="${ssl_subdomain}.${ssl_domain}"
-              ls="&le_select${count_o}=${le_select[${count_o}]}"
+              echo "OK, this domain ${ssl_domain} has no issue when requesting ssl certificate in staging mode"
             fi
-            le_select_query="${le_select_query}${ls}"
-            ((count_o++))
-          done
-
-          echo "LE_SELECT_QUERY: ${le_select_query}"
-          echo "================-------------------======================="
-          echo ""
-          # Now we got all variables. Call API here:
-          # da_api_admin "request-domain-ssl" <provider> <root_domain> <keysize> <encryption> <ssl_sub_domains_query>
-          # Seems like DA admin or owner level also can use this authentication to request certificate for user (I will verify this again)
-          da_api_admin "start+${this_da_reseller_username}+${this_da_reseller_userpass}"
-          # Most secure key now is secp521r1 and sha256
-          echo "Requesting SSL for domain ${ssl_domain} with the following query: ${le_select_query}"
-          echo "This might take sometimes ... (please wait)"
-          da_api_admin "request-domain-ssl" "${ssl_provider}" "${ssl_domain}" "secp521r1" "sha256" "${le_select_query}"
+            ssl_subdomains=$(echo "${ssl_subdomains_raw}" | awk -F'+' '{for (i=0;i<=NF;i++)print $i}')
+            count_o=0
+            le_select_query=""
+            for ssl_subdomain in ${ssl_subdomains}; do
+              if [ ${count_o} = 0 ]; then
+                le_select[${count_o}]="${ssl_domain}"
+                ls="le_select${count_o}=${le_select[${count_o}]}"
+              else
+                le_select[${count_o}]="${ssl_subdomain}.${ssl_domain}"
+                ls="&le_select${count_o}=${le_select[${count_o}]}"
+              fi
+              le_select_query="${le_select_query}${ls}"
+              ((count_o++))
+            done
+            echo "LE_SELECT_QUERY: ${le_select_query}"
+            echo "================-------------------======================="
+            echo ""
+            # Now we got all variables. Call API here:
+            # da_api_admin "request-domain-ssl" <provider> <root_domain> <keysize> <encryption> <ssl_sub_domains_query>
+            # Seems like DA admin or owner level also can use this authentication to request certificate for user (I will verify this again)
+            da_api_admin "signas+${this_da_reseller_username}+${this_da_reseller_userpass}"
+            # Most secure key now is secp521r1 and sha256
+            echo "Requesting SSL for domain ${ssl_domain} with the following query: ${le_select_query}"
+            echo "This might take sometimes ... (please wait)"
+            da_api_admin "request-domain-ssl" "${ssl_provider}" "${ssl_domain}" "secp521r1" "sha256" "${le_select_query}"
+          elif [ "${ssl_provider}" == "digicert" ]; then
+            :
+          fi
           ((count_n++))
         done
-
       elif [[ ${this_da_user_domain_enable_ssl} == "no" ]]; then
         echo "Warning This user is set to not enable SSL. Do nothing for this"
       fi
@@ -4830,12 +4903,11 @@ function configure_da_user_domain_ssl() {
     echo "[${SCRIPT_NAME}]: Executing ${FUNCNAME[0]} ..." 2>&1 | tee -a "${REPORT_FILE}"
     local da_user_ssl_sub_names da_user_ssl_sub_names_count this_da_user_username this_da_user_userpass \
       this_da_user_domain_enable_ssl this_da_user_ssl_sub_names this_da_user_ssl_sub_names_count
-    local ssl_provider ssl_domain ssl_subdomains_raw le_select_query le_s count_o count_n count_x
+    local ssl_provider ssl_domain ssl_subdomains_raw le_select_query le_s count_o count_n count_x retval
     # Get all the user ssl_sub_names
     da_user_ssl_sub_names="${!DA_USER_SSL_SUB_NAME@}"
     # Get the total count for user ssl_sub_names
     da_user_ssl_sub_names_count=$(echo "${da_user_ssl_sub_names}" | wc -w)
-
     count_x=1
     while [[ ${count_x} -le ${da_user_ssl_sub_names_count} ]]; do
       echo ""
@@ -4867,30 +4939,45 @@ function configure_da_user_domain_ssl() {
           echo "SSL_PROVIDER: ${ssl_provider}"
           echo "SSL_DOMAIN: ${ssl_domain}"
           echo "SSL_SUBDOMAINS_RAW: ${ssl_subdomains_raw}"
+          if [ "${ssl_provider}" == "letsencrypt" ]; then
+            echo "Testing, requesting letsencrypt SSL certificate for domain ${ssl_domain} in staging mode ..."
 
-          ssl_subdomains=$(echo "${ssl_subdomains_raw}" | awk -F'+' '{for (i=0;i<=NF;i++)print $i}')
-          count_o=0
-          le_select_query=""
-          for ssl_subdomain in ${ssl_subdomains}; do
-            if [ ${count_o} = 0 ]; then
-              le_select[${count_o}]="${ssl_domain}"
-              le_s="le_select${count_o}=${le_select[${count_o}]}"
+            staging=yes /usr/local/directadmin/scripts/letsencrypt.sh request "${ssl_domain}"
+            retval=$?
+            if [ ${retval} -ne 0 ]; then
+              echo "Warning, this domain ${ssl_domain} has issue when requesting ssl certificate in staging mode"
+              # TODO add the ability to resume failed certificate request for user when rerun this script
             else
-              le_select[${count_o}]="${ssl_subdomain}.${ssl_domain}"
-              le_s="&le_select${count_o}=${le_select[${count_o}]}"
+              echo "OK, this domain ${ssl_domain} has no issue when requesting ssl certificate in staging mode"
             fi
-            le_select_query="${le_select_query}${le_s}"
-            ((count_o++))
-          done
-          echo "---------------"
-          echo "LE_SELECT_QUERY: ${le_select_query}"
-          echo ""
-          # Now we got all variables. Call API here:
-          # da_api_admin "request-domain-ssl" <provider> <root_domain> <keysize> <encryption> <ssl_sub_domains_query>
-          da_api_admin "start+${this_da_user_username}+${this_da_user_userpass}"
-          # Most secure key now is secp521r1 and sha256
-          echo "Requesting SSL for domain ${ssl_domain} with the following query: ${le_select_query}"
-          da_api_admin "request-domain-ssl" "${ssl_provider}" "${ssl_domain}" "secp521r1" "sha256" "${le_select_query}"
+            ssl_subdomains=$(echo "${ssl_subdomains_raw}" | awk -F'+' '{for (i=0;i<=NF;i++)print $i}')
+            count_o=0
+            le_select_query=""
+            for ssl_subdomain in ${ssl_subdomains}; do
+              if [ ${count_o} = 0 ]; then
+                le_select[${count_o}]="${ssl_domain}"
+                le_s="le_select${count_o}=${le_select[${count_o}]}"
+              else
+                le_select[${count_o}]="${ssl_subdomain}.${ssl_domain}"
+                le_s="&le_select${count_o}=${le_select[${count_o}]}"
+              fi
+              le_select_query="${le_select_query}${le_s}"
+              ((count_o++))
+            done
+            echo "---------------"
+            echo "LE_SELECT_QUERY: ${le_select_query}"
+            echo ""
+            # Now we got all variables. Call API here:
+            # da_api_admin "request-domain-ssl" <provider> <root_domain> <keysize> <encryption> <ssl_sub_domains_query>
+            da_api_admin "signas+${this_da_user_username}+${this_da_user_userpass}"
+            # Most secure key now is secp521r1 and sha256
+            echo "Requesting SSL for domain ${ssl_domain} with the following query: ${le_select_query}"
+            da_api_admin "request-domain-ssl" "${ssl_provider}" "${ssl_domain}" "secp521r1" "sha256" "${le_select_query}"
+
+          elif [ "${ssl_provider}" == "digicert" ]; then
+            :
+          fi
+
           ((count_n++))
         done
 
@@ -5148,6 +5235,9 @@ if [ "${INSTALL_TYPE}" == "DIRECTADMIN" ]; then
   # we configure dns template before creating admin, reseller and user accounts so they can use new DNS template
   configure_da_dns_templates
   #exit 1
+  #rm -rf "${CONF_PATH}/configure_da_owner_accounts_executed"
+  configure_da_owner_accounts
+  #exit 1
   #rm -rf "${CONF_PATH}/configure_da_admin_accounts_executed"
   configure_da_admin_accounts
   #exit 1
@@ -5173,7 +5263,7 @@ if [ "${INSTALL_TYPE}" == "DIRECTADMIN" ]; then
   #rm -rf "${CONF_PATH}/configure_da_user_emails_executed"
   configure_da_user_emails
   #exit 1
-  #rm -rf "${CONF_PATH}/configure_da_user_domain_ssl_executed"
+  # rm -rf "${CONF_PATH}/configure_da_user_domain_ssl_executed"
   # Don't worry if some domains are not able to have SSL because of the propagation problem using external DNS
   configure_da_user_domain_ssl
   #exit 1
@@ -5182,7 +5272,7 @@ if [ "${INSTALL_TYPE}" == "DIRECTADMIN" ]; then
   configure_da_geoip
   #exit 1
   # First configure the admin skins
-  rm -rf "${CONF_PATH}/configure_da_admin_skins_executed"
+  #rm -rf "${CONF_PATH}/configure_da_admin_skins_executed"
   configure_da_admin_skins
   #exit 1
 fi

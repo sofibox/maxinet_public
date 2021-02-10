@@ -25,6 +25,7 @@ ADMIN_NAME="Arafat Ali"
 ADMIN_EMAIL="admin@sofibox.com"
 
 # === DA owner start ===
+DA_OWNER_NAME1="System Owner"
 # Change default Directadmin username to secured one (default installation is admin which is not secured)
 DA_OWNER_USERNAME1="da_owner"
 # Be careful some characters are not accepted by phpMyAdmin. Bash has trouble with character #!.
@@ -35,6 +36,7 @@ DA_OWNER_USERPASS1=*long-secured-password*"
 
 # === DA admin start ===
 # This email also will be used by the main admin account
+DA_ADMIN_NAME1="System Administrator"
 DA_ADMIN_USERNAME1=*put-directadmin-new-username-here*"
 # Admin username cannot contain character '+' it will trigger invalid password (DA bug?)
 DA_ADMIN_USERPASS1="*long-secured-password*"
@@ -43,6 +45,7 @@ DA_ADMIN_EMAIL1="admin@sofibox.com"
 
 # === DA reseller start ===
 # This is DA main reseller. Create at least one reseller here (cannot use '+' for password)
+DA_RESELLER_NAME1="Sofibox CH"
 DA_RESELLER_USERNAME1="da_reseller"
 DA_RESELLER_USERPASS1=*long-secured-password*"
 DA_RESELLER_SYSTEM_EMAIL1="webmaster@sofibox.com"
@@ -61,6 +64,7 @@ DA_RESELLER_SSL_SUB_NAME1=("letsencrypt:sofibox.com:www+ftp+mail+pop+smtp+sales+
 
 # === DA user start ===
 # user name, where the main username variable should have variable postfix of 1
+DA_USER_NAME1="Maxibi ICT Solutions"
 DA_USER_USERNAME1="da_user"
 # user password, must be maximum of 64 characters and doesn't contain the plus character '+'
 DA_USER_USERPASS1="*long-secured-password*"
