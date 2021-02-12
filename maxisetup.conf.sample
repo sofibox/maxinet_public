@@ -31,7 +31,10 @@ DA_OWNER_USERNAME1="da_owner"
 # Be careful some characters are not accepted by phpMyAdmin. Bash has trouble with character #!.
 # DA_ADMIN_USERPASS is for DA admin dashboard password
 DA_OWNER_USERPASS1=*long-secured-password*"
-# DA owner email will use $ROOT_EMAIL variable above
+# DA owner email will use $ROOT_EMAIL variable above but we can declare here too for future reference
+DA_OWNER_SYSTEM_EMAIL1="owner@sofibox.com"
+DA_OWNER_SECURITY_Q1=("What is the spiritual vibration movement?" "What do they call you?")
+DA_OWNER_SECURITY_A1=("xxx" "MaXi32")
 # == DA owner end ===
 
 # === DA admin start ===
@@ -41,6 +44,8 @@ DA_ADMIN_USERNAME1=*put-directadmin-new-username-here*"
 # Admin username cannot contain character '+' it will trigger invalid password (DA bug?)
 DA_ADMIN_USERPASS1="*long-secured-password*"
 DA_ADMIN_EMAIL1="admin@sofibox.com"
+DA_ADMIN_SECURITY_Q1=("What is the spiritual movement?" "What do they call you?")
+DA_ADMIN_SECURITY_A1=("xxx" "MaXi32")
 # === DA admin end ===
 
 # === DA reseller start ===
@@ -54,12 +59,14 @@ DA_RESELLER_MAIL_PASSWORD1=("A*longemailpass" "BlongemailPass*")
 # This is the main reseller package
 DA_RESELLER_PACKAGE_NAME1="RESELLER_UNLIMITED"
 # This is different from BOX_DOMAIN
-DA_RESELLER_DOMAIN1=("sofibox.com")
-DA_RESELLER_SUBDOMAIN1=("sofibox.com:sales+login+secure")
+DA_RESELLER_DOMAIN1=("sofibox.com" "domain2.com")
+DA_RESELLER_SUBDOMAIN1=("sofibox.com:sales+login+secure" "domain2.com:dashboard")
 # shared or assign - If shared, domain will use the server's main ip. assign will use one of the reseller's ips
 DA_RESELLER_IP_TYPE1="shared"
 DA_RESELLER_DOMAIN_ENABLE_SSL1="yes"
-DA_RESELLER_SSL_SUB_NAME1=("letsencrypt:sofibox.com:www+ftp+mail+pop+smtp+sales+secure+login")
+DA_RESELLER_SSL_SUB_NAME1=("letsencrypt:sofibox.com:www+ftp+mail+pop+smtp+sales+secure+login+svn")
+DA_RESELLER_SECURITY_Q1=("What is the spiritual movement?" "What do they call you?")
+DA_RESELLER_SECURITY_A1=("xxx" "MaXi32")
 # === DA reseller end ===
 
 # === DA user start ===
@@ -77,7 +84,7 @@ DA_USER_MAIL_USER1=("email1@maxibi.com" "email2@maxibi.com")
 DA_USER_MAIL_PASSWORD1=("*mailpassword1" "*mailpassword2")
 # user domain, can declare multiple domains here
 DA_USER_DOMAIN1=("maxibi.com")
-# Format: <subdomain1.subdomain2>+<rootdomain>
+# Format: <rootdomain>:<subdomain1.subdomain2>+<anothersubdomain>+ ...
 # Use plus '+' instead of dot '.'
 # because there is no easy way to determine root domain when it has long subdomains due to huge number of TLD
 # and those TLD names need to be maintained frequently especially from https://publicsuffix.org/
@@ -92,6 +99,8 @@ DA_USER_DOMAIN_ENABLE_SSL1="yes"
 # ssl_provider such as letsencrypt, digicert etc:
 # The root domain should be ssled by default
 DA_USER_SSL_SUB_NAME1=("letsencrypt:maxibi.com:www+ftp+mail+pop+smtp+sales")
+DA_USER_SECURITY_Q1=("What is the spiritual movement?" "What do they call you?")
+DA_USER_SECURITY_A1=("xxx" "MaXi32")
 # Add more user from here (using the same format above):
 # Can add multiple domains, and emails
 # Add more user from here (using the same format above and add postfix index):
@@ -107,6 +116,8 @@ DA_USER_SSL_SUB_NAME1=("letsencrypt:maxibi.com:www+ftp+mail+pop+smtp+sales")
 #DA_USER_PACKAGE_NAME2=
 #DA_USER_DOMAIN_ENABLE_SSL2=
 #DA_USER_SSL_SUB_NAME2=
+DA_USER_SECURITY_Q1=
+DA_USER_SECURITY_A1=
 # === DA user end ===
 
 # DA_ADMIN_SQLPASS is for DA sql password (eg: phpmyadmin login) Password cannot contains this character [ ]
