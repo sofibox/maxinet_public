@@ -25,6 +25,7 @@ ADMIN_NAME="Arafat Ali"
 ADMIN_EMAIL="admin@sofibox.com"
 
 # === DA owner start ===
+# Owner shouldn't have domain or web interfaces for security reason
 DA_OWNER_NAME1="System Owner"
 # Change default Directadmin username to secured one (default installation is admin which is not secured)
 DA_OWNER_USERNAME1="da_owner"
@@ -38,6 +39,7 @@ DA_OWNER_SECURITY_A1=("xxx" "MaXi32")
 # == DA owner end ===
 
 # === DA admin start ===
+# Admin shouldn't have domain or web interfaces for security reason
 # This email also will be used by the main admin account
 DA_ADMIN_NAME1="System Administrator"
 DA_ADMIN_USERNAME1=*put-directadmin-new-username-here*"

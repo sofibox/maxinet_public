@@ -1,7 +1,7 @@
 #!/bin/bash
 # =~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~
 # Author: Arafat Ali Email: arafat@sofibox.com
-# Version 0.3.7.9-beta
+# Version 0.3.8.0-beta
 # This is an initial server hardening script for CentOS and Debian.
 # Compatible 100% with Directadmin. Supported OS: CentOS + Debian (Planned on FreeBSD)
 # You can choose to install as the other stack server such as LEMP, Laravel etc defined in config file (TODO)
@@ -55,48 +55,67 @@ function validate_config() {
     ((total_valid_user++))
   fi
 
-  #  Admin not support multiple users yet so checking is simple without loop
-  if [[ -z "${DA_ADMIN_USERNAME1+x}" ]]; then
-    echo "[${SCRIPT_NAME}]: [Skipped]: Warning admin username is not set. Please check configuration file " 2>&1 | tee -a "${REPORT_FILE}"
-    _exit 1
-  elif [[ -z "${DA_ADMIN_NAME1+x}" ]]; then
-    echo "[${SCRIPT_NAME}]: [Skipped]: Warning admin ${DA_ADMIN_USERNAME1} doesn't have name set in config file. Please check configuration file " 2>&1 | tee -a "${REPORT_FILE}"
-    _exit 1
-  elif [[ -z "${DA_ADMIN_USERPASS1+x}" ]]; then
-    echo "[${SCRIPT_NAME}]: [Skipped]: Warning admin ${DA_ADMIN_USERNAME1} doesn't have password set in config file. Please check configuration file " 2>&1 | tee -a "${REPORT_FILE}"
-    _exit 1
-  elif [[ "${#DA_ADMIN_USERPASS1}" -lt 6 ]]; then
-    echo "[${SCRIPT_NAME}]: [Skipped]: Warning admin ${DA_ADMIN_USERNAME1} has password set length of ${#DA_ADMIN_USERPASS1} but the minimum is 6 characters. Please check configuration file" 2>&1 | tee -a "${REPORT_FILE}"
-    _exit 1
-  elif [[ "${#DA_ADMIN_USERPASS1}" -gt 64 ]]; then
-    echo "[${SCRIPT_NAME}]: [Skipped]: Warning admin ${DA_ADMIN_USERNAME1} has password set length of ${#DA_ADMIN_USERPASS1} but the maximum is 64 characters. Please check configuration file" 2>&1 | tee -a "${REPORT_FILE}"
-    _exit 1
-  elif [[ "${DA_ADMIN_USERPASS1}" =~ ['&+'] ]]; then
-    echo "[${SCRIPT_NAME}]: [Skipped]: Warning admin ${DA_ADMIN_USERNAME1} has password set with forbidden special character &+ in config file. Please check configuration file" 2>&1 | tee -a "${REPORT_FILE}"
-    _exit 1
-  elif [[ -z "${DA_ADMIN_SYSTEM_EMAIL1+x}" ]]; then
-    echo "[${SCRIPT_NAME}]: [Skipped]: Warning admin ${DA_ADMIN_USERNAME1} doesn't have system email set in config file. Please check configuration file " 2>&1 | tee -a "${REPORT_FILE}"
-    _exit 1
-    # TODO check security questions for admin
+  # Admin test multiple
+  local da_admin_unames da_admin_unames_count this_da_admin_uname this_da_admin_password this_da_admin_name \
+    this_da_admin_system_email this_da_admin_security_q this_da_admin_security_a
 
-  #    elif [ -z "${DA_ADMIN_SECURITY_Q1}" ]; then
-  #echo "[${SCRIPT_NAME}]: [Skipped]: Warning admin ${DA_ADMIN_USERNAME1} doesn't have security question set in config file. Please check configuration file " 2>&1 | tee -a "${REPORT_FILE}"
-  #_exit 1
-
-  #    elif [ -z "${DA_ADMIN_SECURITY_A1}" ]; then
-  #echo "[${SCRIPT_NAME}]: [Skipped]: Warning admin ${DA_ADMIN_USERNAME1} doesn't have security answer set in config file. Please check configuration file " 2>&1 | tee -a "${REPORT_FILE}"
-  #_exit 1
-  else
-    echo "[${SCRIPT_NAME}]: OK, all variables for admin ${DA_ADMIN_USERNAME1} are set." 2>&1 | tee -a "${REPORT_FILE}"
-    ((total_valid_user++))
-  fi
-
-  da_reseller_unames="${!DA_RESELLER_USERNAME@}"
-  da_reseller_count=$(echo "${da_reseller_unames}" | wc -w)
+  da_admin_unames="${!DA_ADMIN_USERNAME@}"
+  da_admin_unames_count=$(echo "${da_admin_unames}" | wc -w)
 
   count_user=1
   # Validate resellers
-  while [[ ${count_user} -le ${da_reseller_count} ]]; do
+  while [[ ${count_user} -le ${da_admin_unames_count} ]]; do
+    typeset -n "this_da_admin_uname"="DA_ADMIN_USERNAME${count_user}"
+    typeset -n "this_da_admin_password"="DA_ADMIN_USERPASS${count_user}"
+    typeset -n "this_da_admin_name"="DA_ADMIN_NAME${count_user}"
+    typeset -n "this_da_admin_system_email"="DA_ADMIN_SYSTEM_EMAIL${count_user}"
+    typeset -n "this_da_admin_security_q"="DA_ADMIN_SECURITY_Q${count_user}"
+    typeset -n "this_da_admin_security_a"="DA_ADMIN_SECURITY_A${count_user}"
+    if [[ -z "${this_da_admin_password+x}" ]]; then
+      echo "[${SCRIPT_NAME}]: [Skipped]: Warning admin ${this_da_admin_uname} doesn't have password set in config file. Please check configuration file " 2>&1 | tee -a "${REPORT_FILE}"
+      _exit 1
+    elif [[ "${#this_da_admin_password}" -lt 6 ]]; then
+      echo "[${SCRIPT_NAME}]: [Skipped]: Warning admin ${this_da_admin_uname} has password set length of ${#this_da_admin_password} but the minimum is 6 characters. Please check configuration file" 2>&1 | tee -a "${REPORT_FILE}"
+      _exit 1
+    elif [[ "${#this_da_admin_password}" -gt 64 ]]; then
+      echo "[${SCRIPT_NAME}]: [Skipped]: Warning admin ${this_da_admin_uname} has password set length of ${#this_da_admin_password} but the maximum is 64 characters. Please check configuration file" 2>&1 | tee -a "${REPORT_FILE}"
+      _exit 1
+    elif [[ "${this_da_admin_password}" =~ ['&+'] ]]; then
+      echo "[${SCRIPT_NAME}]: [Skipped]: Warning admin ${this_da_admin_uname} has password set with forbidden special character &+ in config file. Please check configuration file" 2>&1 | tee -a "${REPORT_FILE}"
+      _exit 1
+    elif [[ -z "${this_da_admin_name+x}" ]]; then
+      echo "[${SCRIPT_NAME}]: [Skipped]: Warning admin ${this_da_admin_uname} doesn't have name set in config file. Please check configuration file " 2>&1 | tee -a "${REPORT_FILE}"
+      _exit 1
+    elif [[ -z "${this_da_admin_system_email+x}" ]]; then
+      echo "[${SCRIPT_NAME}]: [Skipped]: Warning admin ${this_da_admin_uname} doesn't have system email set in config file. Please check configuration file " 2>&1 | tee -a "${REPORT_FILE}"
+      _exit 1
+    elif [[ -z "${this_da_admin_security_q+x}" ]]; then
+      echo "[${SCRIPT_NAME}]: [Skipped]: Warning admin ${this_da_admin_uname} doesn't have security question set in config file. Please check configuration file " 2>&1 | tee -a "${REPORT_FILE}"
+      _exit 1
+    elif [[ -z "${this_da_admin_security_a+x}" ]]; then
+      echo "[${SCRIPT_NAME}]: [Skipped]: Warning admin ${this_da_admin_uname} doesn't have security answer set in config file. Please check configuration file " 2>&1 | tee -a "${REPORT_FILE}"
+      _exit 1
+    elif [[ ${#this_da_admin_security_q[@]} -ne ${#this_da_admin_security_a[@]} ]]; then
+      echo "[${SCRIPT_NAME}]: [Skipped]: Warning admin ${this_da_admin_uname} have security question and answer defined with different length of array" 2>&1 | tee -a "${REPORT_FILE}"
+      _exit 1
+    else
+      echo "[${SCRIPT_NAME}]: OK, all variables for admin ${this_da_admin_uname} are set." 2>&1 | tee -a "${REPORT_FILE}"
+
+    fi
+    ((count_user++))
+    ((total_valid_user++))
+  done
+
+  local da_reseller_unames da_reseller_unames_count this_da_reseller_uname this_da_reseller_name this_da_reseller_system_email \
+    this_da_reseller_mail_users this_da_reseller_mail_passwords this_da_reseller_domains this_da_reseller_subdomains this_da_reseller_package_name \
+    this_da_reseller_domain_enable_ssl this_da_reseller_security_q this_da_reseller_security_a
+
+  da_reseller_unames="${!DA_RESELLER_USERNAME@}"
+  da_reseller_unames_count=$(echo "${da_reseller_unames}" | wc -w)
+
+  count_user=1
+  # Validate resellers
+  while [[ ${count_user} -le ${da_reseller_unames_count} ]]; do
     typeset -n "this_da_reseller_uname"="DA_RESELLER_USERNAME${count_user}"
     typeset -n "this_da_reseller_password"="DA_RESELLER_USERPASS${count_user}"
     typeset -n "this_da_reseller_name"="DA_RESELLER_NAME${count_user}"
@@ -166,6 +185,10 @@ function validate_config() {
     ((count_user++))
     ((total_valid_user++))
   done
+
+  local da_user_unames da_user_count this_da_user_uname this_da_user_password this_da_user_name this_da_user_system_email \
+    this_da_user_mail_users this_da_user_mail_passwords this_da_user_domains this_da_user_subdomains this_da_user_package_name \
+    this_da_user_domain_enable_ssl this_da_user_security_q this_da_user_security_a
 
   da_user_unames="${!DA_USER_USERNAME@}"
   da_user_count=$(echo "${da_user_unames}" | wc -w)
@@ -1181,11 +1204,9 @@ function check_finish_reboot() {
     if [ "${ENABLE_SETUP_REBOOT}" == "auto" ]; then
       echo "[${SCRIPT_NAME}]: [Notice]: *** System reboot required. Rebooting in 30 seconds (ctrl+c to cancel) ..." 2>&1 | tee -a "${REPORT_FILE}"
       sleep 30
-      # TODO optional feature: since reboot is requested, we need to automatically resume installation after user login
       _reboot
     elif [ "${ENABLE_SETUP_REBOOT}" == "interactive" ]; then
       read -r -s -n 1 -p "[${SCRIPT_NAME}]: [Notice]: *** System reboot required. Press any key to reboot (ctrl+c to cancel) ..." 2>&1 | tee -a "${REPORT_FILE}"
-      # TODO optional feature: since reboot is requested, we need to automatically resume installation after user login
       _reboot
     elif [ "${ENABLE_SETUP_REBOOT}" == "disabled" ]; then
       read -r -s -n 1 -p "[${SCRIPT_NAME}]: [Notice]: *** Warning, system reboot required, but ENABLE_SETUP_REBOOT setting is disabled!" 2>&1 | tee -a "${REPORT_FILE}"
@@ -1490,6 +1511,24 @@ function secure_box() {
       echo "[${SCRIPT_NAME}]: Error, unknown value for distribution ID ${DISTRO_ID}" 2>&1 | tee -a "${REPORT_FILE}"
       _exit 1
     fi
+    # Another SSHD tweaks
+    echo "[${SCRIPT_NAME}]: Hardening other settings for SSHD_CONFIG ..." 2>&1 | tee -a "${REPORT_FILE}"
+    # Recommended by lynis
+    echo "[${SCRIPT_NAME}]: Setting SSH LogLevel to VERBOSE ..." 2>&1 | tee -a "${REPORT_FILE}"
+    sed -i "s/^#LogLevel.*/LogLevel VERBOSE/" /etc/ssh/sshd_config
+    #sleep 1
+    # Recommended by lynis
+    echo "[${SCRIPT_NAME}]: Setting SSH MaxAuthTries to 5 ..." 2>&1 | tee -a "${REPORT_FILE}"
+    sed -i "s/^#MaxAuthTries.*/MaxAuthTries 5/" /etc/ssh/sshd_config
+    #sleep 1
+    # Recommended by lynis
+    echo "[${SCRIPT_NAME}]: Setting SSH MaxSessions to 10 ..." 2>&1 | tee -a "${REPORT_FILE}"
+    sed -i "s/^#MaxSessions.*/MaxSessions 10/" /etc/ssh/sshd_config
+    #sleep 1
+    # This one recommended by CSF security page:
+    echo "[${SCRIPT_NAME}]: Setting SSH UseDNS to no ..." 2>&1 | tee -a "${REPORT_FILE}"
+    sed -i "s/^#UseDNS.*/UseDNS no/" /etc/ssh/sshd_config
+    #sleep 1
 
     # Restart SSHD
     echo "[${SCRIPT_NAME}]: Restarting sshd service ..." 2>&1 | tee -a "${REPORT_FILE}"
@@ -3186,62 +3225,26 @@ function build_da_custom_conf() {
 function harden_da() {
   if [ ! -f "${CONF_PATH}/${FUNCNAME[0]}_executed" ]; then
     echo "[${SCRIPT_NAME}]: Executing ${FUNCNAME[0]} ..." 2>&1 | tee -a "${REPORT_FILE}"
-    # TODO LOOK AT DA BASIC SECURITY AND APPLY HERE
-    # TODO Follow directadmin basic security one by one on debian here !!!:https://help.directadmin.com/item.php?id=247
+    # From now on we should use maxida since it was released and installed earlier when executing this script (with maxicode update).
+    # Maxida (or Maxi Direct Admin) is used to manage everything related to Directadmin. It also has the ability to manage DA API eg:
+    # maxida --api <action> <options> ...
+    if command -v maxida &>/dev/null; then
+      echo "[${SCRIPT_NAME}]: Maxida is installed with the following details: " 2>&1 | tee -a "${REPORT_FILE}"
+      maxida -V
+      sleep 2
+    else
+      echo "[${SCRIPT_NAME}]: Warning, no maxida binary is found!" 2>&1 | tee -a "${REPORT_FILE}"
+      _exit 1
+    fi
+
+    echo "[${SCRIPT_NAME}]: Enforcing DA difficult password ..." 2>&1 | tee -a "${REPORT_FILE}"
+    # or maxida --da set enforce_difficult_passwords 1
+    maxida --da set enforce_difficult_passwords 1
+
+    echo "[${SCRIPT_NAME}]: Securing php installation ..." 2>&1 | tee -a "${REPORT_FILE}"
+    maxida --cb secure_php
+
     # TODO look at the post about DA external import js, try to avoid that for security and apply it here
-    check_finish_reboot "${FUNCNAME[0]}"
-  else
-    echo "[${SCRIPT_NAME}]: [Skipped]: ${FUNCNAME[0]} has ran before" 2>&1 | tee -a "${REPORT_FILE}"
-    echo "=~=~=~=~=~=~=~=~=~" 2>&1 | tee -a "${REPORT_FILE}"
-  fi
-}
-
-# Harden server based on lynis suggestion
-function harden_with_lynis() {
-  # Here we do extra hardening for SSHD (based on lynis suggestion)
-  if [ ! -f "${CONF_PATH}/${FUNCNAME[0]}_executed" ]; then
-    echo "[${SCRIPT_NAME}]: Executing ${FUNCNAME[0]} ..." 2>&1 | tee -a "${REPORT_FILE}"
-    local lynis_latest_version
-    echo "[${SCRIPT_NAME}]: Hardening other settings for SSHD_CONFIG ..." 2>&1 | tee -a "${REPORT_FILE}"
-    # Recommended by lynis
-    echo "[${SCRIPT_NAME}]: Setting SSH LogLevel to VERBOSE ..." 2>&1 | tee -a "${REPORT_FILE}"
-    sed -i "s/^#LogLevel.*/LogLevel VERBOSE/" /etc/ssh/sshd_config
-    sleep 1
-    # Recommended by lynis
-    echo "[${SCRIPT_NAME}]: Setting SSH MaxAuthTries to 5 ..." 2>&1 | tee -a "${REPORT_FILE}"
-    sed -i "s/^#MaxAuthTries.*/MaxAuthTries 5/" /etc/ssh/sshd_config
-    sleep 1
-    # Recommended by lynis
-    echo "[${SCRIPT_NAME}]: Setting SSH MaxSessions to 10 ..." 2>&1 | tee -a "${REPORT_FILE}"
-    sed -i "s/^#MaxSessions.*/MaxSessions 10/" /etc/ssh/sshd_config
-    sleep 1
-    # This one recommended by CSF security page:
-    echo "[${SCRIPT_NAME}]: Setting SSH UseDNS to no ..." 2>&1 | tee -a "${REPORT_FILE}"
-    sed -i "s/^#UseDNS.*/UseDNS no/" /etc/ssh/sshd_config
-    sleep 1
-    # Since we change a lot of setting at sshd_config above, it is a good idea to restart this
-    echo "[${SCRIPT_NAME}]: Restarting SSHD service ..." 2>&1 | tee -a "${REPORT_FILE}"
-    systemctl reload sshd 2>&1 | tee -a "${REPORT_FILE}"
-
-    # SSHD config enough. No more
-    # TODO MORE HERE for others based on lynis suggestion.. (Need to obtain the scan ID first and get that value)
-    # Use that value and auto apply hardening here
-    # Install latest lynis using:
-    # Get latest version tar.gz inspired by: https://stackoverflow.com/questions/22510705/get-the-latest-download-link-programmatically
-    echo "[${SCRIPT_NAME}]: Getting latest version of lynis ..." 2>&1 | tee -a "${REPORT_FILE}"
-    lynis_latest_version=$(curl 'https://downloads.cisofy.com/lynis/' | grep -oP 'href="lynis-\K[0-9]+\.[0-9]+\.[0-9]+' | sort -t. -rn -k1,1 -k2,2 -k3,3 | head -1)
-    echo "[${SCRIPT_NAME}]: Latest version detected as ${lynis_latest_version}. Downloading lynis version ${lynis_latest_version} ..." 2>&1 | tee -a "${REPORT_FILE}"
-    sleep 1
-    mkdir -p /usr/local/lynis
-    cd_to_path "/usr/local"
-    wget "https://cisofy.com/files/lynis-${lynis_latest_version}.tar.gz" 2>&1 | tee -a "${REPORT_FILE}"
-    echo "[${SCRIPT_NAME}]: Extracting lynis.tar.gz ..." 2>&1 | tee -a "${REPORT_FILE}"
-    tar xfvz "lynis-${lynis_latest_version}.tar.gz" 2>&1 | tee -a "${REPORT_FILE}"
-    rm -f "lynis-${lynis_latest_version}.tar.gz"
-    cd_to_path "lynis"
-    echo "[${SCRIPT_NAME}]: Checking system security with lynis ..." 2>&1 | tee -a "${REPORT_FILE}"
-    # No need to audit system during setup because ain't nobody got time for this
-    #./lynis audit system 2>&1 | tee -a "${REPORT_FILE}"
     check_finish_reboot "${FUNCNAME[0]}"
   else
     echo "[${SCRIPT_NAME}]: [Skipped]: ${FUNCNAME[0]} has ran before" 2>&1 | tee -a "${REPORT_FILE}"
@@ -3374,6 +3377,41 @@ function configure_maxiperm() {
     echo "=~=~=~=~=~=~=~=~=~" 2>&1 | tee -a "${REPORT_FILE}"
   fi
 }
+
+# Harden server based on lynis suggestion
+function configure_maxinis() {
+  # Here we do extra hardening for SSHD (based on lynis suggestion)
+  if [ ! -f "${CONF_PATH}/${FUNCNAME[0]}_executed" ]; then
+    echo "[${SCRIPT_NAME}]: Executing ${FUNCNAME[0]} ..." 2>&1 | tee -a "${REPORT_FILE}"
+    local lynis_latest_version
+
+    # SSHD config enough. No more
+    # TODO MORE HERE for others based on lynis suggestion.. (Need to obtain the scan ID first and get that value)
+    # Use that value and auto apply hardening here
+    # Install latest lynis using:
+    # Get latest version tar.gz inspired by: https://stackoverflow.com/questions/22510705/get-the-latest-download-link-programmatically
+    echo "[${SCRIPT_NAME}]: Getting latest version of lynis ..." 2>&1 | tee -a "${REPORT_FILE}"
+    lynis_latest_version=$(curl 'https://downloads.cisofy.com/lynis/' | grep -oP 'href="lynis-\K[0-9]+\.[0-9]+\.[0-9]+' | sort -t. -rn -k1,1 -k2,2 -k3,3 | head -1)
+    echo "[${SCRIPT_NAME}]: Latest version detected as ${lynis_latest_version}. Downloading lynis version ${lynis_latest_version} ..." 2>&1 | tee -a "${REPORT_FILE}"
+    sleep 1
+    mkdir -p /usr/local/lynis
+    cd_to_path "/usr/local"
+    wget "https://cisofy.com/files/lynis-${lynis_latest_version}.tar.gz" 2>&1 | tee -a "${REPORT_FILE}"
+    echo "[${SCRIPT_NAME}]: Extracting lynis.tar.gz ..." 2>&1 | tee -a "${REPORT_FILE}"
+    tar xfvz "lynis-${lynis_latest_version}.tar.gz" 2>&1 | tee -a "${REPORT_FILE}"
+    rm -f "lynis-${lynis_latest_version}.tar.gz"
+    cd_to_path "lynis"
+    # TODO: Configure maxinis binary here
+    echo "[${SCRIPT_NAME}]: Checking system security with lynis ..." 2>&1 | tee -a "${REPORT_FILE}"
+    # No need to audit system during setup because ain't nobody got time for this
+    #./lynis audit system 2>&1 | tee -a "${REPORT_FILE}"
+    check_finish_reboot "${FUNCNAME[0]}"
+  else
+    echo "[${SCRIPT_NAME}]: [Skipped]: ${FUNCNAME[0]} has ran before" 2>&1 | tee -a "${REPORT_FILE}"
+    echo "=~=~=~=~=~=~=~=~=~" 2>&1 | tee -a "${REPORT_FILE}"
+  fi
+}
+
 # Installing other security software based on maxicode
 function configure_maxigpg() {
   if [ ! -f "${CONF_PATH}/${FUNCNAME[0]}_executed" ]; then
@@ -5459,7 +5497,8 @@ function configure_da_user_security() {
 
   # Set user security and answer questions:
   # da_admin_api "set-security-qna" "Sekolah menengah dulu aliran apa ?" "sains"
-
+  # Don't use 2 step authentication yet because of this:
+  # https://forum.directadmin.com/threads/feature-request-dont-use-online-service-to-generate-otp-qr-code-for-security.63140/
   if [ ! -f "${CONF_PATH}/${FUNCNAME[0]}_executed" ]; then
     echo "[${SCRIPT_NAME}]: Executing ${FUNCNAME[0]} ..." 2>&1 | tee -a "${REPORT_FILE}"
     local da_user_usernames da_user_usernames_count this_da_user_username this_da_user_userpass
@@ -5517,11 +5556,42 @@ function configure_da_user_security() {
 
 }
 
+function harden_with_lynis() {
+  if [ ! -f "${CONF_PATH}/${FUNCNAME[0]}_executed" ]; then
+    echo "[${SCRIPT_NAME}]: Executing ${FUNCNAME[0]} ..." 2>&1 | tee -a "${REPORT_FILE}"
+    # Suggested by lynis to disable core dump
+    limitsconf="/etc/security/limits.conf"
+    limit_append="*                hard    core          0"
+    read -ra line_array <<<"${limit_append}"
+    line_domain=${line_array[0]}
+    line_type=${line_array[1]}
+    line_item=${line_array[2]}
+    line_value=${line_array[3]}
+    gr=$(grep "$line_domain *$line_type  *$line_item *$line_value" "${limitsconf}")
+
+    if [[ -z "${gr}" ]]; then
+      echo "[${SCRIPT_NAME}]: Disabling core dump with the following options:"
+      echo "${limit_append}"
+      echo "${limit_append}" >>"${limitsconf}"
+    else
+      echo "[${SCRIPT_NAME}]: [Skipped]: Found core dump config is already disabled"
+    fi
+
+    check_finish_reboot "${FUNCNAME[0]}"
+  else
+    echo "[${SCRIPT_NAME}]: [Skipped]: ${FUNCNAME[0]} has ran before" 2>&1 | tee -a "${REPORT_FILE}"
+    echo "=~=~=~=~=~=~=~=~=~" 2>&1 | tee -a "${REPORT_FILE}"
+  fi
+
+}
+
 # This is used to install extra packages like ncdu, htop and more
 function post_setup() {
   if [ ! -f "${CONF_PATH}/${FUNCNAME[0]}_executed" ]; then
     echo "[${SCRIPT_NAME}]: Executing ${FUNCNAME[0]} ..." 2>&1 | tee -a "${REPORT_FILE}"
     apt-get -y install ncdu htop mailutils gpg 2>&1 | tee -a "${REPORT_FILE}"
+    # TODO: Audit system here with maxinis:
+    # maxinis --audit system
     check_finish_reboot "${FUNCNAME[0]}"
   else
     echo "[${SCRIPT_NAME}]: [Skipped]: ${FUNCNAME[0]} has ran before" 2>&1 | tee -a "${REPORT_FILE}"
@@ -5715,8 +5785,6 @@ fi
 # FOR BOTH GENERAL AND DIRECTADMIN INSTALLATION TYPE:
 #Best to execute after install_da because CSF installer will detect if DA exist, it will install CSF in DA way.
 configure_csf
-# Still need to add more based on lynis suggestion
-harden_with_lynis
 #exit 1
 configure_maxibox
 #exit 1
@@ -5725,6 +5793,8 @@ configure_maxicode_pre
 configure_maxicode
 #exit 1
 configure_maxiperm
+#exit 1
+configure_maxinis
 #exit 1
 configure_maxigpg
 #exit 1
@@ -5744,11 +5814,11 @@ if [ "${INSTALL_TYPE}" == "DIRECTADMIN" ]; then
   # This will set the hosting to SSL:
   configure_da_ssl_pre
   #exit 1
-  configure_da_ssl  #OK
+  configure_da_ssl
   #exit 1
-  configure_da_sql  #OK
+  configure_da_sql
   #exit 1
-  configure_da_mail #OK but need to test again
+  configure_da_mail
   #exit 1
   configure_da_ftp
   #exit 1
@@ -5817,6 +5887,9 @@ if [ "${INSTALL_TYPE}" == "DIRECTADMIN" ]; then
   configure_da_user_security
 fi
 #exit 1
+# Still need to add more based on lynis suggestion
+harden_with_lynis
+# exit 1
 post_setup
 echo "" 2>&1 | tee -a "${REPORT_FILE}"
 echo "==============" 2>&1 | tee -a "${REPORT_FILE}"
