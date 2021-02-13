@@ -1,7 +1,7 @@
 #!/bin/bash
 # =~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~
 # Author: Arafat Ali Email: arafat@sofibox.com
-# Version 0.3.8.3-beta
+# Version 0.3.8.4-beta
 # This is an initial server hardening script for CentOS and Debian.
 # Compatible 100% with Directadmin. Supported OS: CentOS + Debian (Planned on FreeBSD)
 # You can choose to install as the other stack server such as LEMP, Laravel etc defined in config file (TODO)
@@ -3268,12 +3268,21 @@ function harden_da() {
       _exit 1
     fi
 
-    echo "[${SCRIPT_NAME}]: Enforcing DA difficult password ..." 2>&1 | tee -a "${REPORT_FILE}"
-    # or maxida --da set enforce_difficult_passwords 1
+    echo "[${SCRIPT_NAME}]: Enforcing Directadmin difficult password ..." 2>&1 | tee -a "${REPORT_FILE}"
+    # or maxida --directadmin set enforce_difficult_passwords 1
     maxida --da set enforce_difficult_passwords 1
+    # This will only allow hostname url login in Directadmin. For example, without this option you can use any domain within DA system to login.
+    # eg: userdomain.com:2222 . Sometimes this user does not have valid certificate, thus this will cause security issue.
+    # so, it is better to redirect to one hostname with a valid certificate:
+    # Also explained in here: https://www.directadmin.com/features.php?id=917
+    echo "[${SCRIPT_NAME}]: Forcing Directadmin login url to usr ${BOX_HOSTNAME_FQDN} ..." 2>&1 | tee -a "${REPORT_FILE}"
+    maxida --da set force_hostname "${BOX_HOSTNAME_FQDN}"
 
-    echo "[${SCRIPT_NAME}]: Securing php installation ..." 2>&1 | tee -a "${REPORT_FILE}"
+    echo "[${SCRIPT_NAME}]: Securing all php installation ..." 2>&1 | tee -a "${REPORT_FILE}"
+    # or maxida --custombuild secure_php
     maxida --cb secure_php
+
+
 
     # TODO look at the post about DA external import js, try to avoid that for security and apply it here
     check_finish_reboot "${FUNCNAME[0]}"
