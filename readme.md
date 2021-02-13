@@ -10,3 +10,5 @@ this file in the same path for maxisetup. Then chmod +x maxisetup -> run
 Installation might ask you to reboot, or it will reboot automatically (depends on the config file) but you can resume the installation where you left off.
 
 Author: Arafat Ali | Email: arafat@sofibox.com | Personal Blog: arafatx.com
+
+Note: A public version of git repo for maxicode will be publish. It's currently using private repo to get the latest maxicode binary.
