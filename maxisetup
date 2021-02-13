@@ -1,7 +1,7 @@
 #!/bin/bash
 # =~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~
 # Author: Arafat Ali Email: arafat@sofibox.com
-# Version 0.3.8.0-beta
+# Version 0.3.8.2-beta
 # This is an initial server hardening script for CentOS and Debian.
 # Compatible 100% with Directadmin. Supported OS: CentOS + Debian (Planned on FreeBSD)
 # You can choose to install as the other stack server such as LEMP, Laravel etc defined in config file (TODO)
@@ -1325,6 +1325,8 @@ function pre_setup() {
       check_finish_reboot "${FUNCNAME[0]}"
     elif [ "${DISTRO_ID}" == "debian" ]; then
       # psmisc = pstree utils (needed by maxigpg script from maxicode)
+      apt-get -y update
+      apt-get -y upgrade
       apt-get -y install screen nmap psmisc 2>&1 | tee -a "${REPORT_FILE}"
     else
       echo "[${SCRIPT_NAME}]: Error, unknown value for distribution ID ${DISTRO_ID}" 2>&1 | tee -a "${REPORT_FILE}"
@@ -1835,6 +1837,7 @@ function configure_sysctl_kernel_fs() {
     sleep 1
     {
       # Disable core dumps
+      # This code will ensure not to make any core dumps by setuid programs in future.
       echo "fs.suid_dumpable = 0"
       # Disable System Request debugging functionality
       echo "kernel.sysrq = 0"
@@ -3535,6 +3538,10 @@ function configure_maxida() {
     echo "[${SCRIPT_NAME}]: [Skipped]: ${FUNCNAME[0]} has ran before" 2>&1 | tee -a "${REPORT_FILE}"
     echo "=~=~=~=~=~=~=~=~=~" 2>&1 | tee -a "${REPORT_FILE}"
   fi
+}
+
+function configure_maxicron() {
+  :
 }
 
 function configure_maxiaide() {
@@ -5577,12 +5584,13 @@ function harden_with_lynis() {
       echo "[${SCRIPT_NAME}]: [Skipped]: Found core dump config is already disabled"
     fi
 
+    echo "# This line disables core dumps for all users" >>/etc/profile
+    echo "ulimit -S -c 0 > /dev/null 2>&1" >>/etc/profile
     check_finish_reboot "${FUNCNAME[0]}"
   else
     echo "[${SCRIPT_NAME}]: [Skipped]: ${FUNCNAME[0]} has ran before" 2>&1 | tee -a "${REPORT_FILE}"
     echo "=~=~=~=~=~=~=~=~=~" 2>&1 | tee -a "${REPORT_FILE}"
   fi
-
 }
 
 # This is used to install extra packages like ncdu, htop and more
@@ -5799,6 +5807,8 @@ configure_maxinis
 configure_maxigpg
 #exit 1
 configure_maxida
+#exit 1
+configure_maxicron
 #exit 1
 configure_maxiaide
 #exit 1
