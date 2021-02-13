@@ -41,11 +41,11 @@ DA_OWNER_SECURITY_A1=("xxx" "MaXi32")
 # === DA admin start ===
 # Admin shouldn't have domain or web interfaces for security reason
 # This email also will be used by the main admin account
-DA_ADMIN_NAME1="System Administrator"
+DA_ADMIN_NAME1="System Admin"
 DA_ADMIN_USERNAME1=*put-directadmin-new-username-here*"
 # Admin username cannot contain character '+' it will trigger invalid password (DA bug?)
 DA_ADMIN_USERPASS1="*long-secured-password*"
-DA_ADMIN_EMAIL1="admin@sofibox.com"
+DA_ADMIN_SYSTEM_EMAIL1="admin@sofibox.com"
 DA_ADMIN_SECURITY_Q1=("What is the spiritual movement?" "What do they call you?")
 DA_ADMIN_SECURITY_A1=("xxx" "MaXi32")
 # === DA admin end ===
@@ -101,6 +101,7 @@ DA_USER_DOMAIN_ENABLE_SSL1="yes"
 # ssl_provider such as letsencrypt, digicert etc:
 # The root domain should be ssled by default
 DA_USER_SSL_SUB_NAME1=("letsencrypt:maxibi.com:www+ftp+mail+pop+smtp+sales")
+# Security question and answers
 DA_USER_SECURITY_Q1=("What is the spiritual movement?" "What do they call you?")
 DA_USER_SECURITY_A1=("xxx" "MaXi32")
 # Add more user from here (using the same format above):
