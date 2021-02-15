@@ -1,10 +1,10 @@
 #!/bin/bash
 # =~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~
 # Author: Arafat Ali Email: arafat@sofibox.com
-# Version 0.3.8.4-beta
+# Version 0.3.8.5-beta
 # This is an initial server hardening script for CentOS and Debian.
 # Compatible 100% with Directadmin. Supported OS: CentOS + Debian (Planned on FreeBSD)
-# You can choose to install as the other stack server such as LEMP, Laravel etc defined in config file (TODO)
+# You can choose to install as the other stack server such as LEMP, (TODO) Laravel and more defined in config file
 # In Directadmin, it will setup Directadmin from scratch, secure its installation with many security best practices
 # At the end of installation, you will get a secured Directadmin control panel without needed to tweak more
 # You can always re-run this script to resume installation if it's halt due to known error or script has performed reboot
@@ -14,6 +14,7 @@
 # set code debug:
 # set -euxo pipefail
 # ""
+# TODO create each user must have database from DA (can create multiple user and database password)
 
 # This function will validate if config is valid, if one of the variables missing, it will complain and exit
 function validate_config() {
@@ -21,35 +22,49 @@ function validate_config() {
   echo "[${SCRIPT_NAME}]: Checking DA users configuration ... " 2>&1 | tee -a "${REPORT_FILE}"
   total_valid_user=0
   # Owner not support multiple users yet so checking is simple without loop
-  if [[ -z "${DA_OWNER_USERNAME1+x}" ]]; then
-    echo "[${SCRIPT_NAME}]: [Skipped]: Warning owner username is not set. Please check configuration file " 2>&1 | tee -a "${REPORT_FILE}"
-    _exit 1
-  elif [[ -z "${DA_OWNER_NAME1+x}" ]]; then
-    echo "[${SCRIPT_NAME}]: [Skipped]: Warning owner ${DA_OWNER_USERNAME1} doesn't have name set in config file. Please check configuration file" 2>&1 | tee -a "${REPORT_FILE}"
-    _exit 1
-  elif [[ -z "${DA_OWNER_USERPASS1+x}" ]]; then
-    echo "[${SCRIPT_NAME}]: [Skipped]: Warning owner ${DA_OWNER_USERNAME1} doesn't have password set in config file. Please check configuration file " 2>&1 | tee -a "${REPORT_FILE}"
-    _exit 1
-  elif [[ "${#DA_OWNER_USERPASS1}" -lt 6 ]]; then
-    echo "[${SCRIPT_NAME}]: [Skipped]: Warning owner ${DA_OWNER_USERNAME1} has password set length of ${#DA_OWNER_USERPASS1} but the minimum is 6 characters. Please check configuration file" 2>&1 | tee -a "${REPORT_FILE}"
-    _exit 1
-  elif [[ "${#DA_OWNER_USERPASS1}" -gt 64 ]]; then
-    echo "[${SCRIPT_NAME}]: [Skipped]: Warning owner ${DA_OWNER_USERNAME1} has password set length of ${#DA_OWNER_USERPASS1} but the maximum is 64 characters. Please check configuration file" 2>&1 | tee -a "${REPORT_FILE}"
-    _exit 1
-  elif [[ "${DA_OWNER_USERPASS1}" =~ ['&+'] ]]; then
-    echo "[${SCRIPT_NAME}]: [Skipped]: Warning owner ${DA_OWNER_USERNAME1} has password set with forbidden special character &+ in config file. Please check configuration file" 2>&1 | tee -a "${REPORT_FILE}"
-    _exit 1
-  elif [[ -z "${DA_OWNER_SYSTEM_EMAIL1+x}" ]]; then
-    echo "[${SCRIPT_NAME}]: [Skipped]: Warning owner ${DA_OWNER_USERNAME1} doesn't have system email set in config file. Please check configuration file " 2>&1 | tee -a "${REPORT_FILE}"
-    _exit 1
-    # TODO check security questions for owner
-    #    elif [ -z "${DA_OWNER_SECURITY_Q1}" ]; then
-    #echo "[${SCRIPT_NAME}]: [Skipped]: Warning owner ${DA_OWNER_USERNAME1} doesn't have security question set in config file. Please check configuration file " 2>&1 | tee -a "${REPORT_FILE}"
-    #_exit 1
+  typeset -n "this_da_owner_uname"="DA_OWNER_USERNAME1"
+  typeset -n "this_da_owner_password"="DA_OWNER_USERPASS1"
+  typeset -n "this_da_owner_name"="DA_OWNER_NAME1"
+  typeset -n "this_da_owner_system_email"="DA_OWNER_SYSTEM_EMAIL1"
+  typeset -n "this_da_owner_security_q"="DA_OWNER_SECURITY_Q1"
+  typeset -n "this_da_owner_security_a"="DA_OWNER_SECURITY_A1"
 
-    #    elif [ -z "${DA_OWNER_SECURITY_A1}" ]; then
-    #echo "[${SCRIPT_NAME}]: [Skipped]: Warning owner ${DA_OWNER_USERNAME1} doesn't have security answer set in config file. Please check configuration file " 2>&1 | tee -a "${REPORT_FILE}"
-    #_exit 1
+  #if [[ -z "${this_da_owner_uname+x}" ]]; then
+  # echo "[${SCRIPT_NAME}]: [Skipped]: Warning owner username is not set. Please check configuration file " 2>&1 | tee -a "${REPORT_FILE}"
+  # _exit 1
+  if [[ "${#this_da_owner_uname}" -lt 2 ]]; then
+    echo "[${SCRIPT_NAME}]: [Skipped]: Warning owner username length is ${#this_da_owner_uname} but the minimum should be 2. Please check configuration file " 2>&1 | tee -a "${REPORT_FILE}"
+    _exit 1
+  elif [[ "${#this_da_owner_uname}" -gt ${DA_MAX_UNAME_LENGTH} ]]; then
+    echo "[${SCRIPT_NAME}]: [Skipped]: Warning owner username length is ${#this_da_owner_uname} but the maximum should be ${DA_MAX_UNAME_LENGTH}. Please check configuration file " 2>&1 | tee -a "${REPORT_FILE}"
+    _exit 1
+  elif [[ -z "${this_da_owner_name+x}" ]]; then
+    echo "[${SCRIPT_NAME}]: [Skipped]: Warning owner ${this_da_owner_uname} doesn't have name set in config file. Please check configuration file" 2>&1 | tee -a "${REPORT_FILE}"
+    _exit 1
+  elif [[ -z "${this_da_owner_password+x}" ]]; then
+    echo "[${SCRIPT_NAME}]: [Skipped]: Warning owner ${this_da_owner_uname} doesn't have password set in config file. Please check configuration file " 2>&1 | tee -a "${REPORT_FILE}"
+    _exit 1
+  elif [[ "${#this_da_owner_password}" -lt 6 ]]; then
+    echo "[${SCRIPT_NAME}]: [Skipped]: Warning owner ${this_da_owner_uname} has password set length of ${#DA_OWNER_USERPASS1} but the minimum is 6 characters. Please check configuration file" 2>&1 | tee -a "${REPORT_FILE}"
+    _exit 1
+  elif [[ "${#this_da_owner_password}" -gt 64 ]]; then
+    echo "[${SCRIPT_NAME}]: [Skipped]: Warning owner ${this_da_owner_uname} has password set length of ${#DA_OWNER_USERPASS1} but the maximum is 64 characters. Please check configuration file" 2>&1 | tee -a "${REPORT_FILE}"
+    _exit 1
+  elif [[ "${this_da_owner_password}" =~ ['&+'] ]]; then
+    echo "[${SCRIPT_NAME}]: [Skipped]: Warning owner ${this_da_owner_uname} has password set with forbidden special character &+ in config file. Please check configuration file" 2>&1 | tee -a "${REPORT_FILE}"
+    _exit 1
+  elif [[ -z "${this_da_owner_system_email+x}" ]]; then
+    echo "[${SCRIPT_NAME}]: [Skipped]: Warning owner ${this_da_owner_uname} doesn't have system email set in config file. Please check configuration file " 2>&1 | tee -a "${REPORT_FILE}"
+    _exit 1
+  elif [[ -z "${this_da_owner_security_q+x}" ]]; then
+    echo "[${SCRIPT_NAME}]: [Skipped]: Warning owner ${this_da_owner_uname} doesn't have security question set in config file. Please check configuration file " 2>&1 | tee -a "${REPORT_FILE}"
+    _exit 1
+  elif [[ -z "${this_da_owner_security_a+x}" ]]; then
+    echo "[${SCRIPT_NAME}]: [Skipped]: Warning owner ${this_da_owner_uname} doesn't have security answer set in config file. Please check configuration file " 2>&1 | tee -a "${REPORT_FILE}"
+    _exit 1
+  elif [[ ${#this_da_owner_security_q[@]} -ne ${#this_da_owner_security_a[@]} ]]; then
+    echo "[${SCRIPT_NAME}]: [Skipped]: Warning owner ${this_da_owner_uname} has security question and answer defined with different length of array" 2>&1 | tee -a "${REPORT_FILE}"
+    _exit 1
   else
     echo "[${SCRIPT_NAME}]: OK, all variables for owner ${DA_OWNER_USERNAME1} are set." 2>&1 | tee -a "${REPORT_FILE}"
     ((total_valid_user++))
@@ -71,8 +86,17 @@ function validate_config() {
     typeset -n "this_da_admin_system_email"="DA_ADMIN_SYSTEM_EMAIL${count_user}"
     typeset -n "this_da_admin_security_q"="DA_ADMIN_SECURITY_Q${count_user}"
     typeset -n "this_da_admin_security_a"="DA_ADMIN_SECURITY_A${count_user}"
+    #  if [[ -z "${this_da_admin_uname+x}" ]]; then
+    #  echo "[${SCRIPT_NAME}]: [Skipped]: Warning admin username is not set. Please check configuration file " 2>&1 | tee -a "${REPORT_FILE}"
+    #  _exit 1
+    if [[ "${#this_da_admin_uname}" -lt 2 ]]; then
+      echo "[${SCRIPT_NAME}]: [Skipped]: Warning admin username length is ${#this_da_admin_uname} but the minimum should be 2. Please check configuration file " 2>&1 | tee -a "${REPORT_FILE}"
+      _exit 1
+    elif [[ "${#this_da_admin_uname}" -gt ${DA_MAX_UNAME_LENGTH} ]]; then
+      echo "[${SCRIPT_NAME}]: [Skipped]: Warning admin username length is ${#this_da_admin_uname} but the maximum should be ${DA_MAX_UNAME_LENGTH}. Please check configuration file " 2>&1 | tee -a "${REPORT_FILE}"
+      _exit 1
 
-    if [[ -z "${this_da_admin_password+x}" ]]; then
+    elif [[ -z "${this_da_admin_password+x}" ]]; then
       echo "[${SCRIPT_NAME}]: [Skipped]: Warning admin ${this_da_admin_uname} doesn't have password set in config file. Please check configuration file " 2>&1 | tee -a "${REPORT_FILE}"
       _exit 1
     elif [[ "${#this_da_admin_password}" -lt 6 ]]; then
@@ -128,10 +152,16 @@ function validate_config() {
     typeset -n "this_da_reseller_package_name"="DA_RESELLER_PACKAGE_NAME${count_user}"
     typeset -n "this_da_reseller_domain_enable_ssl"="DA_RESELLER_DOMAIN_ENABLE_SSL${count_user}"
     typeset -n "this_da_reseller_ssl_sub_name"="DA_RESELLER_SSL_SUB_NAME${count_user}"
-
     typeset -n "this_da_reseller_security_q"="DA_RESELLER_SECURITY_Q${count_user}"
     typeset -n "this_da_reseller_security_a"="DA_RESELLER_SECURITY_A${count_user}"
-    if [[ -z "${this_da_reseller_password+x}" ]]; then
+    if [[ "${#this_da_reseller_uname}" -lt 2 ]]; then
+      echo "[${SCRIPT_NAME}]: [Skipped]: Warning reseller username length is ${#this_da_reseller_uname} but the minimum should be 2. Please check configuration file " 2>&1 | tee -a "${REPORT_FILE}"
+      _exit 1
+    elif [[ "${#this_da_reseller_uname}" -gt ${DA_MAX_UNAME_LENGTH} ]]; then
+      echo "[${SCRIPT_NAME}]: [Skipped]: Warning reseller username length is ${#this_da_reseller_uname} but the maximum should be ${DA_MAX_UNAME_LENGTH}. Please check configuration file " 2>&1 | tee -a "${REPORT_FILE}"
+      _exit 1
+
+    elif [[ -z "${this_da_reseller_password+x}" ]]; then
       echo "[${SCRIPT_NAME}]: [Skipped]: Warning reseller ${this_da_reseller_uname} doesn't have password set in config file. Please check configuration file " 2>&1 | tee -a "${REPORT_FILE}"
       _exit 1
     elif [[ "${#this_da_reseller_password}" -lt 6 ]]; then
@@ -224,8 +254,13 @@ function validate_config() {
     typeset -n "this_da_user_ssl_sub_name"="DA_USER_SSL_SUB_NAME${count_user}"
     typeset -n "this_da_user_security_q"="DA_USER_SECURITY_Q${count_user}"
     typeset -n "this_da_user_security_a"="DA_USER_SECURITY_A${count_user}"
-
-    if [[ -z "${this_da_user_password+x}" ]]; then
+    if [[ "${#this_da_reseller_uname}" -lt 2 ]]; then
+      echo "[${SCRIPT_NAME}]: [Skipped]: Warning user username length is ${#this_da_user_uname} but the minimum should be 2. Please check configuration file " 2>&1 | tee -a "${REPORT_FILE}"
+      _exit 1
+    elif [[ "${#this_da_user_uname}" -gt ${DA_MAX_UNAME_LENGTH} ]]; then
+      echo "[${SCRIPT_NAME}]: [Skipped]: Warning user username length is ${#this_da_user_uname} but the maximum should be ${DA_MAX_UNAME_LENGTH}. Please check configuration file " 2>&1 | tee -a "${REPORT_FILE}"
+      _exit 1
+    elif [[ -z "${this_da_user_password+x}" ]]; then
       echo "[${SCRIPT_NAME}]: [Skipped]: Warning user ${this_da_user_uname} doesn't have password set in config file. Please check configuration file" 2>&1 | tee -a "${REPORT_FILE}"
       _exit 1
     elif [[ "${#this_da_user_password}" -lt 6 ]]; then
@@ -1024,11 +1059,7 @@ function da_api_admin() {
       package_name="$1"
       command="CMD_API_MANAGE_RESELLER_PACKAGES"
       # This is unlimited RESELLER package:
-      data="bandwidth=5000&ubandwidth=yes&quota=1000&uquota=yes&inode=&uinode=yes&vdomains=10&uvdomains=yes \
-      &nsubdomains=10&unsubdomains=yes&nemails=100&unemails=yes&nemailf=100&unemailf=yes&nemailml=10 \
-      &unemailml=yes&nemailr=100&unemailr=yes&mysql=0&umysql=yes&domainptr=0&udomainptr=yes&ftp=10&uftp=yes \
-      &cgi=ON&php=ON&spam=ON&catchall=ON&ssl=ON&oversell=ON&cron=ON&sysinfo=ON&login_keys=ON&dnscontrol=ON \
-      &dns=OFF&serverip=ON&packagename=${package_name}&nusers=&unusers=yes&add=save&ips=0&json=yes"
+      data="bandwidth=5000&ubandwidth=yes&quota=1000&uquota=yes&inode=&uinode=yes&vdomains=10&uvdomains=yes&nsubdomains=10&unsubdomains=yes&nemails=100&unemails=yes&nemailf=100&unemailf=yes&nemailml=10&unemailml=yes&nemailr=100&unemailr=yes&mysql=0&umysql=yes&domainptr=0&udomainptr=yes&ftp=10&uftp=yes&cgi=ON&php=ON&spam=ON&catchall=ON&ssl=ON&oversell=ON&cron=ON&sysinfo=ON&login_keys=ON&dnscontrol=ON&dns=OFF&serverip=ON&packagename=${package_name}&nusers=&unusers=yes&add=save&ips=0&json=yes"
       method="POST"
       echo "Now, executing API with action name: ${action}" 2>&1 | tee -a "${REPORT_FILE}"
 
@@ -1037,11 +1068,7 @@ function da_api_admin() {
       package_name="$1"
       # This is unlimited USER package:
       command="CMD_API_MANAGE_USER_PACKAGES"
-      data="bandwidth=1000&ubandwidth=yes&quota=100&uquota=yes&inode=&uinode=yes&vdomains=1&uvdomains=yes \
-      &nsubdomains=10&unsubdomains=yes&nemails=10&unemails=yes&unemailf=yes&nemailml=0&unemailml=yes \
-      &nemailr=10&unemailr=yes&mysql=5&umysql=yes&domainptr=0&udomainptr=yes&ftp=1&uftp=yes&php=ON \
-      &spam=ON&catchall=ON&ssl=ON&cron=ON&sysinfo=ON&login_keys=ON&dnscontrol=ON&suspend_at_limit=ON \
-      &language=en&skin=evolution&packagename=${package_name}&add=save&json=yes"
+      data="bandwidth=1000&ubandwidth=yes&quota=100&uquota=yes&inode=&uinode=yes&vdomains=1&uvdomains=yes&nsubdomains=10&unsubdomains=yes&nemails=10&unemails=yes&unemailf=yes&nemailml=0&unemailml=yes&nemailr=10&unemailr=yes&mysql=5&umysql=yes&domainptr=0&udomainptr=yes&ftp=1&uftp=yes&php=ON&spam=ON&catchall=ON&ssl=ON&cron=ON&sysinfo=ON&login_keys=ON&dnscontrol=ON&suspend_at_limit=ON&language=en&skin=evolution&packagename=${package_name}&add=save&json=yes"
       method="POST"
       echo "Now, executing API with action name: ${action}" 2>&1 | tee -a "${REPORT_FILE}"
 
@@ -1201,8 +1228,20 @@ function da_api_admin() {
       local custom_question answer
       custom_question="$1"
       answer="$2"
-      command="CMD_SECURITY_QUESTIONS"
+      command="CMD_API_SECURITY_QUESTIONS"
       data="type=custom&value=${answer}&json=yes&action=add&custom_question=${custom_question}"
+      method="POST"
+    # da_admin_api "set-admin-settings"
+    elif [ "${action}" == "set-admin-settings" ]; then
+      shift
+      command="CMD_API_ADMIN_SETTINGS"
+      data="auto_update=yes&backup_threshold=90&demo_admin=no&demo_reseller=no&demo_user=no&oversell=yes&service_email_active=yes&suspend=yes&user_backup=yes&json=yes&action=save"
+      method="POST"
+    # da_admin_api "set-server-settings"
+    # This API includes security settings and email settings (DA combined this)
+    elif [ "${action}" == "set-server-settings" ]; then
+      command="CMD_API_ADMIN_SETTINGS"
+      data="brute_force_log_scanner=yes&brute_force_scan_apache_logs=2&brute_force_time_limit=1200&brutecount=20&brute_dos_count=100&bruteforce=yes&check_partitions=2&check_subdomain_owner=yes&clear_blacklist_ip_time=86400&clear_brute_log_entry_time=4&clear_brute_log_time=24&demodocsroot=.%2Fdata%2Fskins%2Fevolution&enforce_difficult_passwords=yes&exempt_local_block=no&ip_brutecount=100&logs_to_keep=3&lost_password=no&max_per_email_send_limit=-1&maxfilesize=5368709120&ns1=${BOX_NS1}&ns2=${BOX_NS1}&partition_usage_threshold=95&per_email_limit=200&purge_spam_days=0&rbl_enabled=yes&servername=${BOX_HOSTNAME_FQDN}&session_minutes=35791&timeout=35791&user_brutecount=100&user_can_set_email_limit=yes&virtual_limit=1000&unblock_brute_ip_time=86400&timezone=${BOX_TIMEZONE}&max_username_length=${DA_MAX_UNAME_LENGTH}&json=yes&action=config"
       method="POST"
     else
       echo "[${SCRIPT_NAME}]: The API action '${action}' does not exist!" 2>&1 | tee -a "${REPORT_FILE}"
@@ -1620,6 +1659,7 @@ function configure_net() {
         # This will not run if values exist
         grub_count=$(grep -Ec 'GRUB_CMDLINE_LINUX=.*net.ifnames|GRUB_CMDLINE_LINUX_DEFAULT=.*net.ifnames' /etc/default/grub)
         if [ "${grub_count}" -eq 0 ]; then
+          # TODO fix append don't add space if variable is empty string
           echo "[${SCRIPT_NAME}]: Appending net.ifnames=0 for GRUB_CMDLINE_LINUX in /etc/default/grub ..." 2>&1 | tee -a "${REPORT_FILE}"
           sed -i 's/GRUB_CMDLINE_LINUX="[^"]*/& net.ifnames=0/' /etc/default/grub
         else
@@ -2474,7 +2514,10 @@ function install_da_post() {
   if [ ! -f "${CONF_PATH}/${FUNCNAME[0]}_executed" ]; then
     echo "[${SCRIPT_NAME}]: Executing ${FUNCNAME[0]} ..." 2>&1 | tee -a "${REPORT_FILE}"
     echo "[${SCRIPT_NAME}]: Running DA post installation function ..." 2>&1 | tee -a "${REPORT_FILE}"
-    sleep 2
+    sleep 1
+    # Need this before changing or adding directadmin username
+    echo "[${SCRIPT_NAME}]: Setting Directadmin max username to ${DA_MAX_UNAME_LENGTH} ..." 2>&1 | tee -a "${REPORT_FILE}"
+    /usr/local/directadmin/directadmin max_username_length
     # Need to enable ipv6 after install by default DA don't do anything about ipv6
     echo "[${SCRIPT_NAME}]: Enabling ipv6 in directadmin.conf config ..." 2>&1 | tee -a "${REPORT_FILE}"
     /usr/local/directadmin/directadmin set ipv6 1
@@ -2856,6 +2899,7 @@ function configure_da_sql() {
     #The mysqltuner will read directadmin mysql.conf password that you have specified before.
     #In case it cannot read and trigger an error.
     #Make sure the password doesn't contain this character > or < because mysqltuner does not support it.
+    # Mysqltuner also does not accept this password: )
     #[Sample my.cnf at /etc/my.cnf](https://gitlab.com/arafatx/sofibox-luks-earth/-/blob/master/etc/my.cnf)
     check_finish_reboot "${FUNCNAME[0]}"
   else
@@ -3252,8 +3296,8 @@ function build_da_custom_conf() {
   fi
 }
 
-# For extra hardening any DA related installation
-function harden_da() {
+# For configuring admin setting and extra hardening any DA related installation
+function configure_da() {
   if [ ! -f "${CONF_PATH}/${FUNCNAME[0]}_executed" ]; then
     echo "[${SCRIPT_NAME}]: Executing ${FUNCNAME[0]} ..." 2>&1 | tee -a "${REPORT_FILE}"
     # From now on we should use maxida since it was released and installed earlier when executing this script (with maxicode update).
@@ -3281,9 +3325,19 @@ function harden_da() {
     echo "[${SCRIPT_NAME}]: Securing all php installation ..." 2>&1 | tee -a "${REPORT_FILE}"
     # or maxida --custombuild secure_php
     maxida --cb secure_php
+    echo "[${SCRIPT_NAME}]: Enabling Directadmin backup encryption ..." 2>&1 | tee -a "${REPORT_FILE}"
+    maxida --da set allow_backup_encryption 1
+    echo "[${SCRIPT_NAME}]: Setting Directadmin online help ..." 2>&1 | tee -a "${REPORT_FILE}"
+    maxida --da set admin_helper "${DA_HELP_DOMAIN}"
+    maxida --da set reseller_helper "${DA_HELP_DOMAIN}"
+    maxida --da set user_helper "${DA_HELP_DOMAIN}"
 
-
-
+    # For DA Administrator Settings:
+    da_api_admin "start+admin"
+    echo "[${SCRIPT_NAME}]: Configuring Directadmin Admin settings ..."
+    da_api_admin "set-admin-settings"
+    echo "[${SCRIPT_NAME}]: Configuring Directadmin Server, Security and Email settings ..."
+    da_api_admin "set-server-settings"
     # TODO look at the post about DA external import js, try to avoid that for security and apply it here
     check_finish_reboot "${FUNCNAME[0]}"
   else
@@ -5596,7 +5650,31 @@ function configure_da_user_security() {
     echo "[${SCRIPT_NAME}]: [Skipped]: ${FUNCNAME[0]} has ran before" 2>&1 | tee -a "${REPORT_FILE}"
     echo "=~=~=~=~=~=~=~=~=~" 2>&1 | tee -a "${REPORT_FILE}"
   fi
+}
 
+# This is a custom function used to modify user websites configuration
+function configure_da_custom_webs() {
+  if [ ! -f "${CONF_PATH}/${FUNCNAME[0]}_executed" ]; then
+    echo "[${SCRIPT_NAME}]: Executing ${FUNCNAME[0]} ..." 2>&1 | tee -a "${REPORT_FILE}"
+    if [ "${ENABLE_CUSTOM_WEB_SETUP}" == "yes" ]; then
+      local websetup_bin
+      websetup_bin="${DATA_PATH}/maxisetup/storage/webapps/websetup"
+      if [ -f "${websetup_bin}" ]; then
+        chmod +x "${websetup_bin}"
+        cd_to_path "${DATA_PATH}/maxisetup/storage/webapps"
+        ./websetup
+      else
+        echo "[${SCRIPT_NAME}]: Unable to find websetup script at maxisetup data storage" 2>&1 | tee -a "${REPORT_FILE}"
+        _exit 1
+      fi
+    else
+      echo "[${SCRIPT_NAME}]: [Skipped]: Custom websetup is not enabled in config file" 2>&1 | tee -a "${REPORT_FILE}"
+    fi
+    check_finish_reboot "${FUNCNAME[0]}"
+  else
+    echo "[${SCRIPT_NAME}]: [Skipped]: ${FUNCNAME[0]} has ran before" 2>&1 | tee -a "${REPORT_FILE}"
+    echo "=~=~=~=~=~=~=~=~=~" 2>&1 | tee -a "${REPORT_FILE}"
+  fi
 }
 
 function harden_with_lynis() {
@@ -5874,7 +5952,7 @@ if [ "${INSTALL_TYPE}" == "DIRECTADMIN" ]; then
   #exit 1
   build_da_custom_conf
   #exit 1
-  harden_da
+  configure_da
   #exit 1
   # we configure dns template before creating admin, reseller and user accounts so they can use new DNS template
   configure_da_dns_templates
@@ -5931,6 +6009,8 @@ if [ "${INSTALL_TYPE}" == "DIRECTADMIN" ]; then
   configure_da_reseller_security
   #rm -rf "${CONF_PATH}/configure_da_user_security_executed"
   configure_da_user_security
+  #exit 1
+  configure_da_custom_webs
 fi
 #exit 1
 # Still need to add more based on lynis suggestion

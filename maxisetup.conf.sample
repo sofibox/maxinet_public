@@ -16,7 +16,13 @@ USE_ONE_LOG_FILE="yes"
 TEMP_ALLOW_IP="84.12.1.123"
 # "DIRECTADMIN" - Install directadmin (fully compatible with DA) | "GENERAL" - Install basic LEMP or LAMP stack | "LARAVEL" - coming soon
 INSTALL_TYPE="DIRECTADMIN"
-
+# This will use custom script called (websetup) for setting up specific website configuration.
+# For example, a prestashop website called test.com needs to have custom php config to match prestashop requirement
+# Disable this if you are not able to access private repo
+ENABLE_CUSTOM_WEB_SETUP="no"
+# You don't want to change this because everything is begin with root
+ROOT_USERNAME="root"
+ROOT_USERPASS="*long-secured-password*"
 # Root email used by system and DA owner (will change DA owner email to this domain email instead of using hostname email owner@server.domain.com)
 ROOT_EMAIL="owner@sofibox.com"
 # Global name (Your full name eg: used in system and DA admin)
@@ -123,6 +129,8 @@ DA_USER_SECURITY_Q1=
 DA_USER_SECURITY_A1=
 # === DA user end ===
 
+DA_MAX_UNAME_LENGTH="30"
+# DA_ADMIN_SQLPASS is for DA sql password (eg: phpmyadmin login) Password cannot contains this character [ ] <> and )
 # DA_ADMIN_SQLPASS is for DA sql password (eg: phpmyadmin login) Password cannot contains this character [ ]
 DA_ADMIN_SQLPASS=*long-secured-password*"
 # Remember cannot contains this character & for DA_ROOT_SQL_PASS
@@ -154,10 +162,7 @@ ROUNDCUBE_CUSTOM_NAME="My Awesome Mail"
 ROUNDCUBE_LOGIN_ROUTE="/mailarea51"
 HTTPASSWD_ROUNDCUBE_USERNAME="mailagent007"
 HTTPASSWD_ROUNDCUBE_PASS="*long-secured-password*"
-# You don't want to change this because everything is begin with root
-ROOT_USERNAME="root"
-ROOT_USERPASS="*long-secured-password*"
-# This is a private repositoy URL (PM me for more info because you need TOKEN key access)
+# This is a private repository URL (PM me for more info because you need TOKEN key access)
 SETUP_GIT_URL="https://token@github.com/sofibox/maxisetup.git"
 GIT_TOKEN="*git-token-key*"
 # To reduce server bot attack on SSH, you must change this SSH PORT
@@ -166,10 +171,20 @@ SSH_USERNAME="ssh-uname"
 SSH_USERPASS="*long-secured-password*"
 # This one for SSH Public Key. I generate this from puttygen
 SSH_PUBLIC_KEY="ssh-rsa AAAAB3N***AAAQE***nsAQENik/Al***G/8***Y sofibox-auth-test.sofibox.com-v1"
+# vps | dedicated
+LUKS_PASS="*LUKS-DISK-ENCRYPTION*"
+BOX_TYPE="dedicated"
+BOX_RAM="32GB"
+BOX_SWAP="4GB"
 BOX_HOSTNAME_FQDN="test.sofibox.com"
+BOX_TIMEZONE="Asia/Kuala_Lumpur"
 BOX_HOSTNAME="test"
 BOX_DOMAIN="sofibox.com"
-BOX_TIMEZONE="Asia/Kuala_Lumpur"
+# Name servers up to 4
+BOX_NS1="ns1.sofibox.com"
+BOX_NS2="ns2.sofibox.com"
+BOX_NS3="ns3.sofibox.com"
+BOX_NS4="ns4.sofibox.com"
 # or auto = let the naming convention decide
 NIC_INTERFACE_NAME="eth0"
 IPV4_ADD0="123.111.50.185"
