@@ -5,7 +5,7 @@
 # So make sure you have the original backup / copy of your modified maxisetup.conf file
 # Default name should be maxisetup.conf. If you want to change this, modify the variable CONFIG_FILE="yourfileenv"
 # Remember password cannot contain # ! ' / \ $ & because u need to escape this if u want to use in bash.
-# Do not use this character in mysql or mariadb password: < > because mysqltuner does not support this character
+# Do not use this character in mysql or mariadb password: < > and ) because mysqltuner does not support this character
 # Warning Directadmin user password only accept the maximum of 64 characters. More than this will have problem with API
 # Directadmin cannot contains this character in password, it will not work with API -> '+'
 # =====================================
@@ -68,13 +68,20 @@ DA_RESELLER_MAIL_PASSWORD1=("A*longemailpass" "BlongemailPass*")
 DA_RESELLER_PACKAGE_NAME1="RESELLER_UNLIMITED"
 # This is different from BOX_DOMAIN
 DA_RESELLER_DOMAIN1=("sofibox.com" "domain2.com")
-DA_RESELLER_SUBDOMAIN1=("sofibox.com:sales+login+secure" "domain2.com:dashboard")
+# Required at least one subdomain for now
+DA_RESELLER_SUBDOMAIN1=("sofibox.com:sales+login+secure" "domain2.com:dashboard" "test.com:abc+def")
 # shared or assign - If shared, domain will use the server's main ip. assign will use one of the reseller's ips
 DA_RESELLER_IP_TYPE1="shared"
 DA_RESELLER_DOMAIN_ENABLE_SSL1="yes"
 DA_RESELLER_SSL_SUB_NAME1=("letsencrypt:sofibox.com:www+ftp+mail+pop+smtp+sales+secure+login+svn")
+# Security question and answers
+# Can be empty with ""
 DA_RESELLER_SECURITY_Q1=("What is the spiritual movement?" "What do they call you?")
 DA_RESELLER_SECURITY_A1=("xxx" "MaXi32")
+# <domain>:<platform_name>:<platform_version>
+#DA_RESELLER_ROOT_WEB_TYPE1=("sofibox.com:wordpress:5.6")
+#<domain_name>:<db_name>:<db_user>:<db_password>
+DA_RESELLER_DB1=("sofibox.com:db_name:db_user:*db-password*" "sofibox.com:db_name2:db_user2:*db-password*" "sofibox.com:db_name2:abcd:*db-password*")
 # === DA reseller end ===
 
 # === DA user start ===
@@ -110,6 +117,10 @@ DA_USER_SSL_SUB_NAME1=("letsencrypt:maxibi.com:www+ftp+mail+pop+smtp+sales")
 # Security question and answers
 DA_USER_SECURITY_Q1=("What is the spiritual movement?" "What do they call you?")
 DA_USER_SECURITY_A1=("xxx" "MaXi32")
+# <domain>:<platform_name>:<platform_version>
+DA_USER_ROOT_WEB_TYPE1=("maxibi.com:odoo:14")
+# <domain_name>:<db_name>:<db_user>:<db_password>
+DA_USER_DB1=("maxibi.com:db_name:db_usr:*db-password*")
 # Add more user from here (using the same format above):
 # Can add multiple domains, and emails
 # Add more user from here (using the same format above and add postfix index):
@@ -125,8 +136,10 @@ DA_USER_SECURITY_A1=("xxx" "MaXi32")
 #DA_USER_PACKAGE_NAME2=
 #DA_USER_DOMAIN_ENABLE_SSL2=
 #DA_USER_SSL_SUB_NAME2=
-DA_USER_SECURITY_Q1=
-DA_USER_SECURITY_A1=
+DA_USER_SECURITY_Q2=
+DA_USER_SECURITY_A2=
+DA_USER_ROOT_WEB_TYPE2=
+DA_USER_DB2=
 # === DA user end ===
 
 DA_MAX_UNAME_LENGTH="30"
@@ -148,6 +161,7 @@ DA_LICENSE_ID="123456"
 # Use custom port for Directadmin (Default one is not secure but using this custom port you will lose the ability to use one click sign in feature because that works only with 2222)
 DA_PORT="1192"
 DA_MODSECURITY_RULESET="comodo" # or owasp
+DA_HELP_DOMAIN="help.sofibox.com"
 CB_WEB_SERVER_SOFTWARE="nginx_apache"
 SETUP_DA_HOST_SSL="yes" # or "no"
 # When enable secure the custom directory with password

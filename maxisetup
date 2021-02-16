@@ -1,7 +1,7 @@
 #!/bin/bash
 # =~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~
 # Author: Arafat Ali Email: arafat@sofibox.com
-# Version 0.3.8.5-beta
+# Version 0.3.8.6-beta
 # This is an initial server hardening script for CentOS and Debian.
 # Compatible 100% with Directadmin. Supported OS: CentOS + Debian (Planned on FreeBSD)
 # You can choose to install as the other stack server such as LEMP, (TODO) Laravel and more defined in config file
@@ -1242,6 +1242,30 @@ function da_api_admin() {
     elif [ "${action}" == "set-server-settings" ]; then
       command="CMD_API_ADMIN_SETTINGS"
       data="brute_force_log_scanner=yes&brute_force_scan_apache_logs=2&brute_force_time_limit=1200&brutecount=20&brute_dos_count=100&bruteforce=yes&check_partitions=2&check_subdomain_owner=yes&clear_blacklist_ip_time=86400&clear_brute_log_entry_time=4&clear_brute_log_time=24&demodocsroot=.%2Fdata%2Fskins%2Fevolution&enforce_difficult_passwords=yes&exempt_local_block=no&ip_brutecount=100&logs_to_keep=3&lost_password=no&max_per_email_send_limit=-1&maxfilesize=5368709120&ns1=${BOX_NS1}&ns2=${BOX_NS1}&partition_usage_threshold=95&per_email_limit=200&purge_spam_days=0&rbl_enabled=yes&servername=${BOX_HOSTNAME_FQDN}&session_minutes=35791&timeout=35791&user_brutecount=100&user_can_set_email_limit=yes&virtual_limit=1000&unblock_brute_ip_time=86400&timezone=${BOX_TIMEZONE}&max_username_length=${DA_MAX_UNAME_LENGTH}&json=yes&action=config"
+      method="POST"
+    # da_admin_api "create-database" <db_name> <db_username> <db_password> <domain>
+    # This will create new database with new user
+    elif [ "${action}" == "create-database" ]; then
+      shift
+      local db_name db_username db_password db_domain
+      db_name="$1"
+      db_username="$2"
+      db_password="$3"
+      db_domain="$4"
+      # CMD_API_DB not working but CMD_DB is working
+      command="CMD_DB"
+      data="name=${db_name}&user=${db_username}&passwd=${db_password}&passwd2=${db_password}&domain=${db_domain}&userlist=...&action=create&json=yes"
+      method="POST"
+    # da_admin_api "create-user-database" <db_name> <db_username> <domain>
+    # This will select existing user to create database
+    elif [ "${action}" == "create-user-database" ]; then
+      shift
+      local db_name db_username db_password db_domain
+      db_name="$1"
+      db_username="$2"
+      db_domain="$3"
+      command="CMD_DB"
+      data="name=${db_name}&user=${db_username}&domain=${db_domain}&userlist=${db_username}&action=create&json=yes"
       method="POST"
     else
       echo "[${SCRIPT_NAME}]: The API action '${action}' does not exist!" 2>&1 | tee -a "${REPORT_FILE}"
@@ -5449,10 +5473,15 @@ function configure_da_owner_security() {
         security_question=${this_da_owner_security_qs[count_o]}
         security_answer=${this_da_owner_security_as[count_o]}
 
-        echo "Security question for onwer: ${this_da_owner_username}" 2>&1 | tee -a "${REPORT_FILE}"
+        echo "Security question for owner: ${this_da_owner_username}" 2>&1 | tee -a "${REPORT_FILE}"
         echo "Security question: ${security_question}" 2>&1 | tee -a "${REPORT_FILE}"
         echo "Security answer: ${security_answer}" 2>&1 | tee -a "${REPORT_FILE}"
-        echo "[${SCRIPT_NAME}]: Setting up security question and answer for onwer ${this_da_owner_username}" 2>&1 | tee -a "${REPORT_FILE}"
+        if [[ "${#security_question}" == 0 || "${#security_answer}" == 0 ]]; then
+          echo "[${SCRIPT_NAME}]: [skipped]: Value defined for security_question or security answer (or both) are empty"
+          ((count_o++))
+          continue
+        fi
+        echo "[${SCRIPT_NAME}]: Setting up security question and answer for owner ${this_da_owner_username}" 2>&1 | tee -a "${REPORT_FILE}"
         da_api_admin "signas+${this_da_owner_username}+${this_da_owner_userpass}"
         da_api_admin "set-security-qna" "${security_question}" "${security_answer}"
 
@@ -5512,6 +5541,11 @@ function configure_da_admin_security() {
         echo "Security question for admin: ${this_da_admin_username}" 2>&1 | tee -a "${REPORT_FILE}"
         echo "Security question: ${security_question}" 2>&1 | tee -a "${REPORT_FILE}"
         echo "Security answer: ${security_answer}" 2>&1 | tee -a "${REPORT_FILE}"
+        if [[ "${#security_question}" == 0 || "${#security_answer}" == 0 ]]; then
+          echo "[${SCRIPT_NAME}]: [skipped]: Value defined for security_question or security answer (or both) are empty"
+          ((count_o++))
+          continue
+        fi
         echo "[${SCRIPT_NAME}]: Setting up security question and answer for admin ${this_da_admin_username}" 2>&1 | tee -a "${REPORT_FILE}"
         da_api_admin "signas+${this_da_admin_username}+${this_da_admin_userpass}"
         da_api_admin "set-security-qna" "${security_question}" "${security_answer}"
@@ -5572,6 +5606,11 @@ function configure_da_reseller_security() {
         echo "Security question for reseller: ${this_da_reseller_username}" 2>&1 | tee -a "${REPORT_FILE}"
         echo "Security question: ${security_question}" 2>&1 | tee -a "${REPORT_FILE}"
         echo "Security answer: ${security_answer}" 2>&1 | tee -a "${REPORT_FILE}"
+        if [[ "${#security_question}" == 0 || "${#security_answer}" == 0 ]]; then
+          echo "[${SCRIPT_NAME}]: [skipped]: Value defined for security_question or security answer (or both) are empty"
+          ((count_o++))
+          continue
+        fi
         echo "[${SCRIPT_NAME}]: Setting up security question and answer for reseller ${this_da_reseller_username}" 2>&1 | tee -a "${REPORT_FILE}"
         da_api_admin "signas+${this_da_reseller_username}+${this_da_reseller_userpass}"
         da_api_admin "set-security-qna" "${security_question}" "${security_answer}"
@@ -5617,7 +5656,6 @@ function configure_da_user_security() {
       typeset -n "this_da_user_userpass"="DA_USER_USERPASS${count_n}"
       typeset -n "this_da_user_security_qs"="DA_USER_SECURITY_Q${count_n}"
       typeset -n "this_da_user_security_as"="DA_USER_SECURITY_A${count_n}"
-
       echo "this_da_user_username: ${this_da_user_username}" 2>&1 | tee -a "${REPORT_FILE}"
       echo "this_da_user_userpass: ${this_da_user_userpass}" 2>&1 | tee -a "${REPORT_FILE}"
       echo "this_da_user_security_qs: ${this_da_user_security_qs[*]}" 2>&1 | tee -a "${REPORT_FILE}"
@@ -5634,6 +5672,11 @@ function configure_da_user_security() {
         echo "Security question for user: ${this_da_user_username}" 2>&1 | tee -a "${REPORT_FILE}"
         echo "Security question: ${security_question}" 2>&1 | tee -a "${REPORT_FILE}"
         echo "Security answer: ${security_answer}" 2>&1 | tee -a "${REPORT_FILE}"
+        if [[ "${#security_question}" == 0 || "${#security_answer}" == 0 ]]; then
+          echo "[${SCRIPT_NAME}]: [skipped]: Value defined for security_question or security answer (or both) are empty"
+          ((count_o++))
+          continue
+        fi
         echo "[${SCRIPT_NAME}]: Setting up security question and answer for user ${this_da_user_username}" 2>&1 | tee -a "${REPORT_FILE}"
         da_api_admin "signas+${this_da_user_username}+${this_da_user_userpass}"
         da_api_admin "set-security-qna" "${security_question}" "${security_answer}"
@@ -5652,6 +5695,172 @@ function configure_da_user_security() {
   fi
 }
 
+# Function to create all reseller databases
+function configure_da_reseller_databases() {
+
+  if [ ! -f "${CONF_PATH}/${FUNCNAME[0]}_executed" ]; then
+    echo "[${SCRIPT_NAME}]: Executing ${FUNCNAME[0]} ..." 2>&1 | tee -a "${REPORT_FILE}"
+
+    local da_reseller_usernames da_reseller_usernames_count this_da_reseller_username this_da_reseller_userpass \
+      this_da_reseller_dbs this_da_reseller_dbs_count count_n count_o db_name db_user db_password sql_users check_sql_user
+
+    da_reseller_usernames="${!DA_RESELLER_USERNAME@}"
+    da_reseller_usernames_count=$(echo "${da_reseller_usernames}" | wc -w)
+    count_n=1
+    echo "da_reseller_usernames: ${da_reseller_usernames}" 2>&1 | tee -a "${REPORT_FILE}"
+    echo "da_reseller_usernames_count: ${da_reseller_usernames_count}" 2>&1 | tee -a "${REPORT_FILE}"
+    # Debug:
+    while [ ${count_n} -le "${da_reseller_usernames_count}" ]; do
+
+      echo "=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=" 2>&1 | tee -a "${REPORT_FILE}"
+      echo "count_n INDEX = ${count_n}" 2>&1 | tee -a "${REPORT_FILE}"
+      echo "" 2>&1 | tee -a "${REPORT_FILE}"
+      # Assign all variables from the config file as array index
+      typeset -n "this_da_reseller_username"="DA_RESELLER_USERNAME${count_n}"
+      typeset -n "this_da_reseller_userpass"="DA_RESELLER_USERPASS${count_n}"
+      typeset -n "this_da_reseller_dbs"="DA_RESELLER_DB${count_n}"
+
+      echo "this_da_reseller_username: ${this_da_reseller_username}" 2>&1 | tee -a "${REPORT_FILE}"
+      echo "this_da_reseller_userpass: ${this_da_reseller_userpass}" 2>&1 | tee -a "${REPORT_FILE}"
+      echo "this_da_reseller_dbs: ${this_da_reseller_dbs[*]}" 2>&1 | tee -a "${REPORT_FILE}"
+      this_da_reseller_dbs_count="${#this_da_reseller_dbs[@]}"
+
+      count_o=0
+
+      while [ ${count_o} -le $((this_da_reseller_dbs_count - 1)) ]; do
+
+        db_domain=$(echo "${this_da_reseller_dbs[count_o]}" | awk -F':' '{ print $1 }')
+        db_name=$(echo "${this_da_reseller_dbs[count_o]}" | awk -F':' '{ print $2 }')
+        db_user=$(echo "${this_da_reseller_dbs[count_o]}" | awk -F':' '{ print $3 }')
+        db_password=$(echo "${this_da_reseller_dbs[count_o]}" | awk -F':' '{ print $4 }')
+
+        if [[ "${#this_da_reseller_dbs}" == 0 ]]; then
+          echo "[${SCRIPT_NAME}]: [skipped]: Value defined for this reseller database is empty"
+          ((count_o++))
+          continue
+        fi
+
+        sql_users=$(mysql -e "SELECT USER FROM mysql.user;" | jq -rR .)
+        check_sql_user=$(echo "${sql_users}" | grep "${this_da_reseller_username}_${db_user}")
+
+        echo "check_sql_user is: ${check_sql_user} (if empty it doesn't exist)"
+        echo "api_user: ${this_da_reseller_username}"
+        echo "api_password: ${this_da_reseller_userpass}"
+        echo "db_domain: ${db_domain}"
+        echo "db_name: ${db_name}"
+        echo "db_user: ${db_user}"
+        echo "db_password: ${db_password}"
+        echo "========="
+        # da_api_admin "create-user-database" <db_name> <db_username> <db_password> <domain>
+        da_api_admin "signas+${this_da_reseller_username}+${this_da_reseller_userpass}"
+
+        if [[ -z "${check_sql_user}" ]]; then
+          echo "[${SCRIPT_NAME}]: Creating new database name ${db_name} for reseller ${this_da_reseller_username} on domain ${db_domain} ..."
+          da_api_admin "create-database" "${db_name}" "${db_user}" "${db_password}" "${db_domain}"
+        else
+          echo "[${SCRIPT_NAME}]: Creating new database name ${db_name} for reseller ${this_da_reseller_username} on domain ${db_domain} using existing username ${db_user} ..."
+          da_api_admin "create-user-database" "${db_name}" "${db_user}" "${db_domain}"
+        fi
+
+        ((count_o++))
+      done
+
+      ((count_n++))
+      echo "=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=" 2>&1 | tee -a "${REPORT_FILE}"
+
+    done
+
+    # da_admin_api "create-user-database" <db_name> <db_username> <db_password> <domain>
+    check_finish_reboot "${FUNCNAME[0]}"
+  else
+    echo "[${SCRIPT_NAME}]: [Skipped]: ${FUNCNAME[0]} has ran before" 2>&1 | tee -a "${REPORT_FILE}"
+    echo "=~=~=~=~=~=~=~=~=~" 2>&1 | tee -a "${REPORT_FILE}"
+  fi
+}
+
+# Function to create all user databases
+function configure_da_user_databases() {
+
+  if [ ! -f "${CONF_PATH}/${FUNCNAME[0]}_executed" ]; then
+    echo "[${SCRIPT_NAME}]: Executing ${FUNCNAME[0]} ..." 2>&1 | tee -a "${REPORT_FILE}"
+    local da_user_usernames da_user_usernames_count this_da_user_username this_da_user_userpass \
+      this_da_user_dbs this_da_user_dbs_count count_n count_o db_name db_user db_password
+
+    da_user_usernames="${!DA_USER_USERNAME@}"
+    da_user_usernames_count=$(echo "${da_user_usernames}" | wc -w)
+
+    count_n=1
+    echo "da_user_usernames: ${da_user_usernames}" 2>&1 | tee -a "${REPORT_FILE}"
+    echo "da_user_usernames_count: ${da_user_usernames_count}" 2>&1 | tee -a "${REPORT_FILE}"
+    # Debug:
+    while [ ${count_n} -le "${da_user_usernames_count}" ]; do
+
+      echo "=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=" 2>&1 | tee -a "${REPORT_FILE}"
+      echo "count_n INDEX = ${count_n}" 2>&1 | tee -a "${REPORT_FILE}"
+      echo "" 2>&1 | tee -a "${REPORT_FILE}"
+      # Assign all variables from the config file as array index
+      typeset -n "this_da_user_username"="DA_USER_USERNAME${count_n}"
+      typeset -n "this_da_user_userpass"="DA_USER_USERPASS${count_n}"
+      typeset -n "this_da_user_dbs"="DA_USER_DB${count_n}"
+
+      echo "this_da_user_username: ${this_da_user_username}" 2>&1 | tee -a "${REPORT_FILE}"
+      echo "this_da_user_userpass: ${this_da_user_userpass}" 2>&1 | tee -a "${REPORT_FILE}"
+      echo "this_da_user_dbs: ${this_da_user_dbs[*]}" 2>&1 | tee -a "${REPORT_FILE}"
+      this_da_user_dbs_count="${#this_da_user_dbs[@]}"
+
+      count_o=0
+
+      while [ ${count_o} -le $((this_da_user_dbs_count - 1)) ]; do
+        db_domain=$(echo "${this_da_user_dbs[count_o]}" | awk -F':' '{ print $1 }')
+        db_name=$(echo "${this_da_user_dbs[count_o]}" | awk -F':' '{ print $2 }')
+        db_user=$(echo "${this_da_user_dbs[count_o]}" | awk -F':' '{ print $3 }')
+        db_password=$(echo "${this_da_user_dbs[count_o]}" | awk -F':' '{ print $4 }')
+
+        if [[ "${#this_da_user_dbs}" == 0 ]]; then
+          echo "[${SCRIPT_NAME}]: [skipped]: Value defined for this user database is empty"
+          ((count_o++))
+          continue
+        fi
+
+        sql_users=$(mysql -e "SELECT USER FROM mysql.user;" | jq -rR .)
+        check_sql_user=$(echo "${sql_users}" | grep "${this_da_user_username}_${db_user}")
+
+        echo "check_sql_user is: ${check_sql_user} (if empty it doesn't exist)"
+        echo "api_user: ${this_da_user_username}"
+        echo "api_password: ${this_da_user_userpass}"
+        echo "db_domain: ${db_domain}"
+        echo "db_name: ${db_name}"
+        echo "db_user: ${db_user}"
+        echo "db_password: ${db_password}"
+        echo "========="
+        # da_api_admin "create-user-database" <db_name> <db_username> <db_password> <domain>
+        da_api_admin "signas+${this_da_user_username}+${this_da_user_userpass}"
+
+        if [[ -z "${check_sql_user}" ]]; then
+          echo "[${SCRIPT_NAME}]: Creating new database name ${db_name} for user ${this_da_user_username} on domain ${db_domain} ..."
+          da_api_admin "create-database" "${db_name}" "${db_user}" "${db_password}" "${db_domain}"
+        else
+          echo "[${SCRIPT_NAME}]: Creating new database name ${db_name} for reseller ${this_da_user_username} on domain ${db_domain} using existing username ${db_user} ..."
+          da_api_admin "create-user-database" "${db_name}" "${db_user}" "${db_domain}"
+        fi
+
+        # There is an issue, when creating Directadmin database, a duplicated username without underscore, will be created
+        # Issue described here: https://forum.directadmin.com/threads/bug-duplicated-username-when-creating-database-from-directadmin.63167/#post-327493
+        ((count_o++))
+      done
+
+      ((count_n++))
+      echo "=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=" 2>&1 | tee -a "${REPORT_FILE}"
+
+    done
+
+    # da_admin_api "create-user-database" <db_name> <db_username> <db_password> <domain>
+    check_finish_reboot "${FUNCNAME[0]}"
+  else
+    echo "[${SCRIPT_NAME}]: [Skipped]: ${FUNCNAME[0]} has ran before" 2>&1 | tee -a "${REPORT_FILE}"
+    echo "=~=~=~=~=~=~=~=~=~" 2>&1 | tee -a "${REPORT_FILE}"
+  fi
+}
 # This is a custom function used to modify user websites configuration
 function configure_da_custom_webs() {
   if [ ! -f "${CONF_PATH}/${FUNCNAME[0]}_executed" ]; then
@@ -6009,6 +6218,12 @@ if [ "${INSTALL_TYPE}" == "DIRECTADMIN" ]; then
   configure_da_reseller_security
   #rm -rf "${CONF_PATH}/configure_da_user_security_executed"
   configure_da_user_security
+  #exit 1
+  #rm -rf "${CONF_PATH}/configure_da_reseller_databases_executed"
+  configure_da_reseller_databases
+  #exit 1
+  #rm -rf "${CONF_PATH}/configure_da_user_databases_executed"
+  configure_da_user_databases
   #exit 1
   configure_da_custom_webs
 fi
