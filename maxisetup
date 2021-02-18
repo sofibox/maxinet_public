@@ -1,7 +1,7 @@
 #!/bin/bash
 # =~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~
 # Author: Arafat Ali Email: arafat@sofibox.com
-# Version 0.3.8.6-beta
+# Version 0.3.8.7-beta
 # This is an initial server hardening script for CentOS and Debian.
 # Compatible 100% with Directadmin. Supported OS: CentOS + Debian (Planned on FreeBSD)
 # You can choose to install as the other stack server such as LEMP, (TODO) Laravel and more defined in config file
@@ -14,7 +14,6 @@
 # set code debug:
 # set -euxo pipefail
 # ""
-# TODO create each user must have database from DA (can create multiple user and database password)
 
 # This function will validate if config is valid, if one of the variables missing, it will complain and exit
 function validate_config() {
@@ -474,18 +473,40 @@ function cd_to_path() {
 # This function allows Directadmin to restart quickly but we don't take priority on other pending tasks.
 # Better to restart DA with task.queue (this is what most documentation do) because DA needs to respect task.queue process
 function restart_da() {
-  if [ ! -s /usr/local/directadmin/data/task.queue ]; then
+  local wait_duration task_queue_file
+  wait_duration=10
+  # Directadmin recommends 60 seconds (or 1 minute). Longer than this something wrong with the task.queue
+  max_wait=60
+  task_queue_file="/usr/local/directadmin/data/task.queue"
+  if [ -s ${task_queue_file} ]; then
+    echo "[${SCRIPT_NAME}]: Warning, Directadmin task.queue still has pending task(s) to be executed with the following contents:" 2>&1 | tee -a "${REPORT_FILE}"
+    echo ""
+    echo "--"
+    cat "${task_queue_file}"
+    echo "--"
+    echo ""
+    echo "[${SCRIPT_NAME}]: Waiting ${wait_duration} seconds to finish the pending task(s) ..." 2>&1 | tee -a "${REPORT_FILE}"
+    sleep ${wait_duration}
+    ((HOLD_SECONDS = HOLD_SECONDS + wait_duration))
+    echo "SLEEP TIME IS: ${HOLD_SECONDS}"
+    if [ "${HOLD_SECONDS}" -gt ${max_wait} ]; then
+      # Force restart if waiting time is longer than 1 minute because task.queue maximum execution time is only 1 minute based on DA documentation
+      # https://docs.directadmin.com/directadmin/general-usage/task-queue-processor/
+      echo "[${SCRIPT_NAME}]: Warning, task.queue has not finished executing task(s) for more than ${max_wait} seconds. Forcing restart ..."
+      echo "[${SCRIPT_NAME}]: Restarting Directadmin ..." 2>&1 | tee -a "${REPORT_FILE}"
+      echo "action=directadmin&value=restart" >>/usr/local/directadmin/data/task.queue
+      /usr/local/directadmin/dataskq d2000
+    else
+      # recursive function call again to recheck the task.queue content until condition satisfied and Directadmin will restart in clean mode
+      restart_da
+    fi
+  else
     echo "[${SCRIPT_NAME}]: Restarting Directadmin ..." 2>&1 | tee -a "${REPORT_FILE}"
     # Writing restart query in task.queue
     echo "action=directadmin&value=restart" >>/usr/local/directadmin/data/task.queue
     # Force restart with debugging level d2000
     # this is optional because we knew no other pending tasks will be running at this condition
     /usr/local/directadmin/dataskq d2000
-  else
-    echo "[${SCRIPT_NAME}]: Warning, Directadmin task.queue still has pending task(s) to be executed. Waiting 10 seconds to finish the pending task(s) ..." 2>&1 | tee -a "${REPORT_FILE}"
-    sleep 10
-    # recursive function call again to recheck the task.queue content until condition satisfied and Directadmin will restart in clean mode
-    restart_da
   fi
 }
 # This is a linode API function used to manage linode DNS record
@@ -1228,7 +1249,7 @@ function da_api_admin() {
       local custom_question answer
       custom_question="$1"
       answer="$2"
-      command="CMD_API_SECURITY_QUESTIONS"
+      command="CMD_SECURITY_QUESTIONS"
       data="type=custom&value=${answer}&json=yes&action=add&custom_question=${custom_question}"
       method="POST"
     # da_admin_api "set-admin-settings"
@@ -1418,7 +1439,8 @@ function pre_setup() {
       # psmisc = pstree utils (needed by maxigpg script from maxicode)
       apt-get -y update
       apt-get -y upgrade
-      apt-get -y install screen nmap psmisc 2>&1 | tee -a "${REPORT_FILE}"
+      # By default sudo is not installed. It's needed for new OS
+      apt-get -y install sudo screen nmap psmisc 2>&1 | tee -a "${REPORT_FILE}"
     else
       echo "[${SCRIPT_NAME}]: Error, unknown value for distribution ID ${DISTRO_ID}" 2>&1 | tee -a "${REPORT_FILE}"
       _exit 1
@@ -1668,7 +1690,7 @@ function configure_net() {
       echo "[${SCRIPT_NAME}]: Warning no file named.conf found in maxisetup folder. Check maxisetup clone folder." 2>&1 | tee -a "${REPORT_FILE}"
       _exit 1
     fi
-    echo "[${SCRIPT_NAME}]: Configuring system email ..." 2>&1 | tee -a "${REPORT_FILE}"
+    echo "[${SCRIPT_NAME}]: Configuring DA system email ..." 2>&1 | tee -a "${REPORT_FILE}"
     echo "${ROOT_EMAIL}" >/root/.email.txt #Root email will use this one
     echo "${ADMIN_EMAIL}" >/root/.forward  #Forward all email to admin (webmaster)
     echo "[${SCRIPT_NAME}]: Configuring network interface ..." 2>&1 | tee -a "${REPORT_FILE}"
@@ -1683,7 +1705,6 @@ function configure_net() {
         # This will not run if values exist
         grub_count=$(grep -Ec 'GRUB_CMDLINE_LINUX=.*net.ifnames|GRUB_CMDLINE_LINUX_DEFAULT=.*net.ifnames' /etc/default/grub)
         if [ "${grub_count}" -eq 0 ]; then
-          # TODO fix append don't add space if variable is empty string
           echo "[${SCRIPT_NAME}]: Appending net.ifnames=0 for GRUB_CMDLINE_LINUX in /etc/default/grub ..." 2>&1 | tee -a "${REPORT_FILE}"
           sed -i 's/GRUB_CMDLINE_LINUX="[^"]*/& net.ifnames=0/' /etc/default/grub
         else
@@ -1691,6 +1712,7 @@ function configure_net() {
         fi
         grub_count=$(grep -Ec 'GRUB_CMDLINE_LINUX=.*biosdevname|GRUB_CMDLINE_LINUX_DEFAULT=.*biosdevname' /etc/default/grub)
         if [ "${grub_count}" -eq 0 ]; then
+          # TODO fix append don't add space if variable is empty string
           echo "[${SCRIPT_NAME}]: Appending biosdevname for GRUB_CMDLINE_LINUX in /etc/default/grub ..." 2>&1 | tee -a "${REPORT_FILE}"
           sed -i 's/GRUB_CMDLINE_LINUX="[^"]*/& biosdevname=0/' /etc/default/grub
         else
@@ -1733,6 +1755,8 @@ function configure_net() {
         _reboot
       fi
       # Changing this would require restart. So let's restart
+      # Before restart we need to configure network first:
+      configure_net2
       echo "[${SCRIPT_NAME}]: Creating required reboot flag for network interface to revert back to eth0 automatically after reboot ..." 2>&1 | tee -a "${REPORT_FILE}"
       cat /dev/null >/var/run/reboot-required
       sleep 1
@@ -1791,8 +1815,8 @@ function configure_net2() {
         echo 'IPV6_FAILURE_FATAL="no"'
         echo 'IPV6_ADDR_GEN_MODE="stable-privacy"'
         echo '#IPV6_ADDR_GEN_MODE="eui64"'
-        echo "IPV6ADDR=${IPV6_ADD}/64"
-        echo "IPV6_DEFAULTGW=${IPV6_DEF_GATEWAY}"
+        echo "IPV6ADDR=${IPV6_ADD0}/64"
+        echo "IPV6_DEFAULTGW=${IPV6_DEF_GATEWAY0}"
         echo 'IPV6_PRIVACY="no"'
         echo ""
         echo "# resolvconf - doesn't recognize more than 3 nameservers. (IPv4 & IPv6)"
@@ -1825,8 +1849,8 @@ function configure_net2() {
         echo ""
         echo "# IPv6 Configuration (Public)"
         echo "iface ${NIC_INTERFACE_NAME} inet6 static"
-        echo "address ${IPV6_ADD}/64"
-        echo "gateway ${IPV6_DEF_GATEWAY}"
+        echo "address ${IPV6_ADD0}/64"
+        echo "gateway ${IPV6_DEF_GATEWAY0}"
       } >/etc/network/interfaces
       # Disabling Ipv6 DAD: https://www.agwa.name/blog/post/beware_the_ipv6_dad_race_condition
       # Another way is to use this sysctl -w net.ipv6.conf.eth0.dad_transmits=0 or put in /etc/sysctl for permanent
@@ -1887,7 +1911,7 @@ function configure_net2() {
       echo ""
       echo "#IP information for ${BOX_HOSTNAME_FQDN}:"
       printf '%s\t%s\t%s\n' "${IPV4_ADD0}" "${BOX_HOSTNAME_FQDN}" "${BOX_HOSTNAME}"
-      printf '%s\t%s\t%s\n' "${IPV6_ADD}" "${BOX_HOSTNAME_FQDN}" "${BOX_HOSTNAME}"
+      printf '%s\t%s\t%s\n' "${IPV6_ADD0}" "${BOX_HOSTNAME_FQDN}" "${BOX_HOSTNAME}"
     } >>/etc/hosts
     chmod 644 /etc/hosts
     # When using a VPS that use auto network manager, it will keep replacing this hosts file.
@@ -2368,7 +2392,7 @@ function install_da() {
 add_da_ipv6_ip() {
   # Nice info about this: https://forum.directadmin.com/threads/how-to-add-ip-to-server-using-api.37227/
   local ipv6_uncompress_add grep_result ipv6_da_file
-  ipv6_uncompress_add=$(ipv6calc --addr2uncompaddr "${IPV6_ADD}")
+  ipv6_uncompress_add=$(ipv6calc --addr2uncompaddr "${IPV6_ADD0}")
   ipv6_da_file="/usr/local/directadmin/data/admin/ips/${ipv6_uncompress_add}"
   # 2 ways: a) Using API or b) Manually create ipv6 file
   #a) Using API
@@ -2412,7 +2436,7 @@ function link_da_ipv6() {
     echo "[${SCRIPT_NAME}]: Checking Directadmin IPv6 configuration file ..." 2>&1 | tee -a "${REPORT_FILE}"
     da_ipv6_adds=$(ls /usr/local/directadmin/data/admin/ips/*:* 2>/dev/null)
     #apt-get -y install ipv6calc 2>&1 | tee -a "${REPORT_FILE}"
-    ipv6_uncompress_add=$(ipv6calc --addr2uncompaddr "${IPV6_ADD}")
+    ipv6_uncompress_add=$(ipv6calc --addr2uncompaddr "${IPV6_ADD0}")
     # DA IP file use this form 1234:1234:0:0:1234:1234 so we need to convert into this form using ipv6calc
     if [[ -n "${da_ipv6_adds}" && "${AUTO_LINK_DA_IP}" == "yes" ]]; then
       # Change this to for loop instead of ls (best practice mentioned here: https://github.com/koalaman/shellcheck/wiki/SC2010)
@@ -2420,7 +2444,7 @@ function link_da_ipv6() {
         #echo $(basename $da_ipv6)
         base_da_ipv6=$(basename "${da_ipv6}")
         if [[ "${base_da_ipv6}" == "${ipv6_uncompress_add}" ]]; then
-          echo "[${SCRIPT_NAME}]: IP address ${IPV6_ADD} is exist in [${da_ipv6}]" 2>&1 | tee -a "${REPORT_FILE}"
+          echo "[${SCRIPT_NAME}]: IP address ${IPV6_ADD0} is exist in [${da_ipv6}]" 2>&1 | tee -a "${REPORT_FILE}"
           #source "${da_ipv6}"
           linked_ips=$(sed -n 's/^linked_ips=//p' "${da_ipv6}")
           if [[ "${linked_ips}" == "" || -z "${linked_ips}" ]]; then
@@ -2449,14 +2473,14 @@ function link_da_ipv6() {
           fi
         else
           if [ "${AUTO_ADD_IPV6_ENTRY}" == "yes" ]; then
-            echo "[${SCRIPT_NAME}]: Warning, no IPv6 matched with ${IPV6_ADD}. AUTO_ADD_IPV6_ENTRY is set to yes. Automatically adding DA IPv6 config file ..." 2>&1 | tee -a "${REPORT_FILE}"
+            echo "[${SCRIPT_NAME}]: Warning, no IPv6 matched with ${IPV6_ADD0}. AUTO_ADD_IPV6_ENTRY is set to yes. Automatically adding DA IPv6 config file ..." 2>&1 | tee -a "${REPORT_FILE}"
             sleep 2
             add_da_ipv6_ip
             sleep 10
             link_da_ipv6
           else
             # This might not be executed but just in case if something goes wrong.
-            echo "[${SCRIPT_NAME}]: Warning, no IPv6 matched with ${IPV6_ADD}. Please manually enter IPv6 from GUI (full form) then run this script again" 2>&1 | tee -a "${REPORT_FILE}"
+            echo "[${SCRIPT_NAME}]: Warning, no IPv6 matched with ${IPV6_ADD0}. Please manually enter IPv6 from GUI (full form) then run this script again" 2>&1 | tee -a "${REPORT_FILE}"
             _exit 1
           fi
         fi
@@ -2498,6 +2522,7 @@ function rebuild_da_package() {
   # This to rebuild DA package that cause error like nginx_apache wont start for new install (bug)
   if [ ! -f "${CONF_PATH}/${FUNCNAME[0]}_executed" ]; then
     echo "[${SCRIPT_NAME}]: Executing ${FUNCNAME[0]} ..." 2>&1 | tee -a "${REPORT_FILE}"
+    local da_sql_type da_sql_version
     # Need to rebuild nginx_apache because it cannot be started after installation due to modsecurity directive. See this:
     # https://forum.directadmin.com/threads/nginx-and-apache-nginix-wont-start-due-to-mod_security.61427/
     cd_to_path "/usr/local/directadmin/custombuild"
@@ -2528,6 +2553,18 @@ function rebuild_da_package() {
     ./build set webserver "${CB_WEB_SERVER_SOFTWARE}" 2>&1 | tee -a "${REPORT_FILE}"
     ./build "${CB_WEB_SERVER_SOFTWARE}" 2>&1 | tee -a "${REPORT_FILE}"
     ./build rewrite_confs 2>&1 | tee -a "${REPORT_FILE}"
+
+    da_sql_type=$(echo "${CB_MYSQL_INS}" | awk -F'-' '{ print $1 }')
+    da_sql_version=$(echo "${CB_MYSQL_INS}" | awk -F'-' '{ print $2 }')
+
+    echo "[${SCRIPT_NAME}]: Rebuilding ${da_sql_type} web server to version ${da_sql_version} ..." 2>&1 | tee -a "${REPORT_FILE}"
+    sleep 2
+
+    ./build set "${da_sql_type}" "${da_sql_version}"
+    ./build set mysql_inst "${da_sql_type}"
+    ./build set mysql_backup yes
+    ./build "${da_sql_type}"
+
     check_finish_reboot "${FUNCNAME[0]}"
   else
     echo "[${SCRIPT_NAME}]: [Skipped]: ${FUNCNAME[0]} has ran before" 2>&1 | tee -a "${REPORT_FILE}"
@@ -3381,7 +3418,7 @@ function add_da_ip() {
     local addip_script
     addip_script="/usr/local/directadmin/scripts/addip"
     if [ -f ${addip_script} ]; then
-      "${addip_script}" "${IPV6_ADD}" "255.255.255.0" "${NIC_INTERFACE_NAME}" 2>&1 | tee -a "${REPORT_FILE}"
+      "${addip_script}" "${IPV6_ADD0}" "255.255.255.0" "${NIC_INTERFACE_NAME}" 2>&1 | tee -a "${REPORT_FILE}"
     else
       echo "[${SCRIPT_NAME}]: Warning file ${addip_script} was not found. Bye!" 2>&1 | tee -a "${REPORT_FILE}"
       _exit 1
@@ -4039,7 +4076,7 @@ configure_da_dns_templates() {
     chown diradmin:diradmin "${da_template_custom}/dns_txt.conf"
     chmod 644 "${da_template_custom}/dns_txt.conf"
     # Note last year I use the full form of IP. Remember DA also has ipv6 calculator from directadmin binary.
-    ipv6_full_uncompressed=$(ipv6calc --addr2fulluncompaddr "${IPV6_ADD}")
+    ipv6_full_uncompressed=$(ipv6calc --addr2fulluncompaddr "${IPV6_ADD0}")
     echo "[${SCRIPT_NAME}]: Setting extra_spf_value with ipv6:${ipv6_full_uncompressed} ..." 2>&1 | tee -a "${REPORT_FILE}"
     sleep 1
     ${da_bin} set extra_spf_value " ipv6:${ipv6_full_uncompressed}" 2>&1 | tee -a "${REPORT_FILE}"
@@ -4953,7 +4990,7 @@ function configure_da_reseller_subdomains() {
 
           #linode_api_admin "add-dns-record" "maxibi.com" "TXT" "x._domainkey" "*i..2uiu1KJM@#9IU@J()!@IJI92" "5"
           linode_api_admin "add-dns-record" "${root_domain}" "A" "${sub_domain}" "${IPV4_ADD0}" "5"
-          linode_api_admin "add-dns-record" "${root_domain}" "AAAA" "${sub_domain}" "${IPV6_ADD}" "5"
+          linode_api_admin "add-dns-record" "${root_domain}" "AAAA" "${sub_domain}" "${IPV6_ADD0}" "5"
           echo "" 2>&1 | tee -a "${REPORT_FILE}"
 
           ((count_o++))
@@ -5051,7 +5088,7 @@ function configure_da_user_subdomains() {
 
           #linode_api_admin "add-dns-record" "maxibi.com" "TXT" "x._domainkey" "*i..2uiu1KJM@#9IU@J()!@IJI92" "5"
           linode_api_admin "add-dns-record" "${root_domain}" "A" "${sub_domain}" "${IPV4_ADD0}" "5"
-          linode_api_admin "add-dns-record" "${root_domain}" "AAAA" "${sub_domain}" "${IPV6_ADD}" "5"
+          linode_api_admin "add-dns-record" "${root_domain}" "AAAA" "${sub_domain}" "${IPV6_ADD0}" "5"
           echo "" 2>&1 | tee -a "${REPORT_FILE}"
 
           ((count_o++))
@@ -5940,9 +5977,6 @@ test1() {
 
 # End of function
 
-CTRL_C_COUNT=0
-# IF SCRIPT EXIT UNSUCCESSFULLY, THEN WE CALL cleanup function
-_traps _trap_cleanup QUIT INT TERM EXIT
 SCRIPT_NAME=$(basename -- "$0")
 SCRIPT_PATH="$(dirname "$(readlink -f "$0")")"
 DATE_BIN=$(command -v date)
@@ -5990,6 +6024,10 @@ if ! mkdir "${LOCK_DIR}" 2>/dev/null; then
 else
   # LOCK SUCCESS NOW SAVE INFORMATION IN PID
   echo $$ >"${LOCK_PID}"
+
+  CTRL_C_COUNT=0
+  # IF SCRIPT EXIT UNSUCCESSFULLY, THEN WE CALL cleanup function
+  _traps _trap_cleanup QUIT INT TERM EXIT
 fi
 # ============End of locking===============
 CONFIG_FILE="${SCRIPT_PATH}/maxisetup.conf"
@@ -6056,6 +6094,9 @@ echo "Sofibox/MaxiNet was developed by Sofibox" 2>&1 | tee -a "${REPORT_FILE}"
 echo "URL: http://www.sofibox.com  =~=~=~=~=  " 2>&1 | tee -a "${REPORT_FILE}"
 echo "=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~" 2>&1 | tee -a "${REPORT_FILE}"
 echo ""
+
+# A global variable that temporarily holds seconds value
+HOLD_SECONDS=0
 
 DISTRO_ID=$(get_linux_os "id")
 #DISTRO_VERSION=$(get_linux_os "version")
