@@ -202,6 +202,7 @@ BOX_NS1="ns1.sofibox.com"
 BOX_NS2="ns2.sofibox.com"
 BOX_NS3="ns3.sofibox.com"
 BOX_NS4="ns4.sofibox.com"
+
 # or auto = let the naming convention decide
 NIC_INTERFACE_NAME="eth0"
 IPV4_ADD0="123.111.50.185"

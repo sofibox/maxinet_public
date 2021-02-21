@@ -1,7 +1,7 @@
 #!/bin/bash
 # =~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~
 # Author: Arafat Ali Email: arafat@sofibox.com
-# Version 0.3.8.7-beta
+# Version 0.3.8.8-beta
 # This is an initial server hardening script for CentOS and Debian.
 # Compatible 100% with Directadmin. Supported OS: CentOS + Debian (Planned on FreeBSD)
 # You can choose to install as the other stack server such as LEMP, (TODO) Laravel and more defined in config file
@@ -476,7 +476,7 @@ function restart_da() {
   local wait_duration task_queue_file
   wait_duration=10
   # Directadmin recommends 60 seconds (or 1 minute). Longer than this something wrong with the task.queue
-  max_wait=60
+  max_wait=120
   task_queue_file="/usr/local/directadmin/data/task.queue"
   if [ -s ${task_queue_file} ]; then
     echo "[${SCRIPT_NAME}]: Warning, Directadmin task.queue still has pending task(s) to be executed with the following contents:" 2>&1 | tee -a "${REPORT_FILE}"
@@ -1694,7 +1694,7 @@ function configure_net() {
     echo "${ROOT_EMAIL}" >/root/.email.txt #Root email will use this one
     echo "${ADMIN_EMAIL}" >/root/.forward  #Forward all email to admin (webmaster)
     echo "[${SCRIPT_NAME}]: Configuring network interface ..." 2>&1 | tee -a "${REPORT_FILE}"
-    sleep 2
+    #sleep 2
 
     current_lan=$(ip link | awk -F: '$0 !~ "lo|vir|wl|^[^0-9]"{print $2}' | sed 's/ //g')
     if [ "${current_lan}" != "${NIC_INTERFACE_NAME}" ]; then
@@ -2399,7 +2399,7 @@ add_da_ipv6_ip() {
   echo "[${SCRIPT_NAME}]: Adding ipv6 file config using the API method ..." 2>&1 | tee -a "${REPORT_FILE}"
   sleep 1
   da_api_admin "add-ip" "${ipv6_uncompress_add}" "/64"
-  sleep 2
+  #sleep 2
   #b) Manually create ipv6 file (alternative way) if the above method API doesn't produce the IP file (just in case)
   if [ ! -f "${ipv6_da_file}" ]; then
     # Normally API will not fail, but just in case if ipv6 file is still not created,
@@ -2578,7 +2578,7 @@ function install_da_post() {
     sleep 1
     # Need this before changing or adding directadmin username
     echo "[${SCRIPT_NAME}]: Setting Directadmin max username to ${DA_MAX_UNAME_LENGTH} ..." 2>&1 | tee -a "${REPORT_FILE}"
-    /usr/local/directadmin/directadmin max_username_length
+    /usr/local/directadmin/directadmin set max_username_length "${DA_MAX_UNAME_LENGTH}"
     # Need to enable ipv6 after install by default DA don't do anything about ipv6
     echo "[${SCRIPT_NAME}]: Enabling ipv6 in directadmin.conf config ..." 2>&1 | tee -a "${REPORT_FILE}"
     /usr/local/directadmin/directadmin set ipv6 1
@@ -2763,8 +2763,9 @@ function configure_da_sql() {
     #sleep 1
     # By default sql root password is blank (this is not secure). Need to create that root password.
     # This mysqld method can be used only if correct password is supplied in /etc/my.cnf or blank password with no entries in /etc/my.cnf
-    if pgrep -x "mysqld" >/dev/null 2>&1; then
-      # Using mysql if it's running and can be authenticated.
+
+    # Using mysql if it's running and can be authenticated.
+    if command -v mysqld &>/dev/null; then
 
       mysql_on_non_cnf=$(
         mysql -e 'exit'
