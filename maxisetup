@@ -1,7 +1,7 @@
 #!/bin/bash
 # =~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~
 # Author: Arafat Ali Email: arafat@sofibox.com
-# Version 0.3.8.9-beta
+# Version 0.3.9.0-beta
 # This is an initial server hardening script for CentOS and Debian.
 # Compatible 100% with Directadmin. Supported OS: CentOS + Debian (Planned on FreeBSD)
 # You can choose to install as the other stack server such as LEMP, (TODO) Laravel and more defined in config file
@@ -14,6 +14,9 @@
 # set code debug:
 # set -euxo pipefail
 # ""
+
+# TODO: fix binary output DA API -> Use this https://stackoverflow.com/questions/16760378/how-to-check-if-the-file-is-a-binary-file-and-read-all-the-files-which-are-not
+# If the output is binary don't output it in terminal
 
 # This function will validate if config is valid, if one of the variables missing, it will complain and exit
 function validate_config() {
@@ -1133,7 +1136,7 @@ function da_api_admin() {
       echo "Value of record_out_display is: ${record_out_display}" 2>&1 | tee -a "${REPORT_FILE}"
       echo "===" 2>&1 | tee -a "${REPORT_FILE}"
       #curl --request "${method}" --user "${api_username}":"${api_password}" --data "${data}" "${ssl}://${BOX_HOSTNAME_FQDN}:${DA_PORT}/${command}" | grep 'v=DKIM1' | awk '{for(i=6;i<=NF;++i)printf $i""FS ; print ""}' | sed -e 's/^"//' -e 's/"$//'
-      curl --silent --request "${method}" --user "${api_username}":"${api_password}" --data "${data}" "${ssl}://${BOX_HOSTNAME_FQDN}:${DA_PORT}/${command}" | jq -r ".records[] | select((.name==\"${record_name}\") and (.type==\"${record_type}\") and (.value | contains(\"${record_contains_val}\"))) | ${record_out_display}" | sed -e 's/^"//' -e 's/"$//' | tr -d '\0'
+      curl --silent --request "${method}" --user "${api_username}":"${api_password}" --data "${data}" "${ssl}://${BOX_HOSTNAME_FQDN}:${DA_PORT}/${command}" | jq -r ".records[] | select((.name==\"${record_name}\") and (.type==\"${record_type}\") and (.value | contains(\"${record_contains_val}\"))) | ${record_out_display}" | sed -e 's/^"//' -e 's/"$//'
       retval=$?
       # get out based on return value (prevent next statement from running)
       return ${retval}
@@ -1298,7 +1301,7 @@ function da_api_admin() {
     echo "=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~" 2>&1 | tee -a "${REPORT_FILE}"
     echo "" 2>&1 | tee -a "${REPORT_FILE}"
     #Dont use --max-time or decrease time out because letsencrypt API will need more time to request cert
-    curl --silent --request "${method}" --user "${api_username}":"${api_password}" --data "${data}" "${ssl}://${BOX_HOSTNAME_FQDN}:${DA_PORT}/${command}" | tr -d '\0'
+    curl --silent --request "${method}" --user "${api_username}":"${api_password}" --data "${data}" "${ssl}://${BOX_HOSTNAME_FQDN}:${DA_PORT}/${command}"
     echo "=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~" 2>&1 | tee -a "${REPORT_FILE}"
     echo "" 2>&1 | tee -a "${REPORT_FILE}"
 
@@ -3707,7 +3710,25 @@ function configure_maxida() {
 }
 
 function configure_maxicron() {
-  :
+  if [ ! -f "${CONF_PATH}/${FUNCNAME[0]}_executed" ]; then
+    local maxicron_bin
+    echo "[${SCRIPT_NAME}]: Executing ${FUNCNAME[0]} ..." 2>&1 | tee -a "${REPORT_FILE}"
+    maxicron_bin="/usr/local/maxicode/maxicron/maxicron"
+
+    if [ -f ${maxicron_bin} ]; then
+      echo "[${SCRIPT_NAME}]: Creating symlink and executable for ${maxicron_bin} ..." 2>&1 | tee -a "${REPORT_FILE}"
+      chmod +x ${maxicron_bin}
+      # Symbolic name
+      ln -s ${maxicron_bin} /usr/local/bin
+    else
+      echo "[${SCRIPT_NAME}]: Warning, maxicron doesn't exist in /usr/local/maxicode !" 2>&1 | tee -a "${REPORT_FILE}"
+      _exit 1
+    fi
+    check_finish_reboot "${FUNCNAME[0]}"
+  else
+    echo "[${SCRIPT_NAME}]: [Skipped]: ${FUNCNAME[0]} has ran before" 2>&1 | tee -a "${REPORT_FILE}"
+    echo "=~=~=~=~=~=~=~=~=~" 2>&1 | tee -a "${REPORT_FILE}"
+  fi
 }
 
 function configure_maxiaide() {
@@ -5974,6 +5995,9 @@ function post_setup() {
     apt-get -y install ncdu htop mailutils gpg 2>&1 | tee -a "${REPORT_FILE}"
     # TODO: Audit system here with maxinis:
     # maxinis --audit system
+
+    # Stopping some services to reduce memory usage like clamav:
+    maxicron --stop-some-services
     check_finish_reboot "${FUNCNAME[0]}"
   else
     echo "[${SCRIPT_NAME}]: [Skipped]: ${FUNCNAME[0]} has ran before" 2>&1 | tee -a "${REPORT_FILE}"
@@ -6258,10 +6282,12 @@ if [ "${INSTALL_TYPE}" == "DIRECTADMIN" ]; then
   configure_da_geoip
   #exit 1
   # First configure the owner skins
+  #rm -rf "${CONF_PATH}/configure_da_owner_skins_executed"
   configure_da_owner_skins
   #rm -rf "${CONF_PATH}/configure_da_admin_skins_executed"
   configure_da_admin_skins
   #exit 1
+  #rm -rf "${CONF_PATH}/configure_da_reseller_skins_executed"
   configure_da_reseller_skins
   #exit 1
   #rm -rf "${CONF_PATH}/configure_da_owner_security_executed"
