@@ -10,9 +10,8 @@
     <select />
   </component>
   <component name="ChangeListManager">
-    <list default="true" id="113c828c-9a32-4b24-ab1e-978ce50c6320" name="Default Changelist" comment="Add vps_setup_luks.md for tutorial setting up encryption partition">
+    <list default="true" id="113c828c-9a32-4b24-ab1e-978ce50c6320" name="Default Changelist" comment="Updated vps_setup_luks.md">
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/vps_setup_luks.md" beforeDir="false" afterPath="$PROJECT_DIR$/vps_setup_luks.md" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -119,7 +118,7 @@
       <workItem from="1613629292005" duration="1062000" />
       <workItem from="1613884920584" duration="223000" />
       <workItem from="1614007987378" duration="3439000" />
-      <workItem from="1614011930702" duration="4036000" />
+      <workItem from="1614011930702" duration="4909000" />
     </task>
     <task id="LOCAL-00001" summary="Initial release from beta Version 0.3.2.7-beta">
       <created>1610639956771</created>
@@ -429,7 +428,14 @@
       <option name="project" value="LOCAL" />
       <updated>1614010828549</updated>
     </task>
-    <option name="localTasksCounter" value="45" />
+    <task id="LOCAL-00045" summary="Updated vps_setup_luks.md">
+      <created>1614049789665</created>
+      <option name="number" value="00045" />
+      <option name="presentableId" value="LOCAL-00045" />
+      <option name="project" value="LOCAL" />
+      <updated>1614049789665</updated>
+    </task>
+    <option name="localTasksCounter" value="46" />
     <servers />
   </component>
   <component name="TypeScriptGeneratedFilesManager">
@@ -448,7 +454,6 @@
     <option name="oldMeFiltersMigrated" value="true" />
   </component>
   <component name="VcsManagerConfiguration">
-    <MESSAGE value="Add the ability to switch DA installation from beta to stable or vise versa based on Poralix idea:&#10; &#10; Switch to stable version -&gt; maxida --switch-da stable or switch to beta version -&gt; maxida --switch-da beta&#10; &#10; Switching to beta version is useful to test beta function of Directadmin. For example the wildcard certificate using external DNS is supported in beta version of DA only.&#10;&#10;TODO: Planning to integrate script with wildcard certificate installation using Lego" />
     <MESSAGE value="1) Update maxida to use custombuild and directadmin functionalities.&#10;&#10;For example to set directadmin ssl=1 use the following:&#10;maxida --da set ssl 1&#10;&#10;To check Directadmin ssl setting:&#10;&#10;maxida --da get ssl&#10;output: ssl=1&#10;&#10;To reboot DA: &#10;maxida --reboot-da or maxida --da reboot&#10;&#10;To build lesencrypt package: &#10;maxida --cb letsencrypt&#10;&#10;To edit directadmin.conf: maxida --edit-daconf&#10;&#10;To edit custombuild options.conf: maxida --edit-cbconf&#10;&#10;To run DA in debug mode: &#10;maxida --debug or maxida --da debug&#10;&#10;=====&#10;&#10;2) Minor change to maxisetup" />
     <MESSAGE value="Add extra commands in maxida&#10;Disable https redirect for all domains (useful to test)&#10;&#10;Fixed, suricata version select version missing variable&#10;Fixed memcached status installation paused and stopped the script from continuing&#10;&#10;Add checking to select DNS provider external or local&#10;&#10;Move ssl configuration after created DA accounts" />
     <MESSAGE value="Update maxida argument&#10;Add new alpha version of maxidns&#10;Implemented linode_api_admin through linode-cli" />
@@ -473,6 +478,7 @@
     <MESSAGE value="Fixed trap function terminated running script when trying to run this script as a second instance. It should only notify that a script is running and exit not terminated all other instances.&#10;&#10;Added new readme about LUKS encryption - step by step procedures to create LUKS encryption on Debian and CentOS (private repo)&#10;&#10;Added prestashop platform files to automatically install prestashop website based on user variable DA_RESELLER_ROOT_WEB_TYPE[INDEX] from the config (pending function)&#10;&#10;Improved Directadmin restart condition to force restart if waiting time is longer than 60 seconds&#10;&#10;Fixed typo CMD_API_SECURITY_QUESTIONS does not exist but CMD_SECURITY_QUESTIONS does based on this: https://forum.directadmin.com/threads/cmd_api-have-way-to-change-php-version-of-unique-account.62965/#post-327435&#10;&#10;Added sudo installation for distribution that doesn't have sudo installed by default&#10;&#10;Fixed after changing network interface name from the function configure_net, we must also include network information (including the interface name) by calling configure_net2 before system reboot. Without this we won't have proper network connection for SSH.&#10;&#10;Changed variable IPV6_ADD to IPV6_ADD0 and IPV6_DEF_GATEWAY to IPV6_DEF_GATEWAY0 to allow multiple IPv6 addresses in the future&#10;&#10;Added option to build mysql or mariadb based on maxisetup.conf config file. &#10;&#10;New variable for installing sql:&#10;&#10;# Format &lt;sql_type&gt;-&lt;sql_version&gt;&#10;CB_MYSQL_INS=&quot;mariadb-10.5&quot; # or eg: mysql-8.0" />
     <MESSAGE value="Improved documentation LUKS.md (private repo)&#10;Increased max_wait value for restarting wait time for 120 seconds&#10;Fixed missing argument for set max_username_length&#10;Fixed checking mysqld process doesn't detect running mysql process when using pgrep command. Changed code from &#10;&#10;if pgrep -x &quot;mysqld&quot; &gt;/dev/null 2&gt;&amp;1; then&#10;&#10;to &#10;&#10;if command -v mysqld &amp;&gt;/dev/null; then" />
     <MESSAGE value="Add vps_setup_luks.md for tutorial setting up encryption partition" />
-    <option name="LAST_COMMIT_MESSAGE" value="Add vps_setup_luks.md for tutorial setting up encryption partition" />
+    <MESSAGE value="Updated vps_setup_luks.md" />
+    <option name="LAST_COMMIT_MESSAGE" value="Updated vps_setup_luks.md" />
   </component>
 </project>

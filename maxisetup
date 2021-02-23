@@ -1,7 +1,7 @@
 #!/bin/bash
 # =~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~
 # Author: Arafat Ali Email: arafat@sofibox.com
-# Version 0.3.8.8-beta
+# Version 0.3.8.9-beta
 # This is an initial server hardening script for CentOS and Debian.
 # Compatible 100% with Directadmin. Supported OS: CentOS + Debian (Planned on FreeBSD)
 # You can choose to install as the other stack server such as LEMP, (TODO) Laravel and more defined in config file
@@ -1705,16 +1705,29 @@ function configure_net() {
         # This will not run if values exist
         grub_count=$(grep -Ec 'GRUB_CMDLINE_LINUX=.*net.ifnames|GRUB_CMDLINE_LINUX_DEFAULT=.*net.ifnames' /etc/default/grub)
         if [ "${grub_count}" -eq 0 ]; then
-          echo "[${SCRIPT_NAME}]: Appending net.ifnames=0 for GRUB_CMDLINE_LINUX in /etc/default/grub ..." 2>&1 | tee -a "${REPORT_FILE}"
-          sed -i 's/GRUB_CMDLINE_LINUX="[^"]*/& net.ifnames=0/' /etc/default/grub
+          grub_count=$(grep -Ec 'GRUB_CMDLINE_LINUX=""' /etc/default/grub)
+          if [ "${grub_count}" -eq 0 ]; then
+            echo "[${SCRIPT_NAME}]: Appending net.ifnames=0 for GRUB_CMDLINE_LINUX in /etc/default/grub ..." 2>&1 | tee -a "${REPORT_FILE}"
+            sed -i 's/GRUB_CMDLINE_LINUX="[^"]*/& net.ifnames=0/' /etc/default/grub
+          else
+            # Adding new value (not appending)
+            echo "[${SCRIPT_NAME}]: Adding new value net.ifnames=0 for GRUB_CMDLINE_LINUX in /etc/default/grub ..." 2>&1 | tee -a "${REPORT_FILE}"
+            sed -i 's/GRUB_CMDLINE_LINUX=""/GRUB_CMDLINE_LINUX="net.ifnames=0"/g' /etc/default/grub
+          fi
         else
           echo "[${SCRIPT_NAME}]: [Skipped]: The value 'net.ifnames' has already seen in /etc/default/grub ..." 2>&1 | tee -a "${REPORT_FILE}"
         fi
         grub_count=$(grep -Ec 'GRUB_CMDLINE_LINUX=.*biosdevname|GRUB_CMDLINE_LINUX_DEFAULT=.*biosdevname' /etc/default/grub)
         if [ "${grub_count}" -eq 0 ]; then
-          # TODO fix append don't add space if variable is empty string
-          echo "[${SCRIPT_NAME}]: Appending biosdevname for GRUB_CMDLINE_LINUX in /etc/default/grub ..." 2>&1 | tee -a "${REPORT_FILE}"
-          sed -i 's/GRUB_CMDLINE_LINUX="[^"]*/& biosdevname=0/' /etc/default/grub
+          grub_count=$(grep -Ec 'GRUB_CMDLINE_LINUX=""' /etc/default/grub)
+          if [ "${grub_count}" -eq 0 ]; then
+            echo "[${SCRIPT_NAME}]: Appending biosdevname=0 for GRUB_CMDLINE_LINUX in /etc/default/grub ..." 2>&1 | tee -a "${REPORT_FILE}"
+            sed -i 's/GRUB_CMDLINE_LINUX="[^"]*/& biosdevname=0/' /etc/default/grub
+          else
+            # Adding new value (not appending)
+            echo "[${SCRIPT_NAME}]: Adding new value biosdevname=0 for GRUB_CMDLINE_LINUX in /etc/default/grub ..." 2>&1 | tee -a "${REPORT_FILE}"
+            sed -i 's/GRUB_CMDLINE_LINUX=""/GRUB_CMDLINE_LINUX="biosdevname=0"/g' /etc/default/grub
+          fi
         else
           echo "[${SCRIPT_NAME}]: [Skipped]: The value 'biosdevname' has already seen in /etc/default/grub ..." 2>&1 | tee -a "${REPORT_FILE}"
         fi
