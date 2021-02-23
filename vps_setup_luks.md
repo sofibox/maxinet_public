@@ -1,4 +1,6 @@
-How to setup OS disk encryption using Linode
+version: 0.1
+
+# How to setup OS disk encryption using Linode
 
 We will use Volume Storage to attach as a home directory so that it can grow easily
 
@@ -34,8 +36,9 @@ Config Label: Boot_Config
 VM Mode: Paravirtualization
 Kernel: Direct Disk
 /dev/sda: OS_Disk
-/dev/sdb: Boot_Disk
-Root Device: /dev/sdb
+/dev/sdb: Home_Volume
+/dev/sdc: Boot_Disk
+Root Device: /dev/sdc
 Turn off all Filesystem/Boot Helpers
 
 Second config:
@@ -95,11 +98,32 @@ sda is your operating system disk (you need to make sure it's not used). If it h
 
 2. click on sda disk to initialize the disk and create empty partition (free space). You will see a free space
 
-3. Click Configure encrypted volumes -> Yes -> Create encrypted volumes (select sda - the largest free disk space) -> Continue
+3. create a new primary partition (beginning of the disk) called boot with 1GB space. make sure it's mount to /boot file type should be ext4
 
-4. Click go back and Yes to format the partition as encrypted partition - > click Finish, wait for the encryption ( this will take a long time ) 
+Remember that this boot partition must have setting bootable flag = on. click go back
+
+4. Click Configure encrypted volumes -> Yes -> Create encrypted volumes (select sda - which said FREE) -> Continue
+
+5. Click go back and Yes to format the partition as encrypted partition - > click Finish, wait for the encryption ( this will take a long time ) 
    
-... to be continued
+6. Enter the LUKS encryption passphrase
+
+7. Click on configure logical disk manager -> yes to write system partition
+
+8. Create a volume group called box1, then select the encrypted LUKs disk /dev/mapper/sdaX_crypt
+
+Now create logical volume for this LVM with the following details (sample server with 80GB disk and 4GB RAM):
+
+# Specification for 80GB | 4GB RAM | Debian
+#1 15 GB | FS: Ext4 | Mount Point: / | Label: root | Bootable flag: on | (optional for performance: noatime, nodiratime)
+#2 2GB | ext4 /tmp | mount with: nosuid, noexec (optional for performance: noatime, nodiratime but need to check if compatible)
+#3 4GB | swap (for swap) | logical partition
+#4 60GB (or the rest space left) | ext4 /home | mount with: nosuid | put home at the end so it can be extend easily without modifying above partitions
+
+Click Go back and make sure all information from the partition follow the above:
+
+
+
 
 
 This tutorial is written by Arafat Ali | arafat@sofibox.com
