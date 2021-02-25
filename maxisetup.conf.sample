@@ -82,6 +82,8 @@ DA_RESELLER_SECURITY_A1=("xxx" "MaXi32")
 #DA_RESELLER_ROOT_WEB_TYPE1=("sofibox.com:wordpress:5.6")
 #<domain_name>:<db_name>:<db_user>:<db_password>
 DA_RESELLER_DB1=("sofibox.com:db_name:db_user:*db-password*" "sofibox.com:db_name2:db_user2:*db-password*" "sofibox.com:db_name2:abcd:*db-password*")
+# Whether to enable or disable modesecurity for the subdomain
+DA_RESELLER_MODSEC1=("sofibox.com:sales+OFF:login+ON")
 # === DA reseller end ===
 
 # === DA user start ===
