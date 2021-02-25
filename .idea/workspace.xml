@@ -10,7 +10,7 @@
     <select />
   </component>
   <component name="ChangeListManager">
-    <list default="true" id="113c828c-9a32-4b24-ab1e-978ce50c6320" name="Default Changelist" comment="Added reference for LUKS.md (private repo)&#10;Added new checking for changing variable GRUB_CMDLINE_LINUX in /etc/default/grub. If the variable is empty, we create new not append.">
+    <list default="true" id="113c828c-9a32-4b24-ab1e-978ce50c6320" name="Default Changelist" comment="Updated maxibox script (private repo)&#10;Updated maxicron script (private repo). Maxicron script includes the ability to stop some services to reduce memory usage. Such as clamav background process (private repo)&#10;Added maxicron-agent (private repo)&#10;Added maxicron installation in maxisetup and stop some services in post_setup() function to free memory for some not-so important background services&#10;Updated webapps to include prestashop updated version 1.7.7.2. Moved all prestashop related files to prestashop folder (private repo)">
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
@@ -53,13 +53,15 @@
     </key>
   </component>
   <component name="RunManager">
-    <configuration default="true" type="ArquillianJUnit" factoryName="" nameIsGenerated="true">
+    <configuration default="true" type="ArquillianTestNG" factoryName="" nameIsGenerated="true">
       <option name="arquillianRunConfiguration">
         <value>
           <option name="containerStateName" value="" />
         </value>
       </option>
-      <option name="TEST_OBJECT" value="class" />
+      <option name="TEST_OBJECT" value="CLASS" />
+      <properties />
+      <listeners />
       <method v="2">
         <option name="Make" enabled="true" />
       </method>
@@ -117,6 +119,7 @@
       <workItem from="1613884920584" duration="223000" />
       <workItem from="1614007987378" duration="3439000" />
       <workItem from="1614011930702" duration="6762000" />
+      <workItem from="1614097121634" duration="623000" />
     </task>
     <task id="LOCAL-00001" summary="Initial release from beta Version 0.3.2.7-beta">
       <created>1610639956771</created>
@@ -440,7 +443,14 @@
       <option name="project" value="LOCAL" />
       <updated>1614052954436</updated>
     </task>
-    <option name="localTasksCounter" value="47" />
+    <task id="LOCAL-00047" summary="Updated maxibox script (private repo)&#10;Updated maxicron script (private repo). Maxicron script includes the ability to stop some services to reduce memory usage. Such as clamav background process (private repo)&#10;Added maxicron-agent (private repo)&#10;Added maxicron installation in maxisetup and stop some services in post_setup() function to free memory for some not-so important background services&#10;Updated webapps to include prestashop updated version 1.7.7.2. Moved all prestashop related files to prestashop folder (private repo)">
+      <created>1614097148891</created>
+      <option name="number" value="00047" />
+      <option name="presentableId" value="LOCAL-00047" />
+      <option name="project" value="LOCAL" />
+      <updated>1614097148891</updated>
+    </task>
+    <option name="localTasksCounter" value="48" />
     <servers />
   </component>
   <component name="TypeScriptGeneratedFilesManager">
@@ -459,7 +469,6 @@
     <option name="oldMeFiltersMigrated" value="true" />
   </component>
   <component name="VcsManagerConfiguration">
-    <MESSAGE value="Add extra commands in maxida&#10;Disable https redirect for all domains (useful to test)&#10;&#10;Fixed, suricata version select version missing variable&#10;Fixed memcached status installation paused and stopped the script from continuing&#10;&#10;Add checking to select DNS provider external or local&#10;&#10;Move ssl configuration after created DA accounts" />
     <MESSAGE value="Update maxida argument&#10;Add new alpha version of maxidns&#10;Implemented linode_api_admin through linode-cli" />
     <MESSAGE value="Update linode API installation&#10;Fixed minor issue domain ID not found in linode API when requesting domain ID for a given domain.&#10;Fixed API exit when looping&#10;Add extra debugging texts&#10;Show latest DA version before installing DA.&#10;Add restart_da when executing configure_admin_accounts and configure_da_accounts&#10;Fixed loop count expression" />
     <MESSAGE value="Add maxicode installation to upgrade maxicode binary when it has update from git. Command to update:&#10;&#10;maxicode --update all (to update all maxicode scripts)&#10;&#10;maxicode --update &lt;package_name&gt; (to update specific maxicode script)&#10;&#10;Add initial sample maxicode.env.sample&#10;&#10;Improved DA API 'get-dns-zone' to use json format (it was in TODO list)&#10;&#10;Changed description of configure_maxibox, it's used for backup not updating maxicode binary.&#10;&#10;Created execution script for maxicode" />
@@ -484,6 +493,7 @@
     <MESSAGE value="Add vps_setup_luks.md for tutorial setting up encryption partition" />
     <MESSAGE value="Updated vps_setup_luks.md" />
     <MESSAGE value="Added reference for LUKS.md (private repo)&#10;Added new checking for changing variable GRUB_CMDLINE_LINUX in /etc/default/grub. If the variable is empty, we create new not append." />
-    <option name="LAST_COMMIT_MESSAGE" value="Added reference for LUKS.md (private repo)&#10;Added new checking for changing variable GRUB_CMDLINE_LINUX in /etc/default/grub. If the variable is empty, we create new not append." />
+    <MESSAGE value="Updated maxibox script (private repo)&#10;Updated maxicron script (private repo). Maxicron script includes the ability to stop some services to reduce memory usage. Such as clamav background process (private repo)&#10;Added maxicron-agent (private repo)&#10;Added maxicron installation in maxisetup and stop some services in post_setup() function to free memory for some not-so important background services&#10;Updated webapps to include prestashop updated version 1.7.7.2. Moved all prestashop related files to prestashop folder (private repo)" />
+    <option name="LAST_COMMIT_MESSAGE" value="Updated maxibox script (private repo)&#10;Updated maxicron script (private repo). Maxicron script includes the ability to stop some services to reduce memory usage. Such as clamav background process (private repo)&#10;Added maxicron-agent (private repo)&#10;Added maxicron installation in maxisetup and stop some services in post_setup() function to free memory for some not-so important background services&#10;Updated webapps to include prestashop updated version 1.7.7.2. Moved all prestashop related files to prestashop folder (private repo)" />
   </component>
 </project>

@@ -1,7 +1,7 @@
 #!/bin/bash
 # =~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~
 # Author: Arafat Ali Email: arafat@sofibox.com
-# Version 0.3.9.0-beta
+# Version 0.3.9.2-beta
 # This is an initial server hardening script for CentOS and Debian.
 # Compatible 100% with Directadmin. Supported OS: CentOS + Debian (Planned on FreeBSD)
 # You can choose to install as the other stack server such as LEMP, (TODO) Laravel and more defined in config file
@@ -3956,8 +3956,8 @@ function configure_maxicata() {
       _exit 1
     fi
 
-    # Writing a new maxicata.env file (all sensitive variables should be declared in maxisetup.conf and pass here)
-    echo "[${SCRIPT_NAME}]: Writing new maxicata.env file ..." 2>&1 | tee -a "${REPORT_FILE}"
+    # Writing a new maxicata.conf file (all sensitive variables should be declared in maxisetup.conf and pass here)
+    echo "[${SCRIPT_NAME}]: Writing new maxicata.conf file ..." 2>&1 | tee -a "${REPORT_FILE}"
     sleep 1
     {
       echo "# The URL. Need to modify this if they change this URL like the v2 to v3"
@@ -3965,7 +3965,7 @@ function configure_maxicata() {
       echo "AIPDB_REPORT_URL=\"${MAXICATA_AIPDB_REPORT_URL}"\"
       echo "# The main AIPDB key"
       echo "AIPDB_API_KEY=\"${MAXICATA_AIPDB_API_KEY}"\"
-    } >"/usr/local/maxicode/maxicata/conf/maxicata.env"
+    } >"/usr/local/maxicode/maxicata/conf/maxicata.conf"
 
     # maxicata --initfull will handle 3rd party rules and signature update
     # suricata-update update-sources
@@ -3974,7 +3974,7 @@ function configure_maxicata() {
     #suricata-update
 
     # Maxicata --initfull will do all the commented above (already have this function long time ago).
-    # Must have maxicata.env file first before running --initfull
+    # Must have maxicata.conf file first before running --initfull
     echo "[${SCRIPT_NAME}]: Running maxicata --initfull ..." 2>&1 | tee -a "${REPORT_FILE}"
     sleep 1
     maxicata --initfull
@@ -5988,16 +5988,33 @@ function harden_with_lynis() {
   fi
 }
 
+function configure_cronjobs() {
+  if [ ! -f "${CONF_PATH}/${FUNCNAME[0]}_executed" ]; then
+    echo "[${SCRIPT_NAME}]: Executing ${FUNCNAME[0]} ..." 2>&1 | tee -a "${REPORT_FILE}"
+    # Stopping some services to reduce memory usage like clamav:
+    maxicron --stop-some-services
+
+    # Add the above command in crontab so it will run on startup
+    {
+      echo "# Stop some high memory processes 180 seconds (3 minutes) after reboot"
+      echo "@reboot sleep 180 && maxicron --stop-some-services"
+    } >>/etc/crontab
+
+    check_finish_reboot "${FUNCNAME[0]}"
+  else
+    echo "[${SCRIPT_NAME}]: [Skipped]: ${FUNCNAME[0]} has ran before" 2>&1 | tee -a "${REPORT_FILE}"
+    echo "=~=~=~=~=~=~=~=~=~" 2>&1 | tee -a "${REPORT_FILE}"
+  fi
+}
+
 # This is used to install extra packages like ncdu, htop and more
 function post_setup() {
   if [ ! -f "${CONF_PATH}/${FUNCNAME[0]}_executed" ]; then
     echo "[${SCRIPT_NAME}]: Executing ${FUNCNAME[0]} ..." 2>&1 | tee -a "${REPORT_FILE}"
-    apt-get -y install ncdu htop mailutils gpg 2>&1 | tee -a "${REPORT_FILE}"
+    apt-get -y install ncdu htop mailutils gpg vim 2>&1 | tee -a "${REPORT_FILE}"
     # TODO: Audit system here with maxinis:
     # maxinis --audit system
 
-    # Stopping some services to reduce memory usage like clamav:
-    maxicron --stop-some-services
     check_finish_reboot "${FUNCNAME[0]}"
   else
     echo "[${SCRIPT_NAME}]: [Skipped]: ${FUNCNAME[0]} has ran before" 2>&1 | tee -a "${REPORT_FILE}"
@@ -6311,6 +6328,8 @@ fi
 #exit 1
 # Still need to add more based on lynis suggestion
 harden_with_lynis
+# exit 1
+configure_cronjobs
 # exit 1
 post_setup
 echo "" 2>&1 | tee -a "${REPORT_FILE}"
