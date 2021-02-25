@@ -20,6 +20,13 @@ INSTALL_TYPE="DIRECTADMIN"
 # For example, a prestashop website called test.com needs to have custom php config to match prestashop requirement
 # Disable this if you are not able to access private repo
 ENABLE_CUSTOM_WEB_SETUP="no"
+LUKS_PASS="luks*encryption*password"
+# Username to set for grub bootloader
+GRUB_UNAME="grub_user"
+# Password to set for grub bootloader
+GRUB_PASS="*grub_pasword*"
+LVM_VOLUME_GROUP="vg1"
+DISK_ENCRYPTION="yes"
 # You don't want to change this because everything is begin with root
 ROOT_USERNAME="root"
 ROOT_USERPASS="*long-secured-password*"
