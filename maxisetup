@@ -1,7 +1,7 @@
 #!/bin/bash
 # =~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~
 # Author: Arafat Ali Email: arafat@sofibox.com
-# Version 0.3.9.4-beta
+# Version 0.3.9.5-beta
 # This is an initial server hardening script for CentOS and Debian.
 # Compatible 100% with Directadmin. Supported OS: CentOS + Debian (Planned on FreeBSD)
 # You can choose to install as the other stack server such as LEMP, (TODO) Laravel and more defined in config file
@@ -9,14 +9,17 @@
 # At the end of installation, you will get a secured Directadmin control panel without needed to tweak more
 # You can always re-run this script to resume installation if it's halt due to known error or script has performed reboot
 # URL (public): github.com/sofibox/maxisetup_public | (private) github.com/sofibox/maxisetup (need access token)
-# TODO enable --dry-run (that will simulate testing for this script)
+
 # =~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~
 # set code debug:
 # set -euxo pipefail
 # ""
-
+# TOP TO DO LIST:
+# TODO: enable --dry-run (that will simulate testing for this script)
 # TODO: fix binary output DA API -> Use this https://stackoverflow.com/questions/16760378/how-to-check-if-the-file-is-a-binary-file-and-read-all-the-files-which-are-not
 # If the output is binary don't output it in terminal (this might be DA bug): https://forum.directadmin.com/threads/calling-da-api-using-curl-bash-sometimes-got-a-random-binary-output.63206/
+# TODO: provide an optional option to automatically create google domain verification TXT record through API (need Google business account at console)
+# TODO: testing creating account with * wildcard - this should also automatically added in external DNS (done need testing)
 
 # This function will validate if config is valid, if one of the variables missing, it will complain and exit
 function validate_config() {
@@ -527,28 +530,38 @@ function linode_api_admin() {
     sleep 1
     pip3 install linode-cli --upgrade
 
-    echo "[${SCRIPT_NAME}]: Configuring linode-cli using expect ..." 2>&1 | tee -a "${REPORT_FILE}"
+    echo "[${SCRIPT_NAME}]: Configuring linode-cli API key ..." 2>&1 | tee -a "${REPORT_FILE}"
     sleep 1
-    apt-get -y install expect
+
+    touch /root/.config/linode-cli
+    {
+      echo "[DEFAULT]"
+      echo "default-user = ${DNS_PROVIDER_USER}"
+
+      echo "[${DNS_PROVIDER_USER}]"
+      echo "token = ${DNS_PROVIDER_API_KEY}"
+    } >/root/.config/linode-cli
+
+    #apt-get -y install expect
     # Configuring the linode-cli using expect at the background
-    LINODE_CLI=$(expect -c "
-              set timeout 3
-              spawn linode-cli
-              expect \"Personal Access Token:\"
-              send \"${DNS_PROVIDER_API_KEY}\r\"
-              expect \"Default Region (Optional):\"
-              send \"\r\"
-              expect \"Default Type of Linode (Optional):\"
-              send \"\r\"
-              expect \"Default Image (Optional):\"
-              send \"\r\"
-              expect eof
-              ")
+    #LINODE_CLI=$(expect -c "
+    #          set timeout 3
+    #          spawn linode-cli
+    #          expect \"Personal Access Token:\"
+    #          send \"${DNS_PROVIDER_API_KEY}\r\"
+    #          expect \"Default Region (Optional):\"
+    #          send \"\r\"
+    #          expect \"Default Type of Linode (Optional):\"
+    #          send \"\r\"
+    #          expect \"Default Image (Optional):\"
+    #          send \"\r\"
+    #          expect eof
+    #          ")
     # Display the result of expect configuration for linode-cli
-    echo "Result: "
-    echo "${LINODE_CLI}"
+    #echo "Result: "
+    #echo "${LINODE_CLI}"
     # Remove expect we don't need it
-    apt-get -y remove expect
+    #apt-get -y remove expect
 
   fi
 
@@ -603,7 +616,14 @@ function linode_api_admin() {
       echo "[${SCRIPT_NAME}]: Error, usage: linode_api_admin ${action} <domain_name>" 2>&1 | tee -a "${REPORT_FILE}"
       return 2
     fi
-
+  #linode_api_admin "create-domain" "master" "maxibi.com" "webmaster@sofibox.com"
+  elif [[ ${action} == "create-domain" ]]; then
+    shift
+    local type domain email
+    type="$1"
+    domain="$2"
+    email="$3"
+    ${LINODE_CLI_BIN} domains create --type "${type}" --domain "${domain}" --soa_email "${email}" --json --pretty
   #linode_api_admin "add-dns-record" "maxibi.com" "TXT" "x._domainkey" "*i..2uiu1KJM@#9IU@J()!@IJI92" "5"
   elif [[ "${action}" == "add-dns-record" ]]; then
     shift
@@ -1374,6 +1394,8 @@ function check_fix_service() {
       # Start lfd to generate log file because first it had no log
       echo "[${SCRIPT_NAME}]: Starting lfd to generate lfd log file ..." 2>&1 | tee -a "${REPORT_FILE}"
       systemctl start lfd
+      # Waiting 10 seconds (so that the log file is generated properly within this time)
+      sleep 5
       # lfd known fix 1
       if [ -f /var/log/lfd.log ]; then
         gc=$(grep -ic 'you may need to install the IO::Socket::INET6 module' /var/log/lfd.log)
@@ -1386,6 +1408,8 @@ function check_fix_service() {
           cat /dev/null >/var/log/lfd.log
           echo "[${SCRIPT_NAME}]: Restarting lfd ..." 2>&1 | tee -a "${REPORT_FILE}"
           systemctl restart lfd
+          # Waiting 10 seconds (so that the log file is generated properly within this time)
+          sleep 5
           check_fix_service "lfd"
         else
           echo "[${SCRIPT_NAME}]: Error, unable to understand why lfd cannot be started. Check /var/log/lfd.log for more hints" 2>&1 | tee -a "${REPORT_FILE}"
@@ -1442,7 +1466,7 @@ function pre_setup() {
       apt-get -y update
       apt-get -y upgrade
       # By default sudo is not installed. It's needed for new OS
-      apt-get -y install sudo screen nmap psmisc 2>&1 | tee -a "${REPORT_FILE}"
+      apt-get -y install sudo screen nmap psmisc gpg 2>&1 | tee -a "${REPORT_FILE}"
     else
       echo "[${SCRIPT_NAME}]: Error, unknown value for distribution ID ${DISTRO_ID}" 2>&1 | tee -a "${REPORT_FILE}"
       _exit 1
@@ -3079,31 +3103,31 @@ function configure_da_mail() {
       my_cnf_rc_file="/var/www/html/roundcube/config/my.cnf"
       rc_config_file="/var/www/html/roundcube/config/config.inc.php"
       echo "[${SCRIPT_NAME}]: Backing up original roundcube config.inc.php at /var/www/html/roundcube/config/config.inc.php as config.inc.php_original_${DATE_TIME_NOW}..." 2>&1 | tee -a "${REPORT_FILE}"
-      sleep 1
+      #sleep 1
       cp -p "/var/www/html/roundcube/config/config.inc.php" "/var/www/html/roundcube/config/config.inc.php_original_${DATE_TIME_NOW}"
 
       echo "[${SCRIPT_NAME}]: Securing roundcube installation ..." 2>&1 | tee -a "${REPORT_FILE}"
       echo "===============================" 2>&1 | tee -a "${REPORT_FILE}"
-      sleep 1
+      #sleep 1
       # By default roundcube is installed with a very short and weak password. We need to change the password to secured one
       # Remember roundcube password cannot contains character '@ , & and :' because config.inc.php use this separator and won't accept that password.
       echo "[${SCRIPT_NAME}]: Changing da_roundcube password in user database ..." 2>&1 | tee -a "${REPORT_FILE}"
-      sleep 1
+      #sleep 1
       mysql -e "ALTER USER 'da_roundcube'@'localhost' IDENTIFIED BY '${DA_ROUNDCUBE_SQL_PASS}'; FLUSH PRIVILEGES;"
       echo "[${SCRIPT_NAME}]: Updating da_roundcube password in config.inc.php ..." 2>&1 | tee -a "${REPORT_FILE}"
-      sleep 1
+      #sleep 1
       replace_rc_authconf="\$config['db_dsnw'] = 'mysql:\/\/da_roundcube:${DA_ROUNDCUBE_SQL_PASS}@localhost\/da_roundcube';"
       sed -i "s/\$config\[.db_dsnw.\]\s*=.*/${replace_rc_authconf}/" "${rc_config_file}"
 
       echo "[${SCRIPT_NAME}]: Changing DA product name in config.inc.php ..." 2>&1 | tee -a "${REPORT_FILE}"
-      sleep 1
+      #sleep 1
       replace_rc_prodname="\$config['product_name'] = '${ROUNDCUBE_CUSTOM_NAME}';"
       sed -i "s/\$config\[.product_name.\]\s*=.*/${replace_rc_prodname}/" "${rc_config_file}"
 
       grep_count=$(grep -ic "\$config\['force_https'\]" "${rc_config_file}")
       if [ "${grep_count}" = 0 ]; then
         echo "[${SCRIPT_NAME}]: Enabling force_https for roundcube at config.inc.php ..." 2>&1 | tee -a "${REPORT_FILE}"
-        sleep 1
+        #sleep 1
         echo "\$config['force_https'] = true;" >>"${rc_config_file}"
       else
         echo "[${SCRIPT_NAME}]: The roundcube setting config.inc.php has already set force_https" 2>&1 | tee -a "${REPORT_FILE}"
@@ -3111,10 +3135,10 @@ function configure_da_mail() {
 
       if [ -s "${my_cnf_rc_file}" ]; then
         echo "[${SCRIPT_NAME}]: Updating SQL da_roundcube username in ${my_cnf_rc_file} ... " 2>&1 | tee -a "${REPORT_FILE}"
-        sleep 1
+        #sleep 1
         sed -i "/\[client\]/,/^\[/ s/user=.*/user=da_roundcube/" "${my_cnf_rc_file}"
         echo "[${SCRIPT_NAME}]: Updating SQL da_roundcube password in ${my_cnf_rc_file} ... " 2>&1 | tee -a "${REPORT_FILE}"
-        sleep 1
+        #sleep 1
         sed -i "/\[client\]/,/^\[/ s/password=.*/password=${DA_ROUNDCUBE_SQL_PASS}/" ${my_cnf_rc_file}
       else
         # If no file was created, we write this file for my.cnf (roundcube auth sql config)
@@ -3127,7 +3151,7 @@ function configure_da_mail() {
       fi
 
       echo "[${SCRIPT_NAME}]: Enabling some roundcube built-in plugins ... " 2>&1 | tee -a "${REPORT_FILE}"
-      sleep 1
+      #sleep 1
       rc_built_in_plugins=("'password',"
         "'archive',"
         "'zipdownload',"
@@ -3144,7 +3168,7 @@ function configure_da_mail() {
         if [ "${grep_count}" -eq 0 ]; then
           # Use this code and loop above rc_plugins must be array
           echo "[${SCRIPT_NAME}]: Adding ${rc_built_in_plugin} into roundcube plugin list ..." 2>&1 | tee -a "${REPORT_FILE}"
-          sleep 1
+          #sleep 1
           sed -i "s|\$config\[.plugins.\] = array(|&\n    ${rc_built_in_plugin}|" "${rc_config_file}"
         else
           echo "[${SCRIPT_NAME}]: [Skipped] The plugin ${rc_built_in_plugin} has already been set in ${rc_config_file}" 2>&1 | tee -a "${REPORT_FILE}"
@@ -3155,10 +3179,10 @@ function configure_da_mail() {
       # Here we install roundcube 3rd party plugins
       if [ "${ENABLE_ROUNDCUBE_RCGUARD}" == "yes" ]; then
 
-        sleep 1
+        #sleep 1
         # I posted bug here: https://github.com/dsoares/roundcube-rcguard/issues/39, but jus that server restart fixed the problem
         echo "[${SCRIPT_NAME}]: Installing rcguard (Google recaptcha) to protect roundcube ... " 2>&1 | tee -a "${REPORT_FILE}"
-        sleep 1
+        #sleep 1
         cd_to_path "/var/www/html/roundcube/plugins/"
         GIT_SSL_NO_VERIFY=true git clone https://github.com/dsoares/rcguard.git rcguard
         chown -R webapps:webapps rcguard/
@@ -3169,15 +3193,15 @@ function configure_da_mail() {
         mv config.inc.php.dist config.inc.php
 
         echo "[${SCRIPT_NAME}]: Configuring rcguard recaptcha_publickey in config.inc.php ..." 2>&1 | tee -a "${REPORT_FILE}"
-        sleep 1
+        #sleep 1
         replace_rc_rcguard_recaptcha_publickey="\$config['recaptcha_publickey'] = '${GOOGLE_RECAPTCHA_SITE_V2}';"
         sed -i "s/\$config\[.recaptcha_publickey.\]\s*=.*/${replace_rc_rcguard_recaptcha_publickey}/" /var/www/html/roundcube/plugins/rcguard/config.inc.php
         echo "[${SCRIPT_NAME}]: Configuring rcguard recaptcha_privatekey in config.inc.php ..." 2>&1 | tee -a "${REPORT_FILE}"
-        sleep 1
+        #sleep 1
         replace_rc_rcguard_recaptcha_privatekey="\$config['recaptcha_privatekey'] = '${GOOGLE_RECAPTCHA_SECRET_V2}';"
         sed -i "s/\$config\[.recaptcha_privatekey.\]\s*=.*/${replace_rc_rcguard_recaptcha_privatekey}/" /var/www/html/roundcube/plugins/rcguard/config.inc.php
         echo "[${SCRIPT_NAME}]: Creating mysql table for rcguard ..." 2>&1 | tee -a "${REPORT_FILE}"
-        sleep 1
+        #sleep 1
         # The plugin already provide initial script to create rcguard table in roundcube. So we can just add this sql file under da_roundcube username
         mysql da_roundcube </var/www/html/roundcube/plugins/rcguard/SQL/mysql.initial.sql
 
@@ -3186,7 +3210,7 @@ function configure_da_mail() {
         if [ "${grep_count}" -eq 0 ]; then
           # Use this code and loop above rc_plugins must be array
           echo "[${SCRIPT_NAME}]: Adding 'rcguard', into roundcube plugin list ..."
-          sleep 1
+          #sleep 1
           sed -i "s|\$config\[.plugins.\] = array(|&\n    'rcguard',|" /var/www/html/roundcube/config/config.inc.php
         else
           echo "[${SCRIPT_NAME}]: [Skipped] The plugin 'rcguard', has already been set in /var/www/html/roundcube/config/config.inc.php  " 2>&1 | tee -a "${REPORT_FILE}"
@@ -3215,7 +3239,7 @@ configure_da_ftp() {
     gc=$(grep -ic '\-\/var\/log\/pureftpd\.log' /etc/rsyslog.conf)
     if [ "${gc}" -eq 0 ]; then
       echo "[${SCRIPT_NAME}]: Setting pure-ftpd to use log at /var/log/pureftpd.log ..." 2>&1 | tee -a "${REPORT_FILE}"
-      sleep 1
+      #sleep 1
       printf "ftp.*\t\t\t\t-/var/log/pureftpd.log\n" >>/etc/rsyslog.conf
     else
       echo "[${SCRIPT_NAME}]: [Skipped]: Found ftp log entry '-/var/log/pureftpd.log' at /etc/ryslog.conf" 2>&1 | tee -a "${REPORT_FILE}"
@@ -3232,10 +3256,10 @@ function configure_nginx_apache() {
   if [ ! -f "${CONF_PATH}/${FUNCNAME[0]}_executed" ]; then
     echo "[${SCRIPT_NAME}]: Executing ${FUNCNAME[0]} ..." 2>&1 | tee -a "${REPORT_FILE}"
     echo "[${SCRIPT_NAME}]: Backing up original httpd-alias.conf at /etc/httpd/ as httpd-alias.conf_original_${DATE_TIME_NOW} ..." 2>&1 | tee -a "${REPORT_FILE}"
-    sleep 1
+    #sleep 1
     cp -p "/etc/httpd/conf/extra/httpd-alias.conf" "/etc/httpd/conf/extra/httpd-alias.conf_original_${DATE_TIME_NOW}"
     echo "[${SCRIPT_NAME}]: Creating DA custom config for httpd-alias.conf ..." 2>&1 | tee -a "${REPORT_FILE}"
-    sleep 1
+    #sleep 1
     cat /dev/null >/etc/httpd/conf/extra/httpd-alias.conf
     {
       echo "# ==============================================="
@@ -3265,7 +3289,7 @@ function configure_nginx_apache() {
     } >>/etc/httpd/conf/extra/httpd-alias.conf
     if [ "${SECURE_HTTPASSWD_LOGIN_ROUTE}" == "yes" ]; then
       echo "[${SCRIPT_NAME}]: SECURE HTTPASSWD_LOGIN_ROUTE is set to yes. creating htpasswd authentication for custom routes ..." 2>&1 | tee -a "${REPORT_FILE}"
-      sleep 1
+      #sleep 1
       {
         echo "#Protect phpMyAdmin directory:"
         echo "<Directory "\"/var/www/html/phpMyAdmin/"\">"
@@ -3288,7 +3312,7 @@ function configure_nginx_apache() {
 
     else
       echo "[${SCRIPT_NAME}]: [skipped]: SECURE HTTPASSWD_LOGIN_ROUTE is set to no. Custom URL routes are not protected" 2>&1 | tee -a "${REPORT_FILE}"
-      sleep 1
+      #sleep 1
       {
         echo "##Protect phpMyAdmin directory:"
         echo "#<Directory "\"/var/www/html/phpMyAdmin/"\">"
@@ -3312,7 +3336,7 @@ function configure_nginx_apache() {
     fi
 
     echo "[${SCRIPT_NAME}]: Backing up original httpd-includes.conf at /etc/httpd/ as httpd-includes.conf_original_${DATE_TIME_NOW} ..." 2>&1 | tee -a "${REPORT_FILE}"
-    sleep 1
+    #sleep 1
     cp -p "/etc/httpd/conf/extra/httpd-includes.conf" "/etc/httpd/conf/extra/httpd-includes.conf_original_${DATE_TIME_NOW}"
     #echo "[${SCRIPT_NAME}]: Creating https redirection for all routes in httpd-includes.conf ..." 2>&1 | tee -a "${REPORT_FILE}"
     #sleep 1
@@ -3331,10 +3355,10 @@ function configure_nginx_apache() {
     #  echo "</location>"
     #} >>/etc/httpd/conf/extra/httpd-includes.conf
     echo "[${SCRIPT_NAME}]: Backing up original httpd-default.conf at /etc/httpd/ as httpd-default.conf_original_${DATE_TIME_NOW} ..." 2>&1 | tee -a "${REPORT_FILE}"
-    sleep 1
+    #sleep 1
     cp -p "/etc/httpd/conf/extra/httpd-default.conf" "/etc/httpd/conf/extra/httpd-default.conf_original_${DATE_TIME_NOW}"
     echo "[${SCRIPT_NAME}]: Customizing server config at httpd-default.conf ..." 2>&1 | tee -a "${REPORT_FILE}"
-    sleep 1
+    #sleep 1
     sed -i 's|^ServerTokens .*|ServerTokens Prod|' /etc/httpd/conf/extra/httpd-default.conf
     sed -i 's|^ServerSignature .*|ServerSignature Off|' /etc/httpd/conf/extra/httpd-default.conf
     # Restarting web server based on config file
@@ -3377,27 +3401,27 @@ function build_da_custom_conf() {
     # 1) create custom folder at /usr/local/directadmin/custombuild/custom/ap2/conf/extra
     mkdir -p /usr/local/directadmin/custombuild/custom/ap2/conf/extra
     echo "[${SCRIPT_NAME}]: Copying httpd-alias.conf into DA custom ap2 folder ..." 2>&1 | tee -a "${REPORT_FILE}"
-    sleep 1
+    #sleep 1
     cp -p "/etc/httpd/conf/extra/httpd-alias.conf" "/usr/local/directadmin/custombuild/custom/ap2/conf/extra/httpd-alias.conf"
 
     echo "[${SCRIPT_NAME}]: Copying httpd-includes.conf into DA custom ap2 folder ..." 2>&1 | tee -a "${REPORT_FILE}"
-    sleep 1
+    #sleep 1
     cp -p "/etc/httpd/conf/extra/httpd-includes.conf" "/usr/local/directadmin/custombuild/custom/ap2/conf/extra/httpd-includes.conf"
 
     echo "[${SCRIPT_NAME}]: Copying httpd-default.conf at into DA custom ap2 folder ..." 2>&1 | tee -a "${REPORT_FILE}"
-    sleep 1
+    #sleep 1
     cp -p "/etc/httpd/conf/extra/httpd-default.conf" "/usr/local/directadmin/custombuild/custom/ap2/conf/extra/httpd-default.conf"
 
     # 2 For phpmyadmin
     mkdir -p /usr/local/directadmin/custombuild/custom/phpmyadmin
     # .htaccess
     echo "[${SCRIPT_NAME}]: Copying phpMyAdmin .htaccess into phpmyadmin DA custom folder ..." 2>&1 | tee -a "${REPORT_FILE}"
-    sleep 1
+    #sleep 1
     cp -p "/var/www/html/phpMyAdmin/.htaccess" "/usr/local/directadmin/custombuild/custom/phpmyadmin/.htaccess"
 
     # config.inc.php
     echo "[${SCRIPT_NAME}]: Copying original phpmyadmin config.inc.php at /var/www/html/phpMyAdmin into DA phpmyadmin custom folder ..." 2>&1 | tee -a "${REPORT_FILE}"
-    sleep 1
+    #sleep 1
     cp -p "/var/www/html/phpMyAdmin/config.inc.php" "/usr/local/directadmin/custombuild/custom/phpmyadmin/config.inc.php"
 
     # For custom phpMyAdmin theme (not using theme yet) leave this comment until I have new custom theme
@@ -3409,7 +3433,7 @@ function build_da_custom_conf() {
     #3 - For main roundcube (2 important files: config.inc.php, my.cnf)
     mkdir -p /usr/local/directadmin/custombuild/custom/roundcube
     echo "[${SCRIPT_NAME}]: Copying original roundcube config.inc.php into DA roundcube custom folder ..." 2>&1 | tee -a "${REPORT_FILE}"
-    sleep 1
+    #sleep 1
     cp -p "/var/www/html/roundcube/config/config.inc.php" "/usr/local/directadmin/custombuild/custom/roundcube/config.inc.php"
     # Remember when rebuild roundcube ./build roundcube DA will automatically update my.cnf. Don't touch that.
     # I wrote answer here: https://forum.directadmin.com/threads/script-to-reset-da_admin-da_roundcube-password.57101/#post-324944
@@ -3427,13 +3451,13 @@ function build_da_custom_conf() {
     # at the end must do build phpmyadmin, roundcube, rewrite_confs to save httpd changes.
     # Need to rebuild this because previously we change config.inc.php. Better rebuild for new setting.
     echo "[${SCRIPT_NAME}]: Rebuilding DA phpMyAdmin for new settings ..." 2>&1 | tee -a "${REPORT_FILE}"
-    sleep 1
+    #sleep 1
     ${cb_bin} phpmyadmin 2>&1 | tee -a "${REPORT_FILE}"
     echo "[${SCRIPT_NAME}]: Rebuilding DA roundcube for new settings ..." 2>&1 | tee -a "${REPORT_FILE}"
-    sleep 1
+    #sleep 1
     ${cb_bin} roundcube 2>&1 | tee -a "${REPORT_FILE}"
     echo "[${SCRIPT_NAME}]: Updating DA apache/nginx configs for new settings ..." 2>&1 | tee -a "${REPORT_FILE}"
-    sleep 1
+    #sleep 1
     ${cb_bin} rewrite_confs 2>&1 | tee -a "${REPORT_FILE}"
 
     # Rebuilding other DA package whatever more here if needed ...
@@ -4177,6 +4201,7 @@ configure_da_dns_templates() {
     {
       echo "|DOMAIN|.=\"v=spf1 a mx ip4:|SERVER_IP||EXTRA_SPF| ~all\""
       echo "_dmarc=\"v=DMARC1; p=none; sp=none; rua=mailto:spam-reports@|DOMAIN|\""
+      echo "_domainkey=\"o=~; r=webmaster@|DOMAIN|\""
     } >"${da_template_custom}/dns_txt.conf"
     chown diradmin:diradmin "${da_template_custom}/dns_txt.conf"
     chmod 644 "${da_template_custom}/dns_txt.conf"
@@ -4538,17 +4563,24 @@ function configure_da_reseller_accounts() {
         echo "~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~" 2>&1 | tee -a "${REPORT_FILE}"
         dkim_val=$(da_api_admin "get-dns-zone" "${da_reseller_domain_first}" "x._domainkey+TXT+v=DKIM1+.value" | tail -n 1) || exit 1
         dkim_val_count=$(echo "${dkim_val}" | wc -l)
+        dkim_policy_val=$(da_api_admin "get-dns-zone" "${da_reseller_domain_first}" "_domainkey+TXT+o=+.value" | tail -n 1) || exit 1
+        dkim_policy_val_count=$(echo "${dkim_policy_val}" | wc -l)
         dmarc_val=$(da_api_admin "get-dns-zone" "${da_reseller_domain_first}" "_dmarc+TXT+v=DMARC1+.value" | tail -n 1) || exit 1
         dmarc_val_count=$(echo "${dmarc_val}" | wc -l)
         spf_val=$(da_api_admin "get-dns-zone" "${da_reseller_domain_first}" "${da_reseller_domain_first}.+TXT+v=spf1+.value" | tail -n 1) || exit 1
         spf_val_count=$(echo "${spf_val}" | wc -l)
         echo "There is/are ${dkim_val_count} dkim value for this reseller domain ${da_reseller_domain_first}. First value is: ${dkim_val}" 2>&1 | tee -a "${REPORT_FILE}"
+        echo "There is/are ${dkim_policy_val_count} dkim policy value for this domain ${da_reseller_domain_first}. First value is: ${dkim_policy_val}" 2>&1 | tee -a "${REPORT_FILE}"
         echo "There is/are ${dmarc_val_count} dmarc value for this reseller domain ${da_reseller_domain_first}. First value is: ${dmarc_val}" 2>&1 | tee -a "${REPORT_FILE}"
         echo "There is/are ${spf_val_count} spf value for this reseller domain ${da_reseller_domain_first}. First value is: ${spf_val}" 2>&1 | tee -a "${REPORT_FILE}"
         echo "~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~" 2>&1 | tee -a "${REPORT_FILE}"
 
         if [ "${EXTERNAL_DNS_PROVIDER}" == "linode" ]; then
           echo "[${SCRIPT_NAME}]: External DNS provider for domain ${da_reseller_domain_first} is set to linode [Using linode API ...]" 2>&1 | tee -a "${REPORT_FILE}"
+          echo "Creating domain ${da_reseller_domain_first} if missing ..."
+          linode_api_admin "create-domain" "master" "${da_reseller_domain_first}" "${this_da_reseller_system_email}"
+          echo "Creating DKIM outbound signing policy DNS record ..."
+          linode_api_admin "add-dns-record" "${da_reseller_domain_first}" "TXT" "_domainkey" "${dkim_policy_val}" "5" 2>&1 | tee -a "${REPORT_FILE}"
           echo "Deleting external DNS record on linode for domain ${da_reseller_domain_first} with the following details: "
           echo "1) Name: x._domainkey | Type: TXT" 2>&1 | tee -a "${REPORT_FILE}"
           #_pause 2
@@ -4636,6 +4668,8 @@ function configure_da_reseller_accounts() {
             # Make sure if duplicated entry found, just return 1 line with tail -n 1
             dkim_val=$(da_api_admin "get-dns-zone" "${extra_domain}" "x._domainkey+TXT+v=DKIM1+.value" | tail -n 1) || exit 1
             dkim_val_count=$(echo "${dkim_val}" | wc -l)
+            dkim_policy_val=$(da_api_admin "get-dns-zone" "${extra_domain}" "_domainkey+TXT+o=+.value" | tail -n 1) || exit 1
+            dkim_policy_val_count=$(echo "${dkim_policy_val}" | wc -l)
             dmarc_val=$(da_api_admin "get-dns-zone" "${extra_domain}" "_dmarc+TXT+v=DMARC1+.value" | tail -n 1) || exit 1
             dmarc_val_count=$(echo "${dmarc_val}" | wc -l)
             spf_val=$(da_api_admin "get-dns-zone" "${extra_domain}" "${extra_domain}.+TXT+v=spf1+.value" | tail -n 1) || exit 1
@@ -4647,6 +4681,10 @@ function configure_da_reseller_accounts() {
 
             if [ "${EXTERNAL_DNS_PROVIDER}" == "linode" ]; then
               echo "[${SCRIPT_NAME}]: External DNS provider for domain ${extra_domain} is set to linode [Using linode API ...]" 2>&1 | tee -a "${REPORT_FILE}"
+              echo "Creating domain ${da_reseller_domain_first} if missing ..."
+              linode_api_admin "create-domain" "master" "${extra_domain}" "${this_da_reseller_system_email}"
+              echo "Creating DKIM outbound signing policy DNS record ..."
+              linode_api_admin "add-dns-record" "${extra_domain}" "TXT" "_domainkey" "${dkim_policy_val}" "5" 2>&1 | tee -a "${REPORT_FILE}"
               echo "Deleting external DNS record on linode for domain ${extra_domain} with the following details: "
               echo "1) Name: x._domainkey | Type: TXT" 2>&1 | tee -a "${REPORT_FILE}"
               echo "" 2>&1 | tee -a "${REPORT_FILE}"
@@ -4833,6 +4871,8 @@ function configure_da_user_accounts() {
 
         dkim_val=$(da_api_admin "get-dns-zone" "${da_user_domain_first}" "x._domainkey+TXT+v=DKIM1+.value" | tail -n 1) || exit 1
         dkim_val_count=$(echo "${dkim_val}" | wc -l)
+        dkim_policy_val=$(da_api_admin "get-dns-zone" "${da_user_domain_first}" "_domainkey+TXT+o=+.value" | tail -n 1) || exit 1
+        dkim_policy_val_count=$(echo "${dkim_policy_val}" | wc -l)
         dmarc_val=$(da_api_admin "get-dns-zone" "${da_user_domain_first}" "_dmarc+TXT+v=DMARC1+.value" | tail -n 1) || exit 1
         dmarc_val_count=$(echo "${dmarc_val}" | wc -l)
         spf_val=$(da_api_admin "get-dns-zone" "${da_user_domain_first}" "${da_user_domain_first}.+TXT+v=spf1+.value" | tail -n 1) || exit 1
@@ -4840,6 +4880,7 @@ function configure_da_user_accounts() {
 
         echo "=-=-=-=-=-=-=-=-=-=-"
         echo "There is/are ${dkim_val_count} dkim value for this domain ${da_user_domain_first}. First value is: ${dkim_val}" 2>&1 | tee -a "${REPORT_FILE}"
+        echo "There is/are ${dkim_policy_val_count} dkim policy value for this domain ${da_user_domain_first}. First value is: ${dkim_policy_val}" 2>&1 | tee -a "${REPORT_FILE}"
         echo "There is/are ${dmarc_val_count} dmarc value for this domain ${da_user_domain_first}. First value is: ${dmarc_val}" 2>&1 | tee -a "${REPORT_FILE}"
         echo "There is/are ${spf_val_count} spf value for this domain ${da_user_domain_first}. First value is: ${spf_val}" 2>&1 | tee -a "${REPORT_FILE}"
         echo "=-=-=-=-=-=-=-=-=-=-"
@@ -4847,7 +4888,10 @@ function configure_da_user_accounts() {
 
         if [ "${EXTERNAL_DNS_PROVIDER}" == "linode" ]; then
           echo "[${SCRIPT_NAME}]: DNS provider is set to linode. Using linode API" 2>&1 | tee -a "${REPORT_FILE}"
-
+          echo "Creating domain ${da_user_domain_first} if missing ..."
+          linode_api_admin "create-domain" "master" "${da_user_domain_first}" "${this_da_user_system_email}"
+          echo "Creating DKIM outbound signing policy DNS record ..."
+          linode_api_admin "add-dns-record" "${da_user_domain_first}" "TXT" "_domainkey" "${dkim_policy_val}" "5" 2>&1 | tee -a "${REPORT_FILE}"
           echo "Deleting dns record x._domainkey for ${da_user_domain_first}" 2>&1 | tee -a "${REPORT_FILE}"
           echo "~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~" 2>&1 | tee -a "${REPORT_FILE}"
           #_pause 2
@@ -4931,7 +4975,8 @@ function configure_da_user_accounts() {
             # Make sure if duplicated entry found, just return 1 line with tail -n 1
             dkim_val=$(da_api_admin "get-dns-zone" "${extra_domain}" "x._domainkey+TXT+v=DKIM1+.value" | tail -n 1) || exit 1
             dkim_val_count=$(echo "${dkim_val}" | wc -l)
-
+            dkim_policy_val=$(da_api_admin "get-dns-zone" "${extra_domain}" "_domainkey+TXT+o=+.value" | tail -n 1) || exit 1
+            dkim_policy_val_count=$(echo "${dkim_policy_val}" | wc -l)
             dmarc_val=$(da_api_admin "get-dns-zone" "${extra_domain}" "_dmarc+TXT+v=DMARC1+.value" | tail -n 1) || exit 1
             dmarc_val_count=$(echo "${dmarc_val}" | wc -l)
 
@@ -4940,6 +4985,7 @@ function configure_da_user_accounts() {
 
             echo "=-=-=-=-=-=-=-=-=-=-"
             echo "There is/are ${dkim_val_count} dkim value for this extra_domain ${extra_domain}. First value is: ${dkim_val}"
+            echo "There is/are ${dkim_policy_val_count} dkim policy value for this domain ${extra_domain}. First value is: ${dkim_policy_val}" 2>&1 | tee -a "${REPORT_FILE}"
             echo "There is/are ${dmarc_val_count} dmarc value for this extra_domain ${extra_domain}. First value is: ${dmarc_val}"
             echo "There is/are ${spf_val_count} spf value for this extra_domain ${extra_domain}. First value is: ${spf_val}"
             echo "=-=-=-=-=-=-=-=-=-=-"
@@ -4947,7 +4993,10 @@ function configure_da_user_accounts() {
 
             if [ "${EXTERNAL_DNS_PROVIDER}" == "linode" ]; then
               echo "[${SCRIPT_NAME}]: DNS provider is set to linode. Using linode API" 2>&1 | tee -a "${REPORT_FILE}"
-
+              echo "Creating domain ${extra_domain} if missing ..."
+              linode_api_admin "create-domain" "master" "${extra_domain}" "${this_da_user_system_email}"
+              echo "Creating DKIM outbound signing policy DNS record ..."
+              linode_api_admin "add-dns-record" "${extra_domain}" "TXT" "_domainkey" "${dkim_policy_val}" "5" 2>&1 | tee -a "${REPORT_FILE}"
               echo "Deleting dns record x._domainkey for ${extra_domain}" 2>&1 | tee -a "${REPORT_FILE}"
               echo "~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~" 2>&1 | tee -a "${REPORT_FILE}"
               #_pause 2
