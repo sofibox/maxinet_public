@@ -1,7 +1,7 @@
 #!/bin/bash
 # =~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~
 # Author: Arafat Ali Email: arafat@sofibox.com
-# Version 0.3.9.5-beta
+# Version 0.3.9.6-beta
 # This is an initial server hardening script for CentOS and Debian.
 # Compatible 100% with Directadmin. Supported OS: CentOS + Debian (Planned on FreeBSD)
 # You can choose to install as the other stack server such as LEMP, (TODO) Laravel and more defined in config file
@@ -18,9 +18,8 @@
 # TODO: enable --dry-run (that will simulate testing for this script)
 # TODO: fix binary output DA API -> Use this https://stackoverflow.com/questions/16760378/how-to-check-if-the-file-is-a-binary-file-and-read-all-the-files-which-are-not
 # If the output is binary don't output it in terminal (this might be DA bug): https://forum.directadmin.com/threads/calling-da-api-using-curl-bash-sometimes-got-a-random-binary-output.63206/
-# TODO: provide an optional option to automatically create google domain verification TXT record through API (need Google business account at console)
-# TODO: testing creating account with * wildcard - this should also automatically added in external DNS (done need testing)
-
+# TODO: provide an optional option to automatically create google domain verification TXT record through API (need Google business account at console) - Google site verification
+# TODO: create hostname dkim, dmarc, at linode spf at linode (use common subdomain, ftp, mail, www, smtp, pop) - normally it should be created first before installing DA but dkim need to be updated (hostname is needed for DA license verification)
 # This function will validate if config is valid, if one of the variables missing, it will complain and exit
 function validate_config() {
   local count_user total_valid_user this_da_owner_uname
@@ -530,18 +529,6 @@ function linode_api_admin() {
     sleep 1
     pip3 install linode-cli --upgrade
 
-    echo "[${SCRIPT_NAME}]: Configuring linode-cli API key ..." 2>&1 | tee -a "${REPORT_FILE}"
-    sleep 1
-
-    touch /root/.config/linode-cli
-    {
-      echo "[DEFAULT]"
-      echo "default-user = ${DNS_PROVIDER_USER}"
-
-      echo "[${DNS_PROVIDER_USER}]"
-      echo "token = ${DNS_PROVIDER_API_KEY}"
-    } >/root/.config/linode-cli
-
     #apt-get -y install expect
     # Configuring the linode-cli using expect at the background
     #LINODE_CLI=$(expect -c "
@@ -565,6 +552,18 @@ function linode_api_admin() {
 
   fi
 
+  if [ ! -s /root/.config/linode-cli ]; then
+    echo "[${SCRIPT_NAME}]: Configuring linode-cli API key ..." 2>&1 | tee -a "${REPORT_FILE}"
+    sleep 1
+    mkdir -p /root/.config
+    touch /root/.config/linode-cli
+    {
+      echo "[DEFAULT]"
+      echo "default-user = ${DNS_PROVIDER_USER}"
+      echo "[${DNS_PROVIDER_USER}]"
+      echo "token = ${DNS_PROVIDER_API_KEY}"
+    } >/root/.config/linode-cli
+  fi
   # Make sure jq is installed
   if ! command -v jq &>/dev/null; then
     echo "[${SCRIPT_NAME}]: Warning, missing jq component. This utility requires jq to be installed." 2>&1 | tee -a "${REPORT_FILE}"
@@ -868,7 +867,7 @@ function da_api_admin() {
   #echo "Continuing in 2 seconds ..."
   #sleep 2
   local api_username api_password
-  local command data method filter_cmd is_start retval #decoded_status
+  local command data method filter_cmd is_start retval result #decoded_status
   local action username email password
   local owner_main_auth owner_new_list admin_new_list admin_list reseller_new_list admin_ori_list admin_main_auth
   local reseller_main_auth user_main_auth user_new_list
@@ -1130,9 +1129,8 @@ function da_api_admin() {
       data="action=set_dkim&domain=${domain}&enable=yes&json=yes"
       method="POST"
       echo "Now, executing API with action name: ${action}" 2>&1 | tee -a "${REPORT_FILE}"
-
+    #da_api_admin "get-dns-zone" "maxibi.com" "_domainkey+TXT+o=+.value"
     elif [ "${action}" == "get-dns-zone" ]; then
-      # da_api_admin "get-dns-zone" "maxibi.com"
       local record_name record_type record_contains_val record_out_display
       shift
       domain="$1"
@@ -1155,10 +1153,16 @@ function da_api_admin() {
       echo "Value of record_out_display is: ${record_out_display}" 2>&1 | tee -a "${REPORT_FILE}"
       echo "===" 2>&1 | tee -a "${REPORT_FILE}"
       #curl --request "${method}" --user "${api_username}":"${api_password}" --data "${data}" "${ssl}://${BOX_HOSTNAME_FQDN}:${DA_PORT}/${command}" | grep 'v=DKIM1' | awk '{for(i=6;i<=NF;++i)printf $i""FS ; print ""}' | sed -e 's/^"//' -e 's/"$//'
-      curl --silent --request "${method}" --user "${api_username}":"${api_password}" --data "${data}" "${ssl}://${BOX_HOSTNAME_FQDN}:${DA_PORT}/${command}" | jq -r ".records[] | select((.name==\"${record_name}\") and (.type==\"${record_type}\") and (.value | contains(\"${record_contains_val}\"))) | ${record_out_display}" | sed -e 's/^"//' -e 's/"$//'
+      result=$(curl --silent --request "${method}" --user "${api_username}":"${api_password}" --data "${data}" "${ssl}://${BOX_HOSTNAME_FQDN}:${DA_PORT}/${command}" | jq -r ".records[] | select((.name==\"${record_name}\") and (.type==\"${record_type}\") and (.value | contains(\"${record_contains_val}\"))) | ${record_out_display}" | sed -e 's/^"//' -e 's/"$//')
       retval=$?
-      # get out based on return value (prevent next statement from running)
-      return ${retval}
+      if [ -n "${result}" ]; then
+        # get out based on return value (prevent next statement from running)
+        echo "${result}"
+        return ${retval}
+      else
+        echo "Warning, the TXT record doesn't exist, it should exist"
+        exit 1
+      fi
       # da_api_admin "create-user-email" "maxibi.com" "webmaster" "1232123" "0" "200"
     elif [ "${action}" == "create-user-email" ]; then
       local mail_domain mail_user mail_pass mail_quota mail_limit
@@ -1466,7 +1470,7 @@ function pre_setup() {
       apt-get -y update
       apt-get -y upgrade
       # By default sudo is not installed. It's needed for new OS
-      apt-get -y install sudo screen nmap psmisc gpg 2>&1 | tee -a "${REPORT_FILE}"
+      apt-get -y install sudo screen nmap psmisc gpg unzip zip 2>&1 | tee -a "${REPORT_FILE}"
     else
       echo "[${SCRIPT_NAME}]: Error, unknown value for distribution ID ${DISTRO_ID}" 2>&1 | tee -a "${REPORT_FILE}"
       _exit 1
@@ -4115,6 +4119,27 @@ function configure_maxicloud() {
   fi
 }
 
+# For managing notification (eg. pushover, gotify)
+# TODO: add 2 step authentication for gotify
+function configure_maxify() {
+  if [ ! -f "${CONF_PATH}/${FUNCNAME[0]}_executed" ]; then
+    local version platform
+    echo "[${SCRIPT_NAME}]: Executing ${FUNCNAME[0]} ..." 2>&1 | tee -a "${REPORT_FILE}"
+    echo "Installing gotify ..."
+    version="2.0.21"
+    platform="linux-amd64"
+    wget https://github.com/gotify/server/releases/download/v${version}/gotify-${platform}.zip
+    unzip gotify-${platform}.zip
+    chmod +x gotify-${platform}
+    check_finish_reboot "${FUNCNAME[0]}"
+
+    #sudo ./gotify-${platform}
+  else
+    echo "[${SCRIPT_NAME}]: [Skipped]: ${FUNCNAME[0]} has ran before" 2>&1 | tee -a "${REPORT_FILE}"
+    echo "=~=~=~=~=~=~=~=~=~" 2>&1 | tee -a "${REPORT_FILE}"
+  fi
+}
+
 # This will install OS memcached and php memcached extension
 function configure_da_memcached() {
   if [ ! -f "${CONF_PATH}/${FUNCNAME[0]}_executed" ]; then
@@ -4211,6 +4236,10 @@ configure_da_dns_templates() {
     sleep 1
     ${da_bin} set extra_spf_value " ipv6:${ipv6_full_uncompressed}" 2>&1 | tee -a "${REPORT_FILE}"
     restart_da
+    # rewrite_confs here so that dns_txt.conf is updated
+    # Fixed DNS new record updated:
+    echo "[${SCRIPT_NAME}]: Updating DNS template ..." 2>&1 | tee -a "${REPORT_FILE}"
+    /usr/local/directadmin/custombuild/build rewrite_confs
     check_finish_reboot "${FUNCNAME[0]}"
   else
     echo "[${SCRIPT_NAME}]: [Skipped]: ${FUNCNAME[0]} has ran before" 2>&1 | tee -a "${REPORT_FILE}"
@@ -6355,6 +6384,8 @@ configure_maxiaide
 configure_maxicata
 #exit 1
 configure_maxicloud
+#exit 1
+#configure_maxify
 # Need to restart first before running next commands after enable IPv6 because 'tentative status issue with ethX + nginx'.
 # If I don't restart, I won't be able to request cert and letsencrypt will complain about firewall.
 #configure_logs

@@ -113,7 +113,8 @@ DA_USER_DOMAIN1=("maxibi.com")
 # because there is no easy way to determine root domain when it has long subdomains due to huge number of TLD
 # and those TLD names need to be maintained frequently especially from https://publicsuffix.org/
 # you can declare multi subdomains like maxibi.com:sub1.sub2.sub3.sub4.sub5
-DA_USER_SUBDOMAIN1=("maxibi.com:sales+login+sub1.sub2.sub3")
+# The symbol * means, this domain has DNS record wildcard (it will auto create if supply)
+DA_USER_SUBDOMAIN1=("maxibi.com:sales+login+sub1.sub2.sub3+*")
 # user package name, make sure this package name is created first by reseller (the code will check for you)
 DA_USER_PACKAGE_NAME1="USER_UNLIMITED"
 # enable/disable ssl certificate for all domains for this user enable="yes", disable="no"
