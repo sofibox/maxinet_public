@@ -1,7 +1,7 @@
 #!/bin/bash
 # =~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~
 # Author: Arafat Ali Email: arafat@sofibox.com
-# Version 0.3.9.6-beta
+# Version 0.4.0.2-beta
 # This is an initial server hardening script for CentOS and Debian.
 # Compatible 100% with Directadmin. Supported OS: CentOS + Debian (Planned on FreeBSD)
 # You can choose to install as the other stack server such as LEMP, (TODO) Laravel and more defined in config file
@@ -19,7 +19,10 @@
 # TODO: fix binary output DA API -> Use this https://stackoverflow.com/questions/16760378/how-to-check-if-the-file-is-a-binary-file-and-read-all-the-files-which-are-not
 # If the output is binary don't output it in terminal (this might be DA bug): https://forum.directadmin.com/threads/calling-da-api-using-curl-bash-sometimes-got-a-random-binary-output.63206/
 # TODO: provide an optional option to automatically create google domain verification TXT record through API (need Google business account at console) - Google site verification
-# TODO: create hostname dkim, dmarc, at linode spf at linode (use common subdomain, ftp, mail, www, smtp, pop) - normally it should be created first before installing DA but dkim need to be updated (hostname is needed for DA license verification)
+# TODO: testing creating account with * wildcard - this should also automatically added in external DNS (done need testing)
+# TODO: create hostname and setup dkim, dmarc, at linode spf at linode (use common subdomain, ftp, mail, www, smtp, pop) - normally it should be created first before installing DA but dkim need to be updated.
+# TODO redirect error in error log file: exec 2>/usr/local/directadmin/customscripts.error.log
+
 # This function will validate if config is valid, if one of the variables missing, it will complain and exit
 function validate_config() {
   local count_user total_valid_user this_da_owner_uname
@@ -1070,7 +1073,7 @@ function da_api_admin() {
       package_name="$5"
       # Normally IPv4 that has been set up in DA
       command="CMD_API_ACCOUNT_USER"
-      data="username=${username}&email=${email}&passwd=${password}&passwd2=${password}&domain=${domain}&package=${package_name}&ip=${IPV4_ADD0}&notify=no&add=yes&action=create&json=yes"
+      data="username=${username}&email=${email}&passwd=${password}&passwd2=${password}&domain=${domain}&package=${package_name}&ip=${IPV4_ADD0}&notify=yes&add=yes&action=create&json=yes"
       method="POST"
     elif [ "${action}" == "delete-users" ]; then
       # da_api_admin "delete-users" "admin2"
@@ -1163,6 +1166,18 @@ function da_api_admin() {
         echo "Warning, the TXT record doesn't exist, it should exist"
         exit 1
       fi
+      # da_api_admin "create-dns-record" "maxibi.com" "TXT" "_domainkey" "o%3D%7E%3B+r%3Dwebmaster%40sofibox.com"
+      # The last one equal to: o=~; r=webmaster@sofibox.com (use https://www.url-encode-decode.com/ to decode)
+    elif [ "${action}" == "create-dns-record" ]; then
+      local domain name ttl type value domain_id dis_args retval add_dns_record
+      shift
+      domain="$1"
+      type="$2"
+      name="$3"
+      value="$4" #value=o%3D%7E%3B+r%3Dwebmaster%40
+      data="domain=${domain}&type=${type}&name=${name}&value=${value}&ttl=3600&affect_pointers=yes&json=yes&action=add"
+      command="CMD_API_DNS_CONTROL"
+      method="POST"
       # da_api_admin "create-user-email" "maxibi.com" "webmaster" "1232123" "0" "200"
     elif [ "${action}" == "create-user-email" ]; then
       local mail_domain mail_user mail_pass mail_quota mail_limit
@@ -2357,7 +2372,8 @@ configure_csf() {
         bl_ip_html_source="${DATA_PATH}/maxisetup/storage/os/${DISTRO_ID}/usr/local/directadmin/data/templates/custom/blacklisted_ip.html"
         bl_ip_html_dest="/usr/local/directadmin/data/templates/custom/blacklisted_ip.html"
         cp -r "${bl_ip_html_source}" "${bl_ip_html_dest}"
-
+        chmod 644 "${bl_ip_html_dest}"
+        chown diradmin:diradmin "${bl_ip_html_dest}"
         echo "[${SCRIPT_NAME}]: Starting CSF and LFD for the first time ..." 2>&1 | tee -a "${REPORT_FILE}"
         echo "[${SCRIPT_NAME}]: Before we start it up, please confirm that your sshd port is listed in this output:" 2>&1 | tee -a "${REPORT_FILE}"
         echo "-----------------" 2>&1 | tee -a "${REPORT_FILE}"
@@ -3795,10 +3811,16 @@ function configure_maxida() {
       sed -i "s/^API_USERPASS=.*/API_USERPASS=\"${DA_OWNER_USERPASS1}\"/" ${maxida_conf}
       sed -i "s/^BOX_HOSTNAME_FQDN=.*/BOX_HOSTNAME_FQDN=\"${BOX_HOSTNAME_FQDN}\"/" ${maxida_conf}
       sed -i "s/^DA_PORT=.*/DA_PORT=\"${DA_PORT}\"/" ${maxida_conf}
+      sed -i "s/^SETUP_GIT_URL=.*/SETUP_GIT_URL=\"${SETUP_GIT_URL}\"/" ${maxida_conf}
+      sed -i "s/^GIT_TOKEN=.*/GIT_TOKEN=\"${GIT_TOKEN}\"/" ${maxida_conf}
+
     else
-      echo "[${SCRIPT_NAME}]: Warning, maxida.conf doesn't exist in /usr/local/maxicode !" 2>&1 | tee -a "${REPORT_FILE}"
+      echo "[${SCRIPT_NAME}]: Warning, maxida.conf.sample doesn't exist in /usr/local/maxicode !" 2>&1 | tee -a "${REPORT_FILE}"
       _exit 1
     fi
+
+    # Update directadmin all custom scripts
+    ${maxida_bin} --update all
 
     check_finish_reboot "${FUNCNAME[0]}"
   else
@@ -4119,8 +4141,59 @@ function configure_maxicloud() {
   fi
 }
 
+function configure_maxipass() {
+
+  if [ ! -f "${CONF_PATH}/${FUNCNAME[0]}_executed" ]; then
+    local maxipass_bin maxipass_conf maxipass_conf_sample maxipass_da_conf maxipass_da_conf_sample
+    echo "[${SCRIPT_NAME}]: Executing ${FUNCNAME[0]} ..." 2>&1 | tee -a "${REPORT_FILE}"
+    local maxipass_bin maxipass_conf maxipass_conf_sample
+    maxipass_bin="/usr/local/maxicode/maxipass/maxipass"
+    maxipass_conf="/usr/local/maxicode/maxipass/maxipass.conf"
+    maxipass_conf_sample="/usr/local/maxicode/maxipass/maxipass.conf.sample"
+    maxipass_da_conf="/usr/local/maxicode/maxipass/secure/da/da.conf"
+    maxipass_da_conf_sample="/usr/local/maxicode/maxipass/secure/da/da.conf.sample"
+
+    if [ -f ${maxipass_conf_sample} ]; then
+      echo "[${SCRIPT_NAME}]: Copying maxipass sample config into ${maxipass_conf} ..." 2>&1 | tee -a "${REPORT_FILE}"
+      cp -f ${maxipass_conf_sample} ${maxipass_conf}
+    else
+      echo "[${SCRIPT_NAME}]: Warning, the sample config file ${maxipass_conf_sample} does not exist. Please inspect the file!" 2>&1 | tee -a "${REPORT_FILE}"
+      _exit 1
+    fi
+
+    if [ -f ${maxipass_da_conf_sample} ]; then
+      echo "[${SCRIPT_NAME}]: Copying maxipass-da sample config into ${maxipass_da_conf} ..." 2>&1 | tee -a "${REPORT_FILE}"
+      cp -f ${maxipass_da_conf_sample} ${maxipass_da_conf}
+      sleep 1
+      # Put admin authentication (this should be encrypted and only accessed by GPG agent):
+      sed -i "s/^API_USERNAME=.*/API_USERNAME=\"${DA_OWNER_USERNAME1}\"/" ${maxipass_da_conf}
+      sed -i "s/^API_USERPASS=.*/API_USERPASS=\"${DA_OWNER_USERPASS1}\"/" ${maxipass_da_conf}
+    else
+      echo "[${SCRIPT_NAME}]: Warning, the sample config file ${maxipass_da_conf_sample} does not exist. Please inspect the file!" 2>&1 | tee -a "${REPORT_FILE}"
+      _exit 1
+    fi
+
+    if [ -f ${maxipass_bin} ]; then
+      echo "[${SCRIPT_NAME}]: Creating symlink and executable for ${maxipass_bin} ..." 2>&1 | tee -a "${REPORT_FILE}"
+      sleep 1
+      chmod +x ${maxipass_bin}
+      # Symbolic name
+      ln -s ${maxipass_bin} /usr/local/bin
+    else
+      echo "[${SCRIPT_NAME}]: Warning, maxipass doesn't exist in /usr/local/maxicode !" 2>&1 | tee -a "${REPORT_FILE}"
+      _exit 1
+    fi
+    check_finish_reboot "${FUNCNAME[0]}"
+  else
+    echo "[${SCRIPT_NAME}]: [Skipped]: ${FUNCNAME[0]} has ran before" 2>&1 | tee -a "${REPORT_FILE}"
+    echo "=~=~=~=~=~=~=~=~=~" 2>&1 | tee -a "${REPORT_FILE}"
+  fi
+
+}
+
 # For managing notification (eg. pushover, gotify)
-# TODO: add 2 step authentication for gotify
+# TODO configure this when https is ready, put in secured port, put httpd layer
+# TODO Find a way to add 2 step authentication
 function configure_maxify() {
   if [ ! -f "${CONF_PATH}/${FUNCNAME[0]}_executed" ]; then
     local version platform
@@ -4221,12 +4294,14 @@ configure_da_dns_templates() {
     mkdir -p "${da_template_custom}"
     chown diradmin:diradmin ${da_template_custom}
     touch "${da_template_custom}/dns_txt.conf"
-    echo "[${SCRIPT_NAME}]: Creating SPF and DMARC DNS custom template file for Directadmin ..." 2>&1 | tee -a "${REPORT_FILE}"
+    echo "[${SCRIPT_NAME}]: Creating SPF, DKIM and DMARC DNS custom template file for Directadmin ..." 2>&1 | tee -a "${REPORT_FILE}"
     sleep 1
     {
       echo "|DOMAIN|.=\"v=spf1 a mx ip4:|SERVER_IP||EXTRA_SPF| ~all\""
       echo "_dmarc=\"v=DMARC1; p=none; sp=none; rua=mailto:spam-reports@|DOMAIN|\""
+      # TODO (inspect ths): Currently have issue using this '_domainkey' with API (GUI works): https://forum.directadmin.com/threads/possible-bug-when-using-dns_txt-conf-with-api-include-step-to-reproduce.63247/
       echo "_domainkey=\"o=~; r=webmaster@|DOMAIN|\""
+      # Google site verification should be here
     } >"${da_template_custom}/dns_txt.conf"
     chown diradmin:diradmin "${da_template_custom}/dns_txt.conf"
     chmod 644 "${da_template_custom}/dns_txt.conf"
@@ -4565,10 +4640,10 @@ function configure_da_reseller_accounts() {
         echo "-=-=-=-=-=-=-=" 2>&1 | tee -a "${REPORT_FILE}"
 
         # Use admin to create reseller account and its default domain:
-        echo "[${SCRIPT_NAME}]: Authenticating Directadmin API as a default admin (first admin account) ..." 2>&1 | tee -a "${REPORT_FILE}"
+        #echo "[${SCRIPT_NAME}]: Authenticating Directadmin API as a default admin (first admin account) ..." 2>&1 | tee -a "${REPORT_FILE}"
         da_api_admin "signas+admin"
-        echo "Creating reseller account ${this_da_reseller_uname} using the following details: "
-        echo "Username: ${this_da_reseller_uname} | Email: ${this_da_reseller_system_email} | Password: ${this_da_reseller_password} | Default (First) domain: ${da_reseller_domain_first} | Package selection: ${this_da_reseller_package_name}"
+        echo "[${SCRIPT_NAME}]: Creating reseller account ${this_da_reseller_uname} using the following details: "
+        #echo "Username: ${this_da_reseller_uname} | Email: ${this_da_reseller_system_email} | Password: ${this_da_reseller_password} | Default (First) domain: ${da_reseller_domain_first} | Package selection: ${this_da_reseller_package_name}"
         #_pause 2
         echo "~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~" 2>&1 | tee -a "${REPORT_FILE}"
         da_api_admin "create-reseller-account" "${this_da_reseller_uname}" "${this_da_reseller_system_email}" "${this_da_reseller_password}" "${da_reseller_domain_first}" "${this_da_reseller_package_name}" "${this_da_reseller_ip_type}"
@@ -4579,13 +4654,19 @@ function configure_da_reseller_accounts() {
         da_api_admin "modify-user" "${this_da_reseller_uname}" "name" "${this_da_reseller_name}"
 
         # Use each reseller account to enable its own email DKIM
-        echo "[${SCRIPT_NAME}]: Authenticating Directadmin API as reseller ${this_da_reseller_uname} ..." 2>&1 | tee -a "${REPORT_FILE}"
         # Use reseller account to configure its own user-level variable settings like DKIM or DNS
         da_api_admin "signas+${this_da_reseller_uname}+${this_da_reseller_password}"
+
         echo "[${SCRIPT_NAME}]: Enabling email DKIM for the domain ${da_reseller_domain_first} ..." 2>&1 | tee -a "${REPORT_FILE}"
-        #_pause 2
         echo "~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~" 2>&1 | tee -a "${REPORT_FILE}"
+        #_pause 2
         da_api_admin "enable-email-dkim" "${da_reseller_domain_first}"
+        echo "~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~" 2>&1 | tee -a "${REPORT_FILE}"
+
+        echo "[${SCRIPT_NAME}]: Creating DA TXT DNS for DKIM signing policy for ${da_reseller_domain_first} ..." 2>&1 | tee -a "${REPORT_FILE}"
+        echo "-----" 2>&1 | tee -a "${REPORT_FILE}"
+        da_api_admin "create-dns-record" "${da_reseller_domain_first}" "TXT" "_domainkey" "o%3D%7E%3B+r%3Dwebmaster%40${da_reseller_domain_first}"
+        echo "-----" 2>&1 | tee -a "${REPORT_FILE}"
 
         # Get the DKIM DMARC and SPF record from Directadmin local DNS:
         echo "Getting DKIM, DMARC and SPF from Directadmin local DNS ..." 2>&1 | tee -a "${REPORT_FILE}"
@@ -4608,9 +4689,13 @@ function configure_da_reseller_accounts() {
           echo "[${SCRIPT_NAME}]: External DNS provider for domain ${da_reseller_domain_first} is set to linode [Using linode API ...]" 2>&1 | tee -a "${REPORT_FILE}"
           echo "Creating domain ${da_reseller_domain_first} if missing ..."
           linode_api_admin "create-domain" "master" "${da_reseller_domain_first}" "${this_da_reseller_system_email}"
-          echo "Creating DKIM outbound signing policy DNS record ..."
-          linode_api_admin "add-dns-record" "${da_reseller_domain_first}" "TXT" "_domainkey" "${dkim_policy_val}" "5" 2>&1 | tee -a "${REPORT_FILE}"
+
           echo "Deleting external DNS record on linode for domain ${da_reseller_domain_first} with the following details: "
+          echo "0) Name: _domainkey | Type: TXT" 2>&1 | tee -a "${REPORT_FILE}"
+          #_pause 2
+          echo "-----" 2>&1 | tee -a "${REPORT_FILE}"
+          linode_api_admin "delete-dns-record" "${da_reseller_domain_first}" "_domainkey" "TXT"
+
           echo "1) Name: x._domainkey | Type: TXT" 2>&1 | tee -a "${REPORT_FILE}"
           #_pause 2
           echo "-----" 2>&1 | tee -a "${REPORT_FILE}"
@@ -4630,6 +4715,13 @@ function configure_da_reseller_accounts() {
           echo "End deleting DNS record on linode ======= " 2>&1 | tee -a "${REPORT_FILE}"
 
           echo "Adding external DNS record on linode for domain ${da_reseller_domain_first} with the following details: "
+          echo "0) Name: _domainkey | Value: ${dkim_policy_val} | Type: TXT | TTL: 5" 2>&1 | tee -a "${REPORT_FILE}"
+          echo "" 2>&1 | tee -a "${REPORT_FILE}"
+          #_pause 2
+          echo "-----" 2>&1 | tee -a "${REPORT_FILE}"
+          linode_api_admin "add-dns-record" "${da_reseller_domain_first}" "TXT" "_domainkey" "${dkim_policy_val}" "5" 2>&1 | tee -a "${REPORT_FILE}"
+          echo "-----" 2>&1 | tee -a "${REPORT_FILE}"
+          echo "" 2>&1 | tee -a "${REPORT_FILE}"
 
           echo "1) Name: x._domainkey | Value: ${dkim_val} | Type: TXT | TTL: 5" 2>&1 | tee -a "${REPORT_FILE}"
           echo "" 2>&1 | tee -a "${REPORT_FILE}"
@@ -4692,6 +4784,12 @@ function configure_da_reseller_accounts() {
             echo "-----" 2>&1 | tee -a "${REPORT_FILE}"
             da_api_admin "enable-email-dkim" "${extra_domain}"
             echo "-----" 2>&1 | tee -a "${REPORT_FILE}"
+
+            echo "[${SCRIPT_NAME}]: Creating DA TXT DNS for DKIM signing policy for ${extra_domain} ..." 2>&1 | tee -a "${REPORT_FILE}"
+            echo "-----" 2>&1 | tee -a "${REPORT_FILE}"
+            da_api_admin "create-dns-record" "${extra_domain}" "TXT" "_domainkey" "o%3D%7E%3B+r%3Dwebmaster%40${extra_domain}"
+            echo "-----" 2>&1 | tee -a "${REPORT_FILE}"
+
             echo "Getting DKIM, DMARC and SPF from Directadmin local DNS ..." 2>&1 | tee -a "${REPORT_FILE}"
             echo "~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~" 2>&1 | tee -a "${REPORT_FILE}"
             # Make sure if duplicated entry found, just return 1 line with tail -n 1
@@ -4712,9 +4810,12 @@ function configure_da_reseller_accounts() {
               echo "[${SCRIPT_NAME}]: External DNS provider for domain ${extra_domain} is set to linode [Using linode API ...]" 2>&1 | tee -a "${REPORT_FILE}"
               echo "Creating domain ${da_reseller_domain_first} if missing ..."
               linode_api_admin "create-domain" "master" "${extra_domain}" "${this_da_reseller_system_email}"
-              echo "Creating DKIM outbound signing policy DNS record ..."
-              linode_api_admin "add-dns-record" "${extra_domain}" "TXT" "_domainkey" "${dkim_policy_val}" "5" 2>&1 | tee -a "${REPORT_FILE}"
+
               echo "Deleting external DNS record on linode for domain ${extra_domain} with the following details: "
+              echo "0) Name: _domainkey | Type: TXT" 2>&1 | tee -a "${REPORT_FILE}"
+              #_pause 2
+              echo "-----" 2>&1 | tee -a "${REPORT_FILE}"
+              linode_api_admin "delete-dns-record" "${extra_domain}" "_domainkey" "TXT"
               echo "1) Name: x._domainkey | Type: TXT" 2>&1 | tee -a "${REPORT_FILE}"
               echo "" 2>&1 | tee -a "${REPORT_FILE}"
               #_pause 2
@@ -4737,6 +4838,13 @@ function configure_da_reseller_accounts() {
               echo "End deleting DNS record on linode ======= " 2>&1 | tee -a "${REPORT_FILE}"
 
               echo "Adding external DNS record on linode for domain ${extra_domain} with the following details: "
+              echo "0) Name: _domainkey | Value: ${dkim_policy_val} | Type: TXT | TTL: 5" 2>&1 | tee -a "${REPORT_FILE}"
+              echo "" 2>&1 | tee -a "${REPORT_FILE}"
+              #_pause 2
+              echo "-----" 2>&1 | tee -a "${REPORT_FILE}"
+              linode_api_admin "add-dns-record" "${extra_domain}" "TXT" "_domainkey" "${dkim_policy_val}" "5" 2>&1 | tee -a "${REPORT_FILE}"
+              echo "-----" 2>&1 | tee -a "${REPORT_FILE}"
+              echo "" 2>&1 | tee -a "${REPORT_FILE}"
 
               echo "1) Name: x._domainkey | Value: ${dkim_val} | Type: TXT | TTL: 5" 2>&1 | tee -a "${REPORT_FILE}"
               echo "" 2>&1 | tee -a "${REPORT_FILE}"
@@ -4878,17 +4986,18 @@ function configure_da_user_accounts() {
         da_api_admin "signas+reseller"
         da_api_admin "create-user-account" "${this_da_user_uname}" "${this_da_user_system_email}" "${this_da_user_password}" "${da_user_domain_first}" "${this_da_user_package_name}"
         echo "~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~"
-        echo "[${SCRIPT_NAME}]: Enabling email DKIM for the domain ${da_user_domain_first} ..." 2>&1 | tee -a "${REPORT_FILE}"
-        echo "~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~"
-
-        echo "Renaming user account name to ${this_da_user_name} ..."
+        echo "[${SCRIPT_NAME}]: Renaming user account name to ${this_da_user_name} ..."
         da_api_admin "modify-user" "${this_da_user_uname}" "name" "${this_da_user_name}"
-
-        #_pause 2
-        echo "[${SCRIPT_NAME}]: Authenticating DA API for user ${this_da_user_uname} ..." 2>&1 | tee -a "${REPORT_FILE}"
+        echo "[${SCRIPT_NAME}]: Enabling email DKIM for the domain ${da_user_domain_first} ..." 2>&1 | tee -a "${REPORT_FILE}"
         # Use user account to configure variable settings like DKIM or DNS
         da_api_admin "signas+${this_da_user_uname}+${this_da_user_password}"
         da_api_admin "enable-email-dkim" "${da_user_domain_first}"
+        echo "~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~"
+
+        echo "[${SCRIPT_NAME}]: Creating DA TXT DNS for DKIM signing policy for ${da_user_domain_first} ..." 2>&1 | tee -a "${REPORT_FILE}"
+        echo "-----" 2>&1 | tee -a "${REPORT_FILE}"
+        da_api_admin "create-dns-record" "${da_user_domain_first}" "TXT" "_domainkey" "o%3D%7E%3B+r%3Dwebmaster%40${da_user_domain_first}"
+        echo "-----" 2>&1 | tee -a "${REPORT_FILE}"
 
         # START DEBUG:
         #da_api_admin "get-dns-zone" "${da_user_domain_first}" "x._domainkey+TXT+v=DKIM1+.value"
@@ -4919,8 +5028,11 @@ function configure_da_user_accounts() {
           echo "[${SCRIPT_NAME}]: DNS provider is set to linode. Using linode API" 2>&1 | tee -a "${REPORT_FILE}"
           echo "Creating domain ${da_user_domain_first} if missing ..."
           linode_api_admin "create-domain" "master" "${da_user_domain_first}" "${this_da_user_system_email}"
-          echo "Creating DKIM outbound signing policy DNS record ..."
-          linode_api_admin "add-dns-record" "${da_user_domain_first}" "TXT" "_domainkey" "${dkim_policy_val}" "5" 2>&1 | tee -a "${REPORT_FILE}"
+          echo "0) Name: _domainkey | Type: TXT" 2>&1 | tee -a "${REPORT_FILE}"
+          #_pause 2
+          echo "-----" 2>&1 | tee -a "${REPORT_FILE}"
+          linode_api_admin "delete-dns-record" "${da_user_domain_first}" "_domainkey" "TXT"
+
           echo "Deleting dns record x._domainkey for ${da_user_domain_first}" 2>&1 | tee -a "${REPORT_FILE}"
           echo "~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~" 2>&1 | tee -a "${REPORT_FILE}"
           #_pause 2
@@ -4941,6 +5053,9 @@ function configure_da_user_accounts() {
           linode_api_admin "delete-dns-record" "${da_user_domain_first}" "" "TXT" 2>&1 | tee -a "${REPORT_FILE}"
           echo "~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~" 2>&1 | tee -a "${REPORT_FILE}"
           echo "" 2>&1 | tee -a "${REPORT_FILE}"
+
+          echo "Adding DKIM outbound signing policy DNS record ..."
+          linode_api_admin "add-dns-record" "${da_user_domain_first}" "TXT" "_domainkey" "${dkim_policy_val}" "5" 2>&1 | tee -a "${REPORT_FILE}"
 
           echo "Adding record for x._domainkey for ${da_user_domain_first}" 2>&1 | tee -a "${REPORT_FILE}"
           echo "~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~" 2>&1 | tee -a "${REPORT_FILE}"
@@ -4990,17 +5105,27 @@ function configure_da_user_accounts() {
             echo "[${SCRIPT_NAME}]: Creating extra domain ${extra_domain} for ${this_da_user_uname} ..." 2>&1 | tee -a "${REPORT_FILE}"
             echo "~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~"
             #_pause 2
-            # Calling user authentication
-            echo "[${SCRIPT_NAME}]: Authenticating DA API for user ${this_da_user_uname} ..." 2>&1 | tee -a "${REPORT_FILE}"
             da_api_admin "signas+${this_da_user_uname}+${this_da_user_password}"
             da_api_admin "create-user-domain" "${extra_domain}"
             echo "~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~"
+            echo ""
 
             echo "[${SCRIPT_NAME}]: Enabling email DKIM for extra domain ${extra_domain} for user ${this_da_user_uname} ..." 2>&1 | tee -a "${REPORT_FILE}"
             echo "~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~"
             #_pause 2
-
+            da_api_admin "signas+${this_da_user_uname}+${this_da_user_password}"
             da_api_admin "enable-email-dkim" "${extra_domain}"
+            echo "~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~"
+            echo ""
+
+            echo "[${SCRIPT_NAME}]: Creating DA TXT DNS for DKIM signing policy for ${extra_domain} ..." 2>&1 | tee -a "${REPORT_FILE}"
+            echo "-----" 2>&1 | tee -a "${REPORT_FILE}"
+
+            da_api_admin "create-dns-record" "${extra_domain}" "TXT" "_domainkey" "o%3D%7E%3B+r%3Dwebmaster%40${extra_domain}"
+            echo "-----" 2>&1 | tee -a "${REPORT_FILE}"
+
+            echo "[${SCRIPT_NAME}]: Querying DNS record ..." 2>&1 | tee -a "${REPORT_FILE}"
+            echo "~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~"
             # Make sure if duplicated entry found, just return 1 line with tail -n 1
             dkim_val=$(da_api_admin "get-dns-zone" "${extra_domain}" "x._domainkey+TXT+v=DKIM1+.value" | tail -n 1) || exit 1
             dkim_val_count=$(echo "${dkim_val}" | wc -l)
@@ -5008,7 +5133,6 @@ function configure_da_user_accounts() {
             dkim_policy_val_count=$(echo "${dkim_policy_val}" | wc -l)
             dmarc_val=$(da_api_admin "get-dns-zone" "${extra_domain}" "_dmarc+TXT+v=DMARC1+.value" | tail -n 1) || exit 1
             dmarc_val_count=$(echo "${dmarc_val}" | wc -l)
-
             spf_val=$(da_api_admin "get-dns-zone" "${extra_domain}" "${extra_domain}.+TXT+v=spf1+.value" | tail -n 1) || exit 1
             spf_val_count=$(echo "${spf_val}" | wc -l)
 
@@ -5019,13 +5143,17 @@ function configure_da_user_accounts() {
             echo "There is/are ${spf_val_count} spf value for this extra_domain ${extra_domain}. First value is: ${spf_val}"
             echo "=-=-=-=-=-=-=-=-=-=-"
             echo "~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~"
+            echo ""
 
             if [ "${EXTERNAL_DNS_PROVIDER}" == "linode" ]; then
               echo "[${SCRIPT_NAME}]: DNS provider is set to linode. Using linode API" 2>&1 | tee -a "${REPORT_FILE}"
               echo "Creating domain ${extra_domain} if missing ..."
               linode_api_admin "create-domain" "master" "${extra_domain}" "${this_da_user_system_email}"
-              echo "Creating DKIM outbound signing policy DNS record ..."
-              linode_api_admin "add-dns-record" "${extra_domain}" "TXT" "_domainkey" "${dkim_policy_val}" "5" 2>&1 | tee -a "${REPORT_FILE}"
+
+              echo "0) Name: _domainkey | Type: TXT" 2>&1 | tee -a "${REPORT_FILE}"
+              #_pause 2
+              echo "-----" 2>&1 | tee -a "${REPORT_FILE}"
+              linode_api_admin "delete-dns-record" "${extra_domain}" "_domainkey" "TXT"
               echo "Deleting dns record x._domainkey for ${extra_domain}" 2>&1 | tee -a "${REPORT_FILE}"
               echo "~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~" 2>&1 | tee -a "${REPORT_FILE}"
               #_pause 2
@@ -5046,6 +5174,9 @@ function configure_da_user_accounts() {
               linode_api_admin "delete-dns-record" "${extra_domain}" "" "TXT" 2>&1 | tee -a "${REPORT_FILE}"
               echo "~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~" 2>&1 | tee -a "${REPORT_FILE}"
               echo "" 2>&1 | tee -a "${REPORT_FILE}"
+
+              echo "Adding DKIM outbound signing policy DNS record ..."
+              linode_api_admin "add-dns-record" "${extra_domain}" "TXT" "_domainkey" "${dkim_policy_val}" "5" 2>&1 | tee -a "${REPORT_FILE}"
 
               echo "Adding record for x._domainkey for ${extra_domain}" 2>&1 | tee -a "${REPORT_FILE}"
               echo "~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~" 2>&1 | tee -a "${REPORT_FILE}"
@@ -6385,6 +6516,8 @@ configure_maxicata
 #exit 1
 configure_maxicloud
 #exit 1
+configure_maxipass
+#exit 1
 #configure_maxify
 # Need to restart first before running next commands after enable IPv6 because 'tentative status issue with ethX + nginx'.
 # If I don't restart, I won't be able to request cert and letsencrypt will complain about firewall.
@@ -6420,9 +6553,9 @@ if [ "${INSTALL_TYPE}" == "DIRECTADMIN" ]; then
   #rm -rf "${CONF_PATH}/configure_da_admin_accounts_executed"
   configure_da_admin_accounts
   #exit 1
-  #rm -rf "${CONF_PATH}/configure_da_reseller_accounts_executed"
+  rm -rf "${CONF_PATH}/configure_da_reseller_accounts_executed"
   configure_da_reseller_accounts
-  #exit 1
+  exit 1
   #rm -rf "${CONF_PATH}/configure_da_reseller_subdomains_executed"
   configure_da_reseller_subdomains
   #exit 1

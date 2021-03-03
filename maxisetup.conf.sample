@@ -36,7 +36,10 @@ ROOT_EMAIL="owner@sofibox.com"
 ADMIN_NAME="Arafat Ali"
 # General admin email (eg. admin@sofibox.com)
 ADMIN_EMAIL="admin@sofibox.com"
-
+# This will use DA loginas mentioned in the API documentation
+# sign-as = you can login using this username "admin|client" to log as the client (benefit: no need to know DA client passwords)
+# direct-login = login directly using username and password (need to know DA client passwords)
+DA_LOGIN_METHOD="sign-as"
 # === DA owner start ===
 # Owner shouldn't have domain or web interfaces for security reason
 DA_OWNER_NAME1="System Owner"
@@ -247,7 +250,7 @@ GPG_USE_EXISTING_KEY="yes"
 
 # =~=~ For maxicata / suricata =~=~#
 # The URL. Need to modify this if they change this URL like the v2 to v3
-# Select version for suricata. Best is to use version 6 above because version 6 has new different packages need to include:
+# Select version for suricata. Best is to use version 6+ because version 6 has new different packages need to include:
 SURICATA_SELECT_VERSION="6.0.1"
 MAXICATA_AIPDB_CHECK_URL="https://api.abuseipdb.com/api/v2/check"
 MAXICATA_AIPDB_REPORT_URL="https://api.abuseipdb.com/api/v2/report"
