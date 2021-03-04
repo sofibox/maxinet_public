@@ -78,6 +78,9 @@ DA_RESELLER_MAIL_PASSWORD1=("A*longemailpass" "BlongemailPass*")
 DA_RESELLER_PACKAGE_NAME1="RESELLER_UNLIMITED"
 # This is different from BOX_DOMAIN
 DA_RESELLER_DOMAIN1=("sofibox.com" "domain2.com")
+# Put wildcard record for this domain. To disable just let this variable empty with ""
+# Format <domain.com>:<anotherdomain.com>:<anotheronedomain.com>: ...
+DA_RESELLER_WILDCARD_DOMAIN1=("sofibox.com:anotherdomain.com:anotherone.com")
 # Required at least one subdomain for now
 DA_RESELLER_SUBDOMAIN1=("sofibox.com:sales+login+secure" "domain2.com:dashboard" "test.com:abc+def")
 # shared or assign - If shared, domain will use the server's main ip. assign will use one of the reseller's ips
@@ -111,6 +114,9 @@ DA_USER_MAIL_USER1=("email1@maxibi.com" "email2@maxibi.com")
 DA_USER_MAIL_PASSWORD1=("*mailpassword1" "*mailpassword2")
 # user domain, can declare multiple domains here
 DA_USER_DOMAIN1=("maxibi.com")
+# Put wildcard record for this domain. To disable just let this variable empty with ""
+# Format <domain.com>:<anotherdomain.com>:<anotheronedomain.com>: ...
+DA_RESELLER_WILDCARD_DOMAIN1=("maxibi.com")
 # Format: <rootdomain>:<subdomain1.subdomain2>+<anothersubdomain>+ ...
 # Use plus '+' instead of dot '.'
 # because there is no easy way to determine root domain when it has long subdomains due to huge number of TLD
@@ -145,6 +151,7 @@ DA_USER_DB1=("maxibi.com:db_name:db_usr:*db-password*")
 #DA_USER_MAIL_USER2=
 #DA_USER_MAIL_PASSWORD2=
 #DA_USER_DOMAIN2=
+DA_RESELLER_WILDCARD_DOMAIN2=
 #DA_USER_SUBDOMAIN2=
 #DA_USER_PACKAGE_NAME2=
 #DA_USER_DOMAIN_ENABLE_SSL2=

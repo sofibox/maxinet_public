@@ -10,7 +10,9 @@
     <select />
   </component>
   <component name="ChangeListManager">
-    <list default="true" id="113c828c-9a32-4b24-ab1e-978ce50c6320" name="Default Changelist" comment="Added new gotify installation (pre-test) replacement of pushover&#10;&#10;Updated maxida API to create new user (private repo)&#10;&#10;Improved DA API&#10;&#10;Added zip and unzip installation" />
+    <list default="true" id="113c828c-9a32-4b24-ab1e-978ce50c6320" name="Default Changelist" comment="Updated various codes in private repository in maxicode and directadmin custom scripts. One of the features is the ability to upgrade directadmin custom scripts, add more APIs in maxida and much more.&#10;&#10;Added new top TODO lists in maxisetup.&#10;&#10;Added new API to create dns record in DA&#10;&#10;Fixed firewall blacklisted_ip.html file permission&#10;&#10;Added extra variables for GIT authentication in maxida.conf&#10;&#10;Added new installation for maxipass&#10;&#10;Added DKIM signing policy record in both DA and linode DNS as best practice&#10;&#10;New planned variables (already have working test script):&#10;&#10;DA_LOGIN_METHOD=&quot;sign-as&quot;&#10;&#10;# This will use DA loginas mentioned in the API documentation&#10;# sign-as = you can login using this username &quot;admin|client&quot; to log as the client (benefit: no need to know DA client passwords)&#10;# direct-login = login directly using username and password (need to know DA client passwords)&#10;DA_LOGIN_METHOD=&quot;sign-as&quot;">
+      <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
+    </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
     <option name="HIGHLIGHT_NON_ACTIVE_CHANGELIST" value="false" />
@@ -51,13 +53,15 @@
     </key>
   </component>
   <component name="RunManager">
-    <configuration default="true" type="ArquillianJUnit" factoryName="" nameIsGenerated="true">
+    <configuration default="true" type="ArquillianTestNG" factoryName="" nameIsGenerated="true">
       <option name="arquillianRunConfiguration">
         <value>
           <option name="containerStateName" value="" />
         </value>
       </option>
-      <option name="TEST_OBJECT" value="class" />
+      <option name="TEST_OBJECT" value="CLASS" />
+      <properties />
+      <listeners />
       <method v="2">
         <option name="Make" enabled="true" />
       </method>
@@ -121,13 +125,7 @@
       <workItem from="1614266586470" duration="666000" />
       <workItem from="1614477926248" duration="748000" />
       <workItem from="1614571670894" duration="1270000" />
-    </task>
-    <task id="LOCAL-00004" summary="Fixed minor bug on extra curly bracket for MAXICATA_AIPDB_REPORT_URL variable for Maxicata script&#10;Maxicata - Fixed bug awk code empty. Re-add code file srch.awk">
-      <created>1611119238989</created>
-      <option name="number" value="00004" />
-      <option name="presentableId" value="LOCAL-00004" />
-      <option name="project" value="LOCAL" />
-      <updated>1611119238989</updated>
+      <workItem from="1614784448834" duration="1161000" />
     </task>
     <task id="LOCAL-00005" summary="Add maxiperm installation">
       <created>1611119759780</created>
@@ -465,7 +463,14 @@
       <option name="project" value="LOCAL" />
       <updated>1614572342436</updated>
     </task>
-    <option name="localTasksCounter" value="53" />
+    <task id="LOCAL-00053" summary="Updated various codes in private repository in maxicode and directadmin custom scripts. One of the features is the ability to upgrade directadmin custom scripts, add more APIs in maxida and much more.&#10;&#10;Added new top TODO lists in maxisetup.&#10;&#10;Added new API to create dns record in DA&#10;&#10;Fixed firewall blacklisted_ip.html file permission&#10;&#10;Added extra variables for GIT authentication in maxida.conf&#10;&#10;Added new installation for maxipass&#10;&#10;Added DKIM signing policy record in both DA and linode DNS as best practice&#10;&#10;New planned variables (already have working test script):&#10;&#10;DA_LOGIN_METHOD=&quot;sign-as&quot;&#10;&#10;# This will use DA loginas mentioned in the API documentation&#10;# sign-as = you can login using this username &quot;admin|client&quot; to log as the client (benefit: no need to know DA client passwords)&#10;# direct-login = login directly using username and password (need to know DA client passwords)&#10;DA_LOGIN_METHOD=&quot;sign-as&quot;">
+      <created>1614785034062</created>
+      <option name="number" value="00053" />
+      <option name="presentableId" value="LOCAL-00053" />
+      <option name="project" value="LOCAL" />
+      <updated>1614785034062</updated>
+    </task>
+    <option name="localTasksCounter" value="54" />
     <servers />
   </component>
   <component name="TypeScriptGeneratedFilesManager">
@@ -484,8 +489,6 @@
     <option name="oldMeFiltersMigrated" value="true" />
   </component>
   <component name="VcsManagerConfiguration">
-    <MESSAGE value="Add the ability to create subdomains for a domain.&#10;&#10;The config file has new variable called: DA_USER_SUBDOMAIN[index]&#10;&#10;Example:&#10;# Format: &lt;subdomain1.subdomain2&gt;+&lt;rootdomain&gt;&#10;# Use plus '+' instead of dot '.'&#10;# because there is no easy way to determine root domain when it has long subdomains due to huge number of TLD&#10;# and those TLD names need to be maintained frequently especially from https://publicsuffix.org/&#10;# you can declare multi subdomains like sub1.sub2.sub3.sub4.sub5+maxibi.com&#10;&#10;DA_USER_SUBDOMAIN1=(&quot;sales+maxibi.com&quot; &quot;login+maxibi.com&quot; &quot;sub1.sub2+maxibi.com&quot; &quot;sub1.sub2+test.com.my&quot;)&#10;&#10;This will create subdomain of sales, login and sub1.sub2 for the domain maxibi.com AND sub1.sub2 for the domain test.com.my" />
-    <MESSAGE value="Add URL to sofibox.com" />
     <MESSAGE value="Remove setup data and clear bash history automatically after 120 seconds after installation." />
     <MESSAGE value="Updated linode_api_admin function&#10;Updated configure_maxicloud function&#10;Created standalone function configure_da_admin_accounts specific for creating admin account (no reseller)&#10;Created standalone function configure_da_reseller_accounts specific for creating reseller accounts&#10;&#10;Now we are able to create multiple seller accounts, multiple domains, emails for this reseller accounts, and reseller are now able to request ssl certificate for its own domain. Previously resellers were not able to request ssl.&#10;&#10;Reseller has new variables. This is the full set of new reseller variables:&#10;&#10;# === DA reseller start ===&#10;# This is DA main reseller. Create at least one reseller here (cannot use '+' for password)&#10;DA_RESELLER_USERNAME1=&quot;da_reseller&quot;&#10;DA_RESELLER_USERPASS1=*long-secured-password*&quot;&#10;DA_RESELLER_SYSTEM_EMAIL1=&quot;webmaster@sofibox.com&quot;&#10;DA_RESELLER_MAIL_USER1=(&quot;webmaster@sofibox.com&quot; &quot;info@sofibox.com&quot;)&#10;DA_RESELLER_MAIL_PASSWORD1=(&quot;A*longemailpass&quot; &quot;BlongemailPass*&quot;)&#10;# This is the main reseller package&#10;DA_RESELLER_PACKAGE_NAME1=&quot;RESELLER_UNLIMITED&quot;&#10;# This is different from BOX_DOMAIN&#10;DA_RESELLER_DOMAIN1=(&quot;sofibox.com&quot;)&#10;DA_RESELLER_SUBDOMAIN1=(&quot;sofibox.com:sales+login+secure&quot;)&#10;# shared or assign - If shared, domain will use the server's main ip. assign will use one of the reseller's ips&#10;DA_RESELLER_IP_TYPE1=&quot;shared&quot;&#10;DA_RESELLER_DOMAIN_ENABLE_SSL1=&quot;yes&quot;&#10;DA_RESELLER_SSL_SUB_NAME1=(&quot;letsencrypt:sofibox.com:www+ftp+mail+pop+smtp+sales+secure+login&quot;)&#10;# === DA reseller end ===&#10;&#10;User also has new syntax on variable DA_USER_SUBDOMAIN[index]&#10;&#10;old variable syntax for DA_USER_SUBDOMAIN:&#10;DA_USER_SUBDOMAIN1=(&quot;sales+maxibi.com&quot; &quot;login+maxibi.com&quot; &quot;sub1.sub2+maxibi.com&quot; &quot;sub3.test.com&quot; &quot;test4.test.com&quot;)&#10;&#10;new variable syntax for DA_USER_SUBDOMAIN is equivalent to above (much shorter):&#10;DA_USER_SUBDOMAIN1=(&quot;maxibi.com:sales+login&quot; &quot;test.com:sub3+test4&quot;)&#10;&#10;Added more code comments" />
     <MESSAGE value="Added a new API to set logo Directadmin logo (default logo and dark logo)" />
@@ -509,6 +512,8 @@
     <MESSAGE value="Disabled maxicata.lua email reporting for maxicata (no need email in default config, it can auto block IPs). (private repo)&#10;&#10;Added configure_grub to set grub password&#10;&#10;Added configure_fstab to configure secured mount option for disk (with the condition DISK encryption is enabled at maxisetup.conf&#10;&#10;new variables:&#10;&#10;LUKS_PASS=&quot;luks*encryption*password&quot;&#10;# Username to set for grub bootloader&#10;GRUB_UNAME=&quot;grub_user&quot;&#10;# Password to set for grub bootloader&#10;GRUB_PASS=&quot;*grub_pasword*&quot;&#10;LVM_VOLUME_GROUP=&quot;vg1&quot;&#10;DISK_ENCRYPTION=&quot;yes&quot;" />
     <MESSAGE value="Added ability to configure linode-cli without using expect package (more faster and less buggy)&#10;Added new API to automatically create all domains in linode&#10;Fixed bug: Added wait time 5 seconds after starting lfd for the first time to generate error log. Previously after starting lfd, script straightaway check the log file to identify error which has not yet created.&#10;Fixed bug: Added missing gpg package when using INSTALLATION TYPE=GENERAL from maxisetup.conf&#10;Added new DKIM outbound signing policy DNS template for all domains for normal user and reseller to increase email spam score/reputation&#10;&#10;New variable:&#10;&#10;# Is used to configure DNS management API that required username:&#10;&#10;DNS_PROVIDER_USER=&quot;sofibox&quot;" />
     <MESSAGE value="Added new gotify installation (pre-test) replacement of pushover&#10;&#10;Updated maxida API to create new user (private repo)&#10;&#10;Improved DA API&#10;&#10;Added zip and unzip installation" />
-    <option name="LAST_COMMIT_MESSAGE" value="Added new gotify installation (pre-test) replacement of pushover&#10;&#10;Updated maxida API to create new user (private repo)&#10;&#10;Improved DA API&#10;&#10;Added zip and unzip installation" />
+    <MESSAGE value="Updated various codes in private repository in maxicode and directadmin custom scripts. One of the features is the ability to upgrade directadmin custom scripts, add more APIs in maxida and much more.&#10;&#10;Added new top TODO lists in maxisetup.&#10;&#10;Added new API to create dns record in DA&#10;&#10;Fixed firewall blacklisted_ip.html file permission&#10;&#10;Added extra variables for GIT authentication in maxida.conf&#10;&#10;Added new installation for maxipass&#10;&#10;Added DKIM signing policy record in both DA and linode DNS as best practice&#10;&#10;New planned variables (already has working test script):&#10;&#10;DA_LOGIN_METHOD=&quot;sign-as&quot;&#10;&#10;# This will use DA loginas mentioned in the API documentation&#10;# sign-as = you can login using this username &quot;admin|client&quot; to log as the client (benefit: no need to know DA client passwords)&#10;# direct-login = login directly using username and password (need to know DA client passwords)&#10;DA_LOGIN_METHOD=&quot;sign-as&quot;" />
+    <MESSAGE value="Updated various codes in private repository in maxicode and directadmin custom scripts. One of the features is the ability to upgrade directadmin custom scripts, add more APIs in maxida and much more.&#10;&#10;Added new top TODO lists in maxisetup.&#10;&#10;Added new API to create dns record in DA&#10;&#10;Fixed firewall blacklisted_ip.html file permission&#10;&#10;Added extra variables for GIT authentication in maxida.conf&#10;&#10;Added new installation for maxipass&#10;&#10;Added DKIM signing policy record in both DA and linode DNS as best practice&#10;&#10;New planned variables (already have working test script):&#10;&#10;DA_LOGIN_METHOD=&quot;sign-as&quot;&#10;&#10;# This will use DA loginas mentioned in the API documentation&#10;# sign-as = you can login using this username &quot;admin|client&quot; to log as the client (benefit: no need to know DA client passwords)&#10;# direct-login = login directly using username and password (need to know DA client passwords)&#10;DA_LOGIN_METHOD=&quot;sign-as&quot;" />
+    <option name="LAST_COMMIT_MESSAGE" value="Updated various codes in private repository in maxicode and directadmin custom scripts. One of the features is the ability to upgrade directadmin custom scripts, add more APIs in maxida and much more.&#10;&#10;Added new top TODO lists in maxisetup.&#10;&#10;Added new API to create dns record in DA&#10;&#10;Fixed firewall blacklisted_ip.html file permission&#10;&#10;Added extra variables for GIT authentication in maxida.conf&#10;&#10;Added new installation for maxipass&#10;&#10;Added DKIM signing policy record in both DA and linode DNS as best practice&#10;&#10;New planned variables (already have working test script):&#10;&#10;DA_LOGIN_METHOD=&quot;sign-as&quot;&#10;&#10;# This will use DA loginas mentioned in the API documentation&#10;# sign-as = you can login using this username &quot;admin|client&quot; to log as the client (benefit: no need to know DA client passwords)&#10;# direct-login = login directly using username and password (need to know DA client passwords)&#10;DA_LOGIN_METHOD=&quot;sign-as&quot;" />
   </component>
 </project>
