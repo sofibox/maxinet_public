@@ -2,7 +2,7 @@
 # =~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~="
 # Author: Arafat Ali | Email: webmaster@sofibox.com
 APP_STATUS="beta"
-APP_VERSION="0.4.0.3-${APP_STATUS}"
+APP_VERSION="0.4.0.4-${APP_STATUS}"
 # This is an initial server hardening script for CentOS and Debian.
 # Compatible 100% with Directadmin. Supported OS: CentOS + Debian (Planned on FreeBSD)
 # You can choose to install as the other stack server such as LEMP, (TODO) Laravel and more defined in config file
@@ -17,6 +17,7 @@ APP_VERSION="0.4.0.3-${APP_STATUS}"
 # TODO: fix binary output DA API -> Use this https://stackoverflow.com/questions/16760378/how-to-check-if-the-file-is-a-binary-file-and-read-all-the-files-which-are-not
 # If the output is binary don't output it in terminal (this might be DA bug): https://forum.directadmin.com/threads/calling-da-api-using-curl-bash-sometimes-got-a-random-binary-output.63206/
 # TODO: provide an optional option to automatically create google domain verification TXT record through API (need Google business account at console) - Google site verification
+# TODO: testing creating account with * wildcard - this should also automatically added in external DNS (done need testing)
 # TODO: create hostname and setup dkim, dmarc, at linode spf at linode (use common subdomain, ftp, mail, www, smtp, pop) - normally it should be created first before installing DA but dkim need to be updated.
 # TODO redirect error in error log file: exec 2>/usr/local/directadmin/customscripts.error.log
 
@@ -136,8 +137,9 @@ function validate_config() {
   done
 
   local da_reseller_unames da_reseller_unames_count this_da_reseller_uname this_da_reseller_name this_da_reseller_system_email \
-    this_da_reseller_mail_users this_da_reseller_mail_passwords this_da_reseller_domains this_da_reseller_subdomains this_da_reseller_package_name \
-    this_da_reseller_domain_enable_ssl this_da_reseller_ssl_sub_name this_da_reseller_security_q this_da_reseller_security_a
+    this_da_reseller_mail_users this_da_reseller_mail_passwords this_da_reseller_domains this_da_reseller_wildcard_domains \
+    this_da_reseller_subdomains this_da_reseller_package_name this_da_reseller_domain_enable_ssl this_da_reseller_ssl_sub_name \
+    this_da_reseller_security_q this_da_reseller_security_a
 
   da_reseller_unames="${!DA_RESELLER_USERNAME@}"
   da_reseller_unames_count=$(echo "${da_reseller_unames}" | wc -w)
@@ -152,6 +154,7 @@ function validate_config() {
     typeset -n "this_da_reseller_mail_users"="DA_RESELLER_MAIL_USER${count_user}"
     typeset -n "this_da_reseller_mail_passwords"="DA_RESELLER_MAIL_PASSWORD${count_user}"
     typeset -n "this_da_reseller_domains"="DA_RESELLER_DOMAIN${count_user}"
+    typeset -n "this_da_reseller_wildcard_domains"="DA_RESELLER_WILDCARD_DOMAIN${count_user}"
     typeset -n "this_da_reseller_subdomains"="DA_RESELLER_SUBDOMAIN${count_user}"
     typeset -n "this_da_reseller_package_name"="DA_RESELLER_PACKAGE_NAME${count_user}"
     typeset -n "this_da_reseller_domain_enable_ssl"="DA_RESELLER_DOMAIN_ENABLE_SSL${count_user}"
@@ -194,6 +197,9 @@ function validate_config() {
     elif [[ -z "${this_da_reseller_domains+x}" ]]; then
       echo "[${SCRIPT_NAME}]: [Skipped]: Warning reseller ${this_da_reseller_uname} doesn't have domain set in config file. Please check configuration file " 2>&1 | tee -a "${REPORT_FILE}"
       _exit 1
+    elif [[ -z "${this_da_reseller_wildcard_domains+x}" ]]; then
+      echo "[${SCRIPT_NAME}]: [Skipped]: Warning reseller ${this_da_reseller_uname} doesn't have wildcard domain set in config file. Please check configuration file " 2>&1 | tee -a "${REPORT_FILE}"
+      _exit 1
     elif [[ -z "${this_da_reseller_subdomains+x}" ]]; then
       echo "[${SCRIPT_NAME}]: [Skipped]: Warning reseller ${this_da_reseller_uname} doesn't have subdomains set in config file. Please check configuration file " 2>&1 | tee -a "${REPORT_FILE}"
       _exit 1
@@ -235,8 +241,8 @@ function validate_config() {
   done
 
   local da_user_unames da_user_count this_da_user_uname this_da_user_password this_da_user_name this_da_user_system_email \
-    this_da_user_mail_users this_da_user_mail_passwords this_da_user_domains this_da_user_subdomains this_da_user_package_name \
-    this_da_user_domain_enable_ssl this_da_user_security_q this_da_user_security_a
+    this_da_user_mail_users this_da_user_mail_passwords this_da_user_domains this_da_user_wildcard_domains this_da_user_subdomains \
+    this_da_user_package_name this_da_user_domain_enable_ssl this_da_user_security_q this_da_user_security_a
 
   da_user_unames="${!DA_USER_USERNAME@}"
   da_user_count=$(echo "${da_user_unames}" | wc -w)
@@ -251,6 +257,7 @@ function validate_config() {
     typeset -n "this_da_user_mail_users"="DA_USER_MAIL_USER${count_user}"
     typeset -n "this_da_user_mail_passwords"="DA_USER_MAIL_PASSWORD${count_user}"
     typeset -n "this_da_user_domains"="DA_USER_DOMAIN${count_user}"
+    typeset -n "this_da_user_wildcard_domains"="DA_USER_WILDCARD_DOMAIN${count_user}"
     typeset -n "this_da_user_subdomains"="DA_USER_SUBDOMAIN${count_user}"
     typeset -n "this_da_user_package_name"="DA_USER_PACKAGE_NAME${count_user}"
     typeset -n "this_da_user_domain_enable_ssl"="DA_USER_DOMAIN_ENABLE_SSL${count_user}"
@@ -290,6 +297,9 @@ function validate_config() {
       # Just use a normal variable to check (even it is array)
     elif [[ -z "${this_da_user_domains+x}" ]]; then
       echo "[${SCRIPT_NAME}]: [Skipped]: Warning user ${this_da_user_uname} doesn't have domain set in config file. Please check configuration file " 2>&1 | tee -a "${REPORT_FILE}"
+      _exit 1
+    elif [[ -z "${this_da_user_wildcard_domains+x}" ]]; then
+      echo "[${SCRIPT_NAME}]: [Skipped]: Warning user ${this_da_user_uname} doesn't have wildcard domain set in config file. Please check configuration file " 2>&1 | tee -a "${REPORT_FILE}"
       _exit 1
     elif [[ -z "${this_da_user_subdomains+x}" ]]; then
       echo "[${SCRIPT_NAME}]: [Skipped]: Warning user ${this_da_user_uname} doesn't have subdomains set in config file. Please check configuration file " 2>&1 | tee -a "${REPORT_FILE}"
@@ -1503,15 +1513,22 @@ function pre_setup() {
       check_finish_reboot "${FUNCNAME[0]}"
     elif [ "${DISTRO_ID}" == "debian" ]; then
       # psmisc = pstree utils (needed by maxigpg script from maxicode)
+
+      # Known usability bug from Debian installer with old grub-pc
+      # Fixed grub-pc appear interactive GUI when running dist-upgrade https://github.com/hashicorp/vagrant/issues/289
+      # This is the Debian usability bug for grub as explained in here:
+      # https://askubuntu.com/questions/23418/what-do-i-select-for-grub-install-devices-after-an-update#comment837055_23418
+      # This only show when you have kernel set to GRUB 2
+
       apt-get -y update
       apt-get -y upgrade
+
       # By default sudo is not installed. It's needed for new OS
       apt-get -y install sudo screen nmap psmisc gpg unzip zip 2>&1 | tee -a "${REPORT_FILE}"
     else
       echo "[${SCRIPT_NAME}]: Error, unknown value for distribution ID ${DISTRO_ID}" 2>&1 | tee -a "${REPORT_FILE}"
       _exit 1
     fi
-
     check_finish_reboot "${FUNCNAME[0]}"
   else
     echo "[${SCRIPT_NAME}]: [Skipped]: ${FUNCNAME[0]} has ran before" 2>&1 | tee -a "${REPORT_FILE}"
@@ -2055,6 +2072,7 @@ ${GRUB_PASS}
 ${GRUB_PASS}
 EOF
     grub_hash=$(cat "${pfile}" | grub-mkpasswd-pbkdf2 | awk '/grub.pbkdf/{print$NF}')
+    shred -uvz "${pfile}"
     gr=$(grep -i "password_pbkdf2" /etc/grub.d/00_header)
     if [[ -z ${gr} ]]; then
       echo "[${SCRIPT_NAME}]: Writing grub username and password in /etc/grub.d/00_header ... " 2>&1 | tee -a "${REPORT_FILE}"
@@ -2179,10 +2197,18 @@ function upgrade_os() {
       # Remember now use powertools not PowerTools. This is bug found in CentOS repo 2 days ago: https://bugs.centos.org/view.php?id=17920
       dnf config-manager --set-enabled powertools 2>&1 | tee -a "${REPORT_FILE}"
     elif [ "${DISTRO_ID}" == "debian" ]; then
+
+      # Known usability bug from Debian installer with old grub-pc
+      # Fixed grub-pc appear interactive GUI when running dist-upgrade https://github.com/hashicorp/vagrant/issues/289
+      # This is the Debian usability bug for grub as explained in here:
+      # https://askubuntu.com/questions/23418/what-do-i-select-for-grub-install-devices-after-an-update#comment837055_23418
+      # This only show when you have kernel set to GRUB 2
+
       echo "[${SCRIPT_NAME}]: Updating Debian system ..." 2>&1 | tee -a "${REPORT_FILE}"
-      apt update
-      apt -y dist-upgrade
-      apt -y autoremove
+
+      apt-get -y update
+      apt-get -y dist-upgrade
+      apt-get -y autoremove
       apt clean
     else
       echo "[${SCRIPT_NAME}]: Error, unknown value for distribution ID ${DISTRO_ID}" 2>&1 | tee -a "${REPORT_FILE}"
@@ -4993,18 +5019,6 @@ function configure_da_reseller_wildcard_domains() {
       typeset -n "this_da_reseller_userpass"="DA_RESELLER_USERPASS${count_x}"
       typeset -n "this_da_reseller_wildcard_domains"="DA_RESELLER_WILDCARD_DOMAIN${count_x}"
 
-      # Error checking:
-      if [ -z "${this_da_reseller_username}" ]; then
-        echo "[${SCRIPT_NAME}]: [Skipped]: Warning, no user name is set in config file for this reseller ${this_da_reseller_username}. Please check configuration file " 2>&1 | tee -a "${REPORT_FILE}"
-        _exit 1
-      elif [ -z "${this_da_reseller_userpass}" ]; then
-        echo "[${SCRIPT_NAME}]: [Skipped]: Warning, no user password is set in config file for this reseller ${this_da_reseller_username}. Please check configuration file " 2>&1 | tee -a "${REPORT_FILE}"
-        _exit 1
-      elif [ -z "${this_da_reseller_wildcard_domains}" ]; then
-        echo "[${SCRIPT_NAME}]: [Skipped]: Warning, no user subdomains is set for this reseller ${this_da_reseller_username}. Please check configuration file " 2>&1 | tee -a "${REPORT_FILE}"
-        _exit 1
-      fi
-
       # Debug:
       echo "this_da_reseller_username: ${this_da_reseller_username}" 2>&1 | tee -a "${REPORT_FILE}"
       echo "this_da_reseller_userpass: ${this_da_reseller_userpass}" 2>&1 | tee -a "${REPORT_FILE}"
@@ -5016,7 +5030,7 @@ function configure_da_reseller_wildcard_domains() {
         echo "------------------------" 2>&1 | tee -a "${REPORT_FILE}"
         echo "Total count: ${count_n}" 2>&1 | tee -a "${REPORT_FILE}"
 
-        wildcard_domains=$(echo "${this_da_reseller_wildcard_domains}" | awk -F'+' '{for (i=1;i<=NF;i++)print $i}') #or tr ":" "\n"
+        wildcard_domains=$(echo "${this_da_reseller_wildcard_domains}" | awk -F':' '{for (i=1;i<=NF;i++)print $i}') #or tr ":" "\n"
         count_o=0
         for wildcard_domain in ${wildcard_domains}; do
           echo "count_o: ${count_o}"
@@ -5415,18 +5429,6 @@ function configure_da_user_wildcard_domains() {
       typeset -n "this_da_user_userpass"="DA_USER_USERPASS${count_x}"
       typeset -n "this_da_user_wildcard_domains"="DA_USER_WILDCARD_DOMAIN${count_x}"
 
-      # Error checking:
-      if [ -z "${this_da_user_username}" ]; then
-        echo "[${SCRIPT_NAME}]: [Skipped]: Warning, no user name is set in config file for this user ${this_da_user_username}. Please check configuration file " 2>&1 | tee -a "${REPORT_FILE}"
-        _exit 1
-      elif [ -z "${this_da_user_userpass}" ]; then
-        echo "[${SCRIPT_NAME}]: [Skipped]: Warning, no user password is set in config file for this user ${this_da_user_username}. Please check configuration file " 2>&1 | tee -a "${REPORT_FILE}"
-        _exit 1
-      elif [ -z "${this_da_user_wildcard_domains}" ]; then
-        echo "[${SCRIPT_NAME}]: [Skipped]: Warning, no user subdomains is set for this user ${this_da_user_username}. Please check configuration file " 2>&1 | tee -a "${REPORT_FILE}"
-        _exit 1
-      fi
-
       # Debug:
       echo "this_da_user_username: ${this_da_user_username}" 2>&1 | tee -a "${REPORT_FILE}"
       echo "this_da_user_userpass: ${this_da_user_userpass}" 2>&1 | tee -a "${REPORT_FILE}"
@@ -5438,7 +5440,7 @@ function configure_da_user_wildcard_domains() {
         echo "------------------------" 2>&1 | tee -a "${REPORT_FILE}"
         echo "Total count: ${count_n}" 2>&1 | tee -a "${REPORT_FILE}"
 
-        wildcard_domains=$(echo "${this_da_user_wildcard_domains}" | awk -F'+' '{for (i=1;i<=NF;i++)print $i}') #or tr ":" "\n"
+        wildcard_domains=$(echo "${this_da_user_wildcard_domains}" | awk -F':' '{for (i=1;i<=NF;i++)print $i}') #or tr ":" "\n"
         count_o=0
         for wildcard_domain in ${wildcard_domains}; do
           echo "count_o: ${count_o}"
@@ -5883,6 +5885,8 @@ function configure_da_reseller_domain_ssl() {
     # Get the total count for reseller ssl_sub_names
     da_reseller_ssl_sub_names_count=$(echo "${da_reseller_ssl_sub_names}" | wc -w)
     count_x=1
+    echo "[${SCRIPT_NAME}]: Creating acme-challenge file through custombuild rewrite_confs ..." 2>&1 | tee -a "${REPORT_FILE}"
+    /usr/local/directadmin/custombuild/build rewrite_confs
     while [[ ${count_x} -le ${da_reseller_ssl_sub_names_count} ]]; do
       echo ""
       echo "===== Loop count: ${count_x} ========="
@@ -6738,12 +6742,15 @@ echo "[${SCRIPT_NAME}]: ${START_OR_RESUME} Installation for ${BOX_HOSTNAME_FQDN}
 echo "" 2>&1 | tee -a "${REPORT_FILE}"
 # Use this to install screen or disable Selinux in CentOS
 pre_setup
+# exit 1
 # Clone all setup script
 get_latest_maxisetup #OK
 # Get the latest security codes from maxicode
 init_local_maxicode
 # Hardening server
-secure_box    #OK
+secure_box #OK
+# Set password for grub bootloader
+configure_grub
 # Configure basic network 1
 configure_net #OK
 # Must run configure_net first before running configure_net2 because we need interface to be ${NIC_INTERFACE_NAME} first #OK
@@ -6812,8 +6819,6 @@ if [ "${INSTALL_TYPE}" == "DIRECTADMIN" ]; then
   # This will set the hosting to SSL:
   configure_da_ssl_pre
   #exit 1
-  configure_da_ssl
-  #exit 1
   configure_da_sql
   #exit 1
   configure_da_mail
@@ -6849,13 +6854,10 @@ if [ "${INSTALL_TYPE}" == "DIRECTADMIN" ]; then
   #rm -rf "${CONF_PATH}/configure_da_reseller_emails_executed"
   configure_da_reseller_emails
   #exit 1
-  #rm -rf "${CONF_PATH}/configure_da_reseller_domain_ssl_executed"
-  # Don't worry if some domains are not able to have SSL because of the propagation problem using external DNS
-  configure_da_reseller_domain_ssl
-  #exit 1
   #rm -rf "${CONF_PATH}/configure_da_user_accounts_executed"
   configure_da_user_accounts
   #exit 1
+  #rm -rf "${CONF_PATH}/configure_da_user_wildcard_domains_executed"
   configure_da_user_wildcard_domains
   #exit 1
   #rm -rf "${CONF_PATH}/configure_da_user_subdomains_executed"
@@ -6864,15 +6866,10 @@ if [ "${INSTALL_TYPE}" == "DIRECTADMIN" ]; then
   #rm -rf "${CONF_PATH}/configure_da_user_emails_executed"
   configure_da_user_emails
   #exit 1
-  # rm -rf "${CONF_PATH}/configure_da_user_domain_ssl_executed"
-  # Don't worry if some domains are not able to have SSL because of the propagation problem using external DNS
-  configure_da_user_domain_ssl
-  #exit 1
   configure_da_memcached
   #exit 1
   configure_da_geoip
   #exit 1
-  # First configure the owner skins
   #rm -rf "${CONF_PATH}/configure_da_owner_skins_executed"
   configure_da_owner_skins
   #rm -rf "${CONF_PATH}/configure_da_admin_skins_executed"
@@ -6898,6 +6895,17 @@ if [ "${INSTALL_TYPE}" == "DIRECTADMIN" ]; then
   configure_da_user_databases
   #exit 1
   configure_da_custom_webs
+  #exit 1
+  # Call certificate request at the end because we want to create DNS entry and propagate first
+  # Don't worry if some domains are not able to have SSL because of the propagation problem using external DNS
+  configure_da_ssl
+  #exit 1
+  #rm -rf "${CONF_PATH}/configure_da_reseller_domain_ssl_executed"
+  configure_da_reseller_domain_ssl
+  #exit 1
+  # rm -rf "${CONF_PATH}/configure_da_user_domain_ssl_executed"
+  configure_da_user_domain_ssl
+  #exit 1
 fi
 #exit 1
 # Still need to add more based on lynis suggestion
