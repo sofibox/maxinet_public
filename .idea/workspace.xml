@@ -10,7 +10,7 @@
     <select />
   </component>
   <component name="ChangeListManager">
-    <list default="true" id="113c828c-9a32-4b24-ab1e-978ce50c6320" name="Default Changelist" comment="Added new function configure_da_reseller_wildcard_domains() and configure_da_user_wildcard_domains()&#10;&#10;Fixed maxida source config file (private repo)&#10;&#10;Updated DA API&#10;&#10;New variable:&#10;&#10;DA_RESELLER_WILDCARD_DOMAIN[index]&#10;&#10;# Put wildcard record for this domain. To disable just let this variable empty with &quot;&quot;&#10;# Format &lt;domain.com&gt;:&lt;anotherdomain.com&gt;:&lt;anotheronedomain.com&gt;: ...&#10;DA_RESELLER_WILDCARD_DOMAIN1=(&quot;maxibi.com:anotherdomain.com&quot;)">
+    <list default="true" id="113c828c-9a32-4b24-ab1e-978ce50c6320" name="Default Changelist" comment="Fixed wildcard selectors and more">
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
@@ -125,13 +125,8 @@
       <workItem from="1614571670894" duration="1270000" />
       <workItem from="1614784448834" duration="1161000" />
       <workItem from="1614897076790" duration="381000" />
-    </task>
-    <task id="LOCAL-00006" summary="Fixed maxiperm wrong binary name from 'maxiperm' to 'perm'&#10;Fixed awk not display result due to missing awk binary. So, added gawk requirement for maxicata and other scripts&#10;added configure_maxicode_pre function to install pre-requisite components for all maxicode">
-      <created>1611125978628</created>
-      <option name="number" value="00006" />
-      <option name="presentableId" value="LOCAL-00006" />
-      <option name="project" value="LOCAL" />
-      <updated>1611125978628</updated>
+      <workItem from="1614958776087" duration="643000" />
+      <workItem from="1615002022668" duration="10000" />
     </task>
     <task id="LOCAL-00007" summary="Initial release alpha version v0.1 of maxida (MaxiDA) to manage directadmin functionalities and APIs&#10;Add new function to create reseller package using API">
       <created>1611168526150</created>
@@ -469,7 +464,14 @@
       <option name="project" value="LOCAL" />
       <updated>1614897205503</updated>
     </task>
-    <option name="localTasksCounter" value="55" />
+    <task id="LOCAL-00055" summary="Fixed wildcard selectors and more">
+      <created>1614958806218</created>
+      <option name="number" value="00055" />
+      <option name="presentableId" value="LOCAL-00055" />
+      <option name="project" value="LOCAL" />
+      <updated>1614958806218</updated>
+    </task>
+    <option name="localTasksCounter" value="56" />
     <servers />
   </component>
   <component name="TypeScriptGeneratedFilesManager">
@@ -488,7 +490,6 @@
     <option name="oldMeFiltersMigrated" value="true" />
   </component>
   <component name="VcsManagerConfiguration">
-    <MESSAGE value="Updated linode_api_admin function&#10;Updated configure_maxicloud function&#10;Created standalone function configure_da_admin_accounts specific for creating admin account (no reseller)&#10;Created standalone function configure_da_reseller_accounts specific for creating reseller accounts&#10;&#10;Now we are able to create multiple seller accounts, multiple domains, emails for this reseller accounts, and reseller are now able to request ssl certificate for its own domain. Previously resellers were not able to request ssl.&#10;&#10;Reseller has new variables. This is the full set of new reseller variables:&#10;&#10;# === DA reseller start ===&#10;# This is DA main reseller. Create at least one reseller here (cannot use '+' for password)&#10;DA_RESELLER_USERNAME1=&quot;da_reseller&quot;&#10;DA_RESELLER_USERPASS1=*long-secured-password*&quot;&#10;DA_RESELLER_SYSTEM_EMAIL1=&quot;webmaster@sofibox.com&quot;&#10;DA_RESELLER_MAIL_USER1=(&quot;webmaster@sofibox.com&quot; &quot;info@sofibox.com&quot;)&#10;DA_RESELLER_MAIL_PASSWORD1=(&quot;A*longemailpass&quot; &quot;BlongemailPass*&quot;)&#10;# This is the main reseller package&#10;DA_RESELLER_PACKAGE_NAME1=&quot;RESELLER_UNLIMITED&quot;&#10;# This is different from BOX_DOMAIN&#10;DA_RESELLER_DOMAIN1=(&quot;sofibox.com&quot;)&#10;DA_RESELLER_SUBDOMAIN1=(&quot;sofibox.com:sales+login+secure&quot;)&#10;# shared or assign - If shared, domain will use the server's main ip. assign will use one of the reseller's ips&#10;DA_RESELLER_IP_TYPE1=&quot;shared&quot;&#10;DA_RESELLER_DOMAIN_ENABLE_SSL1=&quot;yes&quot;&#10;DA_RESELLER_SSL_SUB_NAME1=(&quot;letsencrypt:sofibox.com:www+ftp+mail+pop+smtp+sales+secure+login&quot;)&#10;# === DA reseller end ===&#10;&#10;User also has new syntax on variable DA_USER_SUBDOMAIN[index]&#10;&#10;old variable syntax for DA_USER_SUBDOMAIN:&#10;DA_USER_SUBDOMAIN1=(&quot;sales+maxibi.com&quot; &quot;login+maxibi.com&quot; &quot;sub1.sub2+maxibi.com&quot; &quot;sub3.test.com&quot; &quot;test4.test.com&quot;)&#10;&#10;new variable syntax for DA_USER_SUBDOMAIN is equivalent to above (much shorter):&#10;DA_USER_SUBDOMAIN1=(&quot;maxibi.com:sales+login&quot; &quot;test.com:sub3+test4&quot;)&#10;&#10;Added more code comments" />
     <MESSAGE value="Added a new API to set logo Directadmin logo (default logo and dark logo)" />
     <MESSAGE value="Added API to customize DA skin even further like customize the date and time customize menu for roundcube and phpmyadmin and more.&#10; &#10;New variable for PHPMYADMIN_CUSTOM_NAME=&quot;name&quot;&#10;&#10;Besides the old variable of this:&#10;&#10;# This will show in the roundcube product name and DA menu&#10;ROUNDCUBE_CUSTOM_NAME=&quot;MyMail&quot;&#10;&#10;Now we have new variable for phpmyadmin custom name:&#10;PHPMYADMIN_CUSTOM_NAME=&quot;MyDB&quot;&#10;&#10;This custom name will automatically display on the new DA menu&#10;&#10;Related:&#10;&#10;If you define this 2 variables like this &#10;&#10;ROUNDCUBE_LOGIN_ROUTE=&quot;/newrcroute&quot;&#10;PHPMYADMIN_LOGIN_ROUTE=&quot;/newdbroute&quot;&#10;&#10;This will automatically link to the above route:&#10;&#10;ROUNDCUBE LINK: https://server.test.com/newrcroute&#10;PHPMYADMIN LINK: https://server.test.com/newdbroute&#10;&#10;If you set SECURE_HTTPASSWD_LOGIN_ROUTE=&quot;yes&quot;&#10;&#10;The above 2 custom routes will be protected with another layer of apache directory protection. This will help to prevent bruteforce attack on roundcube and phpmyadmin." />
     <MESSAGE value="Changed the API authentication syntax from &#10;&#10;start+&lt;user/role&gt;&#10;&#10;to &#10;&#10;signas+&lt;user/role&gt;&#10;&#10;eg:&#10;signas+owner -&gt; This means the first system owner will be signed in to use da_api_admin&#10;&#10;You can even do this (specified username and password)&#10;signas+${username}+${password}&#10;&#10;Improved da_api_admin &quot;set-da-options&quot;&#10;&#10;Added new da_api_admin for &quot;modify-user&quot; where we are able to modify the name, email, nameservers, skin selection of a specified user&#10;&#10;Removed curl --max-time option to prevent timeout because requesting certificate needs more time and decreasing this value will fail the certification request&#10;&#10;Added new separate function to configure owner account called configure_da_owner_accounts()&#10;&#10;Added letsencrypt staging testing to check if domain has no error when requesting real certificate.&#10; &#10;TODO: Skip domain ssl certificate request and resume the certificate request for domains that were not able to request ssl certificate. Resume means, rerun the whole script.&#10; &#10; New variables for maxisetup.conf&#10; &#10; DA_OWNER_NAME[INDEX]&#10; DA_ADMIN_NAME[INDEX]&#10; DA_RESELLER_NAME[INDEX]&#10; DA_USER_NAME[INDEX]" />
@@ -513,6 +514,7 @@
     <MESSAGE value="Updated various codes in private repository in maxicode and directadmin custom scripts. One of the features is the ability to upgrade directadmin custom scripts, add more APIs in maxida and much more.&#10;&#10;Added new top TODO lists in maxisetup.&#10;&#10;Added new API to create dns record in DA&#10;&#10;Fixed firewall blacklisted_ip.html file permission&#10;&#10;Added extra variables for GIT authentication in maxida.conf&#10;&#10;Added new installation for maxipass&#10;&#10;Added DKIM signing policy record in both DA and linode DNS as best practice&#10;&#10;New planned variables (already has working test script):&#10;&#10;DA_LOGIN_METHOD=&quot;sign-as&quot;&#10;&#10;# This will use DA loginas mentioned in the API documentation&#10;# sign-as = you can login using this username &quot;admin|client&quot; to log as the client (benefit: no need to know DA client passwords)&#10;# direct-login = login directly using username and password (need to know DA client passwords)&#10;DA_LOGIN_METHOD=&quot;sign-as&quot;" />
     <MESSAGE value="Updated various codes in private repository in maxicode and directadmin custom scripts. One of the features is the ability to upgrade directadmin custom scripts, add more APIs in maxida and much more.&#10;&#10;Added new top TODO lists in maxisetup.&#10;&#10;Added new API to create dns record in DA&#10;&#10;Fixed firewall blacklisted_ip.html file permission&#10;&#10;Added extra variables for GIT authentication in maxida.conf&#10;&#10;Added new installation for maxipass&#10;&#10;Added DKIM signing policy record in both DA and linode DNS as best practice&#10;&#10;New planned variables (already have working test script):&#10;&#10;DA_LOGIN_METHOD=&quot;sign-as&quot;&#10;&#10;# This will use DA loginas mentioned in the API documentation&#10;# sign-as = you can login using this username &quot;admin|client&quot; to log as the client (benefit: no need to know DA client passwords)&#10;# direct-login = login directly using username and password (need to know DA client passwords)&#10;DA_LOGIN_METHOD=&quot;sign-as&quot;" />
     <MESSAGE value="Added new function configure_da_reseller_wildcard_domains() and configure_da_user_wildcard_domains()&#10;&#10;Fixed maxida source config file (private repo)&#10;&#10;Updated DA API&#10;&#10;New variable:&#10;&#10;DA_RESELLER_WILDCARD_DOMAIN[index]&#10;&#10;# Put wildcard record for this domain. To disable just let this variable empty with &quot;&quot;&#10;# Format &lt;domain.com&gt;:&lt;anotherdomain.com&gt;:&lt;anotheronedomain.com&gt;: ...&#10;DA_RESELLER_WILDCARD_DOMAIN1=(&quot;maxibi.com:anotherdomain.com&quot;)" />
-    <option name="LAST_COMMIT_MESSAGE" value="Added new function configure_da_reseller_wildcard_domains() and configure_da_user_wildcard_domains()&#10;&#10;Fixed maxida source config file (private repo)&#10;&#10;Updated DA API&#10;&#10;New variable:&#10;&#10;DA_RESELLER_WILDCARD_DOMAIN[index]&#10;&#10;# Put wildcard record for this domain. To disable just let this variable empty with &quot;&quot;&#10;# Format &lt;domain.com&gt;:&lt;anotherdomain.com&gt;:&lt;anotheronedomain.com&gt;: ...&#10;DA_RESELLER_WILDCARD_DOMAIN1=(&quot;maxibi.com:anotherdomain.com&quot;)" />
+    <MESSAGE value="Fixed wildcard selectors and more" />
+    <option name="LAST_COMMIT_MESSAGE" value="Fixed wildcard selectors and more" />
   </component>
 </project>
