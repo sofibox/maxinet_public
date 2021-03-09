@@ -3,7 +3,7 @@
 # Author: Arafat Ali | Email: webmaster@sofibox.com
 APP_SPECIFIC_NAME="Maxisetup"
 APP_STATUS="beta"
-APP_VERSION="0.4.0.5-${APP_STATUS}"
+APP_VERSION="0.4.0.6-${APP_STATUS}"
 # This is an initial server hardening script for CentOS and Debian.
 # Compatible 100% with Directadmin. Supported OS: CentOS + Debian (Planned on FreeBSD)
 # You can choose to install as the other stack server such as LEMP, (TODO) Laravel and more defined in config file
@@ -443,6 +443,21 @@ function _pause() {
   echo ""
 
 }
+
+# This function will display a confirmation to continue (force continue; no exit function)
+function _confirm() {
+  # call with a prompt string or use a default
+  read -r -p "${1:-Continue? [y]} " response
+  case "$response" in
+  [yY][eE][sS] | [yY])
+    return 0
+    ;;
+  *)
+    echo "[${SCRIPT_NAME}]: Invalid response to the question!"
+    _confirm "$1"
+    ;;
+  esac
+}
 # This function is used to terminate a current running script.
 # pass the normal exit code
 # syntax: _exit <exit_code>
@@ -699,8 +714,6 @@ function linode_api_admin() {
       config_disk_devsdd config_disk_devsde config_disk_devsdf config_disk_devsdg config_disk_devsdh \
       disk_id config_disks
 
-    echo "[${SCRIPT_NAME}]: Putting linode ${hostname_fqdn} into rescue mode"
-
     hostname_fqdn="$1"
 
     config_disk_devsda="$2"
@@ -712,6 +725,8 @@ function linode_api_admin() {
     config_disk_devsdg="$8"
     config_disk_devsdh="$9"
     config_disks=""
+
+    echo "[${SCRIPT_NAME}]: Putting linode ${hostname_fqdn} into rescue mode"
 
     linode_id=$(${LINODE_CLI_BIN} linodes list --json --pretty | ${JQ_BIN} ".[] | select(.label == \"${hostname_fqdn}\") | .id")
 
@@ -834,9 +849,7 @@ function linode_api_admin() {
       done
     fi
     # linode_api_admin "boot-linode" "sun.sofibox.com" "Boot_Config"
-  elif
-    [[ "${action}" == "start-linode" || "${action}" == "boot-linode" ]]
-  then
+  elif [[ "${action}" == "boot-linode" ]]; then
     shift
     local linode_id hostname_fqdn config_label config_id
     hostname_fqdn="$1"
@@ -844,21 +857,42 @@ function linode_api_admin() {
     echo "[${SCRIPT_NAME}]: Booting linode ${hostname_fqdn} using config label ${config_label} ..."
     linode_id=$(${LINODE_CLI_BIN} linodes list --json --pretty | ${JQ_BIN} ".[] | select(.label == \"${hostname_fqdn}\") | .id")
     config_id=$(${LINODE_CLI_BIN} linodes configs-list "${linode_id}" --json --pretty | ${JQ_BIN} ".[] | select(.label == \"${config_label}\") | .id")
+    linode_status=$(${LINODE_CLI_BIN} linodes view "${linode_id}" --json --pretty | ${JQ_BIN} -r ".[] | .status")
+    if [[ ${linode_status} == "running" ]]; then
+      ${LINODE_CLI_BIN} linodes shutdown "${linode_id}"
+
+      while :; do
+        linode_status=$(${LINODE_CLI_BIN} linodes view "${linode_id}" --json --pretty | ${JQ_BIN} -r ".[] | .status")
+        if [[ ${linode_status} == "offline" ]]; then
+          echo "[${SCRIPT_NAME}]: Success, linode ${hostname_fqdn} has been successfully put in offline mode. Status is: ${linode_status}"
+          sleep 2
+          break
+        else
+          echo "[${SCRIPT_NAME}]: Linode status is: ${linode_status}"
+          ${LINODE_CLI_BIN} linodes shutdown "${linode_id}"
+          echo "[${SCRIPT_NAME}]: Allowing 10 seconds to finish shutting down linode ${linode_id}"
+          sleep 10
+        fi
+      done
+    fi
+    echo "[${SCRIPT_NAME}]: Booting linode ${hostname_fqdn} ..."
+
     ${LINODE_CLI_BIN} linodes boot "${linode_id}" --config_id "${config_id}"
 
     sleep 2
     while :; do
       linode_status=$(${LINODE_CLI_BIN} linodes view "${linode_id}" --json --pretty | ${JQ_BIN} -r ".[] | .status")
       if [[ ${linode_status} == "running" ]]; then
-        echo "[${SCRIPT_NAME}]: Success, linode ${hostname_fqdn} has been successfully booted using config ${config_label}. Status is: {${linode_status}"
+        echo "[${SCRIPT_NAME}]: Success, linode ${hostname_fqdn} has been successfully booted using config ${config_label}. Status is: ${linode_status}"
         break
       else
         echo "[${SCRIPT_NAME}]: Linode status is: ${linode_status}"
-        echo "[${SCRIPT_NAME}]: Allowing 5 seconds to finish booted using config ${config_label}"
-        sleep 5
+        echo "[${SCRIPT_NAME}]: Allowing 10 seconds to finish booted using config ${config_label}"
+        sleep 10
+        ${LINODE_CLI_BIN} linodes boot "${linode_id}" --config_id "${config_id}"
+
       fi
     done
-
   elif [[ "${action}" == "restart-linode" || "${action}" == "reboot-linode" ]]; then
     shift
     local linode_id hostname_fqdn
@@ -907,7 +941,7 @@ function linode_api_admin() {
       echo "[${SCRIPT_NAME}]: Deleting disk ID ${disk_id} from ${hostname_fqdn} ..."
       ${LINODE_CLI_BIN} linodes disk-delete "${linode_id}" "${disk_id}"
       # Deleting disks take time, wait at least 10 seconds
-      deleting_wait=2
+      deleting_wait=5
       while :; do
         disk_status=$(${LINODE_CLI_BIN} linodes disks-list "${linode_id}" --json --pretty | ${JQ_BIN} -r ".[] | select(.id == ${disk_id}) | .status")
         if [[ -z "${disk_status}" ]]; then
@@ -965,7 +999,7 @@ function linode_api_admin() {
           sleep ${wait_second}
         else
           echo "Warning, unknown/empty disk status (not in condition): ${disk_status}"
-          echo "Waiting ${wait_second} second(s) for new status ..."
+          echo "Waiting ${wait_second} second(s) for new disk status ..."
           sleep ${wait_second}
           # From my test, linode has issue where sometimes (randomly) the status is not shown after creating a first disk
           # So, if the condition is other than above, we still wait, do not terminate this script
@@ -7450,23 +7484,38 @@ while [ "$#" -gt 0 ]; do
       linode_api_admin "create-config" "${BOX_HOSTNAME_FQDN}" "OS_Config" "The operating boot configuration" "paravirt" "linode/direct-disk" "default" "/dev/sda" "OS_Disk" "Boot_Disk"
       # 8) Putting linode into rescue mode
       linode_api_admin "rescue-linode" "${BOX_HOSTNAME_FQDN}" "Boot_Disk"
-      echo "[${SCRIPT_NAME}]: Now it's time to install custom operating system into boot disk. Execute the following command into rescue mode for linode provider:"
+      sleep 2
+      echo "[${SCRIPT_NAME}]: Now it's time to copy operating system installer into boot disk"
+      echo ""
+      linode_id=$(${LINODE_CLI_BIN} linodes list --json --pretty | ${JQ_BIN} ".[] | select(.label == \"${BOX_HOSTNAME_FQDN}\") | .id")
+      echo "Goto this URL to enter into linode terminal: https://cloud.linode.com/linodes/${linode_id}/lish/weblish"
+      echo "Then execute the following command (COPY PASTE) to copy OS installer into boot disk"
       echo ""
       echo "wget http://ftp.debian.org/debian/dists/stable/main/installer-amd64/current/images/netboot/mini.iso"
       echo "dd if=mini.iso of=/dev/sda"
       echo "poweroff"
       echo ""
       echo "Once done press enter here to continue"
-      _pause
-
+      _confirm "Continue next execution? [y/Y]: "
+      # 8) Shutdown linode first
+      linode_api_admin "shutdown-linode" "${BOX_HOSTNAME_FQDN}"
+      sleep 2
       # At this point for security reason, don't enable SSH on rescue disk. Manually put operating system there
+      # 9) Boot into OS installer to install OS
       echo "[${SCRIPT_NAME}]: Booting linode into OS installer ..."
+      linode_api_admin "boot-linode" "${BOX_HOSTNAME_FQDN}" "Boot_Config"
+      sleep 2
 
-      linode_api_admin "boot-linode" "sun.sofibox.com" "Boot_Config"
-      echo "[${SCRIPT_NAME}]: Now it's time to install the Operating System"
-      _pause
+      echo "[${SCRIPT_NAME}]: Now it's time to install the Operating System in GUI. Once done you can continue"
+      echo "Goto this URL to enter into GUI installer: https://cloud.linode.com/linodes/${linode_id}/lish/glish"
+      _confirm "Continue next execution? [y/Y]: "
+      # 10) Shutdown linode again
+      linode_api_admin "shutdown-linode" "${BOX_HOSTNAME_FQDN}"
+      # 11) Now boot into a live server
       echo "[${SCRIPT_NAME}]: Booting linode into live server ..."
       linode_api_admin "boot-linode" "sun.sofibox.com" "OS_Config"
+      sleep 2
+      _confirm "Continue next execution? [y/Y]: "
       echo "Done!"
     elif
 
@@ -7484,6 +7533,15 @@ while [ "$#" -gt 0 ]; do
   -la | --linode-api)
     shift
     linode_api_admin "$@"
+    exit 0
+    break
+    ;;
+  -t | --test)
+    shift
+    # Put any test scripts here
+    # _confirm "Continue script? [y/Y]: "
+    linode_api_admin "boot-linode" "sun.sofibox.com" "Boot_Config"
+
     exit 0
     break
     ;;
