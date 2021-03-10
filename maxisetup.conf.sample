@@ -87,7 +87,7 @@ DA_RESELLER_WILDCARD_DOMAIN1=("sofibox.com:anotherdomain.com:anotherone.com")
 DA_RESELLER_SUBDOMAIN1=("sofibox.com:sales+login+secure" "domain2.com:dashboard" "test.com:abc+def")
 # shared or assign - If shared, domain will use the server's main ip. assign will use one of the reseller's ips
 DA_RESELLER_IP_TYPE1="shared"
-DA_RESELLER_DOMAIN_ENABLE_SSL1="yes"
+DA_RESELLER_ENABLE_DOMAIN_SSL1="yes"
 DA_RESELLER_SSL_SUB_NAME1=("letsencrypt:sofibox.com:www+ftp+mail+pop+smtp+sales+secure+login+svn")
 # Security question and answers
 # Can be empty with ""
@@ -129,7 +129,7 @@ DA_USER_SUBDOMAIN1=("maxibi.com:sales+login+sub1.sub2.sub3+*")
 # user package name, make sure this package name is created first by reseller (the code will check for you)
 DA_USER_PACKAGE_NAME1="USER_UNLIMITED"
 # enable/disable ssl certificate for all domains for this user enable="yes", disable="no"
-DA_USER_DOMAIN_ENABLE_SSL1="yes"
+DA_USER_ENABLE_DOMAIN_SSL1="yes"
 # Define SSL provider for each domain here
 # <ssl_provider>:<root_domain>:subdomain1.subdomain2+subdomain2.subdomain3+subdomainx
 # ssl_provider such as letsencrypt, digicert etc:
@@ -156,12 +156,12 @@ DA_USER_DB1=("maxibi.com:db_name:db_usr:*db-password*")
 DA_RESELLER_WILDCARD_DOMAIN2=
 #DA_USER_SUBDOMAIN2=
 #DA_USER_PACKAGE_NAME2=
-#DA_USER_DOMAIN_ENABLE_SSL2=
+#DA_USER_ENABLE_DOMAIN_SSL2=
 #DA_USER_SSL_SUB_NAME2=
-DA_USER_SECURITY_Q2=
-DA_USER_SECURITY_A2=
-DA_USER_ROOT_WEB_TYPE2=
-DA_USER_DB2=
+#DA_USER_SECURITY_Q2=
+#DA_USER_SECURITY_A2=
+#DA_USER_ROOT_WEB_TYPE2=
+#DA_USER_DB2=
 # === DA user end ===
 
 DA_MAX_UNAME_LENGTH="30"

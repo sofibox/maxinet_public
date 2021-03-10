@@ -3,7 +3,7 @@
 # Author: Arafat Ali | Email: webmaster@sofibox.com
 APP_SPECIFIC_NAME="Maxisetup"
 APP_STATUS="beta"
-APP_VERSION="0.4.0.6-${APP_STATUS}"
+APP_VERSION="0.4.0.9-${APP_STATUS}"
 # This is an initial server hardening script for CentOS and Debian.
 # Compatible 100% with Directadmin. Supported OS: CentOS + Debian (Planned on FreeBSD)
 # You can choose to install as the other stack server such as LEMP, (TODO) Laravel and more defined in config file
@@ -13,6 +13,7 @@ APP_VERSION="0.4.0.6-${APP_STATUS}"
 # URL (public): github.com/sofibox/maxisetup_public | (private) github.com/sofibox/maxisetup (need access token)
 # =~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~="
 # TOP TO DO LIST:
+# TODO: Enable DNSSEC https://help.directadmin.com/item.php?id=651
 # TODO: enable --dry-run (that will simulate testing for this script)
 # TODO: provide an optional option to automatically create google domain verification TXT record through API (need Google business account at console) - Google site verification
 # TODO: create hostname and setup dkim, dmarc, at linode spf at linode (use common subdomain, ftp, mail, www, smtp, pop) - normally it should be created first before installing DA but dkim need to be updated.
@@ -134,7 +135,7 @@ function validate_config() {
 
   local da_reseller_unames da_reseller_unames_count this_da_reseller_uname this_da_reseller_name this_da_reseller_system_email \
     this_da_reseller_mail_users this_da_reseller_mail_passwords this_da_reseller_domains this_da_reseller_wildcard_domains \
-    this_da_reseller_subdomains this_da_reseller_package_name this_da_reseller_domain_enable_ssl this_da_reseller_ssl_sub_name \
+    this_da_reseller_subdomains this_da_reseller_package_name this_da_reseller_enable_domain_ssl this_da_reseller_ssl_sub_name \
     this_da_reseller_security_q this_da_reseller_security_a
 
   da_reseller_unames="${!DA_RESELLER_USERNAME@}"
@@ -153,7 +154,7 @@ function validate_config() {
     typeset -n "this_da_reseller_wildcard_domains"="DA_RESELLER_WILDCARD_DOMAIN${count_user}"
     typeset -n "this_da_reseller_subdomains"="DA_RESELLER_SUBDOMAIN${count_user}"
     typeset -n "this_da_reseller_package_name"="DA_RESELLER_PACKAGE_NAME${count_user}"
-    typeset -n "this_da_reseller_domain_enable_ssl"="DA_RESELLER_DOMAIN_ENABLE_SSL${count_user}"
+    typeset -n "this_da_reseller_enable_domain_ssl"="DA_RESELLER_ENABLE_DOMAIN_SSL${count_user}"
     typeset -n "this_da_reseller_ssl_sub_name"="DA_RESELLER_SSL_SUB_NAME${count_user}"
     typeset -n "this_da_reseller_security_q"="DA_RESELLER_SECURITY_Q${count_user}"
     typeset -n "this_da_reseller_security_a"="DA_RESELLER_SECURITY_A${count_user}"
@@ -211,7 +212,7 @@ function validate_config() {
     elif [[ -z "${this_da_reseller_package_name+x}" ]]; then
       echo "[${SCRIPT_NAME}]: [Skipped]: Warning reseller ${this_da_reseller_uname} doesn't have package name set in config file. Please check configuration file " 2>&1 | tee -a "${REPORT_FILE}"
       _exit 1
-    elif [[ -z "${this_da_reseller_domain_enable_ssl+x}" ]]; then
+    elif [[ -z "${this_da_reseller_enable_domain_ssl+x}" ]]; then
       echo "[${SCRIPT_NAME}]: [Skipped]: Warning reseller ${this_da_reseller_uname} doesn't have domain enable ssl set in config file. Please check configuration file " 2>&1 | tee -a "${REPORT_FILE}"
       _exit 1
     elif [[ $(awk -F':' '{print NF-1}' <<<"${this_da_reseller_ssl_sub_name}") -lt 2 ]]; then
@@ -238,7 +239,7 @@ function validate_config() {
 
   local da_user_unames da_user_count this_da_user_uname this_da_user_password this_da_user_name this_da_user_system_email \
     this_da_user_mail_users this_da_user_mail_passwords this_da_user_domains this_da_user_wildcard_domains this_da_user_subdomains \
-    this_da_user_package_name this_da_user_domain_enable_ssl this_da_user_security_q this_da_user_security_a
+    this_da_user_package_name this_da_user_enable_domain_ssl this_da_user_security_q this_da_user_security_a
 
   da_user_unames="${!DA_USER_USERNAME@}"
   da_user_count=$(echo "${da_user_unames}" | wc -w)
@@ -256,7 +257,7 @@ function validate_config() {
     typeset -n "this_da_user_wildcard_domains"="DA_USER_WILDCARD_DOMAIN${count_user}"
     typeset -n "this_da_user_subdomains"="DA_USER_SUBDOMAIN${count_user}"
     typeset -n "this_da_user_package_name"="DA_USER_PACKAGE_NAME${count_user}"
-    typeset -n "this_da_user_domain_enable_ssl"="DA_USER_DOMAIN_ENABLE_SSL${count_user}"
+    typeset -n "this_da_user_enable_domain_ssl"="DA_USER_ENABLE_DOMAIN_SSL${count_user}"
     typeset -n "this_da_user_ssl_sub_name"="DA_USER_SSL_SUB_NAME${count_user}"
     typeset -n "this_da_user_security_q"="DA_USER_SECURITY_Q${count_user}"
     typeset -n "this_da_user_security_a"="DA_USER_SECURITY_A${count_user}"
@@ -312,7 +313,7 @@ function validate_config() {
     elif [[ -z "${this_da_user_package_name+x}" ]]; then
       echo "[${SCRIPT_NAME}]: [Skipped]: Warning user ${this_da_user_uname} doesn't have package name set in config file. Please check configuration file " 2>&1 | tee -a "${REPORT_FILE}"
       _exit 1
-    elif [[ -z "${this_da_user_domain_enable_ssl+x}" ]]; then
+    elif [[ -z "${this_da_user_enable_domain_ssl+x}" ]]; then
       echo "[${SCRIPT_NAME}]: [Skipped]: Warning user ${this_da_user_uname} doesn't have domain enable ssl set in config file. Please check configuration file " 2>&1 | tee -a "${REPORT_FILE}"
       _exit 1
     elif [[ $(awk -F':' '{print NF-1}' <<<"${this_da_user_ssl_sub_name}") -lt 2 ]]; then
@@ -2568,8 +2569,8 @@ EOF
           echo "password_pbkdf2 ${GRUB_UNAME} ${grub_hash}"
           echo "EOF"
         } >>/etc/grub.d/00_header
-        # or grub-mkconfig -o /boot/grub/grub.cfg
-        sudo update-grub
+        grub-mkconfig -o /boot/grub/grub.cfg
+        #sudo update-grub
       else
         echo "[${SCRIPT_NAME}]: Warning, there is already a grub password set in /etc/grub.d/00_header. It shouldn't be there. Inspect why" 2>&1 | tee -a "${REPORT_FILE}"
         _exit 1
@@ -4239,7 +4240,7 @@ function configure_maxinis() {
 function configure_maxigpg() {
   if [ ! -f "${CONF_PATH}/${FUNCNAME[0]}_executed" ]; then
     echo "[${SCRIPT_NAME}]: Executing ${FUNCNAME[0]} ..." 2>&1 | tee -a "${REPORT_FILE}"
-    local maxigpg_bin ret_val gpg_priv_key
+    local maxigpg_bin ret_val gpg_priv_key gpg_priv_key_encrypted
     echo "[${SCRIPT_NAME}]: Configuring maxigpg installation in maxicode ..." 2>&1 | tee -a "${REPORT_FILE}"
     maxigpg_bin="/usr/local/maxicode/maxigpg/maxigpg"
     if [ -f ${maxigpg_bin} ]; then
@@ -4252,7 +4253,10 @@ function configure_maxigpg() {
       _exit 1
     fi
     if [ "${GPG_USE_EXISTING_KEY}" == "yes" ]; then
-      gpg_priv_key="${DATA_PATH}/maxisetup/storage/os/debian/usr/local/maxicode/maxigpg/secure/priv.key"
+      gpg_priv_key_encrypted="${DATA_PATH}/maxisetup/storage/os/debian/usr/local/maxisecure/gpg/keys/priv.key.gpg"
+      gpg_priv_key="${DATA_PATH}/maxisetup/storage/os/debian/usr/local/maxisecure/gpg/keys/priv.key"
+      rm -f "${gpg_priv_key}"
+      gpg --pinentry-mode=loopback --passphrase "${GPG_PASSPHRASE}" -d -o "${gpg_priv_key}" "${gpg_priv_key_encrypted}"
       echo "[${SCRIPT_NAME}]: Importing existing gpg-agent key from maxisetup ..." 2>&1 | tee -a "${REPORT_FILE}"
       gpg --pinentry-mode=loopback --passphrase "${GPG_PASSPHRASE}" --import "${gpg_priv_key}"
       ret_val=$?
@@ -4311,6 +4315,8 @@ EOF
         _exit 1
       fi
     fi
+    # Remove the unprotected key
+    rm -f "${gpg_priv_key}"
     check_finish_reboot "${FUNCNAME[0]}"
   else
     echo "[${SCRIPT_NAME}]: [Skipped]: ${FUNCNAME[0]} has ran before" 2>&1 | tee -a "${REPORT_FILE}"
@@ -4681,14 +4687,14 @@ function configure_maxicloud() {
 function configure_maxipass() {
 
   if [ ! -f "${CONF_PATH}/${FUNCNAME[0]}_executed" ]; then
-    local maxipass_bin maxipass_conf maxipass_conf_sample maxipass_da_conf maxipass_da_conf_sample
+    local maxipass_bin maxipass_conf maxipass_conf_sample #maxipass_da_conf maxipass_da_conf_sample
     echo "[${SCRIPT_NAME}]: Executing ${FUNCNAME[0]} ..." 2>&1 | tee -a "${REPORT_FILE}"
     local maxipass_bin maxipass_conf maxipass_conf_sample
     maxipass_bin="/usr/local/maxicode/maxipass/maxipass"
     maxipass_conf="/usr/local/maxicode/maxipass/maxipass.conf"
     maxipass_conf_sample="/usr/local/maxicode/maxipass/maxipass.conf.sample"
-    maxipass_da_conf="/usr/local/maxicode/maxipass/secure/da/da.conf"
-    maxipass_da_conf_sample="/usr/local/maxicode/maxipass/secure/da/da.conf.sample"
+    #maxipass_da_conf="/usr/local/maxicode/maxipass/secure/da/da.conf"
+    #maxipass_da_conf_sample="/usr/local/maxicode/maxipass/secure/da/da.conf.sample"
 
     if [ -f ${maxipass_conf_sample} ]; then
       echo "[${SCRIPT_NAME}]: Copying maxipass sample config into ${maxipass_conf} ..." 2>&1 | tee -a "${REPORT_FILE}"
@@ -4698,17 +4704,17 @@ function configure_maxipass() {
       _exit 1
     fi
 
-    if [ -f ${maxipass_da_conf_sample} ]; then
-      echo "[${SCRIPT_NAME}]: Copying maxipass-da sample config into ${maxipass_da_conf} ..." 2>&1 | tee -a "${REPORT_FILE}"
-      cp -f ${maxipass_da_conf_sample} ${maxipass_da_conf}
-      sleep 1
-      # Put admin authentication (this should be encrypted and only accessed by GPG agent):
-      sed -i "s/^API_USERNAME=.*/API_USERNAME=\"${DA_OWNER_USERNAME1}\"/" ${maxipass_da_conf}
-      sed -i "s/^API_USERPASS=.*/API_USERPASS=\"${DA_OWNER_USERPASS1}\"/" ${maxipass_da_conf}
-    else
-      echo "[${SCRIPT_NAME}]: Warning, the sample config file ${maxipass_da_conf_sample} does not exist. Please inspect the file!" 2>&1 | tee -a "${REPORT_FILE}"
-      _exit 1
-    fi
+    #if [ -f ${maxipass_da_conf_sample} ]; then
+    #  echo "[${SCRIPT_NAME}]: Copying maxipass-da sample config into ${maxipass_da_conf} ..." 2>&1 | tee -a "${REPORT_FILE}"
+    #  cp -f ${maxipass_da_conf_sample} ${maxipass_da_conf}
+    #  sleep 1
+    # Put admin authentication (this should be encrypted and only accessed by GPG agent):
+    #  sed -i "s/^API_USERNAME=.*/API_USERNAME=\"${DA_OWNER_USERNAME1}\"/" ${maxipass_da_conf}
+    #  sed -i "s/^API_USERPASS=.*/API_USERPASS=\"${DA_OWNER_USERPASS1}\"/" ${maxipass_da_conf}
+    #else
+    #  echo "[${SCRIPT_NAME}]: Warning, the sample config file ${maxipass_da_conf_sample} does not exist. Please inspect the file!" 2>&1 | tee -a "${REPORT_FILE}"
+    #  _exit 1
+    #fi
 
     if [ -f ${maxipass_bin} ]; then
       echo "[${SCRIPT_NAME}]: Creating symlink and executable for ${maxipass_bin} ..." 2>&1 | tee -a "${REPORT_FILE}"
@@ -4825,23 +4831,51 @@ function configure_da_geoip() {
 configure_da_dns_templates() {
   if [ ! -f "${CONF_PATH}/${FUNCNAME[0]}_executed" ]; then
     echo "[${SCRIPT_NAME}]: Executing ${FUNCNAME[0]} ..." 2>&1 | tee -a "${REPORT_FILE}"
-    local da_template_custom ipv6_full_uncompressed da_bin
+    local da_template_custom ipv6_full_uncompressed da_bin da_latest_version
+    da_latest_version=$(curl -s https://www.directadmin.com/version.php | grep -Eo "[0-9]+\.[0-9]+")
     da_template_custom="/usr/local/directadmin/data/templates/custom"
     da_bin="/usr/local/directadmin/directadmin"
     mkdir -p "${da_template_custom}"
     chown diradmin:diradmin ${da_template_custom}
     touch "${da_template_custom}/dns_txt.conf"
+    echo "DA latest version is ${da_latest_version}. Current DNS config is compatible with DA 1.61.5. Please check compatibility issue"
     echo "[${SCRIPT_NAME}]: Creating SPF, DKIM and DMARC DNS custom template file for Directadmin ..." 2>&1 | tee -a "${REPORT_FILE}"
     sleep 1
     {
+      # Da version 1.61.6 (unreleased) is enabled by default for SPF this: https://www.directadmin.com/features.php?id=2946
+      # Remember once it's released check this:
       echo "|DOMAIN|.=\"v=spf1 a mx ip4:|SERVER_IP||EXTRA_SPF| ~all\""
       echo "_dmarc=\"v=DMARC1; p=none; sp=none; rua=mailto:spam-reports@|DOMAIN|\""
-      # TODO (inspect ths): Currently have issue using this '_domainkey' with API (GUI works): https://forum.directadmin.com/threads/possible-bug-when-using-dns_txt-conf-with-api-include-step-to-reproduce.63247/
+      # Currently have issue using this '_domainkey' with API (GUI works): (fixed-added through API manually)
+      # https://forum.directadmin.com/threads/possible-bug-when-using-dns_txt-conf-with-api-include-step-to-reproduce.63247/
       echo "_domainkey=\"o=~; r=webmaster@|DOMAIN|\""
       # Google site verification should be here
     } >"${da_template_custom}/dns_txt.conf"
-    chown diradmin:diradmin "${da_template_custom}/dns_txt.conf"
     chmod 644 "${da_template_custom}/dns_txt.conf"
+    chown diradmin:diradmin "${da_template_custom}/dns_txt.conf"
+    {
+      echo "|*if IS_IPV6!=""\"yes\"|"
+      echo "|DOMAIN|.=|IP|"
+      echo "mail=|IP|"
+      echo "pop=|IP|"
+      echo "www=|IP|"
+      echo "ftp=|IP|"
+      echo "smtp=|IP|"
+      echo "|*endif|"
+    } >"${da_template_custom}/dns_a.conf"
+    chmod 644 "${da_template_custom}/dns_a.conf"
+
+    {
+      echo "|*if IS_IPV6=""\"yes\"|"
+      echo "|DOMAIN|.=|IP|"
+      echo "mail=|IP|"
+      echo "pop=|IP|"
+      echo "www=|IP|"
+      echo "ftp=|IP|"
+      echo "smtp=|IP|"
+      echo "|*endif|"
+    } >"${da_template_custom}/dns_aaaa.conf"
+    chmod 644 "${da_template_custom}/dns_aaaa.conf"
     # Note last year I use the full form of IP. Remember DA also has ipv6 calculator from directadmin binary.
     ipv6_full_uncompressed=$(ipv6calc --addr2fulluncompaddr "${IPV6_ADD0}")
     echo "[${SCRIPT_NAME}]: Setting extra_spf_value with ipv6:${ipv6_full_uncompressed} ..." 2>&1 | tee -a "${REPORT_FILE}"
@@ -5108,7 +5142,7 @@ function configure_da_reseller_accounts() {
 
     local this_da_reseller_uname this_da_reseller_password this_da_reseller_system_email \
       this_da_reseller_mail_users this_da_reseller_mail_passwords this_da_reseller_domains \
-      this_da_reseller_ip_type this_da_reseller_package_name this_da_reseller_domain_enable_ssl
+      this_da_reseller_ip_type this_da_reseller_package_name this_da_reseller_enable_domain_ssl
 
     # Inside this file contains list of packages for admin and reseller (use this file for checking existing package)
     da_reseller_packages_list="/usr/local/directadmin/data/admin/packages.list"
@@ -5143,7 +5177,7 @@ function configure_da_reseller_accounts() {
       typeset -n "this_da_reseller_domains"="DA_RESELLER_DOMAIN${count_r}"
       typeset -n "this_da_reseller_ip_type"="DA_RESELLER_IP_TYPE${count_r}"
       typeset -n "this_da_reseller_package_name"="DA_RESELLER_PACKAGE_NAME${count_r}"
-      typeset -n "this_da_reseller_domain_enable_ssl"="DA_RESELLER_DOMAIN_ENABLE_SSL${count_r}"
+      typeset -n "this_da_reseller_enable_domain_ssl"="DA_RESELLER_ENABLE_DOMAIN_SSL${count_r}"
       echo ""
       echo "=========== start reseller value ========="
       echo "this_da_reseller_uname = ${this_da_reseller_uname}" 2>&1 | tee -a "${REPORT_FILE}"
@@ -5155,7 +5189,7 @@ function configure_da_reseller_accounts() {
       echo "this_da_reseller_domains = ${this_da_reseller_domains[*]}" 2>&1 | tee -a "${REPORT_FILE}"
       echo "this_da_reseller_ip_type = ${this_da_reseller_ip_type}" 2>&1 | tee -a "${REPORT_FILE}"
       echo "this_da_reseller_package_name = ${this_da_reseller_package_name}" 2>&1 | tee -a "${REPORT_FILE}"
-      echo "this_da_reseller_domain_enable_ssl = ${this_da_reseller_domain_enable_ssl}" 2>&1 | tee -a "${REPORT_FILE}"
+      echo "this_da_reseller_enable_domain_ssl = ${this_da_reseller_enable_domain_ssl}" 2>&1 | tee -a "${REPORT_FILE}"
       echo "=========== end reseller value =========" 2>&1 | tee -a "${REPORT_FILE}"
 
       echo "[${SCRIPT_NAME}]: Checking if reseller package name ${this_da_reseller_package_name} was created by admin before ..." 2>&1 | tee -a "${REPORT_FILE}"
@@ -5486,6 +5520,97 @@ function configure_da_reseller_accounts() {
   fi
 }
 
+function configure_da_reseller_root_domains() {
+  if [ ! -f "${CONF_PATH}/${FUNCNAME[0]}_executed" ]; then
+    echo "[${SCRIPT_NAME}]: Executing ${FUNCNAME[0]} ..." 2>&1 | tee -a "${REPORT_FILE}"
+    local da_reseller_domains da_reseller_domains_count this_da_reseller_username this_da_reseller_userpass \
+      this_da_reseller_domains this_da_reseller_domains_count
+    local count_x count_n count_o domain
+    # Get list of all reseller subdomains
+    da_reseller_domains="${!DA_RESELLER_DOMAIN@}"
+    # Count the total domains
+    da_reseller_domains_count=$(echo "${da_reseller_domains}" | wc -w)
+    # Debug:
+    echo "da_reseller_domains: ${da_reseller_domains}" 2>&1 | tee -a "${REPORT_FILE}"
+    echo "da_reseller_domains_count ${da_reseller_domains_count}" 2>&1 | tee -a "${REPORT_FILE}"
+    # initial value to loop
+    count_x=1
+    while [[ ${count_x} -le ${da_reseller_domains_count} ]]; do
+      echo "Count_x: ${count_x}"
+      echo "DA_RESELLER_DOMAINS_COUNT ${da_reseller_domains_count}"
+      echo "=~=~=~=~=~=~=~=~=~+~+~+~=~=~" 2>&1 | tee -a "${REPORT_FILE}"
+      echo "count_reseller_domain_loop = ${count_x}" 2>&1 | tee -a "${REPORT_FILE}"
+      echo "" 2>&1 | tee -a "${REPORT_FILE}"
+      typeset -n "this_da_reseller_username"="DA_RESELLER_USERNAME${count_x}"
+      typeset -n "this_da_reseller_userpass"="DA_RESELLER_USERPASS${count_x}"
+
+      this_da_reseller_domains=$(cat "/usr/local/directadmin/data/users/${this_da_reseller_username}/domains.list")
+      # Debug:
+      echo "this_da_reseller_username: ${this_da_reseller_username}" 2>&1 | tee -a "${REPORT_FILE}"
+      echo "this_da_reseller_userpass: ${this_da_reseller_userpass}" 2>&1 | tee -a "${REPORT_FILE}"
+
+      echo "this_da_reseller_domains: ${this_da_reseller_domains[*]}" 2>&1 | tee -a "${REPORT_FILE}"
+      this_da_reseller_domains_count=$(echo "${this_da_reseller_domains}" | wc -w)
+      echo "this_da_reseller_domains_count: ${this_da_reseller_domains_count}"
+      count_n=1
+      while [ ${count_n} -le "${this_da_reseller_domains_count}" ]; do
+        echo "------------------------" 2>&1 | tee -a "${REPORT_FILE}"
+        echo "Total count: ${count_n}" 2>&1 | tee -a "${REPORT_FILE}"
+        count_o=0
+        for domain in ${this_da_reseller_domains}; do
+          echo "count_o: ${count_o}"
+          # Debug
+          echo "domain is set: ${domain}" 2>&1 | tee -a "${REPORT_FILE}"
+          echo "" 2>&1 | tee -a "${REPORT_FILE}"
+
+          echo "[${SCRIPT_NAME}]: Creating root domain ${domain} for both IPv4 and IPv6 ..." 2>&1 | tee -a "${REPORT_FILE}"
+          echo "~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~" 2>&1 | tee -a "${REPORT_FILE}"
+          da_api_admin "signas+${this_da_reseller_username}+${this_da_reseller_userpass}"
+          # Note if record exist, it won't create in DA
+          da_api_admin "create-dns-record" "${domain}" "A" "${domain}." "${IPV4_ADD0}"
+          da_api_admin "create-dns-record" "${domain}" "AAAA" "${domain}." "$(ipv6calc --addr2uncompaddr "${IPV6_ADD0}")"
+          echo "~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~" 2>&1 | tee -a "${REPORT_FILE}"
+          echo "" 2>&1 | tee -a "${REPORT_FILE}"
+          if [ "${EXTERNAL_DNS_PROVIDER}" == "linode" ]; then
+            # In linode DNS record are duplicated, we don't want so must delete previous record first before adding new
+            echo "[${SCRIPT_NAME}]: DNS provider is set to linode. Using linode API" 2>&1 | tee -a "${REPORT_FILE}"
+
+            echo "[${SCRIPT_NAME}]: Deleting root ${domain} record for IPv4 and IPv6 from linode" 2>&1 | tee -a "${REPORT_FILE}"
+            echo "~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~" 2>&1 | tee -a "${REPORT_FILE}"
+            # In linode empty there means hostname or I can use @ or try domain.com
+            linode_api_admin "delete-dns-record" "${domain}" "" "A"
+            linode_api_admin "delete-dns-record" "${domain}" "" "AAAA"
+            echo "~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~" 2>&1 | tee -a "${REPORT_FILE}"
+            echo "" 2>&1 | tee -a "${REPORT_FILE}"
+
+            # Also add wildcard domain for linode API here
+            echo "[${SCRIPT_NAME}]: Adding wildcard domain ${domain} record for IPv4 and IPv6 from linode" 2>&1 | tee -a "${REPORT_FILE}"
+            echo "~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~" 2>&1 | tee -a "${REPORT_FILE}"
+            #In linode empty there means hostname or I can use @ or try domain.com
+            linode_api_admin "add-dns-record" "${domain}" "A" "" "${IPV4_ADD0}" "5"
+            linode_api_admin "add-dns-record" "${domain}" "AAAA" "" "${IPV6_ADD0}" "5"
+            echo "~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~" 2>&1 | tee -a "${REPORT_FILE}"
+            echo "" 2>&1 | tee -a "${REPORT_FILE}"
+          elif [ "${EXTERNAL_DNS_PROVIDER}" == "digitalocean" ]; then
+            echo "[${SCRIPT_NAME}]: DNS provider is set to digitalocean" 2>&1 | tee -a "${REPORT_FILE}"
+            # Call digitalocean_api_admin
+            #elif other provider
+          elif [ "${EXTERNAL_DNS_PROVIDER}" == "local" ]; then
+            echo "[${SCRIPT_NAME}]: DNS provider is set to local (Internal DNS)" 2>&1 | tee -a "${REPORT_FILE}"
+            # Do nothing
+          fi
+          ((count_o++))
+        done
+        ((count_n++))
+      done
+      ((count_x++))
+    done
+    check_finish_reboot "${FUNCNAME[0]}"
+  else
+    echo "[${SCRIPT_NAME}]: [Skipped]: ${FUNCNAME[0]} has ran before" 2>&1 | tee -a "${REPORT_FILE}"
+    echo "=~=~=~=~=~=~=~=~=~" 2>&1 | tee -a "${REPORT_FILE}"
+  fi
+}
 function configure_da_reseller_wildcard_domains() {
   if [ ! -f "${CONF_PATH}/${FUNCNAME[0]}_executed" ]; then
     echo "[${SCRIPT_NAME}]: Executing ${FUNCNAME[0]} ..." 2>&1 | tee -a "${REPORT_FILE}"
@@ -5586,7 +5711,7 @@ function configure_da_user_accounts() {
     local da_user_packages_list gc count #da_admin_packages_list
     local da_user_unames                 #da_user_passwords da_user_emails da_user_domains da_user_package_names
     local this_da_user_uname this_da_user_password this_da_user_system_email this_da_user_mail_users
-    local this_da_user_mail_passwords this_da_user_domains this_da_user_package_name this_da_user_domain_enable_ssl
+    local this_da_user_mail_passwords this_da_user_domains this_da_user_package_name this_da_user_enable_domain_ssl
     local da_user_count
     local dkim_val dmarc_val spf_val
 
@@ -5616,7 +5741,7 @@ function configure_da_user_accounts() {
       typeset -n "this_da_user_mail_passwords"="DA_USER_MAIL_PASSWORD${count_user}"
       typeset -n "this_da_user_domains"="DA_USER_DOMAIN${count_user}"
       typeset -n "this_da_user_package_name"="DA_USER_PACKAGE_NAME${count_user}"
-      typeset -n "this_da_user_domain_enable_ssl"="DA_USER_DOMAIN_ENABLE_SSL${count_user}"
+      typeset -n "this_da_user_enable_domain_ssl"="DA_USER_ENABLE_DOMAIN_SSL${count_user}"
 
       echo "=========== start user value ========="
       echo "this_da_user_uname = ${this_da_user_uname}"
@@ -5627,7 +5752,7 @@ function configure_da_user_accounts() {
       echo "this_da_user_mail_passwords = ${this_da_user_mail_passwords}"
       echo "this_da_user_domains = ${this_da_user_domains}"
       echo "this_da_user_package_name = ${this_da_user_package_name}"
-      echo "this_da_user_domain_enable_ssl = ${this_da_user_domain_enable_ssl}"
+      echo "this_da_user_enable_domain_ssl = ${this_da_user_enable_domain_ssl}"
       echo "=========== end user value ========="
       echo ""
 
@@ -5888,6 +6013,100 @@ function configure_da_user_accounts() {
       #sleep 10
     done
 
+    check_finish_reboot "${FUNCNAME[0]}"
+  else
+    echo "[${SCRIPT_NAME}]: [Skipped]: ${FUNCNAME[0]} has ran before" 2>&1 | tee -a "${REPORT_FILE}"
+    echo "=~=~=~=~=~=~=~=~=~" 2>&1 | tee -a "${REPORT_FILE}"
+  fi
+
+}
+
+function configure_da_user_root_domains() {
+
+  if [ ! -f "${CONF_PATH}/${FUNCNAME[0]}_executed" ]; then
+    echo "[${SCRIPT_NAME}]: Executing ${FUNCNAME[0]} ..." 2>&1 | tee -a "${REPORT_FILE}"
+    local da_user_domains da_user_domains_count this_da_user_username this_da_user_userpass \
+      this_da_user_domains this_da_user_domains_count
+    local count_x count_n count_o domain
+    # Get list of all user subdomains
+    da_user_domains="${!DA_USER_DOMAIN@}"
+    # Count the total domains
+    da_user_domains_count=$(echo "${da_user_domains}" | wc -w)
+    # Debug:
+    echo "da_user_domains: ${da_user_domains}" 2>&1 | tee -a "${REPORT_FILE}"
+    echo "da_user_domains_count ${da_user_domains_count}" 2>&1 | tee -a "${REPORT_FILE}"
+    # initial value to loop
+    count_x=1
+    while [[ ${count_x} -le ${da_user_domains_count} ]]; do
+      echo "Count_x: ${count_x}"
+      echo "DA_USER_DOMAINS_COUNT ${da_user_domains_count}"
+      echo "=~=~=~=~=~=~=~=~=~+~+~+~=~=~" 2>&1 | tee -a "${REPORT_FILE}"
+      echo "count_user_domain_loop = ${count_x}" 2>&1 | tee -a "${REPORT_FILE}"
+      echo "" 2>&1 | tee -a "${REPORT_FILE}"
+      typeset -n "this_da_user_username"="DA_USER_USERNAME${count_x}"
+      typeset -n "this_da_user_userpass"="DA_USER_USERPASS${count_x}"
+
+      this_da_user_domains=$(cat "/usr/local/directadmin/data/users/${this_da_user_username}/domains.list")
+      # Debug:
+      echo "this_da_user_username: ${this_da_user_username}" 2>&1 | tee -a "${REPORT_FILE}"
+      echo "this_da_user_userpass: ${this_da_user_userpass}" 2>&1 | tee -a "${REPORT_FILE}"
+
+      echo "this_da_user_domains: ${this_da_user_domains[*]}" 2>&1 | tee -a "${REPORT_FILE}"
+      this_da_user_domains_count=$(echo "${this_da_user_domains}" | wc -w)
+      echo "this_da_user_domains_count: ${this_da_user_domains_count}"
+      count_n=1
+      while [ ${count_n} -le "${this_da_user_domains_count}" ]; do
+        echo "------------------------" 2>&1 | tee -a "${REPORT_FILE}"
+        echo "Total count: ${count_n}" 2>&1 | tee -a "${REPORT_FILE}"
+        count_o=0
+        for domain in ${this_da_user_domains}; do
+          echo "count_o: ${count_o}"
+          # Debug
+          echo "domain is set: ${domain}" 2>&1 | tee -a "${REPORT_FILE}"
+          echo "" 2>&1 | tee -a "${REPORT_FILE}"
+
+          echo "[${SCRIPT_NAME}]: Creating root domain ${domain} for both IPv4 and IPv6 ..." 2>&1 | tee -a "${REPORT_FILE}"
+          echo "~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~" 2>&1 | tee -a "${REPORT_FILE}"
+          da_api_admin "signas+${this_da_user_username}+${this_da_user_userpass}"
+          # Note if record exist, it won't create in DA
+          da_api_admin "create-dns-record" "${domain}" "A" "${domain}." "${IPV4_ADD0}"
+          da_api_admin "create-dns-record" "${domain}" "AAAA" "${domain}." "$(ipv6calc --addr2uncompaddr "${IPV6_ADD0}")"
+          echo "~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~" 2>&1 | tee -a "${REPORT_FILE}"
+          echo "" 2>&1 | tee -a "${REPORT_FILE}"
+          if [ "${EXTERNAL_DNS_PROVIDER}" == "linode" ]; then
+            # In linode DNS record are duplicated, we don't want so must delete previous record first before adding new
+            echo "[${SCRIPT_NAME}]: DNS provider is set to linode. Using linode API" 2>&1 | tee -a "${REPORT_FILE}"
+
+            echo "[${SCRIPT_NAME}]: Deleting root ${domain} record for IPv4 and IPv6 from linode" 2>&1 | tee -a "${REPORT_FILE}"
+            echo "~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~" 2>&1 | tee -a "${REPORT_FILE}"
+            # In linode empty there means hostname or I can use @ or try domain.com
+            linode_api_admin "delete-dns-record" "${domain}" "" "A"
+            linode_api_admin "delete-dns-record" "${domain}" "" "AAAA"
+            echo "~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~" 2>&1 | tee -a "${REPORT_FILE}"
+            echo "" 2>&1 | tee -a "${REPORT_FILE}"
+
+            # Also add wildcard domain for linode API here
+            echo "[${SCRIPT_NAME}]: Adding wildcard domain ${domain} record for IPv4 and IPv6 from linode" 2>&1 | tee -a "${REPORT_FILE}"
+            echo "~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~" 2>&1 | tee -a "${REPORT_FILE}"
+            #In linode empty there means hostname or I can use @ or try domain.com
+            linode_api_admin "add-dns-record" "${domain}" "A" "" "${IPV4_ADD0}" "5"
+            linode_api_admin "add-dns-record" "${domain}" "AAAA" "" "${IPV6_ADD0}" "5"
+            echo "~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~" 2>&1 | tee -a "${REPORT_FILE}"
+            echo "" 2>&1 | tee -a "${REPORT_FILE}"
+          elif [ "${EXTERNAL_DNS_PROVIDER}" == "digitalocean" ]; then
+            echo "[${SCRIPT_NAME}]: DNS provider is set to digitalocean" 2>&1 | tee -a "${REPORT_FILE}"
+            # Call digitalocean_api_admin
+            #elif other provider
+          elif [ "${EXTERNAL_DNS_PROVIDER}" == "local" ]; then
+            echo "[${SCRIPT_NAME}]: DNS provider is set to local (Internal DNS)" 2>&1 | tee -a "${REPORT_FILE}"
+            # Do nothing
+          fi
+          ((count_o++))
+        done
+        ((count_n++))
+      done
+      ((count_x++))
+    done
     check_finish_reboot "${FUNCNAME[0]}"
   else
     echo "[${SCRIPT_NAME}]: [Skipped]: ${FUNCNAME[0]} has ran before" 2>&1 | tee -a "${REPORT_FILE}"
@@ -6362,13 +6581,13 @@ function configure_da_user_emails() {
 
 }
 function configure_da_reseller_domain_ssl() {
-  # Here we configure SSL for specific domains we want based on the config variable: DA_RESELLER_DOMAIN_ENABLE_SSL{?}
+  # Here we configure SSL for specific domains we want based on the config variable: DA_RESELLER_ENABLE_DOMAIN_SSL{?}
   # Where Domain can have 1 or more
   #rm -f "${CONF_PATH}/${FUNCNAME[0]}_executed"
   if [ ! -f "${CONF_PATH}/${FUNCNAME[0]}_executed" ]; then
     echo "[${SCRIPT_NAME}]: Executing ${FUNCNAME[0]} ..." 2>&1 | tee -a "${REPORT_FILE}"
     local da_reseller_ssl_sub_names da_reseller_ssl_sub_names_count
-    local this_da_reseller_uname this_da_reseller_userpass this_da_reseller_domain_enable_ssl \
+    local this_da_reseller_uname this_da_reseller_userpass this_da_reseller_enable_domain_ssl \
       this_da_reseller_ssl_sub_names retval
     # Get all the reseller ssl_sub_names
     da_reseller_ssl_sub_names="${!DA_RESELLER_SSL_SUB_NAME@}"
@@ -6382,17 +6601,17 @@ function configure_da_reseller_domain_ssl() {
       echo "===== Loop count: ${count_x} ========="
       typeset -n "this_da_reseller_username"="DA_RESELLER_USERNAME${count_x}"
       typeset -n "this_da_reseller_userpass"="DA_RESELLER_USERPASS${count_x}"
-      typeset -n "this_da_reseller_domain_enable_ssl"="DA_RESELLER_DOMAIN_ENABLE_SSL${count_x}"
+      typeset -n "this_da_reseller_enable_domain_ssl"="DA_RESELLER_ENABLE_DOMAIN_SSL${count_x}"
       typeset -n "this_da_reseller_ssl_sub_names"="DA_RESELLER_SSL_SUB_NAME${count_x}"
 
       echo "this_da_reseller_username: ${this_da_reseller_username}"
       echo "this_da_reseller_userpass: ${this_da_reseller_userpass}"
-      echo "this_da_reseller_domain_enable_ssl: ${this_da_reseller_domain_enable_ssl}"
+      echo "this_da_reseller_enable_domain_ssl: ${this_da_reseller_enable_domain_ssl}"
       echo "this_da_reseller_ssl_sub_names: ${this_da_reseller_ssl_sub_names[*]}"
       this_da_reseller_ssl_sub_names_count=${#this_da_reseller_ssl_sub_names[@]}
       echo "=========================================="
 
-      if [[ ${this_da_reseller_domain_enable_ssl} == "yes" ]]; then
+      if [[ ${this_da_reseller_enable_domain_ssl} == "yes" ]]; then
         echo ""
         echo "OK, This reseller is set to enable SSL"
         count_n=0
@@ -6448,7 +6667,7 @@ function configure_da_reseller_domain_ssl() {
           fi
           ((count_n++))
         done
-      elif [[ ${this_da_user_domain_enable_ssl} == "no" ]]; then
+      elif [[ ${this_da_user_enable_domain_ssl} == "no" ]]; then
         echo "Warning This user is set to not enable SSL. Do nothing for this"
       fi
       echo ""
@@ -6463,13 +6682,13 @@ function configure_da_reseller_domain_ssl() {
 
 }
 function configure_da_user_domain_ssl() {
-  # Here we configure SSL for specific domains we want based on the config variable: DA_USER_DOMAIN_ENABLE_SSL{?}
+  # Here we configure SSL for specific domains we want based on the config variable: DA_USER_ENABLE_DOMAIN_SSL{?}
   # Where Domain can have 1 or more
   #rm -f "${CONF_PATH}/${FUNCNAME[0]}_executed"
   if [ ! -f "${CONF_PATH}/${FUNCNAME[0]}_executed" ]; then
     echo "[${SCRIPT_NAME}]: Executing ${FUNCNAME[0]} ..." 2>&1 | tee -a "${REPORT_FILE}"
     local da_user_ssl_sub_names da_user_ssl_sub_names_count this_da_user_username this_da_user_userpass \
-      this_da_user_domain_enable_ssl this_da_user_ssl_sub_names this_da_user_ssl_sub_names_count
+      this_da_user_enable_domain_ssl this_da_user_ssl_sub_names this_da_user_ssl_sub_names_count
     local ssl_provider ssl_domain ssl_subdomains_raw le_select_query le_s count_o count_n count_x retval
     # Get all the user ssl_sub_names
     da_user_ssl_sub_names="${!DA_USER_SSL_SUB_NAME@}"
@@ -6482,16 +6701,16 @@ function configure_da_user_domain_ssl() {
       echo "===== countx = ${count_x} ========="
       typeset -n "this_da_user_username"="DA_USER_USERNAME${count_x}"
       typeset -n "this_da_user_userpass"="DA_USER_USERPASS${count_x}"
-      typeset -n "this_da_user_domain_enable_ssl"="DA_USER_DOMAIN_ENABLE_SSL${count_x}"
+      typeset -n "this_da_user_enable_domain_ssl"="DA_USER_ENABLE_DOMAIN_SSL${count_x}"
       typeset -n "this_da_user_ssl_sub_names"="DA_USER_SSL_SUB_NAME${count_x}"
 
       echo "this_da_user_username: ${this_da_user_username}"
       echo "this_da_user_userpass: ${this_da_user_userpass}"
-      echo "this_da_user_domain_enable_ssl: ${this_da_user_domain_enable_ssl}"
+      echo "this_da_user_enable_domain_ssl: ${this_da_user_enable_domain_ssl}"
       echo "this_da_user_ssl_sub_names: ${this_da_user_ssl_sub_names[*]}"
       this_da_user_ssl_sub_names_count=${#this_da_user_ssl_sub_names[@]}
 
-      if [[ ${this_da_user_domain_enable_ssl} == "yes" ]]; then
+      if [[ ${this_da_user_enable_domain_ssl} == "yes" ]]; then
         echo ""
         echo "=========================================="
         echo "OK, This user is set to enable SSL"
@@ -6547,7 +6766,7 @@ function configure_da_user_domain_ssl() {
           ((count_n++))
         done
 
-      elif [[ ${this_da_user_domain_enable_ssl} == "no" ]]; then
+      elif [[ ${this_da_user_enable_domain_ssl} == "no" ]]; then
         echo "Warning This user is set to not enable SSL. Do nothing for this"
       fi
       echo "=========================================="
@@ -7320,13 +7539,9 @@ while [ "$#" -gt 0 ]; do
     # If I don't restart, I won't be able to request cert and letsencrypt will complain about firewall.
     #configure_logs
     if [ "${INSTALL_TYPE}" == "DIRECTADMIN" ]; then
-      # Must run this functions (configure_da_ssl) after running CSF because we need to make sure all appropriate ports are opened to request certs
-      # Warning do not overused configure_da_ssl function because when requesting the same cert for the same domain 7 times for a week, you will get blocked.
-      # This will set the hosting to SSL:
-      configure_da_ssl_pre
       #exit 1
       configure_da_sql
-      exit 1
+      #exit 1
       configure_da_mail
       #exit 1
       configure_da_ftp
@@ -7340,33 +7555,40 @@ while [ "$#" -gt 0 ]; do
       configure_da
       #exit 1
       # we configure dns template before creating admin, reseller and user accounts so they can use new DNS template
+      rm -rf "${CONF_PATH}/configure_da_dns_templates_executed"
       configure_da_dns_templates
       #exit 1
-      #rm -rf "${CONF_PATH}/configure_da_owner_accounts_executed"
+      rm -rf "${CONF_PATH}/configure_da_owner_accounts_executed"
       configure_da_owner_accounts
       #exit 1
-      #rm -rf "${CONF_PATH}/configure_da_admin_accounts_executed"
+      rm -rf "${CONF_PATH}/configure_da_admin_accounts_executed"
       configure_da_admin_accounts
       #exit 1
-      #rm -rf "${CONF_PATH}/configure_da_reseller_accounts_executed"
+      rm -rf "${CONF_PATH}/configure_da_reseller_accounts_executed"
       configure_da_reseller_accounts
       #exit 1
-      #rm -rf "${CONF_PATH}/configure_da_reseller_wildcard_domains_executed"
+      rm -rf "${CONF_PATH}/configure_da_reseller_root_domains_executed"
+      configure_da_reseller_root_domains
+      #exit 1
+      rm -rf "${CONF_PATH}/configure_da_reseller_wildcard_domains_executed"
       configure_da_reseller_wildcard_domains
       #exit 1
-      #rm -rf "${CONF_PATH}/configure_da_reseller_subdomains_executed"
+      rm -rf "${CONF_PATH}/configure_da_reseller_subdomains_executed"
       configure_da_reseller_subdomains
       #exit 1
-      #rm -rf "${CONF_PATH}/configure_da_reseller_emails_executed"
+      rm -rf "${CONF_PATH}/configure_da_reseller_emails_executed"
       configure_da_reseller_emails
       #exit 1
-      #rm -rf "${CONF_PATH}/configure_da_user_accounts_executed"
+      rm -rf "${CONF_PATH}/configure_da_user_accounts_executed"
       configure_da_user_accounts
       #exit 1
-      #rm -rf "${CONF_PATH}/configure_da_user_wildcard_domains_executed"
+      rm -rf "${CONF_PATH}/configure_da_user_root_domains_executed"
+      configure_da_user_root_domains
+      exit 1
+      rm -rf "${CONF_PATH}/configure_da_user_wildcard_domains_executed"
       configure_da_user_wildcard_domains
       #exit 1
-      #rm -rf "${CONF_PATH}/configure_da_user_subdomains_executed"
+      rm -rf "${CONF_PATH}/configure_da_user_subdomains_executed"
       configure_da_user_subdomains
       #exit 1
       #rm -rf "${CONF_PATH}/configure_da_user_emails_executed"
@@ -7401,7 +7623,15 @@ while [ "$#" -gt 0 ]; do
       configure_da_user_databases
       #exit 1
       configure_da_custom_webs
-      #exit 1
+      exit 1
+
+      # Must run this functions (configure_da_ssl) after running CSF because we need to make sure all appropriate ports are opened to request certs
+      # Warning do not overused configure_da_ssl function because when requesting the same cert for the same domain 7 times for a week, you will get blocked.
+      # This will set the hosting to SSL:
+      configure_da_ssl_pre
+
+      # It's best to call SSL after domain propagation few hours later.
+
       # Call certificate request at the end because we want to create DNS entry and propagate first
       # Don't worry if some domains are not able to have SSL because of the propagation problem using external DNS
       configure_da_ssl
@@ -7421,14 +7651,16 @@ while [ "$#" -gt 0 ]; do
     # exit 1
     post_setup
     echo "" 2>&1 | tee -a "${REPORT_FILE}"
-    echo "==============" 2>&1 | tee -a "${REPORT_FILE}"
-    echo "Directadmin now can be accessed through this URL: " 2>&1 | tee -a "${REPORT_FILE}"
-    echo "http://${IPV4_ADD0}:${DA_PORT} or http://${BOX_HOSTNAME_FQDN}:${DA_PORT}" 2>&1 | tee -a "${REPORT_FILE}"
-    echo "Username: DA_OWNER_USERNAME1" 2>&1 | tee -a "${REPORT_FILE}"
-    echo "Password: *******" 2>&1 | tee -a "${REPORT_FILE}"
-    echo "==============" 2>&1 | tee -a "${REPORT_FILE}"
-    echo "" 2>&1 | tee -a "${REPORT_FILE}"
-    echo ""
+    if [ "${INSTALL_TYPE}" == "DIRECTADMIN" ]; then
+      echo "==============" 2>&1 | tee -a "${REPORT_FILE}"
+      echo "Directadmin now can be accessed through this URL: " 2>&1 | tee -a "${REPORT_FILE}"
+      echo "http://${IPV4_ADD0}:${DA_PORT} or http://${BOX_HOSTNAME_FQDN}:${DA_PORT}" 2>&1 | tee -a "${REPORT_FILE}"
+      echo "Username: DA_OWNER_USERNAME1" 2>&1 | tee -a "${REPORT_FILE}"
+      echo "Password: *******" 2>&1 | tee -a "${REPORT_FILE}"
+      echo "==============" 2>&1 | tee -a "${REPORT_FILE}"
+      echo "" 2>&1 | tee -a "${REPORT_FILE}"
+      echo ""
+    fi
     script_time
     echo "========== Installation Completed ==========" 2>&1 | tee -a "${REPORT_FILE}"
     echo ""
