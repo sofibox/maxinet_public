@@ -3,7 +3,7 @@
 # Author: Arafat Ali | Email: webmaster@sofibox.com
 APP_SPECIFIC_NAME="Maxisetup"
 APP_STATUS="beta"
-APP_VERSION="0.4.0.9-${APP_STATUS}"
+APP_VERSION="0.4.1.0-${APP_STATUS}"
 # This is an initial server hardening script for CentOS and Debian.
 # Compatible 100% with Directadmin. Supported OS: CentOS + Debian (Planned on FreeBSD)
 # You can choose to install as the other stack server such as LEMP, (TODO) Laravel and more defined in config file
@@ -7554,49 +7554,49 @@ while [ "$#" -gt 0 ]; do
       #exit 1
       configure_da
       #exit 1
+      configure_da_memcached
+      #exit 1
+      configure_da_geoip
+      #exit 1
       # we configure dns template before creating admin, reseller and user accounts so they can use new DNS template
-      rm -rf "${CONF_PATH}/configure_da_dns_templates_executed"
+      #rm -rf "${CONF_PATH}/configure_da_dns_templates_executed"
       configure_da_dns_templates
       #exit 1
-      rm -rf "${CONF_PATH}/configure_da_owner_accounts_executed"
+      #rm -rf "${CONF_PATH}/configure_da_owner_accounts_executed"
       configure_da_owner_accounts
       #exit 1
-      rm -rf "${CONF_PATH}/configure_da_admin_accounts_executed"
+      #rm -rf "${CONF_PATH}/configure_da_admin_accounts_executed"
       configure_da_admin_accounts
       #exit 1
-      rm -rf "${CONF_PATH}/configure_da_reseller_accounts_executed"
+      #rm -rf "${CONF_PATH}/configure_da_reseller_accounts_executed"
       configure_da_reseller_accounts
       #exit 1
-      rm -rf "${CONF_PATH}/configure_da_reseller_root_domains_executed"
+      #rm -rf "${CONF_PATH}/configure_da_reseller_root_domains_executed"
       configure_da_reseller_root_domains
       #exit 1
-      rm -rf "${CONF_PATH}/configure_da_reseller_wildcard_domains_executed"
+      #rm -rf "${CONF_PATH}/configure_da_reseller_wildcard_domains_executed"
       configure_da_reseller_wildcard_domains
       #exit 1
-      rm -rf "${CONF_PATH}/configure_da_reseller_subdomains_executed"
+      #rm -rf "${CONF_PATH}/configure_da_reseller_subdomains_executed"
       configure_da_reseller_subdomains
       #exit 1
-      rm -rf "${CONF_PATH}/configure_da_reseller_emails_executed"
+      #rm -rf "${CONF_PATH}/configure_da_reseller_emails_executed"
       configure_da_reseller_emails
       #exit 1
-      rm -rf "${CONF_PATH}/configure_da_user_accounts_executed"
+      #rm -rf "${CONF_PATH}/configure_da_user_accounts_executed"
       configure_da_user_accounts
       #exit 1
-      rm -rf "${CONF_PATH}/configure_da_user_root_domains_executed"
+      #rm -rf "${CONF_PATH}/configure_da_user_root_domains_executed"
       configure_da_user_root_domains
-      exit 1
-      rm -rf "${CONF_PATH}/configure_da_user_wildcard_domains_executed"
+      #exit 1
+      #rm -rf "${CONF_PATH}/configure_da_user_wildcard_domains_executed"
       configure_da_user_wildcard_domains
       #exit 1
-      rm -rf "${CONF_PATH}/configure_da_user_subdomains_executed"
+      #rm -rf "${CONF_PATH}/configure_da_user_subdomains_executed"
       configure_da_user_subdomains
       #exit 1
       #rm -rf "${CONF_PATH}/configure_da_user_emails_executed"
       configure_da_user_emails
-      #exit 1
-      configure_da_memcached
-      #exit 1
-      configure_da_geoip
       #exit 1
       #rm -rf "${CONF_PATH}/configure_da_owner_skins_executed"
       configure_da_owner_skins
@@ -7623,7 +7623,7 @@ while [ "$#" -gt 0 ]; do
       configure_da_user_databases
       #exit 1
       configure_da_custom_webs
-      exit 1
+      #exit 1
 
       # Must run this functions (configure_da_ssl) after running CSF because we need to make sure all appropriate ports are opened to request certs
       # Warning do not overused configure_da_ssl function because when requesting the same cert for the same domain 7 times for a week, you will get blocked.
