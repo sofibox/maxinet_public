@@ -10,7 +10,7 @@
     <select />
   </component>
   <component name="ChangeListManager">
-    <list default="true" id="113c828c-9a32-4b24-ab1e-978ce50c6320" name="Default Changelist" comment="Changed variable name DA_RESELLER_DOMAIN_ENABLE_SSL to:&#10;&#10;DA_RESELLER_ENABLE_DOMAIN_SSL to avoid pattern bug.&#10;&#10;Updated maxipass installation&#10;&#10;Updated da_dns_templates&#10;&#10;Added new 2 functions to configure root domain:&#10;&#10;configure_da_reseller_root_domains()&#10;and&#10;configure_da_user_root_domains()">
+    <list default="true" id="113c828c-9a32-4b24-ab1e-978ce50c6320" name="Default Changelist" comment="Added secure_vps_by_sofibox.pdf documentation&#10;Small changes to maxisetup">
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
@@ -53,15 +53,13 @@
     </key>
   </component>
   <component name="RunManager">
-    <configuration default="true" type="ArquillianTestNG" factoryName="" nameIsGenerated="true">
+    <configuration default="true" type="ArquillianJUnit" factoryName="" nameIsGenerated="true">
       <option name="arquillianRunConfiguration">
         <value>
           <option name="containerStateName" value="" />
         </value>
       </option>
-      <option name="TEST_OBJECT" value="CLASS" />
-      <properties />
-      <listeners />
+      <option name="TEST_OBJECT" value="class" />
       <method v="2">
         <option name="Make" enabled="true" />
       </method>
@@ -132,13 +130,7 @@
       <workItem from="1615239305318" duration="1445000" />
       <workItem from="1615293478079" duration="653000" />
       <workItem from="1615389523618" duration="703000" />
-    </task>
-    <task id="LOCAL-00010" summary="Remove 3rd party rules from maxisetup and add that in maxicata instead">
-      <created>1611204482891</created>
-      <option name="number" value="00010" />
-      <option name="presentableId" value="LOCAL-00010" />
-      <option name="project" value="LOCAL" />
-      <updated>1611204482891</updated>
+      <workItem from="1615390751539" duration="425000" />
     </task>
     <task id="LOCAL-00011" summary="Minor change- &gt; improve _pause() function to accept both timeout and keypress, so during setup, we can skip sleep function by pressing enter.">
       <created>1611209148834</created>
@@ -476,7 +468,14 @@
       <option name="project" value="LOCAL" />
       <updated>1615389570295</updated>
     </task>
-    <option name="localTasksCounter" value="59" />
+    <task id="LOCAL-00059" summary="Added secure_vps_by_sofibox.pdf documentation&#10;Small changes to maxisetup">
+      <created>1615391001036</created>
+      <option name="number" value="00059" />
+      <option name="presentableId" value="LOCAL-00059" />
+      <option name="project" value="LOCAL" />
+      <updated>1615391001036</updated>
+    </task>
+    <option name="localTasksCounter" value="60" />
     <servers />
   </component>
   <component name="TypeScriptGeneratedFilesManager">
@@ -495,7 +494,6 @@
     <option name="oldMeFiltersMigrated" value="true" />
   </component>
   <component name="VcsManagerConfiguration">
-    <MESSAGE value="Added new API to add custom security questions and answers for all users (owner, admins, resellers and normal users). &#10;&#10;Able to use add multiple security questions (one question with one answer)&#10;&#10;Added function to validate config files. It will complain if variables are not set correctly. For example this variable:&#10;&#10;DA_ADMIN_USERPASS&#10;&#10;The validate config function will not allow username to have more than 64 characters and it must be a minimum of 6 characters. It also cannot contain both character '&amp;' and '+'. Previously this check was done during installation (wasn't good). It should check before script running.&#10;&#10;Added a new function to manage skin config for owner called configure_da_owner_skins()&#10;&#10;Added a new function to manage skin config for reseller called configure_da_reseller_skins()&#10;&#10;TODO: Able to create multiple admin accounts" />
     <MESSAGE value="Improved config checking for adding multiple admin users&#10;&#10;Removed optional TODO for check_finish_reboot() because it is not good to resume installation without user interaction.&#10;&#10;Moved SSHD config recommended by lynis to secure_box() function&#10;&#10;Added few options to harden DA installation in harden_da() function (more will come in here)&#10;&#10;Added new function for configuring maxinis called configure_maxinis(). This binary will manage lynis binary&#10;&#10;Added an option to disable core dump as suggested by lynis in harden_with_lynis(). Any lynis suggestion will go here (TODO: scan with lynis, get the scan ID and automatically fixed the issue based on common solutions)" />
     <MESSAGE value="Added update and upgrade command to update repo cache&#10;&#10;Added function configure_maxicron() that will be used to manage startup:&#10;&#10;# It will disable startup programs, able to create cronjob easily&#10;# Able to create cronjob with 5 seconds timer which is not available in stock cronjob&#10;# Can enable and disable cronjob easily&#10;# Can list all cronjobs, delete edit remove&#10;&#10;Added extra command to disable core dumps for all users" />
     <MESSAGE value="Improved config file check for DA_&lt;ROLE&gt;_SUBDOMAIN and DA_&lt;ROLE&gt;_SSL_SUB_NAME" />
@@ -520,6 +518,7 @@
     <MESSAGE value="Added bash options&#10;Added app specific variable name&#10;Updated TODO lists&#10;Added new linode APIs&#10;Added condition, to only secure GRUB partition if it's set in config file&#10;And many more ..." />
     <MESSAGE value="Updated linode API for initializing disks. (there is no way to access rescue mode through API to install Debian through command line). Use manual way using linode built-in terminal." />
     <MESSAGE value="Changed variable name DA_RESELLER_DOMAIN_ENABLE_SSL to:&#10;&#10;DA_RESELLER_ENABLE_DOMAIN_SSL to avoid pattern bug.&#10;&#10;Updated maxipass installation&#10;&#10;Updated da_dns_templates&#10;&#10;Added new 2 functions to configure root domain:&#10;&#10;configure_da_reseller_root_domains()&#10;and&#10;configure_da_user_root_domains()" />
-    <option name="LAST_COMMIT_MESSAGE" value="Changed variable name DA_RESELLER_DOMAIN_ENABLE_SSL to:&#10;&#10;DA_RESELLER_ENABLE_DOMAIN_SSL to avoid pattern bug.&#10;&#10;Updated maxipass installation&#10;&#10;Updated da_dns_templates&#10;&#10;Added new 2 functions to configure root domain:&#10;&#10;configure_da_reseller_root_domains()&#10;and&#10;configure_da_user_root_domains()" />
+    <MESSAGE value="Added secure_vps_by_sofibox.pdf documentation&#10;Small changes to maxisetup" />
+    <option name="LAST_COMMIT_MESSAGE" value="Added secure_vps_by_sofibox.pdf documentation&#10;Small changes to maxisetup" />
   </component>
 </project>

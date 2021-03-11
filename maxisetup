@@ -3,7 +3,7 @@
 # Author: Arafat Ali | Email: webmaster@sofibox.com
 APP_SPECIFIC_NAME="Maxisetup"
 APP_STATUS="beta"
-APP_VERSION="0.4.1.0-${APP_STATUS}"
+APP_VERSION="0.4.1.1-${APP_STATUS}"
 # This is an initial server hardening script for CentOS and Debian.
 # Compatible 100% with Directadmin. Supported OS: CentOS + Debian (Planned on FreeBSD)
 # You can choose to install as the other stack server such as LEMP, (TODO) Laravel and more defined in config file
@@ -442,7 +442,6 @@ function _pause() {
     read -r -s -n 1 -p "[${SCRIPT_NAME}]: Terminal is paused! Press any key to continue or press (Ctrl+c) to cancel ..." 2>&1 | tee -a "${REPORT_FILE}"
   fi
   echo ""
-
 }
 
 # This function will display a confirmation to continue (force continue; no exit function)
@@ -1983,6 +1982,15 @@ function restart_da_web_server() {
 }
 
 function pre_setup() {
+  local option="$1"
+  if [[ "${option}" == "--force" ]]; then
+    rm -rf "${CONF_PATH}/${FUNCNAME[0]}_executed"
+  elif [[ "${option}" == "--force-exit" ]]; then
+    rm -rf "${CONF_PATH}/${FUNCNAME[0]}_executed"
+    exit 0
+  else
+    option=""
+  fi
   if [ ! -f "${CONF_PATH}/${FUNCNAME[0]}_executed" ]; then
     echo "[${SCRIPT_NAME}]: Executing ${FUNCNAME[0]} ..." 2>&1 | tee -a "${REPORT_FILE}"
     if [ "${DISTRO_ID}" == "centos" ]; then
@@ -2069,6 +2077,15 @@ get_latest_maxisetup() {
 
 # Basic security hardening for Linux
 function secure_box() {
+  local option="$1"
+  if [[ "${option}" == "--force" ]]; then
+    rm -rf "${CONF_PATH}/${FUNCNAME[0]}_executed"
+  elif [[ "${option}" == "--force-exit" ]]; then
+    rm -rf "${CONF_PATH}/${FUNCNAME[0]}_executed"
+    exit 0
+  else
+    option=""
+  fi
   if [ ! -f "${CONF_PATH}/${FUNCNAME[0]}_executed" ]; then
     echo "[${SCRIPT_NAME}]: Executing ${FUNCNAME[0]} ..." 2>&1 | tee -a "${REPORT_FILE}"
     local find_au
@@ -2244,6 +2261,15 @@ function init_local_maxicode() {
 }
 # This one configuration hostname, network etc.
 function configure_net() {
+  local option="$1"
+  if [[ "${option}" == "--force" ]]; then
+    rm -rf "${CONF_PATH}/${FUNCNAME[0]}_executed"
+  elif [[ "${option}" == "--force-exit" ]]; then
+    rm -rf "${CONF_PATH}/${FUNCNAME[0]}_executed"
+    exit 0
+  else
+    option=""
+  fi
   if [ ! -f "${CONF_PATH}/${FUNCNAME[0]}_executed" ]; then
     echo "[${SCRIPT_NAME}]: Executing ${FUNCNAME[0]} ..." 2>&1 | tee -a "${REPORT_FILE}"
     local current_lan grub_count
@@ -2355,6 +2381,15 @@ function configure_net() {
 # This would change like static IP, resolv.conf etc ...
 # I prefer to use eth0 than a strange name like epn${x} but now this script can rename whatever interface you want
 function configure_net2() {
+  local option="$1"
+  if [[ "${option}" == "--force" ]]; then
+    rm -rf "${CONF_PATH}/${FUNCNAME[0]}_executed"
+  elif [[ "${option}" == "--force-exit" ]]; then
+    rm -rf "${CONF_PATH}/${FUNCNAME[0]}_executed"
+    exit 0
+  else
+    option=""
+  fi
   if [ ! -f "${CONF_PATH}/${FUNCNAME[0]}_executed" ]; then
     echo "[${SCRIPT_NAME}]: Executing ${FUNCNAME[0]} ..." 2>&1 | tee -a "${REPORT_FILE}"
     local old_host lh_count
@@ -2509,6 +2544,15 @@ function configure_net2() {
 }
 
 function configure_fstab() {
+  local option="$1"
+  if [[ "${option}" == "--force" ]]; then
+    rm -rf "${CONF_PATH}/${FUNCNAME[0]}_executed"
+  elif [[ "${option}" == "--force-exit" ]]; then
+    rm -rf "${CONF_PATH}/${FUNCNAME[0]}_executed"
+    exit 0
+  else
+    option=""
+  fi
   if [ ! -f "${CONF_PATH}/${FUNCNAME[0]}_executed" ]; then
 
     # Only do this if DISK_ENCRYPTION is set
@@ -2548,6 +2592,15 @@ function configure_fstab() {
 }
 
 function configure_grub() {
+  local option="$1"
+  if [[ "${option}" == "--force" ]]; then
+    rm -rf "${CONF_PATH}/${FUNCNAME[0]}_executed"
+  elif [[ "${option}" == "--force-exit" ]]; then
+    rm -rf "${CONF_PATH}/${FUNCNAME[0]}_executed"
+    exit 0
+  else
+    option=""
+  fi
   if [ ! -f "${CONF_PATH}/${FUNCNAME[0]}_executed" ]; then
     local gr grub_hash pfile
     echo "[${SCRIPT_NAME}]: Executing ${FUNCNAME[0]} ..." 2>&1 | tee -a "${REPORT_FILE}"
@@ -2588,6 +2641,15 @@ EOF
 
 # Tweaking swap for production
 function configure_sysctl_swap() {
+  local option="$1"
+  if [[ "${option}" == "--force" ]]; then
+    rm -rf "${CONF_PATH}/${FUNCNAME[0]}_executed"
+  elif [[ "${option}" == "--force-exit" ]]; then
+    rm -rf "${CONF_PATH}/${FUNCNAME[0]}_executed"
+    exit 0
+  else
+    option=""
+  fi
   if [ ! -f "${CONF_PATH}/${FUNCNAME[0]}_executed" ]; then
     echo "[${SCRIPT_NAME}]: Executing ${FUNCNAME[0]} ..." 2>&1 | tee -a "${REPORT_FILE}"
     echo "[${SCRIPT_NAME}]: Configuring disk swap information in sysctl ..." 2>&1 | tee -a "${REPORT_FILE}"
@@ -2607,6 +2669,15 @@ function configure_sysctl_swap() {
 }
 
 function configure_sysctl_kernel_fs() {
+  local option="$1"
+  if [[ "${option}" == "--force" ]]; then
+    rm -rf "${CONF_PATH}/${FUNCNAME[0]}_executed"
+  elif [[ "${option}" == "--force-exit" ]]; then
+    rm -rf "${CONF_PATH}/${FUNCNAME[0]}_executed"
+    exit 0
+  else
+    option=""
+  fi
   if [ ! -f "${CONF_PATH}/${FUNCNAME[0]}_executed" ]; then
     echo "[${SCRIPT_NAME}]: Executing ${FUNCNAME[0]} ..." 2>&1 | tee -a "${REPORT_FILE}"
     echo "[${SCRIPT_NAME}]: Configuring kernel and file system information in sysctl ..." 2>&1 | tee -a "${REPORT_FILE}"
@@ -2630,6 +2701,15 @@ function configure_sysctl_kernel_fs() {
 }
 
 function configure_sysctl_ips() {
+  local option="$1"
+  if [[ "${option}" == "--force" ]]; then
+    rm -rf "${CONF_PATH}/${FUNCNAME[0]}_executed"
+  elif [[ "${option}" == "--force-exit" ]]; then
+    rm -rf "${CONF_PATH}/${FUNCNAME[0]}_executed"
+    exit 0
+  else
+    option=""
+  fi
   if [ ! -f "${CONF_PATH}/${FUNCNAME[0]}_executed" ]; then
     echo "[${SCRIPT_NAME}]: Executing ${FUNCNAME[0]} ..." 2>&1 | tee -a "${REPORT_FILE}"
     echo "[${SCRIPT_NAME}]: Configuring ipv4 and ipv6 information in sysctl ..." 2>&1 | tee -a "${REPORT_FILE}"
@@ -2678,6 +2758,15 @@ function configure_sysctl_ips() {
 }
 # Install missing os requirement, such as sendmail
 function upgrade_os() {
+  local option="$1"
+  if [[ "${option}" == "--force" ]]; then
+    rm -rf "${CONF_PATH}/${FUNCNAME[0]}_executed"
+  elif [[ "${option}" == "--force-exit" ]]; then
+    rm -rf "${CONF_PATH}/${FUNCNAME[0]}_executed"
+    exit 0
+  else
+    option=""
+  fi
   if [ ! -f "${CONF_PATH}/${FUNCNAME[0]}_executed" ]; then
     echo "[${SCRIPT_NAME}]: Executing ${FUNCNAME[0]} ..." 2>&1 | tee -a "${REPORT_FILE}"
     # General OS upgrade
@@ -2752,6 +2841,15 @@ function upgrade_os() {
 
 # Install CSF Firewall
 configure_csf() {
+  local option="$1"
+  if [[ "${option}" == "--force" ]]; then
+    rm -rf "${CONF_PATH}/${FUNCNAME[0]}_executed"
+  elif [[ "${option}" == "--force-exit" ]]; then
+    rm -rf "${CONF_PATH}/${FUNCNAME[0]}_executed"
+    exit 0
+  else
+    option=""
+  fi
   if [ ! -f "${CONF_PATH}/${FUNCNAME[0]}_executed" ]; then
     echo "[${SCRIPT_NAME}]: Executing ${FUNCNAME[0]} ..." 2>&1 | tee -a "${REPORT_FILE}"
     # If DA INSTALL TYPE IS auto don't run this because it will install CSF automatically (as stated in documentation)
@@ -2972,6 +3070,15 @@ configure_csf() {
 }
 
 function install_da_pre() {
+  local option="$1"
+  if [[ "${option}" == "--force" ]]; then
+    rm -rf "${CONF_PATH}/${FUNCNAME[0]}_executed"
+  elif [[ "${option}" == "--force-exit" ]]; then
+    rm -rf "${CONF_PATH}/${FUNCNAME[0]}_executed"
+    exit 0
+  else
+    option=""
+  fi
   if [ ! -f "${CONF_PATH}/${FUNCNAME[0]}_executed" ]; then
     echo "[${SCRIPT_NAME}]: Executing ${FUNCNAME[0]} ..." 2>&1 | tee -a "${REPORT_FILE}"
     da_latest_version=$(curl -s https://www.directadmin.com/version.php | grep -Eo "[0-9]+\.[0-9]+")
@@ -3029,6 +3136,15 @@ function install_da_pre() {
 }
 
 function install_da() {
+  local option="$1"
+  if [[ "${option}" == "--force" ]]; then
+    rm -rf "${CONF_PATH}/${FUNCNAME[0]}_executed"
+  elif [[ "${option}" == "--force-exit" ]]; then
+    rm -rf "${CONF_PATH}/${FUNCNAME[0]}_executed"
+    exit 0
+  else
+    option=""
+  fi
   if [ ! -f "${CONF_PATH}/${FUNCNAME[0]}_executed" ]; then
     echo "[${SCRIPT_NAME}]: Executing ${FUNCNAME[0]} ..." 2>&1 | tee -a "${REPORT_FILE}"
     echo "[${SCRIPT_NAME}]: Downloading Directadmin setup script ... " 2>&1 | tee -a "${REPORT_FILE}"
@@ -3098,6 +3214,15 @@ add_da_ipv6_ip() {
 }
 
 function link_da_ipv6() {
+  local option="$1"
+  if [[ "${option}" == "--force" ]]; then
+    rm -rf "${CONF_PATH}/${FUNCNAME[0]}_executed"
+  elif [[ "${option}" == "--force-exit" ]]; then
+    rm -rf "${CONF_PATH}/${FUNCNAME[0]}_executed"
+    exit 0
+  else
+    option=""
+  fi
   if [ ! -f "${CONF_PATH}/${FUNCNAME[0]}_executed" ]; then
     echo "[${SCRIPT_NAME}]: Executing ${FUNCNAME[0]} ..." 2>&1 | tee -a "${REPORT_FILE}"
     local da_ipv6_adds base_da_ipv6 ipv6_uncompress_add linked_ips
@@ -3186,6 +3311,15 @@ function link_da_ipv6() {
   fi
 }
 function rebuild_da_package() {
+  local option="$1"
+  if [[ "${option}" == "--force" ]]; then
+    rm -rf "${CONF_PATH}/${FUNCNAME[0]}_executed"
+  elif [[ "${option}" == "--force-exit" ]]; then
+    rm -rf "${CONF_PATH}/${FUNCNAME[0]}_executed"
+    exit 0
+  else
+    option=""
+  fi
   # Here I can rebuild any missing or change package in DA
   # This to rebuild DA package that cause error like nginx_apache wont start for new install (bug)
   if [ ! -f "${CONF_PATH}/${FUNCNAME[0]}_executed" ]; then
@@ -3240,6 +3374,15 @@ function rebuild_da_package() {
   fi
 }
 function install_da_post() {
+  local option="$1"
+  if [[ "${option}" == "--force" ]]; then
+    rm -rf "${CONF_PATH}/${FUNCNAME[0]}_executed"
+  elif [[ "${option}" == "--force-exit" ]]; then
+    rm -rf "${CONF_PATH}/${FUNCNAME[0]}_executed"
+    exit 0
+  else
+    option=""
+  fi
   if [ ! -f "${CONF_PATH}/${FUNCNAME[0]}_executed" ]; then
     echo "[${SCRIPT_NAME}]: Executing ${FUNCNAME[0]} ..." 2>&1 | tee -a "${REPORT_FILE}"
     echo "[${SCRIPT_NAME}]: Running DA post installation function ..." 2>&1 | tee -a "${REPORT_FILE}"
@@ -3283,6 +3426,15 @@ function install_da_post() {
 # This is the pre-requirement before getting ssl
 # Configure the wildcard certificate option here for external DNS
 function configure_da_ssl_pre() {
+  local option="$1"
+  if [[ "${option}" == "--force" ]]; then
+    rm -rf "${CONF_PATH}/${FUNCNAME[0]}_executed"
+  elif [[ "${option}" == "--force-exit" ]]; then
+    rm -rf "${CONF_PATH}/${FUNCNAME[0]}_executed"
+    exit 0
+  else
+    option=""
+  fi
   if [ ! -f "${CONF_PATH}/${FUNCNAME[0]}_executed" ]; then
     echo "[${SCRIPT_NAME}]: Executing ${FUNCNAME[0]} ..." 2>&1 | tee -a "${REPORT_FILE}"
     local da_bin cb_bin
@@ -3308,6 +3460,15 @@ function configure_da_ssl_pre() {
 }
 
 function configure_da_ssl() {
+  local option="$1"
+  if [[ "${option}" == "--force" ]]; then
+    rm -rf "${CONF_PATH}/${FUNCNAME[0]}_executed"
+  elif [[ "${option}" == "--force-exit" ]]; then
+    rm -rf "${CONF_PATH}/${FUNCNAME[0]}_executed"
+    exit 0
+  else
+    option=""
+  fi
   # Request SSL failed due to DAD (until server restart)
   # Interesting answer: https://serverfault.com/questions/602700/debian-ipv6-is-not-asssigned-to-interface
   # Nice reading: https://www.agwa.name/blog/post/beware_the_ipv6_dad_race_condition
@@ -3373,6 +3534,15 @@ function configure_da_ssl() {
 }
 
 function change_da_auth() {
+  local option="$1"
+  if [[ "${option}" == "--force" ]]; then
+    rm -rf "${CONF_PATH}/${FUNCNAME[0]}_executed"
+  elif [[ "${option}" == "--force-exit" ]]; then
+    rm -rf "${CONF_PATH}/${FUNCNAME[0]}_executed"
+    exit 0
+  else
+    option=""
+  fi
   # This function change the directadmin username and password from default to yours (based on config file)
   # It also has more options to secure DA installation. Example maybe this one we can create 2 step authentication
   if [ ! -f "${CONF_PATH}/${FUNCNAME[0]}_executed" ]; then
@@ -3412,6 +3582,15 @@ function change_da_auth() {
   fi
 }
 function configure_da_sql() {
+  local option="$1"
+  if [[ "${option}" == "--force" ]]; then
+    rm -rf "${CONF_PATH}/${FUNCNAME[0]}_executed"
+  elif [[ "${option}" == "--force-exit" ]]; then
+    rm -rf "${CONF_PATH}/${FUNCNAME[0]}_executed"
+    exit 0
+  else
+    option=""
+  fi
   if [ ! -f "${CONF_PATH}/${FUNCNAME[0]}_executed" ]; then
     echo "[${SCRIPT_NAME}]: Executing ${FUNCNAME[0]} ..." 2>&1 | tee -a "${REPORT_FILE}"
     # Note that during installation MySQL generates a short password and DA use this root password. See the text message below:
@@ -3646,6 +3825,15 @@ function configure_da_sql() {
 }
 # This configure_da_mail can be roundcube squirrelmail or others
 function configure_da_mail() {
+  local option="$1"
+  if [[ "${option}" == "--force" ]]; then
+    rm -rf "${CONF_PATH}/${FUNCNAME[0]}_executed"
+  elif [[ "${option}" == "--force-exit" ]]; then
+    rm -rf "${CONF_PATH}/${FUNCNAME[0]}_executed"
+    exit 0
+  else
+    option=""
+  fi
   if [ ! -f "${CONF_PATH}/${FUNCNAME[0]}_executed" ]; then
     echo "[${SCRIPT_NAME}]: Executing ${FUNCNAME[0]} ..." 2>&1 | tee -a "${REPORT_FILE}"
     local rc_index_file
@@ -3791,6 +3979,15 @@ function configure_da_mail() {
 }
 
 configure_da_ftp() {
+  local option="$1"
+  if [[ "${option}" == "--force" ]]; then
+    rm -rf "${CONF_PATH}/${FUNCNAME[0]}_executed"
+  elif [[ "${option}" == "--force-exit" ]]; then
+    rm -rf "${CONF_PATH}/${FUNCNAME[0]}_executed"
+    exit 0
+  else
+    option=""
+  fi
   if [ ! -f "${CONF_PATH}/${FUNCNAME[0]}_executed" ]; then
     echo "[${SCRIPT_NAME}]: Executing ${FUNCNAME[0]} ..." 2>&1 | tee -a "${REPORT_FILE}"
     local gc
@@ -3811,6 +4008,15 @@ configure_da_ftp() {
 }
 # This function only for configuring nginx_apache (it makes URL phpmyadmin or roundcube secure)
 function configure_nginx_apache() {
+  local option="$1"
+  if [[ "${option}" == "--force" ]]; then
+    rm -rf "${CONF_PATH}/${FUNCNAME[0]}_executed"
+  elif [[ "${option}" == "--force-exit" ]]; then
+    rm -rf "${CONF_PATH}/${FUNCNAME[0]}_executed"
+    exit 0
+  else
+    option=""
+  fi
   if [ ! -f "${CONF_PATH}/${FUNCNAME[0]}_executed" ]; then
     echo "[${SCRIPT_NAME}]: Executing ${FUNCNAME[0]} ..." 2>&1 | tee -a "${REPORT_FILE}"
     echo "[${SCRIPT_NAME}]: Backing up original httpd-alias.conf at /etc/httpd/ as httpd-alias.conf_original_${DATE_TIME_NOW} ..." 2>&1 | tee -a "${REPORT_FILE}"
@@ -3930,6 +4136,15 @@ function configure_nginx_apache() {
 
 # Configure apps in /var/www/html
 function configure_web_apps_html() {
+  local option="$1"
+  if [[ "${option}" == "--force" ]]; then
+    rm -rf "${CONF_PATH}/${FUNCNAME[0]}_executed"
+  elif [[ "${option}" == "--force-exit" ]]; then
+    rm -rf "${CONF_PATH}/${FUNCNAME[0]}_executed"
+    exit 0
+  else
+    option=""
+  fi
   if [ ! -f "${CONF_PATH}/${FUNCNAME[0]}_executed" ]; then
     echo "[${SCRIPT_NAME}]: Executing ${FUNCNAME[0]} ..." 2>&1 | tee -a "${REPORT_FILE}"
     # TODO copy that webapps here (it should from maxisetup)
@@ -3949,6 +4164,15 @@ function configure_web_apps_html() {
 }
 
 function build_da_custom_conf() {
+  local option="$1"
+  if [[ "${option}" == "--force" ]]; then
+    rm -rf "${CONF_PATH}/${FUNCNAME[0]}_executed"
+  elif [[ "${option}" == "--force-exit" ]]; then
+    rm -rf "${CONF_PATH}/${FUNCNAME[0]}_executed"
+    exit 0
+  else
+    option=""
+  fi
   # This function will create / copy all custom configs like roundcube, phpmyadmin, ap2 etc in DA custom folder
   # So when we update Directadmin, it won't replace these files.
   if [ ! -f "${CONF_PATH}/${FUNCNAME[0]}_executed" ]; then
@@ -4028,6 +4252,15 @@ function build_da_custom_conf() {
 
 # For configuring admin setting and extra hardening any DA related installation
 function configure_da() {
+  local option="$1"
+  if [[ "${option}" == "--force" ]]; then
+    rm -rf "${CONF_PATH}/${FUNCNAME[0]}_executed"
+  elif [[ "${option}" == "--force-exit" ]]; then
+    rm -rf "${CONF_PATH}/${FUNCNAME[0]}_executed"
+    exit 0
+  else
+    option=""
+  fi
   if [ ! -f "${CONF_PATH}/${FUNCNAME[0]}_executed" ]; then
     echo "[${SCRIPT_NAME}]: Executing ${FUNCNAME[0]} ..." 2>&1 | tee -a "${REPORT_FILE}"
     # From now on we should use maxida since it was released and installed earlier when executing this script (with maxicode update).
@@ -4077,6 +4310,15 @@ function configure_da() {
 }
 
 function add_da_ip() {
+  local option="$1"
+  if [[ "${option}" == "--force" ]]; then
+    rm -rf "${CONF_PATH}/${FUNCNAME[0]}_executed"
+  elif [[ "${option}" == "--force-exit" ]]; then
+    rm -rf "${CONF_PATH}/${FUNCNAME[0]}_executed"
+    exit 0
+  else
+    option=""
+  fi
   # This is to add DA script to add IP into device.
   if [ ! -f "${CONF_PATH}/${FUNCNAME[0]}_executed" ]; then
     echo "[${SCRIPT_NAME}]: Executing ${FUNCNAME[0]} ..." 2>&1 | tee -a "${REPORT_FILE}"
@@ -4102,6 +4344,15 @@ function add_da_ip() {
 
 # This maxibox is only used for backup purpose (TODO)
 function configure_maxibox() {
+  local option="$1"
+  if [[ "${option}" == "--force" ]]; then
+    rm -rf "${CONF_PATH}/${FUNCNAME[0]}_executed"
+  elif [[ "${option}" == "--force-exit" ]]; then
+    rm -rf "${CONF_PATH}/${FUNCNAME[0]}_executed"
+    exit 0
+  else
+    option=""
+  fi
   if [ ! -f "${CONF_PATH}/${FUNCNAME[0]}_executed" ]; then
     echo "[${SCRIPT_NAME}]: Executing ${FUNCNAME[0]} ..." 2>&1 | tee -a "${REPORT_FILE}"
     check_finish_reboot "${FUNCNAME[0]}"
@@ -4113,6 +4364,15 @@ function configure_maxibox() {
 
 # This is the pre-requisite components for all maxicode
 function configure_maxicode_pre() {
+  local option="$1"
+  if [[ "${option}" == "--force" ]]; then
+    rm -rf "${CONF_PATH}/${FUNCNAME[0]}_executed"
+  elif [[ "${option}" == "--force-exit" ]]; then
+    rm -rf "${CONF_PATH}/${FUNCNAME[0]}_executed"
+    exit 0
+  else
+    option=""
+  fi
   if [ ! -f "${CONF_PATH}/${FUNCNAME[0]}_executed" ]; then
     echo "[${SCRIPT_NAME}]: Executing ${FUNCNAME[0]} ..." 2>&1 | tee -a "${REPORT_FILE}"
     apt-get -y install ipcalc bc jq gawk
@@ -4129,7 +4389,15 @@ function configure_maxicode_pre() {
 # usage: maxicode --update <package_name> or maxicode -u <package_name>
 # eg: To update all package: maxicode -u all. To update just maxicata: maxicode -u maxicata
 function configure_maxicode() {
-
+  local option="$1"
+  if [[ "${option}" == "--force" ]]; then
+    rm -rf "${CONF_PATH}/${FUNCNAME[0]}_executed"
+  elif [[ "${option}" == "--force-exit" ]]; then
+    rm -rf "${CONF_PATH}/${FUNCNAME[0]}_executed"
+    exit 0
+  else
+    option=""
+  fi
   if [ ! -f "${CONF_PATH}/${FUNCNAME[0]}_executed" ]; then
     echo "[${SCRIPT_NAME}]: Executing ${FUNCNAME[0]} ..." 2>&1 | tee -a "${REPORT_FILE}"
     maxicode_bin="/usr/local/maxicode/maxicode"
@@ -4181,6 +4449,15 @@ function configure_maxicode() {
 }
 
 function configure_maxiperm() {
+  local option="$1"
+  if [[ "${option}" == "--force" ]]; then
+    rm -rf "${CONF_PATH}/${FUNCNAME[0]}_executed"
+  elif [[ "${option}" == "--force-exit" ]]; then
+    rm -rf "${CONF_PATH}/${FUNCNAME[0]}_executed"
+    exit 0
+  else
+    option=""
+  fi
   if [ ! -f "${CONF_PATH}/${FUNCNAME[0]}_executed" ]; then
     local maxiperm_bin
     echo "[${SCRIPT_NAME}]: Executing ${FUNCNAME[0]} ..." 2>&1 | tee -a "${REPORT_FILE}"
@@ -4204,6 +4481,15 @@ function configure_maxiperm() {
 
 # Harden server based on lynis suggestion
 function configure_maxinis() {
+  local option="$1"
+  if [[ "${option}" == "--force" ]]; then
+    rm -rf "${CONF_PATH}/${FUNCNAME[0]}_executed"
+  elif [[ "${option}" == "--force-exit" ]]; then
+    rm -rf "${CONF_PATH}/${FUNCNAME[0]}_executed"
+    exit 0
+  else
+    option=""
+  fi
   # Here we do extra hardening for SSHD (based on lynis suggestion)
   if [ ! -f "${CONF_PATH}/${FUNCNAME[0]}_executed" ]; then
     echo "[${SCRIPT_NAME}]: Executing ${FUNCNAME[0]} ..." 2>&1 | tee -a "${REPORT_FILE}"
@@ -4238,6 +4524,15 @@ function configure_maxinis() {
 
 # Installing other security software based on maxicode
 function configure_maxigpg() {
+  local option="$1"
+  if [[ "${option}" == "--force" ]]; then
+    rm -rf "${CONF_PATH}/${FUNCNAME[0]}_executed"
+  elif [[ "${option}" == "--force-exit" ]]; then
+    rm -rf "${CONF_PATH}/${FUNCNAME[0]}_executed"
+    exit 0
+  else
+    option=""
+  fi
   if [ ! -f "${CONF_PATH}/${FUNCNAME[0]}_executed" ]; then
     echo "[${SCRIPT_NAME}]: Executing ${FUNCNAME[0]} ..." 2>&1 | tee -a "${REPORT_FILE}"
     local maxigpg_bin ret_val gpg_priv_key gpg_priv_key_encrypted
@@ -4326,6 +4621,15 @@ EOF
 
 # maxida is used to manage directadmin functionalities including APIs.
 function configure_maxida() {
+  local option="$1"
+  if [[ "${option}" == "--force" ]]; then
+    rm -rf "${CONF_PATH}/${FUNCNAME[0]}_executed"
+  elif [[ "${option}" == "--force-exit" ]]; then
+    rm -rf "${CONF_PATH}/${FUNCNAME[0]}_executed"
+    exit 0
+  else
+    option=""
+  fi
   if [ ! -f "${CONF_PATH}/${FUNCNAME[0]}_executed" ]; then
     local maxida_bin maxida_conf_sample maxida_conf
     echo "[${SCRIPT_NAME}]: Executing ${FUNCNAME[0]} ..." 2>&1 | tee -a "${REPORT_FILE}"
@@ -4373,6 +4677,15 @@ function configure_maxida() {
 }
 
 function configure_maxicron() {
+  local option="$1"
+  if [[ "${option}" == "--force" ]]; then
+    rm -rf "${CONF_PATH}/${FUNCNAME[0]}_executed"
+  elif [[ "${option}" == "--force-exit" ]]; then
+    rm -rf "${CONF_PATH}/${FUNCNAME[0]}_executed"
+    exit 0
+  else
+    option=""
+  fi
   if [ ! -f "${CONF_PATH}/${FUNCNAME[0]}_executed" ]; then
     local maxicron_bin
     echo "[${SCRIPT_NAME}]: Executing ${FUNCNAME[0]} ..." 2>&1 | tee -a "${REPORT_FILE}"
@@ -4395,6 +4708,15 @@ function configure_maxicron() {
 }
 
 function configure_maxiaide() {
+  local option="$1"
+  if [[ "${option}" == "--force" ]]; then
+    rm -rf "${CONF_PATH}/${FUNCNAME[0]}_executed"
+  elif [[ "${option}" == "--force-exit" ]]; then
+    rm -rf "${CONF_PATH}/${FUNCNAME[0]}_executed"
+    exit 0
+  else
+    option=""
+  fi
   # Under testing for new version AIDE. New AIDE version has different config format.
   if [ ! -f "${CONF_PATH}/${FUNCNAME[0]}_executed" ]; then
     local maxiaide_bin
@@ -4424,6 +4746,15 @@ function configure_maxiaide() {
 }
 
 function configure_maxicata() {
+  local option="$1"
+  if [[ "${option}" == "--force" ]]; then
+    rm -rf "${CONF_PATH}/${FUNCNAME[0]}_executed"
+  elif [[ "${option}" == "--force-exit" ]]; then
+    rm -rf "${CONF_PATH}/${FUNCNAME[0]}_executed"
+    exit 0
+  else
+    option=""
+  fi
   # Debug
   # rm -f "${CONF_PATH}/configure_maxicata_executed"
   if [ ! -f "${CONF_PATH}/${FUNCNAME[0]}_executed" ]; then
@@ -4651,6 +4982,15 @@ function configure_maxicata() {
 
 # For managing cloud storage. Like mounting cloud storage, send file or receive file from cloud. maxicloud will handle that.
 function configure_maxicloud() {
+  local option="$1"
+  if [[ "${option}" == "--force" ]]; then
+    rm -rf "${CONF_PATH}/${FUNCNAME[0]}_executed"
+  elif [[ "${option}" == "--force-exit" ]]; then
+    rm -rf "${CONF_PATH}/${FUNCNAME[0]}_executed"
+    exit 0
+  else
+    option=""
+  fi
   # TODO configure maxicloud
   if [ ! -f "${CONF_PATH}/${FUNCNAME[0]}_executed" ]; then
     local maxiaide_bin
@@ -4685,7 +5025,15 @@ function configure_maxicloud() {
 }
 
 function configure_maxipass() {
-
+  local option="$1"
+  if [[ "${option}" == "--force" ]]; then
+    rm -rf "${CONF_PATH}/${FUNCNAME[0]}_executed"
+  elif [[ "${option}" == "--force-exit" ]]; then
+    rm -rf "${CONF_PATH}/${FUNCNAME[0]}_executed"
+    exit 0
+  else
+    option=""
+  fi
   if [ ! -f "${CONF_PATH}/${FUNCNAME[0]}_executed" ]; then
     local maxipass_bin maxipass_conf maxipass_conf_sample #maxipass_da_conf maxipass_da_conf_sample
     echo "[${SCRIPT_NAME}]: Executing ${FUNCNAME[0]} ..." 2>&1 | tee -a "${REPORT_FILE}"
@@ -4738,6 +5086,15 @@ function configure_maxipass() {
 # TODO configure this when https is ready, put in secured port, put httpd layer
 # Find a way to add 2 step authentication
 function configure_maxify() {
+  local option="$1"
+  if [[ "${option}" == "--force" ]]; then
+    rm -rf "${CONF_PATH}/${FUNCNAME[0]}_executed"
+  elif [[ "${option}" == "--force-exit" ]]; then
+    rm -rf "${CONF_PATH}/${FUNCNAME[0]}_executed"
+    exit 0
+  else
+    option=""
+  fi
   if [ ! -f "${CONF_PATH}/${FUNCNAME[0]}_executed" ]; then
     local version platform
     echo "[${SCRIPT_NAME}]: Executing ${FUNCNAME[0]} ..." 2>&1 | tee -a "${REPORT_FILE}"
@@ -4756,8 +5113,22 @@ function configure_maxify() {
   fi
 }
 
+function configure_logs() {
+
+  :
+}
+
 # This will install OS memcached and php memcached extension
 function configure_da_memcached() {
+  local option="$1"
+  if [[ "${option}" == "--force" ]]; then
+    rm -rf "${CONF_PATH}/${FUNCNAME[0]}_executed"
+  elif [[ "${option}" == "--force-exit" ]]; then
+    rm -rf "${CONF_PATH}/${FUNCNAME[0]}_executed"
+    exit 0
+  else
+    option=""
+  fi
   if [ ! -f "${CONF_PATH}/${FUNCNAME[0]}_executed" ]; then
     local gc
     echo "[${SCRIPT_NAME}]: Executing ${FUNCNAME[0]} ..." 2>&1 | tee -a "${REPORT_FILE}"
@@ -4801,6 +5172,15 @@ function configure_da_memcached() {
 }
 
 function configure_da_geoip() {
+  local option="$1"
+  if [[ "${option}" == "--force" ]]; then
+    rm -rf "${CONF_PATH}/${FUNCNAME[0]}_executed"
+  elif [[ "${option}" == "--force-exit" ]]; then
+    rm -rf "${CONF_PATH}/${FUNCNAME[0]}_executed"
+    exit 0
+  else
+    option=""
+  fi
   if [ ! -f "${CONF_PATH}/${FUNCNAME[0]}_executed" ]; then
     echo "[${SCRIPT_NAME}]: Executing ${FUNCNAME[0]} ..." 2>&1 | tee -a "${REPORT_FILE}"
     echo "[${SCRIPT_NAME}]: Installing geoip components in OS level ..." 2>&1 | tee -a "${REPORT_FILE}"
@@ -4829,6 +5209,15 @@ function configure_da_geoip() {
 }
 
 configure_da_dns_templates() {
+  local option="$1"
+  if [[ "${option}" == "--force" ]]; then
+    rm -rf "${CONF_PATH}/${FUNCNAME[0]}_executed"
+  elif [[ "${option}" == "--force-exit" ]]; then
+    rm -rf "${CONF_PATH}/${FUNCNAME[0]}_executed"
+    exit 0
+  else
+    option=""
+  fi
   if [ ! -f "${CONF_PATH}/${FUNCNAME[0]}_executed" ]; then
     echo "[${SCRIPT_NAME}]: Executing ${FUNCNAME[0]} ..." 2>&1 | tee -a "${REPORT_FILE}"
     local da_template_custom ipv6_full_uncompressed da_bin da_latest_version
@@ -4895,6 +5284,15 @@ configure_da_dns_templates() {
 # Maybe we need to log into owner (so we fix the menu, time format etc)
 # it's best not to use owner. Use admin instead to manage DA user for security purpose
 function configure_da_owner_skins() {
+  local option="$1"
+  if [[ "${option}" == "--force" ]]; then
+    rm -rf "${CONF_PATH}/${FUNCNAME[0]}_executed"
+  elif [[ "${option}" == "--force-exit" ]]; then
+    rm -rf "${CONF_PATH}/${FUNCNAME[0]}_executed"
+    exit 0
+  else
+    option=""
+  fi
   # We can customize this skin evolution based on this file /usr/local/directadmin/data/users/username/skin_customization/evolution/user_options.json
   if [ ! -f "${CONF_PATH}/${FUNCNAME[0]}_executed" ]; then
     echo "[${SCRIPT_NAME}]: Executing ${FUNCNAME[0]} ..." 2>&1 | tee -a "${REPORT_FILE}"
@@ -4952,6 +5350,15 @@ function configure_da_owner_skins() {
 
 # Configure DA skins like set the time format, set logo (focus on Evolution Skin)
 function configure_da_admin_skins() {
+  local option="$1"
+  if [[ "${option}" == "--force" ]]; then
+    rm -rf "${CONF_PATH}/${FUNCNAME[0]}_executed"
+  elif [[ "${option}" == "--force-exit" ]]; then
+    rm -rf "${CONF_PATH}/${FUNCNAME[0]}_executed"
+    exit 0
+  else
+    option=""
+  fi
   # We can customize this skin evolution based on this file /usr/local/directadmin/data/users/username/skin_customization/evolution/user_options.json
   if [ ! -f "${CONF_PATH}/${FUNCNAME[0]}_executed" ]; then
     echo "[${SCRIPT_NAME}]: Executing ${FUNCNAME[0]} ..." 2>&1 | tee -a "${REPORT_FILE}"
@@ -5008,6 +5415,15 @@ function configure_da_admin_skins() {
 }
 
 function configure_da_reseller_skins() {
+  local option="$1"
+  if [[ "${option}" == "--force" ]]; then
+    rm -rf "${CONF_PATH}/${FUNCNAME[0]}_executed"
+  elif [[ "${option}" == "--force-exit" ]]; then
+    rm -rf "${CONF_PATH}/${FUNCNAME[0]}_executed"
+    exit 0
+  else
+    option=""
+  fi
   if [ ! -f "${CONF_PATH}/${FUNCNAME[0]}_executed" ]; then
     echo "[${SCRIPT_NAME}]: Executing ${FUNCNAME[0]} ..." 2>&1 | tee -a "${REPORT_FILE}"
     da_api_admin "signas+reseller"
@@ -5063,9 +5479,27 @@ function configure_da_reseller_skins() {
 }
 
 function configure_da_admin_admin_settings() {
+  local option="$1"
+  if [[ "${option}" == "--force" ]]; then
+    rm -rf "${CONF_PATH}/${FUNCNAME[0]}_executed"
+  elif [[ "${option}" == "--force-exit" ]]; then
+    rm -rf "${CONF_PATH}/${FUNCNAME[0]}_executed"
+    exit 0
+  else
+    option=""
+  fi
   :
 }
 function configure_da_owner_accounts() {
+  local option="$1"
+  if [[ "${option}" == "--force" ]]; then
+    rm -rf "${CONF_PATH}/${FUNCNAME[0]}_executed"
+  elif [[ "${option}" == "--force-exit" ]]; then
+    rm -rf "${CONF_PATH}/${FUNCNAME[0]}_executed"
+    exit 0
+  else
+    option=""
+  fi
   if [ ! -f "${CONF_PATH}/${FUNCNAME[0]}_executed" ]; then
     echo "[${SCRIPT_NAME}]: Executing ${FUNCNAME[0]} ..." 2>&1 | tee -a "${REPORT_FILE}"
     echo "Renaming owner account name to ${DA_OWNER_NAME1} ..."
@@ -5083,6 +5517,15 @@ function configure_da_owner_accounts() {
 # eg: You can create any extra admin accounts here or create multiple reseller packages.
 # Note: Only DA owner or existing admin can create another admin account
 function configure_da_admin_accounts() {
+  local option="$1"
+  if [[ "${option}" == "--force" ]]; then
+    rm -rf "${CONF_PATH}/${FUNCNAME[0]}_executed"
+  elif [[ "${option}" == "--force-exit" ]]; then
+    rm -rf "${CONF_PATH}/${FUNCNAME[0]}_executed"
+    exit 0
+  else
+    option=""
+  fi
   if [ ! -f "${CONF_PATH}/${FUNCNAME[0]}_executed" ]; then
     echo "[${SCRIPT_NAME}]: Executing ${FUNCNAME[0]} ..." 2>&1 | tee -a "${REPORT_FILE}"
     # An owner account must exist (this script will complain if it doesn't exist)
@@ -5133,6 +5576,15 @@ function configure_da_admin_accounts() {
 # https://forum.directadmin.com/threads/default-user-package-s-for-resellers.49156/
 
 function configure_da_reseller_accounts() {
+  local option="$1"
+  if [[ "${option}" == "--force" ]]; then
+    rm -rf "${CONF_PATH}/${FUNCNAME[0]}_executed"
+  elif [[ "${option}" == "--force-exit" ]]; then
+    rm -rf "${CONF_PATH}/${FUNCNAME[0]}_executed"
+    exit 0
+  else
+    option=""
+  fi
   #rm -rf "${CONF_PATH}/${FUNCNAME[0]}_executed"
   if [ ! -f "${CONF_PATH}/${FUNCNAME[0]}_executed" ]; then
     echo "[${SCRIPT_NAME}]: Executing ${FUNCNAME[0]} ..." 2>&1 | tee -a "${REPORT_FILE}"
@@ -5521,6 +5973,15 @@ function configure_da_reseller_accounts() {
 }
 
 function configure_da_reseller_root_domains() {
+  local option="$1"
+  if [[ "${option}" == "--force" ]]; then
+    rm -rf "${CONF_PATH}/${FUNCNAME[0]}_executed"
+  elif [[ "${option}" == "--force-exit" ]]; then
+    rm -rf "${CONF_PATH}/${FUNCNAME[0]}_executed"
+    exit 0
+  else
+    option=""
+  fi
   if [ ! -f "${CONF_PATH}/${FUNCNAME[0]}_executed" ]; then
     echo "[${SCRIPT_NAME}]: Executing ${FUNCNAME[0]} ..." 2>&1 | tee -a "${REPORT_FILE}"
     local da_reseller_domains da_reseller_domains_count this_da_reseller_username this_da_reseller_userpass \
@@ -5612,6 +6073,15 @@ function configure_da_reseller_root_domains() {
   fi
 }
 function configure_da_reseller_wildcard_domains() {
+  local option="$1"
+  if [[ "${option}" == "--force" ]]; then
+    rm -rf "${CONF_PATH}/${FUNCNAME[0]}_executed"
+  elif [[ "${option}" == "--force-exit" ]]; then
+    rm -rf "${CONF_PATH}/${FUNCNAME[0]}_executed"
+    exit 0
+  else
+    option=""
+  fi
   if [ ! -f "${CONF_PATH}/${FUNCNAME[0]}_executed" ]; then
     echo "[${SCRIPT_NAME}]: Executing ${FUNCNAME[0]} ..." 2>&1 | tee -a "${REPORT_FILE}"
     local da_reseller_wildcard_domains da_reseller_wildcard_domains_count this_da_reseller_username this_da_reseller_userpass \
@@ -5704,6 +6174,15 @@ function configure_da_reseller_wildcard_domains() {
 
 # This will create user accounts and domains
 function configure_da_user_accounts() {
+  local option="$1"
+  if [[ "${option}" == "--force" ]]; then
+    rm -rf "${CONF_PATH}/${FUNCNAME[0]}_executed"
+  elif [[ "${option}" == "--force-exit" ]]; then
+    rm -rf "${CONF_PATH}/${FUNCNAME[0]}_executed"
+    exit 0
+  else
+    option=""
+  fi
   # Manually create user account first
   #rm -f "${CONF_PATH}/${FUNCNAME[0]}_executed"
   if [ ! -f "${CONF_PATH}/${FUNCNAME[0]}_executed" ]; then
@@ -6022,7 +6501,15 @@ function configure_da_user_accounts() {
 }
 
 function configure_da_user_root_domains() {
-
+  local option="$1"
+  if [[ "${option}" == "--force" ]]; then
+    rm -rf "${CONF_PATH}/${FUNCNAME[0]}_executed"
+  elif [[ "${option}" == "--force-exit" ]]; then
+    rm -rf "${CONF_PATH}/${FUNCNAME[0]}_executed"
+    exit 0
+  else
+    option=""
+  fi
   if [ ! -f "${CONF_PATH}/${FUNCNAME[0]}_executed" ]; then
     echo "[${SCRIPT_NAME}]: Executing ${FUNCNAME[0]} ..." 2>&1 | tee -a "${REPORT_FILE}"
     local da_user_domains da_user_domains_count this_da_user_username this_da_user_userpass \
@@ -6116,6 +6603,15 @@ function configure_da_user_root_domains() {
 }
 
 function configure_da_user_wildcard_domains() {
+  local option="$1"
+  if [[ "${option}" == "--force" ]]; then
+    rm -rf "${CONF_PATH}/${FUNCNAME[0]}_executed"
+  elif [[ "${option}" == "--force-exit" ]]; then
+    rm -rf "${CONF_PATH}/${FUNCNAME[0]}_executed"
+    exit 0
+  else
+    option=""
+  fi
   if [ ! -f "${CONF_PATH}/${FUNCNAME[0]}_executed" ]; then
     echo "[${SCRIPT_NAME}]: Executing ${FUNCNAME[0]} ..." 2>&1 | tee -a "${REPORT_FILE}"
     local da_user_wildcard_domains da_user_wildcard_domains_count this_da_user_username this_da_user_userpass \
@@ -6207,6 +6703,15 @@ function configure_da_user_wildcard_domains() {
 }
 
 function configure_da_reseller_subdomains() {
+  local option="$1"
+  if [[ "${option}" == "--force" ]]; then
+    rm -rf "${CONF_PATH}/${FUNCNAME[0]}_executed"
+  elif [[ "${option}" == "--force-exit" ]]; then
+    rm -rf "${CONF_PATH}/${FUNCNAME[0]}_executed"
+    exit 0
+  else
+    option=""
+  fi
   if [ ! -f "${CONF_PATH}/${FUNCNAME[0]}_executed" ]; then
     echo "[${SCRIPT_NAME}]: Executing ${FUNCNAME[0]} ..." 2>&1 | tee -a "${REPORT_FILE}"
     local da_reseller_subdomains da_reseller_subdomains_count this_da_reseller_username this_da_reseller_userpass \
@@ -6318,6 +6823,15 @@ function configure_da_reseller_subdomains() {
 }
 
 function configure_da_user_subdomains() {
+  local option="$1"
+  if [[ "${option}" == "--force" ]]; then
+    rm -rf "${CONF_PATH}/${FUNCNAME[0]}_executed"
+  elif [[ "${option}" == "--force-exit" ]]; then
+    rm -rf "${CONF_PATH}/${FUNCNAME[0]}_executed"
+    exit 0
+  else
+    option=""
+  fi
   if [ ! -f "${CONF_PATH}/${FUNCNAME[0]}_executed" ]; then
     echo "[${SCRIPT_NAME}]: Executing ${FUNCNAME[0]} ..." 2>&1 | tee -a "${REPORT_FILE}"
     local da_user_subdomains da_user_subdomains_count this_da_user_username this_da_user_userpass this_da_user_subdomains
@@ -6414,7 +6928,15 @@ function configure_da_user_subdomains() {
   fi
 }
 function configure_da_reseller_emails() {
-
+  local option="$1"
+  if [[ "${option}" == "--force" ]]; then
+    rm -rf "${CONF_PATH}/${FUNCNAME[0]}_executed"
+  elif [[ "${option}" == "--force-exit" ]]; then
+    rm -rf "${CONF_PATH}/${FUNCNAME[0]}_executed"
+    exit 0
+  else
+    option=""
+  fi
   #rm -f "${CONF_PATH}/${FUNCNAME[0]}_executed"
   if [ ! -f "${CONF_PATH}/${FUNCNAME[0]}_executed" ]; then
     echo "[${SCRIPT_NAME}]: Executing ${FUNCNAME[0]} ..." 2>&1 | tee -a "${REPORT_FILE}"
@@ -6499,6 +7021,15 @@ function configure_da_reseller_emails() {
 }
 
 function configure_da_user_emails() {
+  local option="$1"
+  if [[ "${option}" == "--force" ]]; then
+    rm -rf "${CONF_PATH}/${FUNCNAME[0]}_executed"
+  elif [[ "${option}" == "--force-exit" ]]; then
+    rm -rf "${CONF_PATH}/${FUNCNAME[0]}_executed"
+    exit 0
+  else
+    option=""
+  fi
   #rm -f "${CONF_PATH}/${FUNCNAME[0]}_executed"
   if [ ! -f "${CONF_PATH}/${FUNCNAME[0]}_executed" ]; then
     echo "[${SCRIPT_NAME}]: Executing ${FUNCNAME[0]} ..." 2>&1 | tee -a "${REPORT_FILE}"
@@ -6580,7 +7111,187 @@ function configure_da_user_emails() {
   fi
 
 }
+
+function configure_da_reseller_domain_ssl_pre() {
+  local option="$1"
+  if [[ "${option}" == "--force" ]]; then
+    rm -rf "${CONF_PATH}/${FUNCNAME[0]}_executed"
+  elif [[ "${option}" == "--force-exit" ]]; then
+    rm -rf "${CONF_PATH}/${FUNCNAME[0]}_executed"
+    exit 0
+  else
+    option=""
+  fi
+  local option="$1"
+  if [[ "${option}" == "--force" ]]; then
+    rm -rf "${CONF_PATH}/${FUNCNAME[0]}_executed"
+  else
+    option=""
+  fi
+  if [ ! -f "${CONF_PATH}/${FUNCNAME[0]}_executed" ]; then
+    echo "[${SCRIPT_NAME}]: Executing ${FUNCNAME[0]} ..." 2>&1 | tee -a "${REPORT_FILE}"
+    local da_reseller_ssl_sub_names da_reseller_ssl_sub_names_count
+    local this_da_reseller_uname this_da_reseller_userpass this_da_reseller_enable_domain_ssl \
+      this_da_reseller_ssl_sub_names retval
+    # Get all the reseller ssl_sub_names
+    da_reseller_ssl_sub_names="${!DA_RESELLER_SSL_SUB_NAME@}"
+    # Get the total count for reseller ssl_sub_names
+    da_reseller_ssl_sub_names_count=$(echo "${da_reseller_ssl_sub_names}" | wc -w)
+    count_x=1
+    echo "[${SCRIPT_NAME}]: Creating acme-challenge file through custombuild rewrite_confs ..." 2>&1 | tee -a "${REPORT_FILE}"
+    /usr/local/directadmin/custombuild/build rewrite_confs
+    while [[ ${count_x} -le ${da_reseller_ssl_sub_names_count} ]]; do
+      echo ""
+      echo "===== Loop count: ${count_x} ========="
+      typeset -n "this_da_reseller_username"="DA_RESELLER_USERNAME${count_x}"
+      typeset -n "this_da_reseller_userpass"="DA_RESELLER_USERPASS${count_x}"
+      typeset -n "this_da_reseller_enable_domain_ssl"="DA_RESELLER_ENABLE_DOMAIN_SSL${count_x}"
+      typeset -n "this_da_reseller_ssl_sub_names"="DA_RESELLER_SSL_SUB_NAME${count_x}"
+
+      echo "this_da_reseller_username: ${this_da_reseller_username}"
+      echo "this_da_reseller_userpass: ${this_da_reseller_userpass}"
+      echo "this_da_reseller_enable_domain_ssl: ${this_da_reseller_enable_domain_ssl}"
+      echo "this_da_reseller_ssl_sub_names: ${this_da_reseller_ssl_sub_names[*]}"
+      this_da_reseller_ssl_sub_names_count=${#this_da_reseller_ssl_sub_names[@]}
+      echo "=========================================="
+
+      if [[ ${this_da_reseller_enable_domain_ssl} == "yes" ]]; then
+        echo ""
+        echo "OK, This reseller is set to enable SSL"
+        count_n=0
+        while [ ${count_n} -le $((this_da_reseller_ssl_sub_names_count - 1)) ]; do
+          echo ""
+
+          ssl_provider=$(echo "${this_da_reseller_ssl_sub_names[count_n]}" | awk -F':' '{ print $1 }')
+          ssl_domain=$(echo "${this_da_reseller_ssl_sub_names[count_n]}" | awk -F':' '{ print $2 }')
+          ssl_subdomains_raw=$(echo "${this_da_reseller_ssl_sub_names[count_n]}" | awk -F':' '{ print $3 }')
+          # Debug
+          # echo "==============---count_n = ${count_n} ---==============="
+          # echo "SSL_PROVIDER: ${ssl_provider}"
+          # echo "SSL_DOMAIN: ${ssl_domain}"
+          # echo "SSL_SUBDOMAINS_RAW: ${ssl_subdomains_raw}"
+
+          if [ "${ssl_provider}" == "letsencrypt" ]; then
+            echo "Testing, requesting letsencrypt SSL certificate for domain ${ssl_domain} in staging mode ..."
+            staging=yes /usr/local/directadmin/scripts/letsencrypt.sh request_single "${ssl_domain}"
+            retval=$?
+            if [ ${retval} -ne 0 ]; then
+              echo "Warning, this domain ${ssl_domain} has issue when requesting ssl certificate in staging mode"
+            else
+              echo "OK, this domain ${ssl_domain} has no issue when requesting ssl certificate in staging mode"
+            fi
+          elif [ "${ssl_provider}" == "digicert" ]; then
+            :
+          fi
+          ((count_n++))
+        done
+      elif [[ ${this_da_user_enable_domain_ssl} == "no" ]]; then
+        echo "Warning This user is set to not enable SSL. Do nothing for this"
+      fi
+      echo ""
+      ((count_x++))
+
+    done
+    check_finish_reboot "${FUNCNAME[0]}"
+  else
+    echo "[${SCRIPT_NAME}]: [Skipped]: ${FUNCNAME[0]} has ran before" 2>&1 | tee -a "${REPORT_FILE}"
+    echo "=~=~=~=~=~=~=~=~=~" 2>&1 | tee -a "${REPORT_FILE}"
+  fi
+
+}
+
+function configure_da_user_domain_ssl_pre() {
+  local option="$1"
+  if [[ "${option}" == "--force" ]]; then
+    rm -rf "${CONF_PATH}/${FUNCNAME[0]}_executed"
+  elif [[ "${option}" == "--force-exit" ]]; then
+    rm -rf "${CONF_PATH}/${FUNCNAME[0]}_executed"
+    exit 0
+  else
+    option=""
+  fi
+  if [ ! -f "${CONF_PATH}/${FUNCNAME[0]}_executed" ]; then
+    echo "[${SCRIPT_NAME}]: Executing ${FUNCNAME[0]} ..." 2>&1 | tee -a "${REPORT_FILE}"
+    local da_user_ssl_sub_names da_user_ssl_sub_names_count
+    local this_da_user_uname this_da_user_userpass this_da_user_enable_domain_ssl \
+      this_da_user_ssl_sub_names retval
+    # Get all the user ssl_sub_names
+    da_user_ssl_sub_names="${!DA_USER_SSL_SUB_NAME@}"
+    # Get the total count for user ssl_sub_names
+    da_user_ssl_sub_names_count=$(echo "${da_user_ssl_sub_names}" | wc -w)
+    count_x=1
+    echo "[${SCRIPT_NAME}]: Creating acme-challenge file through custombuild rewrite_confs ..." 2>&1 | tee -a "${REPORT_FILE}"
+    /usr/local/directadmin/custombuild/build rewrite_confs
+    while [[ ${count_x} -le ${da_user_ssl_sub_names_count} ]]; do
+      echo ""
+      echo "===== Loop count: ${count_x} ========="
+      typeset -n "this_da_user_username"="DA_USER_USERNAME${count_x}"
+      typeset -n "this_da_user_userpass"="DA_USER_USERPASS${count_x}"
+      typeset -n "this_da_user_enable_domain_ssl"="DA_USER_ENABLE_DOMAIN_SSL${count_x}"
+      typeset -n "this_da_user_ssl_sub_names"="DA_USER_SSL_SUB_NAME${count_x}"
+
+      echo "this_da_user_username: ${this_da_user_username}"
+      echo "this_da_user_userpass: ${this_da_user_userpass}"
+      echo "this_da_user_enable_domain_ssl: ${this_da_user_enable_domain_ssl}"
+      echo "this_da_user_ssl_sub_names: ${this_da_user_ssl_sub_names[*]}"
+      this_da_user_ssl_sub_names_count=${#this_da_user_ssl_sub_names[@]}
+      echo "=========================================="
+
+      if [[ ${this_da_user_enable_domain_ssl} == "yes" ]]; then
+        echo ""
+        echo "OK, This user is set to enable SSL"
+        count_n=0
+        while [ ${count_n} -le $((this_da_user_ssl_sub_names_count - 1)) ]; do
+          echo ""
+
+          ssl_provider=$(echo "${this_da_user_ssl_sub_names[count_n]}" | awk -F':' '{ print $1 }')
+          ssl_domain=$(echo "${this_da_user_ssl_sub_names[count_n]}" | awk -F':' '{ print $2 }')
+          ssl_subdomains_raw=$(echo "${this_da_user_ssl_sub_names[count_n]}" | awk -F':' '{ print $3 }')
+          # Debug
+          # echo "==============---count_n = ${count_n} ---==============="
+          # echo "SSL_PROVIDER: ${ssl_provider}"
+          # echo "SSL_DOMAIN: ${ssl_domain}"
+          # echo "SSL_SUBDOMAINS_RAW: ${ssl_subdomains_raw}"
+
+          if [ "${ssl_provider}" == "letsencrypt" ]; then
+            echo "Testing, requesting letsencrypt SSL certificate for domain ${ssl_domain} in staging mode ..."
+            staging=yes /usr/local/directadmin/scripts/letsencrypt.sh request_single "${ssl_domain}"
+            retval=$?
+            if [ ${retval} -ne 0 ]; then
+              echo "Warning, this domain ${ssl_domain} has issue when requesting ssl certificate in staging mode"
+            else
+              echo "OK, this domain ${ssl_domain} has no issue when requesting ssl certificate in staging mode"
+            fi
+          elif [ "${ssl_provider}" == "digicert" ]; then
+            :
+          fi
+          ((count_n++))
+        done
+      elif [[ ${this_da_user_enable_domain_ssl} == "no" ]]; then
+        echo "Warning This user is set to not enable SSL. Do nothing for this"
+      fi
+      echo ""
+      ((count_x++))
+
+    done
+    check_finish_reboot "${FUNCNAME[0]}"
+  else
+    echo "[${SCRIPT_NAME}]: [Skipped]: ${FUNCNAME[0]} has ran before" 2>&1 | tee -a "${REPORT_FILE}"
+    echo "=~=~=~=~=~=~=~=~=~" 2>&1 | tee -a "${REPORT_FILE}"
+  fi
+
+}
+
 function configure_da_reseller_domain_ssl() {
+  local option="$1"
+  if [[ "${option}" == "--force" ]]; then
+    rm -rf "${CONF_PATH}/${FUNCNAME[0]}_executed"
+  elif [[ "${option}" == "--force-exit" ]]; then
+    rm -rf "${CONF_PATH}/${FUNCNAME[0]}_executed"
+    exit 0
+  else
+    option=""
+  fi
   # Here we configure SSL for specific domains we want based on the config variable: DA_RESELLER_ENABLE_DOMAIN_SSL{?}
   # Where Domain can have 1 or more
   #rm -f "${CONF_PATH}/${FUNCNAME[0]}_executed"
@@ -6682,6 +7393,15 @@ function configure_da_reseller_domain_ssl() {
 
 }
 function configure_da_user_domain_ssl() {
+  local option="$1"
+  if [[ "${option}" == "--force" ]]; then
+    rm -rf "${CONF_PATH}/${FUNCNAME[0]}_executed"
+  elif [[ "${option}" == "--force-exit" ]]; then
+    rm -rf "${CONF_PATH}/${FUNCNAME[0]}_executed"
+    exit 0
+  else
+    option=""
+  fi
   # Here we configure SSL for specific domains we want based on the config variable: DA_USER_ENABLE_DOMAIN_SSL{?}
   # Where Domain can have 1 or more
   #rm -f "${CONF_PATH}/${FUNCNAME[0]}_executed"
@@ -6781,6 +7501,15 @@ function configure_da_user_domain_ssl() {
 }
 
 function configure_da_owner_security() {
+  local option="$1"
+  if [[ "${option}" == "--force" ]]; then
+    rm -rf "${CONF_PATH}/${FUNCNAME[0]}_executed"
+  elif [[ "${option}" == "--force-exit" ]]; then
+    rm -rf "${CONF_PATH}/${FUNCNAME[0]}_executed"
+    exit 0
+  else
+    option=""
+  fi
   # Set owner security and answer questions:
   # da_admin_api "set-security-qna" "Sekolah menengah dulu aliran apa ?" "sains"
 
@@ -6846,6 +7575,15 @@ function configure_da_owner_security() {
 }
 
 function configure_da_admin_security() {
+  local option="$1"
+  if [[ "${option}" == "--force" ]]; then
+    rm -rf "${CONF_PATH}/${FUNCNAME[0]}_executed"
+  elif [[ "${option}" == "--force-exit" ]]; then
+    rm -rf "${CONF_PATH}/${FUNCNAME[0]}_executed"
+    exit 0
+  else
+    option=""
+  fi
   # Set admin security and answer questions:
   # da_admin_api "set-security-qna" "Sekolah menengah dulu aliran apa ?" "sains"
 
@@ -6911,6 +7649,15 @@ function configure_da_admin_security() {
 }
 
 function configure_da_reseller_security() {
+  local option="$1"
+  if [[ "${option}" == "--force" ]]; then
+    rm -rf "${CONF_PATH}/${FUNCNAME[0]}_executed"
+  elif [[ "${option}" == "--force-exit" ]]; then
+    rm -rf "${CONF_PATH}/${FUNCNAME[0]}_executed"
+    exit 0
+  else
+    option=""
+  fi
   # Set reseller security and answer questions:
   # da_admin_api "set-security-qna" "Sekolah menengah dulu aliran apa ?" "sains"
 
@@ -6976,7 +7723,15 @@ function configure_da_reseller_security() {
 }
 
 function configure_da_user_security() {
-
+  local option="$1"
+  if [[ "${option}" == "--force" ]]; then
+    rm -rf "${CONF_PATH}/${FUNCNAME[0]}_executed"
+  elif [[ "${option}" == "--force-exit" ]]; then
+    rm -rf "${CONF_PATH}/${FUNCNAME[0]}_executed"
+    exit 0
+  else
+    option=""
+  fi
   # Set user security and answer questions:
   # da_admin_api "set-security-qna" "Sekolah menengah dulu aliran apa ?" "sains"
   # Don't use 2 step authentication yet because of this:
@@ -7043,7 +7798,15 @@ function configure_da_user_security() {
 
 # Function to create all reseller databases
 function configure_da_reseller_databases() {
-
+  local option="$1"
+  if [[ "${option}" == "--force" ]]; then
+    rm -rf "${CONF_PATH}/${FUNCNAME[0]}_executed"
+  elif [[ "${option}" == "--force-exit" ]]; then
+    rm -rf "${CONF_PATH}/${FUNCNAME[0]}_executed"
+    exit 0
+  else
+    option=""
+  fi
   if [ ! -f "${CONF_PATH}/${FUNCNAME[0]}_executed" ]; then
     echo "[${SCRIPT_NAME}]: Executing ${FUNCNAME[0]} ..." 2>&1 | tee -a "${REPORT_FILE}"
 
@@ -7126,7 +7889,15 @@ function configure_da_reseller_databases() {
 
 # Function to create all user databases
 function configure_da_user_databases() {
-
+  local option="$1"
+  if [[ "${option}" == "--force" ]]; then
+    rm -rf "${CONF_PATH}/${FUNCNAME[0]}_executed"
+  elif [[ "${option}" == "--force-exit" ]]; then
+    rm -rf "${CONF_PATH}/${FUNCNAME[0]}_executed"
+    exit 0
+  else
+    option=""
+  fi
   if [ ! -f "${CONF_PATH}/${FUNCNAME[0]}_executed" ]; then
     echo "[${SCRIPT_NAME}]: Executing ${FUNCNAME[0]} ..." 2>&1 | tee -a "${REPORT_FILE}"
     local da_user_usernames da_user_usernames_count this_da_user_username this_da_user_userpass \
@@ -7209,6 +7980,15 @@ function configure_da_user_databases() {
 }
 # This is a custom function used to modify user websites configuration
 function configure_da_custom_webs() {
+  local option="$1"
+  if [[ "${option}" == "--force" ]]; then
+    rm -rf "${CONF_PATH}/${FUNCNAME[0]}_executed"
+  elif [[ "${option}" == "--force-exit" ]]; then
+    rm -rf "${CONF_PATH}/${FUNCNAME[0]}_executed"
+    exit 0
+  else
+    option=""
+  fi
   if [ ! -f "${CONF_PATH}/${FUNCNAME[0]}_executed" ]; then
     echo "[${SCRIPT_NAME}]: Executing ${FUNCNAME[0]} ..." 2>&1 | tee -a "${REPORT_FILE}"
     if [ "${ENABLE_CUSTOM_WEB_SETUP}" == "yes" ]; then
@@ -7233,6 +8013,15 @@ function configure_da_custom_webs() {
 }
 
 function harden_with_lynis() {
+  local option="$1"
+  if [[ "${option}" == "--force" ]]; then
+    rm -rf "${CONF_PATH}/${FUNCNAME[0]}_executed"
+  elif [[ "${option}" == "--force-exit" ]]; then
+    rm -rf "${CONF_PATH}/${FUNCNAME[0]}_executed"
+    exit 0
+  else
+    option=""
+  fi
   if [ ! -f "${CONF_PATH}/${FUNCNAME[0]}_executed" ]; then
     echo "[${SCRIPT_NAME}]: Executing ${FUNCNAME[0]} ..." 2>&1 | tee -a "${REPORT_FILE}"
     # Suggested by lynis to disable core dump
@@ -7263,6 +8052,15 @@ function harden_with_lynis() {
 }
 
 function configure_cronjobs() {
+  local option="$1"
+  if [[ "${option}" == "--force" ]]; then
+    rm -rf "${CONF_PATH}/${FUNCNAME[0]}_executed"
+  elif [[ "${option}" == "--force-exit" ]]; then
+    rm -rf "${CONF_PATH}/${FUNCNAME[0]}_executed"
+    exit 0
+  else
+    option=""
+  fi
   if [ ! -f "${CONF_PATH}/${FUNCNAME[0]}_executed" ]; then
     echo "[${SCRIPT_NAME}]: Executing ${FUNCNAME[0]} ..." 2>&1 | tee -a "${REPORT_FILE}"
     # Stopping some services to reduce memory usage like clamav:
@@ -7283,6 +8081,15 @@ function configure_cronjobs() {
 
 # This is used to install extra packages like ncdu, htop and more
 function post_setup() {
+  local option="$1"
+  if [[ "${option}" == "--force" ]]; then
+    rm -rf "${CONF_PATH}/${FUNCNAME[0]}_executed"
+  elif [[ "${option}" == "--force-exit" ]]; then
+    rm -rf "${CONF_PATH}/${FUNCNAME[0]}_executed"
+    exit 0
+  else
+    option=""
+  fi
   if [ ! -f "${CONF_PATH}/${FUNCNAME[0]}_executed" ]; then
     echo "[${SCRIPT_NAME}]: Executing ${FUNCNAME[0]} ..." 2>&1 | tee -a "${REPORT_FILE}"
     apt-get -y install ncdu htop mailutils gpg vim 2>&1 | tee -a "${REPORT_FILE}"
@@ -7466,190 +8273,193 @@ while [ "$#" -gt 0 ]; do
     echo "[${SCRIPT_NAME}]: ${START_OR_RESUME} Installation for ${BOX_HOSTNAME_FQDN} ..." 2>&1 | tee -a "${REPORT_FILE}"
     echo "" 2>&1 | tee -a "${REPORT_FILE}"
     # Use this to install screen or disable Selinux in CentOS
-    pre_setup
+    pre_setup ""
     #exit 1
     # Clone all setup script
-    get_latest_maxisetup #OK
+    get_latest_maxisetup ""
     # Get the latest security codes from maxicode
-    init_local_maxicode
+    init_local_maxicode ""
     # Hardening server
-    secure_box #OK
+    secure_box ""
     # Set password for grub bootloader
-    configure_grub
+    configure_grub ""
     # Configure basic network 1
-    configure_net #OK
+    configure_net ""
     # Must run configure_net first before running configure_net2 because we need interface to be ${NIC_INTERFACE_NAME} first #OK
-    configure_net2
+    configure_net2 ""
     # This is where we can configure mount option for disk
-    configure_fstab
+    configure_fstab ""
     # Tweaking swap for production server
-    configure_sysctl_swap      #OK
+    configure_sysctl_swap ""      #OK
     # Tweaking kernel etc ..
-    configure_sysctl_kernel_fs #OK
+    configure_sysctl_kernel_fs "" #OK
     # Tweaking IPv4 or Ipv6
-    configure_sysctl_ips #OK
+    configure_sysctl_ips "" #OK
     # Upgrade system
-    upgrade_os #Done
+    upgrade_os "" #Done
     if [ "${INSTALL_TYPE}" == "DIRECTADMIN" ]; then
-      install_da_pre     #OK
+      install_da_pre ""
       #exit 1
-      install_da         #OK
+      install_da ""
       #exit 1
       # Must run this after install_da and before install_da_post because install_da_post requires valid nginx directive which is fixed at rebuild_da_package
-      rebuild_da_package #OK -- find more what to rebuild
+      rebuild_da_package "" #OK -- find more what to rebuild
       #exit 1
-      install_da_post #OK
+      install_da_post "" #OK
       #exit 1
-      change_da_auth #OK
+      change_da_auth "" #OK
       #exit 1
       # Linking da ipv6 with ipv4 and vice versa
-      link_da_ipv6 #OK
+      link_da_ipv6 "" #OK
       #exit 1
     fi
     # FOR BOTH GENERAL AND DIRECTADMIN INSTALLATION TYPE:
     #Best to execute after install_da because CSF installer will detect if DA exist, it will install CSF in DA way.
-    configure_csf
+    configure_csf ""
     #exit 1
-    configure_maxibox
+    configure_maxibox ""
     #exit 1
-    configure_maxicode_pre
+    configure_maxicode_pre ""
     #exit 1
-    configure_maxicode
+    configure_maxicode ""
     #exit 1
-    configure_maxiperm
+    configure_maxiperm ""
     #exit 1
-    configure_maxinis
+    configure_maxinis ""
     #exit 1
-    configure_maxigpg
+    configure_maxigpg ""
     #exit 1
-    configure_maxida
+    configure_maxida ""
     #exit 1
-    configure_maxicron
+    configure_maxicron ""
     #exit 1
-    configure_maxiaide
+    configure_maxiaide ""
     #exit 1
-    configure_maxicata
+    configure_maxicata ""
     #exit 1
-    configure_maxicloud
+    configure_maxicloud ""
     #exit 1
-    configure_maxipass
+    configure_maxipass ""
     #exit 1
-    #configure_maxify
+    configure_maxify ""
     # Need to restart first before running next commands after enable IPv6 because 'tentative status issue with ethX + nginx'.
     # If I don't restart, I won't be able to request cert and letsencrypt will complain about firewall.
-    #configure_logs
+    configure_logs ""
     if [ "${INSTALL_TYPE}" == "DIRECTADMIN" ]; then
       #exit 1
-      configure_da_sql
+      configure_da_sql ""
       #exit 1
-      configure_da_mail
+      configure_da_mail ""
       #exit 1
-      configure_da_ftp
+      configure_da_ftp ""
       #exit 1
-      configure_nginx_apache
+      configure_nginx_apache ""
       #exit 1
-      configure_web_apps_html
+      configure_web_apps_html ""
       #exit 1
-      build_da_custom_conf
+      build_da_custom_conf ""
       #exit 1
-      configure_da
+      configure_da ""
       #exit 1
-      configure_da_memcached
+      configure_da_memcached ""
       #exit 1
-      configure_da_geoip
+      configure_da_geoip ""
       #exit 1
       # we configure dns template before creating admin, reseller and user accounts so they can use new DNS template
-      #rm -rf "${CONF_PATH}/configure_da_dns_templates_executed"
-      configure_da_dns_templates
+      configure_da_dns_templates ""
       #exit 1
       #rm -rf "${CONF_PATH}/configure_da_owner_accounts_executed"
-      configure_da_owner_accounts
+      configure_da_owner_accounts ""
       #exit 1
       #rm -rf "${CONF_PATH}/configure_da_admin_accounts_executed"
-      configure_da_admin_accounts
+      configure_da_admin_accounts ""
       #exit 1
       #rm -rf "${CONF_PATH}/configure_da_reseller_accounts_executed"
-      configure_da_reseller_accounts
+      configure_da_reseller_accounts ""
       #exit 1
       #rm -rf "${CONF_PATH}/configure_da_reseller_root_domains_executed"
-      configure_da_reseller_root_domains
+      configure_da_reseller_root_domains ""
       #exit 1
       #rm -rf "${CONF_PATH}/configure_da_reseller_wildcard_domains_executed"
-      configure_da_reseller_wildcard_domains
+      configure_da_reseller_wildcard_domains ""
       #exit 1
       #rm -rf "${CONF_PATH}/configure_da_reseller_subdomains_executed"
-      configure_da_reseller_subdomains
+      configure_da_reseller_subdomains ""
       #exit 1
       #rm -rf "${CONF_PATH}/configure_da_reseller_emails_executed"
-      configure_da_reseller_emails
+      configure_da_reseller_emails ""
       #exit 1
       #rm -rf "${CONF_PATH}/configure_da_user_accounts_executed"
-      configure_da_user_accounts
+      configure_da_user_accounts ""
       #exit 1
       #rm -rf "${CONF_PATH}/configure_da_user_root_domains_executed"
-      configure_da_user_root_domains
+      configure_da_user_root_domains ""
       #exit 1
       #rm -rf "${CONF_PATH}/configure_da_user_wildcard_domains_executed"
-      configure_da_user_wildcard_domains
+      configure_da_user_wildcard_domains ""
       #exit 1
       #rm -rf "${CONF_PATH}/configure_da_user_subdomains_executed"
-      configure_da_user_subdomains
+      configure_da_user_subdomains ""
       #exit 1
       #rm -rf "${CONF_PATH}/configure_da_user_emails_executed"
-      configure_da_user_emails
+      configure_da_user_emails ""
       #exit 1
       #rm -rf "${CONF_PATH}/configure_da_owner_skins_executed"
-      configure_da_owner_skins
+      configure_da_owner_skins ""
       #rm -rf "${CONF_PATH}/configure_da_admin_skins_executed"
-      configure_da_admin_skins
+      configure_da_admin_skins ""
       #exit 1
       #rm -rf "${CONF_PATH}/configure_da_reseller_skins_executed"
-      configure_da_reseller_skins
+      configure_da_reseller_skins ""
       #exit 1
       #rm -rf "${CONF_PATH}/configure_da_owner_security_executed"
-      configure_da_owner_security
+      configure_da_owner_security ""
       #exit 1
       #rm -rf "${CONF_PATH}/configure_da_admin_security_executed"
-      configure_da_admin_security
+      configure_da_admin_security ""
       #exit 1
-      configure_da_reseller_security
+      configure_da_reseller_security ""
       #rm -rf "${CONF_PATH}/configure_da_user_security_executed"
-      configure_da_user_security
+      configure_da_user_security ""
       #exit 1
       #rm -rf "${CONF_PATH}/configure_da_reseller_databases_executed"
-      configure_da_reseller_databases
+      configure_da_reseller_databases ""
       #exit 1
       #rm -rf "${CONF_PATH}/configure_da_user_databases_executed"
-      configure_da_user_databases
+      configure_da_user_databases ""
       #exit 1
-      configure_da_custom_webs
+      configure_da_custom_webs ""
       #exit 1
 
       # Must run this functions (configure_da_ssl) after running CSF because we need to make sure all appropriate ports are opened to request certs
       # Warning do not overused configure_da_ssl function because when requesting the same cert for the same domain 7 times for a week, you will get blocked.
       # This will set the hosting to SSL:
-      configure_da_ssl_pre
-
+      configure_da_ssl_pre ""
+      #exit 1
       # It's best to call SSL after domain propagation few hours later.
 
       # Call certificate request at the end because we want to create DNS entry and propagate first
       # Don't worry if some domains are not able to have SSL because of the propagation problem using external DNS
-      configure_da_ssl
+      configure_da_ssl ""
       #exit 1
       #rm -rf "${CONF_PATH}/configure_da_reseller_domain_ssl_executed"
-      configure_da_reseller_domain_ssl
+
+      configure_da_reseller_domain_ssl_pre ""
+      #exit 1
+      configure_da_reseller_domain_ssl ""
       #exit 1
       # rm -rf "${CONF_PATH}/configure_da_user_domain_ssl_executed"
-      configure_da_user_domain_ssl
+      #configure_da_user_domain_ssl_pre
+      configure_da_user_domain_ssl ""
       #exit 1
     fi
     #exit 1
     # Still need to add more based on lynis suggestion
-    harden_with_lynis
+    harden_with_lynis ""
     # exit 1
-    configure_cronjobs
+    configure_cronjobs ""
     # exit 1
-    post_setup
+    post_setup ""
     echo "" 2>&1 | tee -a "${REPORT_FILE}"
     if [ "${INSTALL_TYPE}" == "DIRECTADMIN" ]; then
       echo "==============" 2>&1 | tee -a "${REPORT_FILE}"
@@ -7765,6 +8575,22 @@ while [ "$#" -gt 0 ]; do
   -la | --linode-api)
     shift
     linode_api_admin "$@"
+    exit 0
+    break
+    ;;
+  # This will list out what domain or subdomain that will have problem when request certificate
+  -srt | --ssl-request-test)
+    validate_config
+    configure_da_reseller_domain_ssl_pre "--force"
+    configure_da_user_domain_ssl_pre "--force"
+    exit 0
+    break
+    ;;
+  # This will request certificate
+  -sr | --ssl-request)
+    validate_config
+    configure_da_reseller_domain_ssl "--force"
+    configure_da_user_domain_ssl "--force"
     exit 0
     break
     ;;
