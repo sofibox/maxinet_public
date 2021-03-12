@@ -10,7 +10,7 @@
     <select />
   </component>
   <component name="ChangeListManager">
-    <list default="true" id="113c828c-9a32-4b24-ab1e-978ce50c6320" name="Default Changelist" comment="Added secure_vps_by_sofibox.pdf documentation&#10;Small changes to maxisetup">
+    <list default="true" id="113c828c-9a32-4b24-ab1e-978ce50c6320" name="Default Changelist" comment="Added script --force argument&#10;Added function to test SSL certificate. It will list out domains or subdomains that have problem when requesting certificate using staging mode">
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
@@ -53,13 +53,15 @@
     </key>
   </component>
   <component name="RunManager">
-    <configuration default="true" type="ArquillianJUnit" factoryName="" nameIsGenerated="true">
+    <configuration default="true" type="ArquillianTestNG" factoryName="" nameIsGenerated="true">
       <option name="arquillianRunConfiguration">
         <value>
           <option name="containerStateName" value="" />
         </value>
       </option>
-      <option name="TEST_OBJECT" value="class" />
+      <option name="TEST_OBJECT" value="CLASS" />
+      <properties />
+      <listeners />
       <method v="2">
         <option name="Make" enabled="true" />
       </method>
@@ -131,13 +133,7 @@
       <workItem from="1615293478079" duration="653000" />
       <workItem from="1615389523618" duration="703000" />
       <workItem from="1615390751539" duration="425000" />
-    </task>
-    <task id="LOCAL-00011" summary="Minor change- &gt; improve _pause() function to accept both timeout and keypress, so during setup, we can skip sleep function by pressing enter.">
-      <created>1611209148834</created>
-      <option name="number" value="00011" />
-      <option name="presentableId" value="LOCAL-00011" />
-      <option name="project" value="LOCAL" />
-      <updated>1611209148834</updated>
+      <workItem from="1615433887098" duration="1823000" />
     </task>
     <task id="LOCAL-00012" summary="Improve DA API such as adding a flexible way to start API session with da_api_admin &quot;start_&lt;role&gt;&quot;&#10;Add API to create packages for reseller and user&#10;Add API to create reseller and user account&#10;Fixed maxida.env at maxida file overwritten with blank environment variables when resume setup">
       <created>1611347876787</created>
@@ -475,7 +471,14 @@
       <option name="project" value="LOCAL" />
       <updated>1615391001036</updated>
     </task>
-    <option name="localTasksCounter" value="60" />
+    <task id="LOCAL-00060" summary="Added script --force argument&#10;Added function to test SSL certificate. It will list out domains or subdomains that have problem when requesting certificate using staging mode">
+      <created>1615433915208</created>
+      <option name="number" value="00060" />
+      <option name="presentableId" value="LOCAL-00060" />
+      <option name="project" value="LOCAL" />
+      <updated>1615433915208</updated>
+    </task>
+    <option name="localTasksCounter" value="61" />
     <servers />
   </component>
   <component name="TypeScriptGeneratedFilesManager">
@@ -494,7 +497,6 @@
     <option name="oldMeFiltersMigrated" value="true" />
   </component>
   <component name="VcsManagerConfiguration">
-    <MESSAGE value="Improved config checking for adding multiple admin users&#10;&#10;Removed optional TODO for check_finish_reboot() because it is not good to resume installation without user interaction.&#10;&#10;Moved SSHD config recommended by lynis to secure_box() function&#10;&#10;Added few options to harden DA installation in harden_da() function (more will come in here)&#10;&#10;Added new function for configuring maxinis called configure_maxinis(). This binary will manage lynis binary&#10;&#10;Added an option to disable core dump as suggested by lynis in harden_with_lynis(). Any lynis suggestion will go here (TODO: scan with lynis, get the scan ID and automatically fixed the issue based on common solutions)" />
     <MESSAGE value="Added update and upgrade command to update repo cache&#10;&#10;Added function configure_maxicron() that will be used to manage startup:&#10;&#10;# It will disable startup programs, able to create cronjob easily&#10;# Able to create cronjob with 5 seconds timer which is not available in stock cronjob&#10;# Can enable and disable cronjob easily&#10;# Can list all cronjobs, delete edit remove&#10;&#10;Added extra command to disable core dumps for all users" />
     <MESSAGE value="Improved config file check for DA_&lt;ROLE&gt;_SUBDOMAIN and DA_&lt;ROLE&gt;_SSL_SUB_NAME" />
     <MESSAGE value="Added extra security option for harden_da for issue related to invalid certificate" />
@@ -519,6 +521,7 @@
     <MESSAGE value="Updated linode API for initializing disks. (there is no way to access rescue mode through API to install Debian through command line). Use manual way using linode built-in terminal." />
     <MESSAGE value="Changed variable name DA_RESELLER_DOMAIN_ENABLE_SSL to:&#10;&#10;DA_RESELLER_ENABLE_DOMAIN_SSL to avoid pattern bug.&#10;&#10;Updated maxipass installation&#10;&#10;Updated da_dns_templates&#10;&#10;Added new 2 functions to configure root domain:&#10;&#10;configure_da_reseller_root_domains()&#10;and&#10;configure_da_user_root_domains()" />
     <MESSAGE value="Added secure_vps_by_sofibox.pdf documentation&#10;Small changes to maxisetup" />
-    <option name="LAST_COMMIT_MESSAGE" value="Added secure_vps_by_sofibox.pdf documentation&#10;Small changes to maxisetup" />
+    <MESSAGE value="Added script --force argument&#10;Added function to test SSL certificate. It will list out domains or subdomains that have problem when requesting certificate using staging mode" />
+    <option name="LAST_COMMIT_MESSAGE" value="Added script --force argument&#10;Added function to test SSL certificate. It will list out domains or subdomains that have problem when requesting certificate using staging mode" />
   </component>
 </project>

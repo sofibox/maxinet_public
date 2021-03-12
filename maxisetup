@@ -3,7 +3,7 @@
 # Author: Arafat Ali | Email: webmaster@sofibox.com
 APP_SPECIFIC_NAME="Maxisetup"
 APP_STATUS="beta"
-APP_VERSION="0.4.1.1-${APP_STATUS}"
+APP_VERSION="0.4.1.2-${APP_STATUS}"
 # This is an initial server hardening script for CentOS and Debian.
 # Compatible 100% with Directadmin. Supported OS: CentOS + Debian (Planned on FreeBSD)
 # You can choose to install as the other stack server such as LEMP, (TODO) Laravel and more defined in config file
@@ -1447,12 +1447,10 @@ function da_api_admin() {
         echo "[${SCRIPT_NAME}]: Error, no main reseller account matched in config file. Please create reseller first!" 2>&1 | tee -a "${REPORT_FILE}"
         _exit 1
       fi
-
     elif [ "${action}" == "signas+user" ]; then
       rm -f "${TEMP_PATH}"/api/*
       echo "Authenticating DA API with signas+user"
       if [ -n "${user_new_list}" ]; then
-
         #echo "[${SCRIPT_NAME}]: Found main user account ${user_new_list} matched in config file. Creating API session file authentication for ${user_new_list}..." 2>&1 | tee -a "${REPORT_FILE}"
         touch "${user_main_auth}"
         {
@@ -1482,7 +1480,6 @@ function da_api_admin() {
 
   # If the admin.list file has a new admin username, we use that authentication
   # This is the default authentication for DA owner
-
   if [ -s "${user_extra_auth}" ]; then
     #echo "[${SCRIPT_NAME}]: Found auth file for ${role_user}. Using authentication for this user ..." 2>&1 | tee -a "${REPORT_FILE}"
     #_pause 2
@@ -1527,7 +1524,6 @@ function da_api_admin() {
     echo "[${SCRIPT_NAME}]: Warning, no valid authentication is available to use Directadmin API!" 2>&1 | tee -a "${REPORT_FILE}"
     _exit 1
   fi
-
   # Only run this if number of argument is more than 1 or at least 2
   if [ "$#" -gt 1 ]; then
     if [ "${action}" == "create-admin-account" ]; then
@@ -1568,7 +1564,6 @@ function da_api_admin() {
       data="username=${username}&email=${email}&passwd=${password}&passwd2=${password}&domain=${domain}&package=${package_name}&ip=${IPV4_ADD0}&notify=yes&add=yes&action=create&json=yes"
       method="POST"
       echo "Now, executing API with action name: ${action}" 2>&1 | tee -a "${REPORT_FILE}"
-
     elif [ "${action}" == "delete-users" ]; then
       # da_api_admin "delete-users" "admin2"
       shift
@@ -1601,7 +1596,6 @@ function da_api_admin() {
       data="bandwidth=5000&ubandwidth=yes&quota=1000&uquota=yes&inode=&uinode=yes&vdomains=10&uvdomains=yes&nsubdomains=10&unsubdomains=yes&nemails=100&unemails=yes&nemailf=100&unemailf=yes&nemailml=10&unemailml=yes&nemailr=100&unemailr=yes&mysql=0&umysql=yes&domainptr=0&udomainptr=yes&ftp=10&uftp=yes&cgi=ON&php=ON&spam=ON&catchall=ON&ssl=ON&oversell=ON&cron=ON&sysinfo=ON&login_keys=ON&dnscontrol=ON&dns=OFF&serverip=ON&packagename=${package_name}&nusers=&unusers=yes&add=save&ips=0&json=yes"
       method="POST"
       echo "Now, executing API with action name: ${action}" 2>&1 | tee -a "${REPORT_FILE}"
-
     elif [ "${action}" == "create-user-package" ]; then
       shift
       package_name="$1"
@@ -1610,7 +1604,6 @@ function da_api_admin() {
       data="bandwidth=1000&ubandwidth=yes&quota=100&uquota=yes&inode=&uinode=yes&vdomains=1&uvdomains=yes&nsubdomains=10&unsubdomains=yes&nemails=10&unemails=yes&unemailf=yes&nemailml=0&unemailml=yes&nemailr=10&unemailr=yes&mysql=5&umysql=yes&domainptr=0&udomainptr=yes&ftp=1&uftp=yes&php=ON&spam=ON&catchall=ON&ssl=ON&cron=ON&sysinfo=ON&login_keys=ON&dnscontrol=ON&suspend_at_limit=ON&language=en&skin=evolution&packagename=${package_name}&add=save&json=yes"
       method="POST"
       echo "Now, executing API with action name: ${action}" 2>&1 | tee -a "${REPORT_FILE}"
-
     elif [ "${action}" == "create-user-domain" ]; then
       shift
       domain="$1"
@@ -1618,7 +1611,6 @@ function da_api_admin() {
       data="domain=${domain}&uquota=unlimited&ssl=ON&php=ON&action=create&ubandwidth=unlimited&json=yes"
       method="POST"
       echo "Now, executing API with action name: ${action}" 2>&1 | tee -a "${REPORT_FILE}"
-
     elif [ "${action}" == "enable-email-dkim" ]; then
       shift
       domain="$1"
@@ -1642,7 +1634,6 @@ function da_api_admin() {
       record_type=$(echo "${filter_cmd}" | awk -F'+' '{ print $2 }')
       record_contains_val=$(echo "${filter_cmd}" | awk -F'+' '{ print $3 }')
       record_out_display=$(echo "${filter_cmd}" | awk -F'+' '{ print $4 }')
-
       echo "Value of filter_cmd is: ${filter_cmd}" 2>&1 | tee -a "${REPORT_FILE}"
       echo "Value of record_name is: ${record_name}" 2>&1 | tee -a "${REPORT_FILE}"
       echo "Value of record_type is: ${record_type}" 2>&1 | tee -a "${REPORT_FILE}"
@@ -1674,7 +1665,6 @@ function da_api_admin() {
       method="POST"
       # da_api_admin "create-user-email" "maxibi.com" "webmaster" "1232123" "0" "200"
       echo "Now, executing API with action name: ${action}" 2>&1 | tee -a "${REPORT_FILE}"
-
     elif [ "${action}" == "create-user-email" ]; then
       local mail_domain mail_user mail_pass mail_quota mail_limit
       shift
@@ -1702,7 +1692,6 @@ function da_api_admin() {
       # da_api_admin "request-domain-ssl" letsencrypt codegix.com secp521r1 sha256 "le_select0=codegix.com&le_select1=www.codegix.com&le_select2=ftp.codegix.com \
       # &le_select3=mail.codegix.com&le_select4=pop.codegix.com&le_select5=smtp.codegix.com&le_select6=dashboard.codegix.com&le_select7=secure.codegix.com"
       echo "Now, executing API with action name: ${action}" 2>&1 | tee -a "${REPORT_FILE}"
-
     elif [ "${action}" == "request-domain-ssl" ]; then
       local ssl_root_domain ssl_key_size ssl_encryption
       shift
@@ -1723,7 +1712,6 @@ function da_api_admin() {
       fi
       method="POST"
       echo "Now, executing API with action name: ${action}" 2>&1 | tee -a "${REPORT_FILE}"
-
     # da_api_admin "set-da-logo" <skin_name> <logo_mode> <path_to_logo.png>
     # skin_name: evolution, enhanced | logo_mode: dark-logo, default-logo
     # eg: da_api_admin "set-da-logo" evolution dark-logo /home/tmp/logo_dark.png
@@ -1743,7 +1731,6 @@ function da_api_admin() {
       method="POST"
       # da_api_admin "set-da-options" evolution
       echo "Now, executing API with action name: ${action}" 2>&1 | tee -a "${REPORT_FILE}"
-
     elif [ "${action}" == "set-da-options" ]; then
       # Customize
       shift
@@ -1760,7 +1747,6 @@ function da_api_admin() {
       # da_api_admin "modify-user" da_user1 name "Arafat Ali"
       # da_api_admin "modify-user" da_user2 nameserver "ns1.sofibox.com" "ns2.sofibox.com"
       echo "Now, executing API with action name: ${action}" 2>&1 | tee -a "${REPORT_FILE}"
-
     elif [ "${action}" == "modify-user" ]; then
       shift
       local setting da_user value1 value2
@@ -1788,7 +1774,6 @@ function da_api_admin() {
       fi
       method="POST"
       echo "Now, executing API with action name: ${action}" 2>&1 | tee -a "${REPORT_FILE}"
-
       # da_admin_api "set-security-qna" "Sekolah menengah dulu aliran apa ?" "sains"
     elif [ "${action}" == "set-security-qna" ]; then
       shift
@@ -2796,7 +2781,7 @@ function upgrade_os() {
     fi
 
     # Install other components based on installation type and distribution:
-    if [ "${INSTALL_TYPE}" == "GENERAL" ]; then
+    if [ "${INSTALL_TYPE}" == "general" ]; then
       if [ "${DISTRO_ID}" == "centos" ]; then
         echo "[${SCRIPT_NAME}]: Installing system required components for CentOS General setup ..." 2>&1 | tee -a "${REPORT_FILE}"
 
@@ -2813,7 +2798,7 @@ function upgrade_os() {
         echo "[${SCRIPT_NAME}]: Error, unknown value for distribution ID ${DISTRO_ID}" 2>&1 | tee -a "${REPORT_FILE}"
         _exit 1
       fi
-    elif [ "${INSTALL_TYPE}" == "DIRECTADMIN" ]; then
+    elif [ "${INSTALL_TYPE}" == "directadmin" ]; then
       if [ "${DISTRO_ID}" == "centos" ]; then
         echo "[${SCRIPT_NAME}]: Installing system required components for CentOS Directadmin setup ..." 2>&1 | tee -a "${REPORT_FILE}"
         : # will determine (but RIP CentOS)
@@ -2855,12 +2840,12 @@ configure_csf() {
     # If DA INSTALL TYPE IS auto don't run this because it will install CSF automatically (as stated in documentation)
     local gc ipv4_tcp_in ipv4_tcp_out ipv6_tcp_in ipv6_tcp_out all_allow_ports kernel_numericver
     local bl_ip_html_source bl_ip_html_dest gc retval
-    if [ "${DA_INSTALL_TYPE}" != "AUTO" ]; then
+    if [ "${DA_INSTALL_TYPE}" != "auto" ]; then
       if ! command -v csf &>/dev/null; then
         echo "[${SCRIPT_NAME}]: No CSF binary is found (CSF is not installed)" 2>&1 | tee -a "${REPORT_FILE}"
         sleep 2
-        if [ "${INSTALL_TYPE}" == "GENERAL" ]; then
-          echo "[${SCRIPT_NAME}]: Script installation type is set to GENERAL. Installing and Setting up CSF for ${BOX_HOSTNAME_FQDN} ..." 2>&1 | tee -a "${REPORT_FILE}"
+        if [ "${INSTALL_TYPE}" == "general" ]; then
+          echo "[${SCRIPT_NAME}]: Script installation type is set to 'general'. Installing and Setting up CSF for ${BOX_HOSTNAME_FQDN} ..." 2>&1 | tee -a "${REPORT_FILE}"
           sleep 2
           echo "[${SCRIPT_NAME}]: Removing existing CSF if exist using built-in script ..." 2>&1 | tee -a "${REPORT_FILE}"
           sh /etc/csf/uninstall.sh
@@ -2898,7 +2883,7 @@ configure_csf() {
           else
             echo "[${SCRIPT_NAME}]: [Skipped]: OK, No existing APF+BFD installation to remove" 2>&1 | tee -a "${REPORT_FILE}"
           fi
-        elif [ "${INSTALL_TYPE}" == "DIRECTADMIN" ]; then
+        elif [ "${INSTALL_TYPE}" == "directadmin" ]; then
           echo "[${SCRIPT_NAME}]: Script installation type is set to DIRECTADMIN. Installing CSF on ${BOX_HOSTNAME_FQDN} using DA script by Poralix..." 2>&1 | tee -a "${REPORT_FILE}"
           sleep 2
           #wget http://files.directadmin.com/services/all/csf/csf_install.sh 2>&1 | tee -a "${REPORT_FILE}"
@@ -3091,7 +3076,7 @@ function install_da_pre() {
     echo 1 >/root/.preinstall
     # Here I can set options.conf and php_extensions.conf to custom install.
     mkdir -p /usr/local/directadmin/custombuild
-    if [ "${DA_INSTALL_TYPE}" == "CUSTOM" ]; then
+    if [ "${DA_INSTALL_TYPE}" == "custom" ]; then
       echo "[${SCRIPT_NAME}]: [Notice]: Directadmin installation type is custom. Setting up custom options.conf and php_extensions.conf ... " 2>&1 | tee -a "${REPORT_FILE}"
       if [ "${DISTRO_ID}" == "centos" ]; then
         :
@@ -3118,12 +3103,12 @@ function install_da_pre() {
         echo "[${SCRIPT_NAME}]: Error, directory not exist. Check maxisetup clone folder." 2>&1 | tee -a "${REPORT_FILE}"
         _exit 1 #Just exit because this is weird error if this folder is missing
       fi
-    elif [ "${DA_INSTALL_TYPE}" == "ORI" ]; then
-      echo "[${SCRIPT_NAME}]: [Notice]: Directadmin installation type is set to ORI. Directadmin will install using default options" 2>&1 | tee -a "${REPORT_FILE}"
-    elif [ "${DA_INSTALL_TYPE}" == "INTERACTIVE" ]; then
-      echo "[${SCRIPT_NAME}]: [Notice]: Directadmin installation type is set to INTERACTIVE. Directadmin will install with some questions" 2>&1 | tee -a "${REPORT_FILE}"
-    elif [ "${DA_INSTALL_TYPE}" == "AUTO" ]; then
-      echo "[${SCRIPT_NAME}]: [Notice]: Directadmin installation type is set to AUTO. Directadmin will install all default options including CSF" 2>&1 | tee -a "${REPORT_FILE}"
+    elif [ "${DA_INSTALL_TYPE}" == "ori" ]; then
+      echo "[${SCRIPT_NAME}]: [Notice]: Directadmin installation type is set to ori. Directadmin will install using default options" 2>&1 | tee -a "${REPORT_FILE}"
+    elif [ "${DA_INSTALL_TYPE}" == "interactive" ]; then
+      echo "[${SCRIPT_NAME}]: [Notice]: Directadmin installation type is set to interactive. Directadmin will install with some questions" 2>&1 | tee -a "${REPORT_FILE}"
+    elif [ "${DA_INSTALL_TYPE}" == "auto" ]; then
+      echo "[${SCRIPT_NAME}]: [Notice]: Directadmin installation type is set to auto. Directadmin will install all default options including CSF" 2>&1 | tee -a "${REPORT_FILE}"
     else
       echo "[${SCRIPT_NAME}]: Error, invalid installation type set for Directadmin in config file." 2>&1 | tee -a "${REPORT_FILE}"
       _exit 1
@@ -3155,13 +3140,13 @@ function install_da() {
     echo "[${SCRIPT_NAME}]: If you don't want to install Directadmin now, press (ctrl+C) to exit and then you can re-run this script to resume at this stage" 2>&1 | tee -a "${REPORT_FILE}"
     _pause 30
     echo "[${SCRIPT_NAME}]: Installing Directadmin on ${BOX_HOSTNAME_FQDN} using ${DA_INSTALL_TYPE} mode ... " 2>&1 | tee -a "${REPORT_FILE}"
-    if [[ "${DA_INSTALL_TYPE}" == "CUSTOM" || "${DA_INSTALL_TYPE}" == "ORI" ]]; then
+    if [[ "${DA_INSTALL_TYPE}" == "custom" || "${DA_INSTALL_TYPE}" == "ori" ]]; then
       # custom and ori depends on the options.conf (this won't ask question)
       ./setup.sh "${DA_CLIENT_ID}" "${DA_LICENSE_ID}" "${BOX_HOSTNAME_FQDN}" "${NIC_INTERFACE_NAME}" "${IPV4_ADD0}" 2>&1 | tee -a "${REPORT_FILE}"
-    elif [[ "${DA_INSTALL_TYPE}" == "INTERACTIVE" ]]; then
+    elif [[ "${DA_INSTALL_TYPE}" == "interactive" ]]; then
       # this will ask question
       bash <(curl -Ss https://www.directadmin.com/setup.sh)
-    elif [[ "${DA_INSTALL_TYPE}" == "AUTO" ]]; then
+    elif [[ "${DA_INSTALL_TYPE}" == "auto" ]]; then
       # This will not ask question and everything will be installed as default including CSF
       bash <(curl -Ss https://www.directadmin.com/setup.sh) auto
     fi
@@ -4387,7 +4372,7 @@ function configure_maxicode_pre() {
 # maxicode will be the place to upgrade maxicode binaries (even when script finished running).
 # example running maxibox --update-maxicode or maxibox --checkout-all maxibox
 # usage: maxicode --update <package_name> or maxicode -u <package_name>
-# eg: To update all package: maxicode -u all. To update just maxicata: maxicode -u maxicata
+# eg: To update all package: maxicode -u all. To update just maxiwall: maxicode -u maxiwall
 function configure_maxicode() {
   local option="$1"
   if [[ "${option}" == "--force" ]]; then
@@ -4413,7 +4398,7 @@ function configure_maxicode() {
 
     # 1) Install aide and copy maxiaide files (make sure it works)
     # 2) Install rsync and copy maxisetup files (make sure it works)
-    # 3) Install suricata and copy maxicata files (make sure it works)
+    # 3) Install suricata and copy maxiwall files (make sure it works)
     # 4) Copy maxicbuild
 
     #local ORI_PWD
@@ -4493,8 +4478,8 @@ function configure_maxinis() {
   # Here we do extra hardening for SSHD (based on lynis suggestion)
   if [ ! -f "${CONF_PATH}/${FUNCNAME[0]}_executed" ]; then
     echo "[${SCRIPT_NAME}]: Executing ${FUNCNAME[0]} ..." 2>&1 | tee -a "${REPORT_FILE}"
-    local lynis_latest_version
-
+    local lynis_latest_version maxinis_bin
+    maxinis_bin="/usr/local/maxicode/maxinis/maxinis"
     # SSHD config enough. No more
     # TODO MORE HERE for others based on lynis suggestion.. (Need to obtain the scan ID first and get that value)
     # Use that value and auto apply hardening here
@@ -4515,6 +4500,15 @@ function configure_maxinis() {
     echo "[${SCRIPT_NAME}]: Checking system security with lynis ..." 2>&1 | tee -a "${REPORT_FILE}"
     # No need to audit system during setup because ain't nobody got time for this
     #./lynis audit system 2>&1 | tee -a "${REPORT_FILE}"
+    if [ -f ${maxinis_bin} ]; then
+      echo "[${SCRIPT_NAME}]: Creating symlink and executable for ${maxinis_bin} ..." 2>&1 | tee -a "${REPORT_FILE}"
+      chmod +x ${maxinis_bin}
+      # Symbolic name
+      ln -s ${maxinis_bin} /usr/local/bin
+    else
+      echo "[${SCRIPT_NAME}]: Warning, maxinis doesn't exist in /usr/local/maxicode !" 2>&1 | tee -a "${REPORT_FILE}"
+      _exit 1
+    fi
     check_finish_reboot "${FUNCNAME[0]}"
   else
     echo "[${SCRIPT_NAME}]: [Skipped]: ${FUNCNAME[0]} has ran before" 2>&1 | tee -a "${REPORT_FILE}"
@@ -4745,7 +4739,7 @@ function configure_maxiaide() {
   fi
 }
 
-function configure_maxicata() {
+function configure_maxiwall() {
   local option="$1"
   if [[ "${option}" == "--force" ]]; then
     rm -rf "${CONF_PATH}/${FUNCNAME[0]}_executed"
@@ -4755,15 +4749,13 @@ function configure_maxicata() {
   else
     option=""
   fi
-  # Debug
-  # rm -f "${CONF_PATH}/configure_maxicata_executed"
   if [ ! -f "${CONF_PATH}/${FUNCNAME[0]}_executed" ]; then
     echo "[${SCRIPT_NAME}]: Executing ${FUNCNAME[0]} ..." 2>&1 | tee -a "${REPORT_FILE}"
-    local latest_suricata_version suricata_preferred_version maxicata_bin maxirbl_bin # suricata_conf suricata_service is_masked
+    local latest_suricata_version suricata_preferred_version maxiwall_bin maxirbl_bin # suricata_conf suricata_service is_masked
     # suricata_conf="/etc/suricata/suricata.yaml"
     # Instruction: https://forum.suricata.io/t/install-suricata-6-0-1-on-debian-10-from-source/992
     # Install required components for suricata:
-    echo "[${SCRIPT_NAME}]: Installing required components for suricata & maxicata ..." 2>&1 | tee -a "${REPORT_FILE}"
+    echo "[${SCRIPT_NAME}]: Installing required components for suricata & maxiwall ..." 2>&1 | tee -a "${REPORT_FILE}"
     sleep 1
     # Essential tools:
     apt-get install make autoconf automake libtool
@@ -4829,7 +4821,7 @@ function configure_maxicata() {
     cd_to_path "suricata-${suricata_preferred_version}/"
     echo "[${SCRIPT_NAME}]: Configuring script for getting ready to build suricata ... " 2>&1 | tee -a "${REPORT_FILE}"
     sleep 1
-    # Dont enable IPS because we will integrate blocking with CSF (using my script called maxicode/maxicata)
+    # Dont enable IPS because we will integrate blocking with CSF (using my script called maxicode/maxiwall)
     ./configure --libdir=/usr/lib64 --prefix=/usr/local --sysconfdir=/etc --localstatedir=/var --datarootdir=/usr/local/share --enable-lua --enable-rust
     #make
     #sudo make install
@@ -4850,7 +4842,7 @@ function configure_maxicata() {
       echo "[${SCRIPT_NAME}]: No suricata binary is found! Please inspect the log file why " 2>&1 | tee -a "${REPORT_FILE}"
       _exit 1
     fi
-    # Maxicata --init will do all the commented below (already have this function long time ago).
+    # Maxiwall --init will do all the commented below (already have this function long time ago).
 
     # Then Create the service file
     #echo "[${SCRIPT_NAME}]: Creating a new suricata.service file ..." 2>&1 | tee -a "${REPORT_FILE}"
@@ -4899,20 +4891,20 @@ function configure_maxicata() {
 
     #echo "[${SCRIPT_NAME}]: Copying suricata.yaml configuration file template into ${suricata_conf} ..." 2>&1 | tee -a "${REPORT_FILE}"
     #sleep 1
-    #cp "${DATA_PATH}/maxisetup/storage/os/${DISTRO_ID}/usr/local/maxicode/maxicata/code/etc/suricata/suricata.yaml" "${suricata_conf}"
+    #cp "${DATA_PATH}/maxisetup/storage/os/${DISTRO_ID}/usr/local/maxicode/maxiwall/code/etc/suricata/suricata.yaml" "${suricata_conf}"
 
-    #echo "[${SCRIPT_NAME}]: Copying maxicata.lua into /etc/suricata/lua-output ..." 2>&1 | tee -a "${REPORT_FILE}"
+    #echo "[${SCRIPT_NAME}]: Copying maxiwall.lua into /etc/suricata/lua-output ..." 2>&1 | tee -a "${REPORT_FILE}"
     #mkdir -p /etc/suricata/lua-output
     #sleep 1
 
-    #cp "${DATA_PATH}/maxisetup/storage/os/${DISTRO_ID}/usr/local/maxicode/maxicata/code/etc/suricata/lua-output/maxicata.lua" "/etc/suricata/lua-output/maxicata.lua"
-    #chmod +x "/etc/suricata/lua-output/maxicata.lua"
+    #cp "${DATA_PATH}/maxisetup/storage/os/${DISTRO_ID}/usr/local/maxicode/maxiwall/code/etc/suricata/lua-output/maxiwall.lua" "/etc/suricata/lua-output/maxiwall.lua"
+    #chmod +x "/etc/suricata/lua-output/maxiwall.lua"
 
-    #echo "[${SCRIPT_NAME}]: Copying maxicata-http.lua into /etc/suricata/lua-output ..." 2>&1 | tee -a "${REPORT_FILE}"
+    #echo "[${SCRIPT_NAME}]: Copying maxiwall-http.lua into /etc/suricata/lua-output ..." 2>&1 | tee -a "${REPORT_FILE}"
     #mkdir -p /etc/suricata/lua-output
     #sleep 1
-    #cp "${DATA_PATH}/maxisetup/storage/os/${DISTRO_ID}/usr/local/maxicode/maxicata/code/etc/suricata/lua-output/maxicata-http.lua" "/etc/suricata/lua-output/maxicata-http.lua"
-    #chmod +x "/etc/suricata/lua-output/maxicata-http.lua"
+    #cp "${DATA_PATH}/maxisetup/storage/os/${DISTRO_ID}/usr/local/maxicode/maxiwall/code/etc/suricata/lua-output/maxiwall-http.lua" "/etc/suricata/lua-output/maxiwall-http.lua"
+    #chmod +x "/etc/suricata/lua-output/maxiwall-http.lua"
 
     #echo "[${SCRIPT_NAME}]: Starting suricata ... " 2>&1 | tee -a "${REPORT_FILE}"
     #sleep 1
@@ -4926,19 +4918,19 @@ function configure_maxicata() {
     #  _exit 1
     #fi
 
-    maxicata_bin="/usr/local/maxicode/maxicata/maxicata"
+    maxiwall_bin="/usr/local/maxicode/maxiwall/maxiwall"
 
-    if [ -f ${maxicata_bin} ]; then
-      echo "[${SCRIPT_NAME}]: Creating symlink and executable for ${maxicata_bin} ..." 2>&1 | tee -a "${REPORT_FILE}"
-      chmod +x ${maxicata_bin}
+    if [ -f ${maxiwall_bin} ]; then
+      echo "[${SCRIPT_NAME}]: Creating symlink and executable for ${maxiwall_bin} ..." 2>&1 | tee -a "${REPORT_FILE}"
+      chmod +x ${maxiwall_bin}
       # Symbolic name
-      ln -s ${maxicata_bin} /usr/local/bin
+      ln -s ${maxiwall_bin} /usr/local/bin
     else
-      echo "[${SCRIPT_NAME}]: Warning, maxicata doesn't exist in /usr/local/maxicode !" 2>&1 | tee -a "${REPORT_FILE}"
+      echo "[${SCRIPT_NAME}]: Warning, maxiwall doesn't exist in /usr/local/maxicode !" 2>&1 | tee -a "${REPORT_FILE}"
       _exit 1
     fi
 
-    maxirbl_bin="/usr/local/maxicode/maxicata/maxirbl"
+    maxirbl_bin="/usr/local/maxicode/maxiwall/maxirbl"
 
     if [ -f ${maxirbl_bin} ]; then
       echo "[${SCRIPT_NAME}]: Creating symlink and executable for ${maxirbl_bin} ..." 2>&1 | tee -a "${REPORT_FILE}"
@@ -4950,28 +4942,28 @@ function configure_maxicata() {
       _exit 1
     fi
 
-    # Writing a new maxicata.conf file (all sensitive variables should be declared in maxisetup.conf and pass here)
-    echo "[${SCRIPT_NAME}]: Writing new maxicata.conf file ..." 2>&1 | tee -a "${REPORT_FILE}"
+    # Writing a new maxiwall.conf file (all sensitive variables should be declared in maxisetup.conf and pass here)
+    echo "[${SCRIPT_NAME}]: Writing new maxiwall.conf file ..." 2>&1 | tee -a "${REPORT_FILE}"
     sleep 1
     {
       echo "# The URL. Need to modify this if they change this URL like the v2 to v3"
-      echo "AIPDB_CHECK_URL=\"${MAXICATA_AIPDB_CHECK_URL}"\"
-      echo "AIPDB_REPORT_URL=\"${MAXICATA_AIPDB_REPORT_URL}"\"
+      echo "AIPDB_CHECK_URL=\"${MAXIWALL_AIPDB_CHECK_URL}"\"
+      echo "AIPDB_REPORT_URL=\"${MAXIWALL_AIPDB_REPORT_URL}"\"
       echo "# The main AIPDB key"
-      echo "AIPDB_API_KEY=\"${MAXICATA_AIPDB_API_KEY}"\"
-    } >"/usr/local/maxicode/maxicata/conf/maxicata.conf"
+      echo "AIPDB_API_KEY=\"${MAXIWALL_AIPDB_API_KEY}"\"
+    } >"/usr/local/maxicode/maxiwall/conf/maxiwall.conf"
 
-    # maxicata --initfull will handle 3rd party rules and signature update
+    # maxiwall --initfull will handle 3rd party rules and signature update
     # suricata-update update-sources
     #echo "[${SCRIPT_NAME}]: Updating suricata new signature ..." 2>&1 | tee -a "${REPORT_FILE}"
     #sleep 1
     #suricata-update
 
-    # Maxicata --initfull will do all the commented above (already have this function long time ago).
-    # Must have maxicata.conf file first before running --initfull
-    echo "[${SCRIPT_NAME}]: Running maxicata --initfull ..." 2>&1 | tee -a "${REPORT_FILE}"
+    # Maxiwall --initfull will do all the commented above (already have this function long time ago).
+    # Must have maxiwall.conf file first before running --initfull
+    echo "[${SCRIPT_NAME}]: Running maxiwall --initfull ..." 2>&1 | tee -a "${REPORT_FILE}"
     sleep 1
-    maxicata --initfull
+    maxiwall --initfull
 
     check_finish_reboot "${FUNCNAME[0]}"
   else
@@ -7130,9 +7122,9 @@ function configure_da_reseller_domain_ssl_pre() {
   fi
   if [ ! -f "${CONF_PATH}/${FUNCNAME[0]}_executed" ]; then
     echo "[${SCRIPT_NAME}]: Executing ${FUNCNAME[0]} ..." 2>&1 | tee -a "${REPORT_FILE}"
-    local da_reseller_ssl_sub_names da_reseller_ssl_sub_names_count
+    local da_reseller_ssl_sub_names da_reseller_ssl_sub_names_count count_x count_n count_o
     local this_da_reseller_uname this_da_reseller_userpass this_da_reseller_enable_domain_ssl \
-      this_da_reseller_ssl_sub_names retval
+      this_da_reseller_ssl_sub_names retval le_select_query
     # Get all the reseller ssl_sub_names
     da_reseller_ssl_sub_names="${!DA_RESELLER_SSL_SUB_NAME@}"
     # Get the total count for reseller ssl_sub_names
@@ -7153,6 +7145,7 @@ function configure_da_reseller_domain_ssl_pre() {
       echo "this_da_reseller_enable_domain_ssl: ${this_da_reseller_enable_domain_ssl}"
       echo "this_da_reseller_ssl_sub_names: ${this_da_reseller_ssl_sub_names[*]}"
       this_da_reseller_ssl_sub_names_count=${#this_da_reseller_ssl_sub_names[@]}
+      echo "this_da_reseller_ssl_sub_names_count: ${this_da_reseller_ssl_sub_names_count}"
       echo "=========================================="
 
       if [[ ${this_da_reseller_enable_domain_ssl} == "yes" ]]; then
@@ -7180,6 +7173,19 @@ function configure_da_reseller_domain_ssl_pre() {
             else
               echo "OK, this domain ${ssl_domain} has no issue when requesting ssl certificate in staging mode"
             fi
+
+            count_o=0
+            le_select_query=""
+            for ssl_subdomain in ${ssl_subdomains}; do
+              if [ ${count_o} = 0 ]; then
+                le_select[${count_o}]="${ssl_domain}"
+                echo "Count OO: ${le_select_query}"
+              else
+                le_select[${count_o}]="${ssl_subdomain}.${ssl_domain}"
+                echo "Count > 00: ${le_select_query}"
+              fi
+              ((count_o++))
+            done
           elif [ "${ssl_provider}" == "digicert" ]; then
             :
           fi
@@ -8297,7 +8303,7 @@ while [ "$#" -gt 0 ]; do
     configure_sysctl_ips "" #OK
     # Upgrade system
     upgrade_os "" #Done
-    if [ "${INSTALL_TYPE}" == "DIRECTADMIN" ]; then
+    if [ "${INSTALL_TYPE}" == "directadmin" ]; then
       install_da_pre ""
       #exit 1
       install_da ""
@@ -8335,7 +8341,7 @@ while [ "$#" -gt 0 ]; do
     #exit 1
     configure_maxiaide ""
     #exit 1
-    configure_maxicata ""
+    configure_maxiwall ""
     #exit 1
     configure_maxicloud ""
     #exit 1
@@ -8345,7 +8351,7 @@ while [ "$#" -gt 0 ]; do
     # Need to restart first before running next commands after enable IPv6 because 'tentative status issue with ethX + nginx'.
     # If I don't restart, I won't be able to request cert and letsencrypt will complain about firewall.
     configure_logs ""
-    if [ "${INSTALL_TYPE}" == "DIRECTADMIN" ]; then
+    if [ "${INSTALL_TYPE}" == "directadmin" ]; then
       #exit 1
       configure_da_sql ""
       #exit 1
@@ -8461,7 +8467,7 @@ while [ "$#" -gt 0 ]; do
     # exit 1
     post_setup ""
     echo "" 2>&1 | tee -a "${REPORT_FILE}"
-    if [ "${INSTALL_TYPE}" == "DIRECTADMIN" ]; then
+    if [ "${INSTALL_TYPE}" == "directadmin" ]; then
       echo "==============" 2>&1 | tee -a "${REPORT_FILE}"
       echo "Directadmin now can be accessed through this URL: " 2>&1 | tee -a "${REPORT_FILE}"
       echo "http://${IPV4_ADD0}:${DA_PORT} or http://${BOX_HOSTNAME_FQDN}:${DA_PORT}" 2>&1 | tee -a "${REPORT_FILE}"
@@ -8579,7 +8585,8 @@ while [ "$#" -gt 0 ]; do
     break
     ;;
   # This will list out what domain or subdomain that will have problem when request certificate
-  -srt | --ssl-request-test)
+  -srt | --ssl-request-test | --request-ssl-test)
+    # Beta test
     validate_config
     configure_da_reseller_domain_ssl_pre "--force"
     configure_da_user_domain_ssl_pre "--force"
@@ -8587,7 +8594,7 @@ while [ "$#" -gt 0 ]; do
     break
     ;;
   # This will request certificate
-  -sr | --ssl-request)
+  -sr | --ssl-request | --request-ssl)
     validate_config
     configure_da_reseller_domain_ssl "--force"
     configure_da_user_domain_ssl "--force"

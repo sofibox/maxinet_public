@@ -14,12 +14,18 @@
 USE_ONE_LOG_FILE="yes"
 # This is a temporary allowed IP during setup which won't be blocked by firewall
 TEMP_ALLOW_IP="84.12.1.123"
-# "DIRECTADMIN" - Install directadmin (fully compatible with DA) | "GENERAL" - Install basic LEMP or LAMP stack | "LARAVEL" - coming soon
-INSTALL_TYPE="DIRECTADMIN"
+# "directadmin" - Install server directadmin (fully compatible with DA)
+# "general" - Install basic LEMP or LAMP stack (with security hardened)
+# "laravel" - coming soon (with security hardened)
+# "odoo" - coming soon (with security hardened)
+INSTALL_TYPE="directadmin"
 # This will use custom script called (websetup) for setting up specific website configuration.
 # For example, a prestashop website called test.com needs to have custom php config to match prestashop requirement
 # Disable this if you are not able to access private repo
 ENABLE_CUSTOM_WEB_SETUP="no"
+# If disk encryption is set, put the volume group name.
+# This name will be used by fstab, so putting the wrong group name you will be locked out from the system from booting.
+# TODO: This is temporary, will deprecated in future, setup will determine if disk is encrypted or not
 DISK_ENCRYPTION="yes"
 # Username to set for grub bootloader
 SECURE_GRUB="yes"
@@ -28,6 +34,7 @@ LUKS_PASS="luks*encryption*password"
 GRUB_UNAME="grub_user"
 # Password to set for grub bootloader
 GRUB_PASS="*grub_pasword*"
+# TODO: This is a temporary variable. Will deprecated in future
 LVM_VOLUME_GROUP="vg1"
 # You don't want to change this because everything is begin with root
 ROOT_USERNAME="root"
@@ -172,10 +179,11 @@ DA_ADMIN_SQLPASS=*long-secured-password*"
 DA_ROOT_SQL_PASS="*long-secured-password*"
 DA_ROUNDCUBE_SQL_PASS="*long-secured-password*"
 # If INSTALL TYPE for DA:
-# CUSTOM = use your own setting during DA installation (provide options.conf and php_extensions.conf),
-#| ORI = let DA decide what to install default things providing some details using auto
-#| INTERACTIVE = ask question what to install | AUTO = Automated everything by DA (include auto CSF installation) -- AUTO is under testing
-DA_INSTALL_TYPE="CUSTOM"
+# custom = use your own setting during DA installation (provide options.conf and php_extensions.conf),
+# ori = let DA decide what to install default things prividing some details using auto
+# interactive = ask question what to install
+# auto = Automated everything by DA (include auto CSF installation) -- AUTO is under testing
+DA_INSTALL_TYPE="custom"
 #This is Directadmin client/user ID
 DA_CLIENT_ID="12345"
 #This is Directadmin license ID
@@ -257,18 +265,19 @@ AUTO_ADD_IPV6_ENTRY="yes"
 GPG_PASSPHRASE="*your-gpg-passphrase*"
 GPG_USE_EXISTING_KEY="yes"
 
-# =~=~ For maxicata / suricata =~=~#
+# =~=~ For maxiwall / suricata =~=~#
 # The URL. Need to modify this if they change this URL like the v2 to v3
 # Select version for suricata. Best is to use version 6+ because version 6 has new different packages need to include:
 SURICATA_SELECT_VERSION="6.0.1"
-MAXICATA_AIPDB_CHECK_URL="https://api.abuseipdb.com/api/v2/check"
-MAXICATA_AIPDB_REPORT_URL="https://api.abuseipdb.com/api/v2/report"
+MAXIWALL_AIPDB_CHECK_URL="https://api.abuseipdb.com/api/v2/check"
+MAXIWALL_AIPDB_REPORT_URL="https://api.abuseipdb.com/api/v2/report"
 # The main abuseAIPDB key
-MAXICATA_AIPDB_API_KEY="strong*63161ec_covid19f****63ex742*x***85xaMaXi32xax41*****"
-# =~=~ End maxicata =~=~#
+MAXIWALL_AIPDB_API_KEY="strong*63161ec_covid19f****63ex742*x***85xaMaXi32xax41*****"
+# =~=~ End maxiwall =~=~#
 
 # External DNS provider
 # Can be linode, digitalocean amazonaws and more, put value 'local' to disable this feature and use internal DNS.
-EXTERNAL_DNS_PROVIDER="linode"
-DNS_PROVIDER_USER="sofibox"
-DNS_PROVIDER_API_KEY="*API-KEY"
+#EXTERNAL_DNS_PROVIDER="linode"
+#DNS_PROVIDER_USER="sofibox"
+# Format <provider>:<user>:<api_key>
+DNS_PROVIDER_API_KEY1="*API-KEY"
