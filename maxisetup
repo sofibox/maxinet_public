@@ -3,7 +3,7 @@
 # Author: Arafat Ali | Email: webmaster@sofibox.com
 APP_SPECIFIC_NAME="Maxisetup"
 APP_STATUS="beta"
-APP_VERSION="0.4.1.2-${APP_STATUS}"
+APP_VERSION="0.4.1.3-${APP_STATUS}"
 # This is an initial server hardening script for CentOS and Debian.
 # Compatible 100% with Directadmin. Supported OS: CentOS + Debian (Planned on FreeBSD)
 # You can choose to install as the other stack server such as LEMP, (TODO) Laravel and more defined in config file
@@ -447,7 +447,7 @@ function _pause() {
 # This function will display a confirmation to continue (force continue; no exit function)
 function _confirm() {
   # call with a prompt string or use a default
-  read -r -p "${1:-Continue? [y]} " response
+  read -r -p "[${SCRIPT_NAME}]: ${1:-Continue? [y]} " response
   case "$response" in
   [yY][eE][sS] | [yY])
     return 0
@@ -502,7 +502,7 @@ function restart_da() {
   local wait_duration task_queue_file
   wait_duration=10
   # Directadmin recommends 60 seconds (or 1 minute). Longer than this something wrong with the task.queue
-  max_wait=120
+  max_wait=240
   task_queue_file="/usr/local/directadmin/data/task.queue"
   if [ -s ${task_queue_file} ]; then
     echo "[${SCRIPT_NAME}]: Warning, Directadmin task.queue still has pending task(s) to be executed with the following contents:" 2>&1 | tee -a "${REPORT_FILE}"
@@ -712,7 +712,7 @@ function linode_api_admin() {
     shift
     local linode_id hostname_fqdn linode_status config_disk_devsda config_disk_devsdb config_disk_devsdc \
       config_disk_devsdd config_disk_devsde config_disk_devsdf config_disk_devsdg config_disk_devsdh \
-      disk_id config_disks
+      disk_id config_disks wait_time
 
     hostname_fqdn="$1"
 
@@ -725,7 +725,7 @@ function linode_api_admin() {
     config_disk_devsdg="$8"
     config_disk_devsdh="$9"
     config_disks=""
-
+    wait_time=10
     echo "[${SCRIPT_NAME}]: Putting linode ${hostname_fqdn} into rescue mode"
 
     linode_id=$(${LINODE_CLI_BIN} linodes list --json --pretty | ${JQ_BIN} ".[] | select(.label == \"${hostname_fqdn}\") | .id")
@@ -782,24 +782,25 @@ function linode_api_admin() {
     config_disks="${config_disk_devsda} ${config_disk_devsdb} ${config_disk_devsdc} ${config_disk_devsdd} ${config_disk_devsde} ${config_disk_devsdf} ${config_disk_devsdg} ${config_disk_devsdh}"
 
     ${LINODE_CLI_BIN} linodes rescue "${linode_id}" ${config_disks}
-    sleep 2
+    echo "[${SCRIPT_NAME}]: Allowing ${wait_time} seconds to finish booting into rescue mode"
+    sleep ${wait_time}
     while :; do
       linode_status=$(${LINODE_CLI_BIN} linodes view "${linode_id}" --json --pretty | ${JQ_BIN} -r ".[] | .status")
-      if [[ ${linode_status} == "running" ]]; then
-        echo "[${SCRIPT_NAME}]: Success, linode ${hostname_fqdn} has been successfully booted into rescue mode. Status is: ${linode_status}"
-        #echo "[${SCRIPT_NAME}]: Now it's time to install custom operating system into boot disk. Once done press enter here to continue"
+      if [[ "${linode_status}" == "running" ]]; then
+        echo "[${SCRIPT_NAME}]: Success, linode ${hostname_fqdn} has been successfully booted into rescue mode."
+        echo "[${SCRIPT_NAME}]: Server status is: ${linode_status}"
         break
       else
         echo "[${SCRIPT_NAME}]: Linode status is: ${linode_status}"
-        echo "[${SCRIPT_NAME}]: Allowing 5 seconds to finish boot into rescue mode"
-        sleep 5
+        echo "[${SCRIPT_NAME}]: Allowing ${wait_time} seconds to finish booting into rescue mode"
+        sleep ${wait_time}
       fi
     done
   elif [[ "${action}" == "shutdown-linode" ]]; then
     shift
     local linode_id hostname_fqdn shutdown_wait shutdown_wait_max shutdown_wait_total linode_status
     hostname_fqdn="$1"
-    shutdown_wait=5
+    shutdown_wait=10
     shutdown_wait_total=0
     shutdown_wait_max=240
     echo "[${SCRIPT_NAME}]: Shutting down linode ${hostname_fqdn} ..."
@@ -851,46 +852,50 @@ function linode_api_admin() {
     # linode_api_admin "boot-linode" "sun.sofibox.com" "Boot_Config"
   elif [[ "${action}" == "boot-linode" ]]; then
     shift
-    local linode_id hostname_fqdn config_label config_id
+    local linode_id hostname_fqdn config_label config_id wait_time
     hostname_fqdn="$1"
     config_label="$2"
+    wait_time=10
     echo "[${SCRIPT_NAME}]: Booting linode ${hostname_fqdn} using config label ${config_label} ..."
     linode_id=$(${LINODE_CLI_BIN} linodes list --json --pretty | ${JQ_BIN} ".[] | select(.label == \"${hostname_fqdn}\") | .id")
     config_id=$(${LINODE_CLI_BIN} linodes configs-list "${linode_id}" --json --pretty | ${JQ_BIN} ".[] | select(.label == \"${config_label}\") | .id")
     linode_status=$(${LINODE_CLI_BIN} linodes view "${linode_id}" --json --pretty | ${JQ_BIN} -r ".[] | .status")
-    if [[ ${linode_status} == "running" ]]; then
+    # Make sure it's shutdown first before booting:
+    if [[ "${linode_status}" == "running" ]]; then
       ${LINODE_CLI_BIN} linodes shutdown "${linode_id}"
-
+      echo "[${SCRIPT_NAME}]: Allowing ${wait_time} seconds to finish shutting down linode ${linode_id}"
+      sleep ${wait_time}
       while :; do
         linode_status=$(${LINODE_CLI_BIN} linodes view "${linode_id}" --json --pretty | ${JQ_BIN} -r ".[] | .status")
-        if [[ ${linode_status} == "offline" ]]; then
-          echo "[${SCRIPT_NAME}]: Success, linode ${hostname_fqdn} has been successfully put in offline mode. Status is: ${linode_status}"
-          sleep 2
+        if [[ "${linode_status}" == "offline" ]]; then
+          echo "[${SCRIPT_NAME}]: Success, linode ${hostname_fqdn} has been successfully put in offline mode."
+          echo "[${SCRIPT_NAME}]: Server status is: ${linode_status}"
           break
         else
           echo "[${SCRIPT_NAME}]: Linode status is: ${linode_status}"
           ${LINODE_CLI_BIN} linodes shutdown "${linode_id}"
-          echo "[${SCRIPT_NAME}]: Allowing 10 seconds to finish shutting down linode ${linode_id}"
-          sleep 10
+          echo "[${SCRIPT_NAME}]: Allowing ${wait_time} seconds to finish shutting down linode ${linode_id}"
+          sleep ${wait_time}
         fi
       done
     fi
     echo "[${SCRIPT_NAME}]: Booting linode ${hostname_fqdn} ..."
 
     ${LINODE_CLI_BIN} linodes boot "${linode_id}" --config_id "${config_id}"
-
-    sleep 2
+    echo "[${SCRIPT_NAME}]: Allowing ${wait_time} seconds to finish booting using config ${config_label}"
+    sleep ${wait_time}
     while :; do
       linode_status=$(${LINODE_CLI_BIN} linodes view "${linode_id}" --json --pretty | ${JQ_BIN} -r ".[] | .status")
-      if [[ ${linode_status} == "running" ]]; then
-        echo "[${SCRIPT_NAME}]: Success, linode ${hostname_fqdn} has been successfully booted using config ${config_label}. Status is: ${linode_status}"
+      if [[ "${linode_status}" == "running" ]]; then
+        echo "[${SCRIPT_NAME}]: Success, linode ${hostname_fqdn} has been successfully booted using config ${config_label}."
+        echo "[${SCRIPT_NAME}]: Server status is: ${linode_status}"
         break
+      elif [[ "${linode_status}" == "offline" ]]; then
+        ${LINODE_CLI_BIN} linodes boot "${linode_id}" --config_id "${config_id}"
       else
         echo "[${SCRIPT_NAME}]: Linode status is: ${linode_status}"
-        echo "[${SCRIPT_NAME}]: Allowing 10 seconds to finish booted using config ${config_label}"
-        sleep 10
-        ${LINODE_CLI_BIN} linodes boot "${linode_id}" --config_id "${config_id}"
-
+        echo "[${SCRIPT_NAME}]: Allowing ${wait_time} seconds to finish booting using config ${config_label}"
+        sleep ${wait_time}
       fi
     done
   elif [[ "${action}" == "restart-linode" || "${action}" == "reboot-linode" ]]; then
@@ -907,7 +912,7 @@ function linode_api_admin() {
     echo "[${SCRIPT_NAME}]: Viewing linode ${hostname_fqdn} ..."
     linode_id=$(${LINODE_CLI_BIN} linodes list --json --pretty | ${JQ_BIN} ".[] | select(.label == \"${hostname_fqdn}\") | .id")
     ${LINODE_CLI_BIN} linodes view "${linode_id}"
-    echo $?
+    echo "Status: $?"
     # --linode-api get-disk-id "sun.sofibox.com" "Boot_Disk"
   elif [[ "${action}" == "get-disk-id" ]]; then
     shift
@@ -926,22 +931,24 @@ function linode_api_admin() {
     linode_id=$(${LINODE_CLI_BIN} linodes list --json --pretty | ${JQ_BIN} ".[] | select(.label == \"${hostname_fqdn}\") | .id")
     ${LINODE_CLI_BIN} linodes disks-list "${linode_id}" --json --pretty
     echo $?
-    # linode_api_admin "disks-delete" <hostname_fqdn> # Plural disks remove all
-  elif [[ "${action}" == "disks-delete" || "${action}" == "disks-remove" ]]; then
+    # linode_api_admin "delete-disks" <hostname_fqdn> # Plural disks remove all
+  elif [[ "${action}" == "delete-disks" || "${action}" == "remove-disks" ]]; then
     # Make sure to shutdown linode first
     shift
     echo "[${SCRIPT_NAME}]: Deleting all the disks created for linode ${hostname_fqdn} ..."
-    local linode_id disk_ids hostname_fqdn disk_status disk_ids_count
+    local linode_id disk_ids hostname_fqdn disk_status disk_ids_count disk_count
     hostname_fqdn="$1"
     linode_id=$(${LINODE_CLI_BIN} linodes list --json --pretty | ${JQ_BIN} ".[] | select(.label == \"${hostname_fqdn}\") | .id")
     disk_ids=$(${LINODE_CLI_BIN} linodes disks-list "${linode_id}" --json --pretty | ${JQ_BIN} ".[] | .id")
     disk_ids_count=$(echo "${disk_ids}" | wc -w)
     echo "[${SCRIPT_NAME}]: Total disk found is ${disk_ids_count}."
+    disk_count=0
     for disk_id in ${disk_ids}; do
-      echo "[${SCRIPT_NAME}]: Deleting disk ID ${disk_id} from ${hostname_fqdn} ..."
+      ((disk_count++))
+      echo "[${SCRIPT_NAME}]: Deleting disk ${disk_count} out of ${disk_ids_count} with ID ${disk_id} ..."
       ${LINODE_CLI_BIN} linodes disk-delete "${linode_id}" "${disk_id}"
       # Deleting disks take time, wait at least 10 seconds
-      deleting_wait=5
+      deleting_wait=10
       while :; do
         disk_status=$(${LINODE_CLI_BIN} linodes disks-list "${linode_id}" --json --pretty | ${JQ_BIN} -r ".[] | select(.id == ${disk_id}) | .status")
         if [[ -z "${disk_status}" ]]; then
@@ -949,7 +956,7 @@ function linode_api_admin() {
           echo "[${SCRIPT_NAME}]: Success, the linode disk ID ${disk_id} has been deleted!"
           break
         elif [[ ${disk_status} == "deleting" ]]; then
-          echo "Linode Disk ID ${disk_id} status is: ${disk_status}"
+          echo "[${SCRIPT_NAME}]: Linode Disk ID ${disk_id} status is: ${disk_status}"
           echo "[${SCRIPT_NAME}]: Allowing ${deleting_wait} seconds to finish deleting disk ID ${disk_id} for ${BOX_HOSTNAME_FQDN} ..."
           sleep "${deleting_wait}"
         else
@@ -970,36 +977,39 @@ function linode_api_admin() {
     disk_filetype="$3"
     disk_size="$4"
 
-    wait_second=5
+    wait_second=10
     wait_second_max=240
     wait_second_total=0
 
     linode_id=$(${LINODE_CLI_BIN} linodes list --json --pretty | ${JQ_BIN} ".[] | select(.label == \"${hostname_fqdn}\") | .id")
-    echo "Creating new disk ID for ${hostname_fqdn} ..."
+    echo "[${SCRIPT_NAME}]: Creating new disk ID for ${hostname_fqdn} ..."
 
     disk_label_created=$(${LINODE_CLI_BIN} linodes disks-list "${linode_id}" --json --pretty | ${JQ_BIN} -r ".[] | select(.label == \"${disk_label}\") | .label" | tail -n 1)
 
-    echo "Disk label created: ${disk_label_created}"
     # Do not create duplicated label
+    if [ -z "${disk_label_created}" ]; then
+      echo "[${SCRIPT_NAME}]: Notice, no disk label ${disk_label} exist in linode"
+    fi
 
     if [[ ${disk_label_created} == "${disk_label}" ]]; then
-      echo "Warning, there is already a disk label called ${disk_label_created}. Nothing to create"
+      echo "[${SCRIPT_NAME}]: Warning, there is already a disk label called ${disk_label_created}. Nothing to create"
     else
-      echo "[${SCRIPT_NAME}]: Creating a new disk ${disk_label} ..."
+      echo "[${SCRIPT_NAME}]: Creating a new disk label ${disk_label} ..."
       # This is first attempt
       ${LINODE_CLI_BIN} linodes disk-create "${linode_id}" --label "${disk_label}" --filesystem "${disk_filetype}" --size "${disk_size}"
-      sleep 2 # Sleep 2 second
+      echo "[${SCRIPT_NAME}]: Allowing ${wait_second} seconds to finish creating"
+      sleep ${wait_second}
       while :; do
         disk_status=$(${LINODE_CLI_BIN} linodes disks-list "${linode_id}" --json --pretty | ${JQ_BIN} -r ".[] | select(.label == \"${disk_label}\") | .status" | tail -n 1)
         if [ "${disk_status}" == "ready" ]; then
-          echo "Disk status is: ready"
+          echo "[${SCRIPT_NAME}]: Disk status is: ready"
           break
         elif [ "${disk_status}" == "not ready" ]; then
-          echo "Disk status is not ready yet. Allowing ${wait_second} seconds to finish creating"
+          echo "[${SCRIPT_NAME}]: Disk status is not ready yet. Allowing ${wait_second} seconds to finish creating"
           sleep ${wait_second}
         else
-          echo "Warning, unknown/empty disk status (not in condition): ${disk_status}"
-          echo "Waiting ${wait_second} second(s) for new disk status ..."
+          echo "[${SCRIPT_NAME}]: Warning, unknown/empty disk status (not in condition): ${disk_status}"
+          echo "[${SCRIPT_NAME}]: Waiting ${wait_second} second(s) for new disk status ..."
           sleep ${wait_second}
           # From my test, linode has issue where sometimes (randomly) the status is not shown after creating a first disk
           # So, if the condition is other than above, we still wait, do not terminate this script
@@ -1128,9 +1138,9 @@ function linode_api_admin() {
       config_disk_devsdh="--devices.sdh.disk_id ${config_disk_devsdh}"
       # eg: Now config_disk_devsdh is: --devices.sdh.disk_id 123122
     fi
-    echo "[${SCRIPT_NAME}]: Creating new config for ${config_label} for ${hostname_fqdn} ..."
+    echo "[${SCRIPT_NAME}]: Creating new config for ${config_label} for ${hostname_fqdn} with the following disk mount options:"
     config_disks="${config_disk_devsda} ${config_disk_devsdb} ${config_disk_devsdc} ${config_disk_devsdd} ${config_disk_devsde} ${config_disk_devsdf} ${config_disk_devsdg} ${config_disk_devsdh}"
-    echo "[${SCRIPT_NAME}]: Config disk options is: ${config_disks}"
+    echo "${config_disks}"
     #exit 1
     #linode_id=$(${LINODE_CLI_BIN} linodes list --json --pretty | ${JQ_BIN} ".[] | select(.label == \"${hostname_fqdn}\") | .id")
     ${LINODE_CLI_BIN} linodes config-create "${linode_id}" --label "${config_label}" --comments "${config_comment}" \
@@ -2294,7 +2304,7 @@ function configure_net() {
             sed -i 's/GRUB_CMDLINE_LINUX=""/GRUB_CMDLINE_LINUX="net.ifnames=0"/g' /etc/default/grub
           fi
         else
-          echo "[${SCRIPT_NAME}]: [Skipped]: The value 'net.ifnames' has already seen in /etc/default/grub ..." 2>&1 | tee -a "${REPORT_FILE}"
+          echo "[${SCRIPT_NAME}]: [Skipped]: The value 'biosdevname' has already set for GRUB_CMDLINE_LINUX or GRUB_CMDLINE_LINUX_DEFAULT in /etc/default/grub ..." 2>&1 | tee -a "${REPORT_FILE}"
         fi
         grub_count=$(grep -Ec 'GRUB_CMDLINE_LINUX=.*biosdevname|GRUB_CMDLINE_LINUX_DEFAULT=.*biosdevname' /etc/default/grub)
         if [ "${grub_count}" -eq 0 ]; then
@@ -2308,9 +2318,68 @@ function configure_net() {
             sed -i 's/GRUB_CMDLINE_LINUX=""/GRUB_CMDLINE_LINUX="biosdevname=0"/g' /etc/default/grub
           fi
         else
-          echo "[${SCRIPT_NAME}]: [Skipped]: The value 'biosdevname' has already seen in /etc/default/grub ..." 2>&1 | tee -a "${REPORT_FILE}"
+          echo "[${SCRIPT_NAME}]: [Skipped]: The value 'biosdevname' has already set for GRUB_CMDLINE_LINUX or GRUB_CMDLINE_LINUX_DEFAULT in /etc/default/grub ..." 2>&1 | tee -a "${REPORT_FILE}"
         fi
         sleep 1
+
+        # Enabling serial terminal
+        grub_count=$(grep -Ec 'GRUB_CMDLINE_LINUX=.*console|GRUB_CMDLINE_LINUX_DEFAULT=.*console' /etc/default/grub)
+        if [ "${grub_count}" -eq 0 ]; then
+          grub_count=$(grep -Ec 'GRUB_CMDLINE_LINUX=""' /etc/default/grub)
+          if [ "${grub_count}" -eq 0 ]; then
+            echo "[${SCRIPT_NAME}]: Appending console=ttyS0,19200n8 for GRUB_CMDLINE_LINUX in /etc/default/grub ..." 2>&1 | tee -a "${REPORT_FILE}"
+            sed -i 's/GRUB_CMDLINE_LINUX="[^"]*/& console=ttyS0,19200n8/' /etc/default/grub
+          else
+            # Adding new value (not appending)
+            echo "[${SCRIPT_NAME}]: Adding new value console=ttyS0,19200n8 for GRUB_CMDLINE_LINUX in /etc/default/grub ..." 2>&1 | tee -a "${REPORT_FILE}"
+            sed -i 's/GRUB_CMDLINE_LINUX=""/GRUB_CMDLINE_LINUX="console=ttyS0,19200n8"/g' /etc/default/grub
+          fi
+        else
+          echo "[${SCRIPT_NAME}]: [Skipped]: The value 'console' has already set for GRUB_CMDLINE_LINUX or GRUB_CMDLINE_LINUX_DEFAULT in /etc/default/grub ..." 2>&1 | tee -a "${REPORT_FILE}"
+        fi
+        sleep 1
+
+        # Enabling serial terminal 1
+        grub_count=$(grep -Ec '^GRUB_SERIAL_COMMAND=' /etc/default/grub)
+        if [ "${grub_count}" -eq 0 ]; then
+          echo "[${SCRIPT_NAME}]: No variable GRUB_SERIAL_COMMAND found in /etc/default/grub. Creating empty variable GRUB_SERIAL_COMMAND= ..." 2>&1 | tee -a "${REPORT_FILE}"
+
+          echo "GRUB_SERIAL_COMMAND=\""\" >>/etc/default/grub
+        fi
+        grub_count=$(grep -Ec 'GRUB_SERIAL_COMMAND=.*serial' /etc/default/grub)
+        if [ "${grub_count}" -eq 0 ]; then
+          grub_count=$(grep -Ec 'GRUB_SERIAL_COMMAND=""' /etc/default/grub)
+          if [ "${grub_count}" -eq 0 ]; then
+            # In case if this option need appending
+            echo "[${SCRIPT_NAME}]: Appending serial --speed=19200 --unit=0 --word=8 --parity=no --stop=1 for GRUB_SERIAL_COMMAND in /etc/default/grub ..." 2>&1 | tee -a "${REPORT_FILE}"
+            sed -i 's/GRUB_SERIAL_COMMAND="[^"]*/& serial --speed=19200 --unit=0 --word=8 --parity=no --stop=1/' /etc/default/grub
+          else
+            # Adding new value (not appending)
+            echo "[${SCRIPT_NAME}]: Adding new value serial --speed=19200 --unit=0 --word=8 --parity=no --stop=1 for GRUB_SERIAL_COMMAND in /etc/default/grub ..." 2>&1 | tee -a "${REPORT_FILE}"
+            sed -i 's/GRUB_SERIAL_COMMAND=""/GRUB_SERIAL_COMMAND="serial --speed=19200 --unit=0 --word=8 --parity=no --stop=1"/g' /etc/default/grub
+          fi
+        else
+          echo "[${SCRIPT_NAME}]: [Skipped]: The value 'serial' has already set for GRUB_SERIAL_COMMAND in /etc/default/grub ..." 2>&1 | tee -a "${REPORT_FILE}"
+        fi
+
+        sleep 1
+
+        # Enabling serial terminal 2
+        grub_count=$(grep -Ec '^GRUB_TERMINAL=' /etc/default/grub)
+        if [ "${grub_count}" -eq 0 ]; then
+          echo "[${SCRIPT_NAME}]: No variable GRUB_TERMINAL found in /etc/default/grub. Creating empty variable GRUB_TERMINAL= ..." 2>&1 | tee -a "${REPORT_FILE}"
+          echo "GRUB_TERMINAL=" >>/etc/default/grub
+        fi
+        grub_count=$(grep -Ec 'GRUB_TERMINAL=serial' /etc/default/grub)
+        if [ "${grub_count}" -eq 0 ]; then
+          # Adding new value (not appending)
+          echo "[${SCRIPT_NAME}]: Adding new value GRUB_TERMINAL=serial for GRUB_TERMINAL in /etc/default/grub ..." 2>&1 | tee -a "${REPORT_FILE}"
+          sed -i 's/GRUB_TERMINAL=/GRUB_TERMINAL=serial/g' /etc/default/grub
+        else
+          echo "[${SCRIPT_NAME}]: [Skipped]: The value 'serial' has already set for GRUB_TERMINAL in /etc/default/grub ..." 2>&1 | tee -a "${REPORT_FILE}"
+        fi
+        sleep 1
+
         echo "[${SCRIPT_NAME}]: Recompiling grub boot loader ..." 2>&1 | tee -a "${REPORT_FILE}"
         if [ "${DISTRO_ID}" == "centos" ]; then
           # Recompile grub centos command
@@ -3433,8 +3502,9 @@ function configure_da_ssl_pre() {
     echo "[${SCRIPT_NAME}]: Installing the latest letsencrypt.sh for Directadmin ..." 2>&1 | tee -a "${REPORT_FILE}"
     ${cb_bin} letsencrypt 2>&1 | tee -a "${REPORT_FILE}"
     sleep 1
-    echo "[${SCRIPT_NAME}]: Creating reboot flag to restart system before requesting SSL certificate for Directadmin ..." 2>&1 | tee -a "${REPORT_FILE}"
-    cat /dev/null >/var/run/reboot-required
+    # TODO need to reboot ?
+    #echo "[${SCRIPT_NAME}]: Creating reboot flag to restart system before requesting SSL certificate for Directadmin ..." 2>&1 | tee -a "${REPORT_FILE}"
+    #cat /dev/null >/var/run/reboot-required
     echo "[${SCRIPT_NAME}]: Warning, system will reboot and you can run this script again to continue setup" 2>&1 | tee -a "${REPORT_FILE}"
     _pause 10
     check_finish_reboot "${FUNCNAME[0]}"
@@ -8515,24 +8585,35 @@ while [ "$#" -gt 0 ]; do
       box_boot_disk=${BOX_BOOT_DISK_RAW_SIZE}
       ((box_os_disk = box_main_disk - box_boot_disk))
       echo "[${SCRIPT_NAME}]: Configuring linode server for ${BOX_HOSTNAME_FQDN} ..."
+      echo ""
       # This step is based on my own tutorial documented on gitlab:
       # 1) Turn off the linode if it's running
       linode_api_admin "shutdown-linode" "${BOX_HOSTNAME_FQDN}"
       # 2) Delete all existing disks (if exist)
-      linode_api_admin "disks-delete" "${BOX_HOSTNAME_FQDN}"
+      echo ""
+      linode_api_admin "delete-disks" "${BOX_HOSTNAME_FQDN}"
+      echo ""
       # 3) Create a boot disk
       linode_api_admin "create-disk" "${BOX_HOSTNAME_FQDN}" "Boot_Disk" "raw" "${box_boot_disk}"
+      echo ""
       # 4) Create an operating system disk
       linode_api_admin "create-disk" "${BOX_HOSTNAME_FQDN}" "OS_Disk" "raw" "${box_os_disk}"
+      echo ""
       # 5) Delete all existing config files to boot
       linode_api_admin "delete-configs" "${BOX_HOSTNAME_FQDN}"
+      echo ""
       # 6) Creating the first profile for Boot_Disk
       linode_api_admin "create-config" "${BOX_HOSTNAME_FQDN}" "Boot_Config" "The installer boot configuration" "paravirt" "linode/direct-disk" "default" "/dev/sdb" "OS_Disk" "Boot_Disk"
+      echo ""
       # 7) Creating the second profile for OS_Disk
       linode_api_admin "create-config" "${BOX_HOSTNAME_FQDN}" "OS_Config" "The operating boot configuration" "paravirt" "linode/direct-disk" "default" "/dev/sda" "OS_Disk" "Boot_Disk"
+      echo ""
       # 8) Putting linode into rescue mode
       linode_api_admin "rescue-linode" "${BOX_HOSTNAME_FQDN}" "Boot_Disk"
+      echo ""
       sleep 2
+      # exit 1
+      # TODO automated below with remote console
       echo "[${SCRIPT_NAME}]: Now it's time to copy operating system installer into boot disk"
       echo ""
       linode_id=$(${LINODE_CLI_BIN} linodes list --json --pretty | ${JQ_BIN} ".[] | select(.label == \"${BOX_HOSTNAME_FQDN}\") | .id")
@@ -8543,28 +8624,39 @@ while [ "$#" -gt 0 ]; do
       echo "dd if=mini.iso of=/dev/sda"
       echo "poweroff"
       echo ""
-      echo "Once done press enter here to continue"
-      _confirm "Continue next execution? [y/Y]: "
+      _confirm "I have finished copying minimal disk installer. Continue next execution? [y/Y]: "
       # 8) Shutdown linode first
-      linode_api_admin "shutdown-linode" "${BOX_HOSTNAME_FQDN}"
-      sleep 2
+      #linode_api_admin "shutdown-linode" "${BOX_HOSTNAME_FQDN}"
+      #echo ""
+      #sleep 2
       # At this point for security reason, don't enable SSH on rescue disk. Manually put operating system there
       # 9) Boot into OS installer to install OS
       echo "[${SCRIPT_NAME}]: Booting linode into OS installer ..."
       linode_api_admin "boot-linode" "${BOX_HOSTNAME_FQDN}" "Boot_Config"
+      echo ""
       sleep 2
-
-      echo "[${SCRIPT_NAME}]: Now it's time to install the Operating System in GUI. Once done you can continue"
-      echo "Goto this URL to enter into GUI installer: https://cloud.linode.com/linodes/${linode_id}/lish/glish"
-      _confirm "Continue next execution? [y/Y]: "
+      echo "[${SCRIPT_NAME}]: Goto this URL to enter into linode terminal: https://cloud.linode.com/linodes/${linode_id}/lish/glish"
+      echo "[${SCRIPT_NAME}]: Enter glish tab and install Operating System based on instruction. Once done you can continue"
+      _confirm "I have finished installing operating system. Continue next execution? [y/Y]: "
       # 10) Shutdown linode again
       linode_api_admin "shutdown-linode" "${BOX_HOSTNAME_FQDN}"
+      echo ""
       # 11) Now boot into a live server
       echo "[${SCRIPT_NAME}]: Booting linode into live server ..."
       linode_api_admin "boot-linode" "sun.sofibox.com" "OS_Config"
       sleep 2
+      echo "1) At this point, enter root user and password in linode terminal"
+      echo "2) Type 'ip a' and compare the interface name with /etc/network/interface"
+      echo "If same then skip, else modify the interface based on 'ip a'"
+      echo "3) Enable SSH root login temporarily by modifying PermitRootLogin yes"
+      echo ""
       _confirm "Continue next execution? [y/Y]: "
-      echo "Done!"
+      echo "Now you might be able to use SSH client to login into the server (such as putty)"
+      echo "You can then copy this script and config file, and run with maxisetup --setup"
+      echo ""
+      _confirm "Continue next execution? [y/Y]: "
+      echo "At this point, you can use this running script to access ssh and setup the whole server (TODO)"
+      echo "Enough now, done"
     elif
 
       [ "${EXTERNAL_DNS_PROVIDER}" == "digitalocean" ]
@@ -8601,12 +8693,28 @@ while [ "$#" -gt 0 ]; do
     exit 0
     break
     ;;
+  # ./maxisetup --ssh-login "~/.ssh/sofibox.id_rsa"
+  -sshl | --ssh-login)
+    shift
+    key_location="$1"
+    #key_location="~/.ssh/sofibox.id_rsa"
+    if [ -z "${key_location}" ]; then
+      echo "Connecting to ${BOX_HOSTNAME_FQDN} without private key ..."
+      ssh "root@${IPV4_ADD0}"
+    elif [ -f "${key_location}" ]; then
+      echo "Connecting to ${BOX_HOSTNAME_FQDN} with private key ..."
+      ssh -p "${SSH_PORT}" -i "${key_location}" "${SSH_USERNAME}@${IPV4_ADD0}"
+    else
+      echo "Invalid key location"
+    fi
+    exit 0
+    break
+    ;;
   -t | --test)
     shift
     # Put any test scripts here
     # _confirm "Continue script? [y/Y]: "
     linode_api_admin "boot-linode" "sun.sofibox.com" "Boot_Config"
-
     exit 0
     break
     ;;
