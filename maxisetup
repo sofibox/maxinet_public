@@ -3,7 +3,7 @@
 # Author: Arafat Ali | Email: webmaster@sofibox.com
 APP_SPECIFIC_NAME="Maxisetup"
 APP_STATUS="beta"
-APP_VERSION="0.4.1.3-${APP_STATUS}"
+APP_VERSION="0.4.1.4-${APP_STATUS}"
 # This is an initial server hardening script for CentOS and Debian.
 # Compatible 100% with Directadmin. Supported OS: CentOS + Debian (Planned on FreeBSD)
 # You can choose to install as the other stack server such as LEMP, (TODO) Laravel and more defined in config file
@@ -1977,12 +1977,11 @@ function restart_da_web_server() {
 }
 
 function pre_setup() {
-  local option="$1"
-  if [[ "${option}" == "--force" ]]; then
-    rm -rf "${CONF_PATH}/${FUNCNAME[0]}_executed"
-  elif [[ "${option}" == "--force-exit" ]]; then
-    rm -rf "${CONF_PATH}/${FUNCNAME[0]}_executed"
-    exit 0
+  local option executed_function
+  option="$1"
+  executed_function="${CONF_PATH}/${FUNCNAME[0]}_executed"
+  if [[ "${option}" == "--force" || "${option}" == "--force-exit" ]]; then
+    rm -rf "${executed_function}"
   else
     option=""
   fi
@@ -2023,6 +2022,9 @@ function pre_setup() {
     echo "=~=~=~=~=~=~=~=~=~" 2>&1 | tee -a "${REPORT_FILE}"
   fi
 
+  if [[ "${option}" == "--force-exit" ]]; then
+    exit 0
+  fi
 }
 # Get the latest scripts from private repo (need to have private token defined in config)
 # This private repo contains lots of security scripts for Linux (c) by Arafat Ali (aka MaXi32)
@@ -2068,16 +2070,18 @@ get_latest_maxisetup() {
   #  echo "[${SCRIPT_NAME}]: [Skipped]: ${FUNCNAME[0]} has ran before" 2>&1 | tee -a "${REPORT_FILE}"
   # echo "=~=~=~=~=~=~=~=~=~" 2>&1 | tee -a "${REPORT_FILE}"
   #fi
+  if [[ "${option}" == "--force-exit" ]]; then
+    exit 0
+  fi
 }
 
 # Basic security hardening for Linux
 function secure_box() {
-  local option="$1"
-  if [[ "${option}" == "--force" ]]; then
-    rm -rf "${CONF_PATH}/${FUNCNAME[0]}_executed"
-  elif [[ "${option}" == "--force-exit" ]]; then
-    rm -rf "${CONF_PATH}/${FUNCNAME[0]}_executed"
-    exit 0
+  local option executed_function
+  option="$1"
+  executed_function="${CONF_PATH}/${FUNCNAME[0]}_executed"
+  if [[ "${option}" == "--force" || "${option}" == "--force-exit" ]]; then
+    rm -rf "${executed_function}"
   else
     option=""
   fi
@@ -2235,7 +2239,9 @@ function secure_box() {
     echo "[${SCRIPT_NAME}]: [Skipped]: ${FUNCNAME[0]} has ran before" 2>&1 | tee -a "${REPORT_FILE}"
     echo "=~=~=~=~=~=~=~=~=~" 2>&1 | tee -a "${REPORT_FILE}"
   fi
-
+  if [[ "${option}" == "--force-exit" ]]; then
+    exit 0
+  fi
 }
 
 function init_local_maxicode() {
@@ -2253,15 +2259,17 @@ function init_local_maxicode() {
   #  echo "[${SCRIPT_NAME}]: [Skipped]: ${FUNCNAME[0]} has ran before" 2>&1 | tee -a "${REPORT_FILE}"
   #   echo "=~=~=~=~=~=~=~=~=~" 2>&1 | tee -a "${REPORT_FILE}"
   # fi
+  if [[ "${option}" == "--force-exit" ]]; then
+    exit 0
+  fi
 }
 # This one configuration hostname, network etc.
 function configure_net() {
-  local option="$1"
-  if [[ "${option}" == "--force" ]]; then
-    rm -rf "${CONF_PATH}/${FUNCNAME[0]}_executed"
-  elif [[ "${option}" == "--force-exit" ]]; then
-    rm -rf "${CONF_PATH}/${FUNCNAME[0]}_executed"
-    exit 0
+  local option executed_function
+  option="$1"
+  executed_function="${CONF_PATH}/${FUNCNAME[0]}_executed"
+  if [[ "${option}" == "--force" || "${option}" == "--force-exit" ]]; then
+    rm -rf "${executed_function}"
   else
     option=""
   fi
@@ -2435,12 +2443,11 @@ function configure_net() {
 # This would change like static IP, resolv.conf etc ...
 # I prefer to use eth0 than a strange name like epn${x} but now this script can rename whatever interface you want
 function configure_net2() {
-  local option="$1"
-  if [[ "${option}" == "--force" ]]; then
-    rm -rf "${CONF_PATH}/${FUNCNAME[0]}_executed"
-  elif [[ "${option}" == "--force-exit" ]]; then
-    rm -rf "${CONF_PATH}/${FUNCNAME[0]}_executed"
-    exit 0
+  local option executed_function
+  option="$1"
+  executed_function="${CONF_PATH}/${FUNCNAME[0]}_executed"
+  if [[ "${option}" == "--force" || "${option}" == "--force-exit" ]]; then
+    rm -rf "${executed_function}"
   else
     option=""
   fi
@@ -2595,15 +2602,17 @@ function configure_net2() {
     echo "[${SCRIPT_NAME}]: [Skipped]: ${FUNCNAME[0]} has ran before" 2>&1 | tee -a "${REPORT_FILE}"
     echo "=~=~=~=~=~=~=~=~=~" 2>&1 | tee -a "${REPORT_FILE}"
   fi
+  if [[ "${option}" == "--force-exit" ]]; then
+    exit 0
+  fi
 }
 
 function configure_fstab() {
-  local option="$1"
-  if [[ "${option}" == "--force" ]]; then
-    rm -rf "${CONF_PATH}/${FUNCNAME[0]}_executed"
-  elif [[ "${option}" == "--force-exit" ]]; then
-    rm -rf "${CONF_PATH}/${FUNCNAME[0]}_executed"
-    exit 0
+  local option executed_function
+  option="$1"
+  executed_function="${CONF_PATH}/${FUNCNAME[0]}_executed"
+  if [[ "${option}" == "--force" || "${option}" == "--force-exit" ]]; then
+    rm -rf "${executed_function}"
   else
     option=""
   fi
@@ -2643,15 +2652,17 @@ function configure_fstab() {
     echo "[${SCRIPT_NAME}]: [Skipped]: ${FUNCNAME[0]} has ran before" 2>&1 | tee -a "${REPORT_FILE}"
     echo "=~=~=~=~=~=~=~=~=~" 2>&1 | tee -a "${REPORT_FILE}"
   fi
+  if [[ "${option}" == "--force-exit" ]]; then
+    exit 0
+  fi
 }
 
 function configure_grub() {
-  local option="$1"
-  if [[ "${option}" == "--force" ]]; then
-    rm -rf "${CONF_PATH}/${FUNCNAME[0]}_executed"
-  elif [[ "${option}" == "--force-exit" ]]; then
-    rm -rf "${CONF_PATH}/${FUNCNAME[0]}_executed"
-    exit 0
+  local option executed_function
+  option="$1"
+  executed_function="${CONF_PATH}/${FUNCNAME[0]}_executed"
+  if [[ "${option}" == "--force" || "${option}" == "--force-exit" ]]; then
+    rm -rf "${executed_function}"
   else
     option=""
   fi
@@ -2695,12 +2706,11 @@ EOF
 
 # Tweaking swap for production
 function configure_sysctl_swap() {
-  local option="$1"
-  if [[ "${option}" == "--force" ]]; then
-    rm -rf "${CONF_PATH}/${FUNCNAME[0]}_executed"
-  elif [[ "${option}" == "--force-exit" ]]; then
-    rm -rf "${CONF_PATH}/${FUNCNAME[0]}_executed"
-    exit 0
+  local option executed_function
+  option="$1"
+  executed_function="${CONF_PATH}/${FUNCNAME[0]}_executed"
+  if [[ "${option}" == "--force" || "${option}" == "--force-exit" ]]; then
+    rm -rf "${executed_function}"
   else
     option=""
   fi
@@ -2719,16 +2729,17 @@ function configure_sysctl_swap() {
     echo "[${SCRIPT_NAME}]: [Skipped]: ${FUNCNAME[0]} has ran before" 2>&1 | tee -a "${REPORT_FILE}"
     echo "=~=~=~=~=~=~=~=~=~" 2>&1 | tee -a "${REPORT_FILE}"
   fi
-
+  if [[ "${option}" == "--force-exit" ]]; then
+    exit 0
+  fi
 }
 
 function configure_sysctl_kernel_fs() {
-  local option="$1"
-  if [[ "${option}" == "--force" ]]; then
-    rm -rf "${CONF_PATH}/${FUNCNAME[0]}_executed"
-  elif [[ "${option}" == "--force-exit" ]]; then
-    rm -rf "${CONF_PATH}/${FUNCNAME[0]}_executed"
-    exit 0
+  local option executed_function
+  option="$1"
+  executed_function="${CONF_PATH}/${FUNCNAME[0]}_executed"
+  if [[ "${option}" == "--force" || "${option}" == "--force-exit" ]]; then
+    rm -rf "${executed_function}"
   else
     option=""
   fi
@@ -2751,16 +2762,17 @@ function configure_sysctl_kernel_fs() {
     echo "[${SCRIPT_NAME}]: [Skipped]: ${FUNCNAME[0]} has ran before" 2>&1 | tee -a "${REPORT_FILE}"
     echo "=~=~=~=~=~=~=~=~=~" 2>&1 | tee -a "${REPORT_FILE}"
   fi
-
+  if [[ "${option}" == "--force-exit" ]]; then
+    exit 0
+  fi
 }
 
 function configure_sysctl_ips() {
-  local option="$1"
-  if [[ "${option}" == "--force" ]]; then
-    rm -rf "${CONF_PATH}/${FUNCNAME[0]}_executed"
-  elif [[ "${option}" == "--force-exit" ]]; then
-    rm -rf "${CONF_PATH}/${FUNCNAME[0]}_executed"
-    exit 0
+  local option executed_function
+  option="$1"
+  executed_function="${CONF_PATH}/${FUNCNAME[0]}_executed"
+  if [[ "${option}" == "--force" || "${option}" == "--force-exit" ]]; then
+    rm -rf "${executed_function}"
   else
     option=""
   fi
@@ -2808,16 +2820,17 @@ function configure_sysctl_ips() {
     echo "[${SCRIPT_NAME}]: [Skipped]: ${FUNCNAME[0]} has ran before" 2>&1 | tee -a "${REPORT_FILE}"
     echo "=~=~=~=~=~=~=~=~=~" 2>&1 | tee -a "${REPORT_FILE}"
   fi
-
+  if [[ "${option}" == "--force-exit" ]]; then
+    exit 0
+  fi
 }
 # Install missing os requirement, such as sendmail
 function upgrade_os() {
-  local option="$1"
-  if [[ "${option}" == "--force" ]]; then
-    rm -rf "${CONF_PATH}/${FUNCNAME[0]}_executed"
-  elif [[ "${option}" == "--force-exit" ]]; then
-    rm -rf "${CONF_PATH}/${FUNCNAME[0]}_executed"
-    exit 0
+  local option executed_function
+  option="$1"
+  executed_function="${CONF_PATH}/${FUNCNAME[0]}_executed"
+  if [[ "${option}" == "--force" || "${option}" == "--force-exit" ]]; then
+    rm -rf "${executed_function}"
   else
     option=""
   fi
@@ -2890,17 +2903,18 @@ function upgrade_os() {
     echo "[${SCRIPT_NAME}]: [Skipped]: ${FUNCNAME[0]} has ran before" 2>&1 | tee -a "${REPORT_FILE}"
     echo "=~=~=~=~=~=~=~=~=~" 2>&1 | tee -a "${REPORT_FILE}"
   fi
-
+  if [[ "${option}" == "--force-exit" ]]; then
+    exit 0
+  fi
 }
 
 # Install CSF Firewall
 configure_csf() {
-  local option="$1"
-  if [[ "${option}" == "--force" ]]; then
-    rm -rf "${CONF_PATH}/${FUNCNAME[0]}_executed"
-  elif [[ "${option}" == "--force-exit" ]]; then
-    rm -rf "${CONF_PATH}/${FUNCNAME[0]}_executed"
-    exit 0
+  local option executed_function
+  option="$1"
+  executed_function="${CONF_PATH}/${FUNCNAME[0]}_executed"
+  if [[ "${option}" == "--force" || "${option}" == "--force-exit" ]]; then
+    rm -rf "${executed_function}"
   else
     option=""
   fi
@@ -3121,15 +3135,17 @@ configure_csf() {
   fi
   # TIPS. CSF can be removed with this command:
   #sh /etc/csf/uninstall.sh
+  if [[ "${option}" == "--force-exit" ]]; then
+    exit 0
+  fi
 }
 
 function install_da_pre() {
-  local option="$1"
-  if [[ "${option}" == "--force" ]]; then
-    rm -rf "${CONF_PATH}/${FUNCNAME[0]}_executed"
-  elif [[ "${option}" == "--force-exit" ]]; then
-    rm -rf "${CONF_PATH}/${FUNCNAME[0]}_executed"
-    exit 0
+  local option executed_function
+  option="$1"
+  executed_function="${CONF_PATH}/${FUNCNAME[0]}_executed"
+  if [[ "${option}" == "--force" || "${option}" == "--force-exit" ]]; then
+    rm -rf "${executed_function}"
   else
     option=""
   fi
@@ -3187,15 +3203,18 @@ function install_da_pre() {
     echo "[${SCRIPT_NAME}]: [Skipped]: ${FUNCNAME[0]} has ran before" 2>&1 | tee -a "${REPORT_FILE}"
     echo "=~=~=~=~=~=~=~=~=~" 2>&1 | tee -a "${REPORT_FILE}"
   fi
+
+  if [[ "${option}" == "--force-exit" ]]; then
+    exit 0
+  fi
 }
 
 function install_da() {
-  local option="$1"
-  if [[ "${option}" == "--force" ]]; then
-    rm -rf "${CONF_PATH}/${FUNCNAME[0]}_executed"
-  elif [[ "${option}" == "--force-exit" ]]; then
-    rm -rf "${CONF_PATH}/${FUNCNAME[0]}_executed"
-    exit 0
+  local option executed_function
+  option="$1"
+  executed_function="${CONF_PATH}/${FUNCNAME[0]}_executed"
+  if [[ "${option}" == "--force" || "${option}" == "--force-exit" ]]; then
+    rm -rf "${executed_function}"
   else
     option=""
   fi
@@ -3268,12 +3287,11 @@ add_da_ipv6_ip() {
 }
 
 function link_da_ipv6() {
-  local option="$1"
-  if [[ "${option}" == "--force" ]]; then
-    rm -rf "${CONF_PATH}/${FUNCNAME[0]}_executed"
-  elif [[ "${option}" == "--force-exit" ]]; then
-    rm -rf "${CONF_PATH}/${FUNCNAME[0]}_executed"
-    exit 0
+  local option executed_function
+  option="$1"
+  executed_function="${CONF_PATH}/${FUNCNAME[0]}_executed"
+  if [[ "${option}" == "--force" || "${option}" == "--force-exit" ]]; then
+    rm -rf "${executed_function}"
   else
     option=""
   fi
@@ -3363,14 +3381,17 @@ function link_da_ipv6() {
     echo "[${SCRIPT_NAME}]: [Skipped]: ${FUNCNAME[0]} has ran before" 2>&1 | tee -a "${REPORT_FILE}"
     echo "=~=~=~=~=~=~=~=~=~" 2>&1 | tee -a "${REPORT_FILE}"
   fi
+
+  if [[ "${option}" == "--force-exit" ]]; then
+    exit 0
+  fi
 }
 function rebuild_da_package() {
-  local option="$1"
-  if [[ "${option}" == "--force" ]]; then
-    rm -rf "${CONF_PATH}/${FUNCNAME[0]}_executed"
-  elif [[ "${option}" == "--force-exit" ]]; then
-    rm -rf "${CONF_PATH}/${FUNCNAME[0]}_executed"
-    exit 0
+  local option executed_function
+  option="$1"
+  executed_function="${CONF_PATH}/${FUNCNAME[0]}_executed"
+  if [[ "${option}" == "--force" || "${option}" == "--force-exit" ]]; then
+    rm -rf "${executed_function}"
   else
     option=""
   fi
@@ -3426,14 +3447,17 @@ function rebuild_da_package() {
     echo "[${SCRIPT_NAME}]: [Skipped]: ${FUNCNAME[0]} has ran before" 2>&1 | tee -a "${REPORT_FILE}"
     echo "=~=~=~=~=~=~=~=~=~" 2>&1 | tee -a "${REPORT_FILE}"
   fi
+
+  if [[ "${option}" == "--force-exit" ]]; then
+    exit 0
+  fi
 }
 function install_da_post() {
-  local option="$1"
-  if [[ "${option}" == "--force" ]]; then
-    rm -rf "${CONF_PATH}/${FUNCNAME[0]}_executed"
-  elif [[ "${option}" == "--force-exit" ]]; then
-    rm -rf "${CONF_PATH}/${FUNCNAME[0]}_executed"
-    exit 0
+  local option executed_function
+  option="$1"
+  executed_function="${CONF_PATH}/${FUNCNAME[0]}_executed"
+  if [[ "${option}" == "--force" || "${option}" == "--force-exit" ]]; then
+    rm -rf "${executed_function}"
   else
     option=""
   fi
@@ -3475,17 +3499,20 @@ function install_da_post() {
     echo "[${SCRIPT_NAME}]: [Skipped]: ${FUNCNAME[0]} has ran before" 2>&1 | tee -a "${REPORT_FILE}"
     echo "=~=~=~=~=~=~=~=~=~" 2>&1 | tee -a "${REPORT_FILE}"
   fi
+
+  if [[ "${option}" == "--force-exit" ]]; then
+    exit 0
+  fi
 }
 
 # This is the pre-requirement before getting ssl
 # Configure the wildcard certificate option here for external DNS
 function configure_da_ssl_pre() {
-  local option="$1"
-  if [[ "${option}" == "--force" ]]; then
-    rm -rf "${CONF_PATH}/${FUNCNAME[0]}_executed"
-  elif [[ "${option}" == "--force-exit" ]]; then
-    rm -rf "${CONF_PATH}/${FUNCNAME[0]}_executed"
-    exit 0
+  local option executed_function
+  option="$1"
+  executed_function="${CONF_PATH}/${FUNCNAME[0]}_executed"
+  if [[ "${option}" == "--force" || "${option}" == "--force-exit" ]]; then
+    rm -rf "${executed_function}"
   else
     option=""
   fi
@@ -3502,9 +3529,9 @@ function configure_da_ssl_pre() {
     echo "[${SCRIPT_NAME}]: Installing the latest letsencrypt.sh for Directadmin ..." 2>&1 | tee -a "${REPORT_FILE}"
     ${cb_bin} letsencrypt 2>&1 | tee -a "${REPORT_FILE}"
     sleep 1
-    # TODO need to reboot ?
-    #echo "[${SCRIPT_NAME}]: Creating reboot flag to restart system before requesting SSL certificate for Directadmin ..." 2>&1 | tee -a "${REPORT_FILE}"
-    #cat /dev/null >/var/run/reboot-required
+    # Need to reboot
+    echo "[${SCRIPT_NAME}]: Creating reboot flag to restart system before requesting SSL certificate for Directadmin ..." 2>&1 | tee -a "${REPORT_FILE}"
+    cat /dev/null >/var/run/reboot-required
     echo "[${SCRIPT_NAME}]: Warning, system will reboot and you can run this script again to continue setup" 2>&1 | tee -a "${REPORT_FILE}"
     _pause 10
     check_finish_reboot "${FUNCNAME[0]}"
@@ -3512,15 +3539,18 @@ function configure_da_ssl_pre() {
     echo "[${SCRIPT_NAME}]: [Skipped]: ${FUNCNAME[0]} has ran before" 2>&1 | tee -a "${REPORT_FILE}"
     echo "=~=~=~=~=~=~=~=~=~" 2>&1 | tee -a "${REPORT_FILE}"
   fi
+
+  if [[ "${option}" == "--force-exit" ]]; then
+    exit 0
+  fi
 }
 
 function configure_da_ssl() {
-  local option="$1"
-  if [[ "${option}" == "--force" ]]; then
-    rm -rf "${CONF_PATH}/${FUNCNAME[0]}_executed"
-  elif [[ "${option}" == "--force-exit" ]]; then
-    rm -rf "${CONF_PATH}/${FUNCNAME[0]}_executed"
-    exit 0
+  local option executed_function
+  option="$1"
+  executed_function="${CONF_PATH}/${FUNCNAME[0]}_executed"
+  if [[ "${option}" == "--force" || "${option}" == "--force-exit" ]]; then
+    rm -rf "${executed_function}"
   else
     option=""
   fi
@@ -3586,21 +3616,24 @@ function configure_da_ssl() {
     echo "[${SCRIPT_NAME}]: [Skipped]: ${FUNCNAME[0]} has ran before" 2>&1 | tee -a "${REPORT_FILE}"
     echo "=~=~=~=~=~=~=~=~=~" 2>&1 | tee -a "${REPORT_FILE}"
   fi
+
+  if [[ "${option}" == "--force-exit" ]]; then
+    exit 0
+  fi
 }
 
 function change_da_auth() {
-  local option="$1"
-  if [[ "${option}" == "--force" ]]; then
-    rm -rf "${CONF_PATH}/${FUNCNAME[0]}_executed"
-  elif [[ "${option}" == "--force-exit" ]]; then
-    rm -rf "${CONF_PATH}/${FUNCNAME[0]}_executed"
-    exit 0
+  local option executed_function
+  option="$1"
+  executed_function="${CONF_PATH}/${FUNCNAME[0]}_executed"
+  if [[ "${option}" == "--force" || "${option}" == "--force-exit" ]]; then
+    rm -rf "${executed_function}"
   else
     option=""
   fi
   # This function change the directadmin username and password from default to yours (based on config file)
   # It also has more options to secure DA installation. Example maybe this one we can create 2 step authentication
-  if [ ! -f "${CONF_PATH}/${FUNCNAME[0]}_executed" ]; then
+  if [ ! -f "${executed_function}" ]; then
     echo "[${SCRIPT_NAME}]: Executing ${FUNCNAME[0]} ..." 2>&1 | tee -a "${REPORT_FILE}"
     local da_scripts_path
     da_scripts_path="/usr/local/directadmin/scripts"
@@ -3635,14 +3668,17 @@ function change_da_auth() {
     echo "[${SCRIPT_NAME}]: [Skipped]: ${FUNCNAME[0]} has ran before" 2>&1 | tee -a "${REPORT_FILE}"
     echo "=~=~=~=~=~=~=~=~=~" 2>&1 | tee -a "${REPORT_FILE}"
   fi
+
+  if [[ "${option}" == "--force-exit" ]]; then
+    exit 0
+  fi
 }
 function configure_da_sql() {
-  local option="$1"
-  if [[ "${option}" == "--force" ]]; then
-    rm -rf "${CONF_PATH}/${FUNCNAME[0]}_executed"
-  elif [[ "${option}" == "--force-exit" ]]; then
-    rm -rf "${CONF_PATH}/${FUNCNAME[0]}_executed"
-    exit 0
+  local option executed_function
+  option="$1"
+  executed_function="${CONF_PATH}/${FUNCNAME[0]}_executed"
+  if [[ "${option}" == "--force" || "${option}" == "--force-exit" ]]; then
+    rm -rf "${executed_function}"
   else
     option=""
   fi
@@ -3876,16 +3912,17 @@ function configure_da_sql() {
   # echo "[${SCRIPT_NAME}]: Changing Directadmin da_admin SQL password using DA custom script ... " 2>&1 | tee -a "${REPORT_FILE}"
   # This script requires that we have root or da_admin password defined in cnf, else it's not working
   # ${da_scripts_path}/reset_da_admin_password.sh --password "${DA_ADMIN_SQLPASS}"
-
+  if [[ "${option}" == "--force-exit" ]]; then
+    exit 0
+  fi
 }
 # This configure_da_mail can be roundcube squirrelmail or others
 function configure_da_mail() {
-  local option="$1"
-  if [[ "${option}" == "--force" ]]; then
-    rm -rf "${CONF_PATH}/${FUNCNAME[0]}_executed"
-  elif [[ "${option}" == "--force-exit" ]]; then
-    rm -rf "${CONF_PATH}/${FUNCNAME[0]}_executed"
-    exit 0
+  local option executed_function
+  option="$1"
+  executed_function="${CONF_PATH}/${FUNCNAME[0]}_executed"
+  if [[ "${option}" == "--force" || "${option}" == "--force-exit" ]]; then
+    rm -rf "${executed_function}"
   else
     option=""
   fi
@@ -4031,15 +4068,17 @@ function configure_da_mail() {
     #sleep 1
     echo "=~=~=~=~=~=~=~=~=~" 2>&1 | tee -a "${REPORT_FILE}"
   fi
+  if [[ "${option}" == "--force-exit" ]]; then
+    exit 0
+  fi
 }
 
 configure_da_ftp() {
-  local option="$1"
-  if [[ "${option}" == "--force" ]]; then
-    rm -rf "${CONF_PATH}/${FUNCNAME[0]}_executed"
-  elif [[ "${option}" == "--force-exit" ]]; then
-    rm -rf "${CONF_PATH}/${FUNCNAME[0]}_executed"
-    exit 0
+  local option executed_function
+  option="$1"
+  executed_function="${CONF_PATH}/${FUNCNAME[0]}_executed"
+  if [[ "${option}" == "--force" || "${option}" == "--force-exit" ]]; then
+    rm -rf "${executed_function}"
   else
     option=""
   fi
@@ -4060,15 +4099,17 @@ configure_da_ftp() {
     echo "[${SCRIPT_NAME}]: [Skipped]: ${FUNCNAME[0]} has ran before" 2>&1 | tee -a "${REPORT_FILE}"
     echo "=~=~=~=~=~=~=~=~=~" 2>&1 | tee -a "${REPORT_FILE}"
   fi
+  if [[ "${option}" == "--force-exit" ]]; then
+    exit 0
+  fi
 }
 # This function only for configuring nginx_apache (it makes URL phpmyadmin or roundcube secure)
 function configure_nginx_apache() {
-  local option="$1"
-  if [[ "${option}" == "--force" ]]; then
-    rm -rf "${CONF_PATH}/${FUNCNAME[0]}_executed"
-  elif [[ "${option}" == "--force-exit" ]]; then
-    rm -rf "${CONF_PATH}/${FUNCNAME[0]}_executed"
-    exit 0
+  local option executed_function
+  option="$1"
+  executed_function="${CONF_PATH}/${FUNCNAME[0]}_executed"
+  if [[ "${option}" == "--force" || "${option}" == "--force-exit" ]]; then
+    rm -rf "${executed_function}"
   else
     option=""
   fi
@@ -4187,16 +4228,18 @@ function configure_nginx_apache() {
     echo "[${SCRIPT_NAME}]: [Skipped]: ${FUNCNAME[0]} has ran before" 2>&1 | tee -a "${REPORT_FILE}"
     echo "=~=~=~=~=~=~=~=~=~" 2>&1 | tee -a "${REPORT_FILE}"
   fi
+  if [[ "${option}" == "--force-exit" ]]; then
+    exit 0
+  fi
 }
 
 # Configure apps in /var/www/html
 function configure_web_apps_html() {
-  local option="$1"
-  if [[ "${option}" == "--force" ]]; then
-    rm -rf "${CONF_PATH}/${FUNCNAME[0]}_executed"
-  elif [[ "${option}" == "--force-exit" ]]; then
-    rm -rf "${CONF_PATH}/${FUNCNAME[0]}_executed"
-    exit 0
+  local option executed_function
+  option="$1"
+  executed_function="${CONF_PATH}/${FUNCNAME[0]}_executed"
+  if [[ "${option}" == "--force" || "${option}" == "--force-exit" ]]; then
+    rm -rf "${executed_function}"
   else
     option=""
   fi
@@ -4216,15 +4259,17 @@ function configure_web_apps_html() {
     echo "[${SCRIPT_NAME}]: [Skipped]: ${FUNCNAME[0]} has ran before" 2>&1 | tee -a "${REPORT_FILE}"
     echo "=~=~=~=~=~=~=~=~=~" 2>&1 | tee -a "${REPORT_FILE}"
   fi
+  if [[ "${option}" == "--force-exit" ]]; then
+    exit 0
+  fi
 }
 
 function build_da_custom_conf() {
-  local option="$1"
-  if [[ "${option}" == "--force" ]]; then
-    rm -rf "${CONF_PATH}/${FUNCNAME[0]}_executed"
-  elif [[ "${option}" == "--force-exit" ]]; then
-    rm -rf "${CONF_PATH}/${FUNCNAME[0]}_executed"
-    exit 0
+  local option executed_function
+  option="$1"
+  executed_function="${CONF_PATH}/${FUNCNAME[0]}_executed"
+  if [[ "${option}" == "--force" || "${option}" == "--force-exit" ]]; then
+    rm -rf "${executed_function}"
   else
     option=""
   fi
@@ -4303,16 +4348,18 @@ function build_da_custom_conf() {
     echo "[${SCRIPT_NAME}]: [Skipped]: ${FUNCNAME[0]} has ran before" 2>&1 | tee -a "${REPORT_FILE}"
     echo "=~=~=~=~=~=~=~=~=~" 2>&1 | tee -a "${REPORT_FILE}"
   fi
+  if [[ "${option}" == "--force-exit" ]]; then
+    exit 0
+  fi
 }
 
 # For configuring admin setting and extra hardening any DA related installation
 function configure_da() {
-  local option="$1"
-  if [[ "${option}" == "--force" ]]; then
-    rm -rf "${CONF_PATH}/${FUNCNAME[0]}_executed"
-  elif [[ "${option}" == "--force-exit" ]]; then
-    rm -rf "${CONF_PATH}/${FUNCNAME[0]}_executed"
-    exit 0
+  local option executed_function
+  option="$1"
+  executed_function="${CONF_PATH}/${FUNCNAME[0]}_executed"
+  if [[ "${option}" == "--force" || "${option}" == "--force-exit" ]]; then
+    rm -rf "${executed_function}"
   else
     option=""
   fi
@@ -4362,15 +4409,17 @@ function configure_da() {
     echo "[${SCRIPT_NAME}]: [Skipped]: ${FUNCNAME[0]} has ran before" 2>&1 | tee -a "${REPORT_FILE}"
     echo "=~=~=~=~=~=~=~=~=~" 2>&1 | tee -a "${REPORT_FILE}"
   fi
+  if [[ "${option}" == "--force-exit" ]]; then
+    exit 0
+  fi
 }
 
 function add_da_ip() {
-  local option="$1"
-  if [[ "${option}" == "--force" ]]; then
-    rm -rf "${CONF_PATH}/${FUNCNAME[0]}_executed"
-  elif [[ "${option}" == "--force-exit" ]]; then
-    rm -rf "${CONF_PATH}/${FUNCNAME[0]}_executed"
-    exit 0
+  local option executed_function
+  option="$1"
+  executed_function="${CONF_PATH}/${FUNCNAME[0]}_executed"
+  if [[ "${option}" == "--force" || "${option}" == "--force-exit" ]]; then
+    rm -rf "${executed_function}"
   else
     option=""
   fi
@@ -4394,17 +4443,18 @@ function add_da_ip() {
     echo "[${SCRIPT_NAME}]: [Skipped]: ${FUNCNAME[0]} has ran before" 2>&1 | tee -a "${REPORT_FILE}"
     echo "=~=~=~=~=~=~=~=~=~" 2>&1 | tee -a "${REPORT_FILE}"
   fi
-
+  if [[ "${option}" == "--force-exit" ]]; then
+    exit 0
+  fi
 }
 
 # This maxibox is only used for backup purpose (TODO)
 function configure_maxibox() {
-  local option="$1"
-  if [[ "${option}" == "--force" ]]; then
-    rm -rf "${CONF_PATH}/${FUNCNAME[0]}_executed"
-  elif [[ "${option}" == "--force-exit" ]]; then
-    rm -rf "${CONF_PATH}/${FUNCNAME[0]}_executed"
-    exit 0
+  local option executed_function
+  option="$1"
+  executed_function="${CONF_PATH}/${FUNCNAME[0]}_executed"
+  if [[ "${option}" == "--force" || "${option}" == "--force-exit" ]]; then
+    rm -rf "${executed_function}"
   else
     option=""
   fi
@@ -4415,16 +4465,18 @@ function configure_maxibox() {
     echo "[${SCRIPT_NAME}]: [Skipped]: ${FUNCNAME[0]} has ran before" 2>&1 | tee -a "${REPORT_FILE}"
     echo "=~=~=~=~=~=~=~=~=~" 2>&1 | tee -a "${REPORT_FILE}"
   fi
+  if [[ "${option}" == "--force-exit" ]]; then
+    exit 0
+  fi
 }
 
 # This is the pre-requisite components for all maxicode
 function configure_maxicode_pre() {
-  local option="$1"
-  if [[ "${option}" == "--force" ]]; then
-    rm -rf "${CONF_PATH}/${FUNCNAME[0]}_executed"
-  elif [[ "${option}" == "--force-exit" ]]; then
-    rm -rf "${CONF_PATH}/${FUNCNAME[0]}_executed"
-    exit 0
+  local option executed_function
+  option="$1"
+  executed_function="${CONF_PATH}/${FUNCNAME[0]}_executed"
+  if [[ "${option}" == "--force" || "${option}" == "--force-exit" ]]; then
+    rm -rf "${executed_function}"
   else
     option=""
   fi
@@ -4436,7 +4488,9 @@ function configure_maxicode_pre() {
     echo "[${SCRIPT_NAME}]: [Skipped]: ${FUNCNAME[0]} has ran before" 2>&1 | tee -a "${REPORT_FILE}"
     echo "=~=~=~=~=~=~=~=~=~" 2>&1 | tee -a "${REPORT_FILE}"
   fi
-
+  if [[ "${option}" == "--force-exit" ]]; then
+    exit 0
+  fi
 }
 
 # maxicode will be the place to upgrade maxicode binaries (even when script finished running).
@@ -4444,12 +4498,11 @@ function configure_maxicode_pre() {
 # usage: maxicode --update <package_name> or maxicode -u <package_name>
 # eg: To update all package: maxicode -u all. To update just maxiwall: maxicode -u maxiwall
 function configure_maxicode() {
-  local option="$1"
-  if [[ "${option}" == "--force" ]]; then
-    rm -rf "${CONF_PATH}/${FUNCNAME[0]}_executed"
-  elif [[ "${option}" == "--force-exit" ]]; then
-    rm -rf "${CONF_PATH}/${FUNCNAME[0]}_executed"
-    exit 0
+  local option executed_function
+  option="$1"
+  executed_function="${CONF_PATH}/${FUNCNAME[0]}_executed"
+  if [[ "${option}" == "--force" || "${option}" == "--force-exit" ]]; then
+    rm -rf "${executed_function}"
   else
     option=""
   fi
@@ -4501,15 +4554,17 @@ function configure_maxicode() {
     echo "[${SCRIPT_NAME}]: [Skipped]: ${FUNCNAME[0]} has ran before" 2>&1 | tee -a "${REPORT_FILE}"
     echo "=~=~=~=~=~=~=~=~=~" 2>&1 | tee -a "${REPORT_FILE}"
   fi
+  if [[ "${option}" == "--force-exit" ]]; then
+    exit 0
+  fi
 }
 
 function configure_maxiperm() {
-  local option="$1"
-  if [[ "${option}" == "--force" ]]; then
-    rm -rf "${CONF_PATH}/${FUNCNAME[0]}_executed"
-  elif [[ "${option}" == "--force-exit" ]]; then
-    rm -rf "${CONF_PATH}/${FUNCNAME[0]}_executed"
-    exit 0
+  local option executed_function
+  option="$1"
+  executed_function="${CONF_PATH}/${FUNCNAME[0]}_executed"
+  if [[ "${option}" == "--force" || "${option}" == "--force-exit" ]]; then
+    rm -rf "${executed_function}"
   else
     option=""
   fi
@@ -4532,16 +4587,18 @@ function configure_maxiperm() {
     echo "[${SCRIPT_NAME}]: [Skipped]: ${FUNCNAME[0]} has ran before" 2>&1 | tee -a "${REPORT_FILE}"
     echo "=~=~=~=~=~=~=~=~=~" 2>&1 | tee -a "${REPORT_FILE}"
   fi
+  if [[ "${option}" == "--force-exit" ]]; then
+    exit 0
+  fi
 }
 
 # Harden server based on lynis suggestion
 function configure_maxinis() {
-  local option="$1"
-  if [[ "${option}" == "--force" ]]; then
-    rm -rf "${CONF_PATH}/${FUNCNAME[0]}_executed"
-  elif [[ "${option}" == "--force-exit" ]]; then
-    rm -rf "${CONF_PATH}/${FUNCNAME[0]}_executed"
-    exit 0
+  local option executed_function
+  option="$1"
+  executed_function="${CONF_PATH}/${FUNCNAME[0]}_executed"
+  if [[ "${option}" == "--force" || "${option}" == "--force-exit" ]]; then
+    rm -rf "${executed_function}"
   else
     option=""
   fi
@@ -4584,16 +4641,18 @@ function configure_maxinis() {
     echo "[${SCRIPT_NAME}]: [Skipped]: ${FUNCNAME[0]} has ran before" 2>&1 | tee -a "${REPORT_FILE}"
     echo "=~=~=~=~=~=~=~=~=~" 2>&1 | tee -a "${REPORT_FILE}"
   fi
+  if [[ "${option}" == "--force-exit" ]]; then
+    exit 0
+  fi
 }
 
 # Installing other security software based on maxicode
 function configure_maxigpg() {
-  local option="$1"
-  if [[ "${option}" == "--force" ]]; then
-    rm -rf "${CONF_PATH}/${FUNCNAME[0]}_executed"
-  elif [[ "${option}" == "--force-exit" ]]; then
-    rm -rf "${CONF_PATH}/${FUNCNAME[0]}_executed"
-    exit 0
+  local option executed_function
+  option="$1"
+  executed_function="${CONF_PATH}/${FUNCNAME[0]}_executed"
+  if [[ "${option}" == "--force" || "${option}" == "--force-exit" ]]; then
+    rm -rf "${executed_function}"
   else
     option=""
   fi
@@ -4681,16 +4740,18 @@ EOF
     echo "[${SCRIPT_NAME}]: [Skipped]: ${FUNCNAME[0]} has ran before" 2>&1 | tee -a "${REPORT_FILE}"
     echo "=~=~=~=~=~=~=~=~=~" 2>&1 | tee -a "${REPORT_FILE}"
   fi
+  if [[ "${option}" == "--force-exit" ]]; then
+    exit 0
+  fi
 }
 
 # maxida is used to manage directadmin functionalities including APIs.
 function configure_maxida() {
-  local option="$1"
-  if [[ "${option}" == "--force" ]]; then
-    rm -rf "${CONF_PATH}/${FUNCNAME[0]}_executed"
-  elif [[ "${option}" == "--force-exit" ]]; then
-    rm -rf "${CONF_PATH}/${FUNCNAME[0]}_executed"
-    exit 0
+  local option executed_function
+  option="$1"
+  executed_function="${CONF_PATH}/${FUNCNAME[0]}_executed"
+  if [[ "${option}" == "--force" || "${option}" == "--force-exit" ]]; then
+    rm -rf "${executed_function}"
   else
     option=""
   fi
@@ -4738,15 +4799,17 @@ function configure_maxida() {
     echo "[${SCRIPT_NAME}]: [Skipped]: ${FUNCNAME[0]} has ran before" 2>&1 | tee -a "${REPORT_FILE}"
     echo "=~=~=~=~=~=~=~=~=~" 2>&1 | tee -a "${REPORT_FILE}"
   fi
+  if [[ "${option}" == "--force-exit" ]]; then
+    exit 0
+  fi
 }
 
 function configure_maxicron() {
-  local option="$1"
-  if [[ "${option}" == "--force" ]]; then
-    rm -rf "${CONF_PATH}/${FUNCNAME[0]}_executed"
-  elif [[ "${option}" == "--force-exit" ]]; then
-    rm -rf "${CONF_PATH}/${FUNCNAME[0]}_executed"
-    exit 0
+  local option executed_function
+  option="$1"
+  executed_function="${CONF_PATH}/${FUNCNAME[0]}_executed"
+  if [[ "${option}" == "--force" || "${option}" == "--force-exit" ]]; then
+    rm -rf "${executed_function}"
   else
     option=""
   fi
@@ -4769,15 +4832,17 @@ function configure_maxicron() {
     echo "[${SCRIPT_NAME}]: [Skipped]: ${FUNCNAME[0]} has ran before" 2>&1 | tee -a "${REPORT_FILE}"
     echo "=~=~=~=~=~=~=~=~=~" 2>&1 | tee -a "${REPORT_FILE}"
   fi
+  if [[ "${option}" == "--force-exit" ]]; then
+    exit 0
+  fi
 }
 
 function configure_maxiaide() {
-  local option="$1"
-  if [[ "${option}" == "--force" ]]; then
-    rm -rf "${CONF_PATH}/${FUNCNAME[0]}_executed"
-  elif [[ "${option}" == "--force-exit" ]]; then
-    rm -rf "${CONF_PATH}/${FUNCNAME[0]}_executed"
-    exit 0
+  local option executed_function
+  option="$1"
+  executed_function="${CONF_PATH}/${FUNCNAME[0]}_executed"
+  if [[ "${option}" == "--force" || "${option}" == "--force-exit" ]]; then
+    rm -rf "${executed_function}"
   else
     option=""
   fi
@@ -4807,15 +4872,17 @@ function configure_maxiaide() {
     echo "[${SCRIPT_NAME}]: [Skipped]: ${FUNCNAME[0]} has ran before" 2>&1 | tee -a "${REPORT_FILE}"
     echo "=~=~=~=~=~=~=~=~=~" 2>&1 | tee -a "${REPORT_FILE}"
   fi
+  if [[ "${option}" == "--force-exit" ]]; then
+    exit 0
+  fi
 }
 
 function configure_maxiwall() {
-  local option="$1"
-  if [[ "${option}" == "--force" ]]; then
-    rm -rf "${CONF_PATH}/${FUNCNAME[0]}_executed"
-  elif [[ "${option}" == "--force-exit" ]]; then
-    rm -rf "${CONF_PATH}/${FUNCNAME[0]}_executed"
-    exit 0
+  local option executed_function
+  option="$1"
+  executed_function="${CONF_PATH}/${FUNCNAME[0]}_executed"
+  if [[ "${option}" == "--force" || "${option}" == "--force-exit" ]]; then
+    rm -rf "${executed_function}"
   else
     option=""
   fi
@@ -5040,16 +5107,18 @@ function configure_maxiwall() {
     echo "[${SCRIPT_NAME}]: [Skipped]: ${FUNCNAME[0]} has ran before" 2>&1 | tee -a "${REPORT_FILE}"
     echo "=~=~=~=~=~=~=~=~=~" 2>&1 | tee -a "${REPORT_FILE}"
   fi
+  if [[ "${option}" == "--force-exit" ]]; then
+    exit 0
+  fi
 }
 
 # For managing cloud storage. Like mounting cloud storage, send file or receive file from cloud. maxicloud will handle that.
 function configure_maxicloud() {
-  local option="$1"
-  if [[ "${option}" == "--force" ]]; then
-    rm -rf "${CONF_PATH}/${FUNCNAME[0]}_executed"
-  elif [[ "${option}" == "--force-exit" ]]; then
-    rm -rf "${CONF_PATH}/${FUNCNAME[0]}_executed"
-    exit 0
+  local option executed_function
+  option="$1"
+  executed_function="${CONF_PATH}/${FUNCNAME[0]}_executed"
+  if [[ "${option}" == "--force" || "${option}" == "--force-exit" ]]; then
+    rm -rf "${executed_function}"
   else
     option=""
   fi
@@ -5084,15 +5153,17 @@ function configure_maxicloud() {
     echo "[${SCRIPT_NAME}]: [Skipped]: ${FUNCNAME[0]} has ran before" 2>&1 | tee -a "${REPORT_FILE}"
     echo "=~=~=~=~=~=~=~=~=~" 2>&1 | tee -a "${REPORT_FILE}"
   fi
+  if [[ "${option}" == "--force-exit" ]]; then
+    exit 0
+  fi
 }
 
 function configure_maxipass() {
-  local option="$1"
-  if [[ "${option}" == "--force" ]]; then
-    rm -rf "${CONF_PATH}/${FUNCNAME[0]}_executed"
-  elif [[ "${option}" == "--force-exit" ]]; then
-    rm -rf "${CONF_PATH}/${FUNCNAME[0]}_executed"
-    exit 0
+  local option executed_function
+  option="$1"
+  executed_function="${CONF_PATH}/${FUNCNAME[0]}_executed"
+  if [[ "${option}" == "--force" || "${option}" == "--force-exit" ]]; then
+    rm -rf "${executed_function}"
   else
     option=""
   fi
@@ -5141,19 +5212,20 @@ function configure_maxipass() {
     echo "[${SCRIPT_NAME}]: [Skipped]: ${FUNCNAME[0]} has ran before" 2>&1 | tee -a "${REPORT_FILE}"
     echo "=~=~=~=~=~=~=~=~=~" 2>&1 | tee -a "${REPORT_FILE}"
   fi
-
+  if [[ "${option}" == "--force-exit" ]]; then
+    exit 0
+  fi
 }
 
 # For managing notification (eg. pushover, gotify)
 # TODO configure this when https is ready, put in secured port, put httpd layer
 # Find a way to add 2 step authentication
 function configure_maxify() {
-  local option="$1"
-  if [[ "${option}" == "--force" ]]; then
-    rm -rf "${CONF_PATH}/${FUNCNAME[0]}_executed"
-  elif [[ "${option}" == "--force-exit" ]]; then
-    rm -rf "${CONF_PATH}/${FUNCNAME[0]}_executed"
-    exit 0
+  local option executed_function
+  option="$1"
+  executed_function="${CONF_PATH}/${FUNCNAME[0]}_executed"
+  if [[ "${option}" == "--force" || "${option}" == "--force-exit" ]]; then
+    rm -rf "${executed_function}"
   else
     option=""
   fi
@@ -5173,21 +5245,36 @@ function configure_maxify() {
     echo "[${SCRIPT_NAME}]: [Skipped]: ${FUNCNAME[0]} has ran before" 2>&1 | tee -a "${REPORT_FILE}"
     echo "=~=~=~=~=~=~=~=~=~" 2>&1 | tee -a "${REPORT_FILE}"
   fi
+
+  if [[ "${option}" == "--force-exit" ]]; then
+    exit 0
+  fi
 }
 
 function configure_logs() {
+  local option executed_function
+  option="$1"
+  executed_function="${CONF_PATH}/${FUNCNAME[0]}_executed"
+  if [[ "${option}" == "--force" || "${option}" == "--force-exit" ]]; then
+    rm -rf "${executed_function}"
+  else
+    option=""
+  fi
 
   :
+  #### TODO
+  if [[ "${option}" == "--force-exit" ]]; then
+    exit 0
+  fi
 }
 
 # This will install OS memcached and php memcached extension
 function configure_da_memcached() {
-  local option="$1"
-  if [[ "${option}" == "--force" ]]; then
-    rm -rf "${CONF_PATH}/${FUNCNAME[0]}_executed"
-  elif [[ "${option}" == "--force-exit" ]]; then
-    rm -rf "${CONF_PATH}/${FUNCNAME[0]}_executed"
-    exit 0
+  local option executed_function
+  option="$1"
+  executed_function="${CONF_PATH}/${FUNCNAME[0]}_executed"
+  if [[ "${option}" == "--force" || "${option}" == "--force-exit" ]]; then
+    rm -rf "${executed_function}"
   else
     option=""
   fi
@@ -5231,15 +5318,19 @@ function configure_da_memcached() {
     echo "[${SCRIPT_NAME}]: [Skipped]: ${FUNCNAME[0]} has ran before" 2>&1 | tee -a "${REPORT_FILE}"
     echo "=~=~=~=~=~=~=~=~=~" 2>&1 | tee -a "${REPORT_FILE}"
   fi
+
+  if [[ "${option}" == "--force-exit" ]]; then
+    exit 0
+  fi
+
 }
 
 function configure_da_geoip() {
-  local option="$1"
-  if [[ "${option}" == "--force" ]]; then
-    rm -rf "${CONF_PATH}/${FUNCNAME[0]}_executed"
-  elif [[ "${option}" == "--force-exit" ]]; then
-    rm -rf "${CONF_PATH}/${FUNCNAME[0]}_executed"
-    exit 0
+  local option executed_function
+  option="$1"
+  executed_function="${CONF_PATH}/${FUNCNAME[0]}_executed"
+  if [[ "${option}" == "--force" || "${option}" == "--force-exit" ]]; then
+    rm -rf "${executed_function}"
   else
     option=""
   fi
@@ -5268,15 +5359,17 @@ function configure_da_geoip() {
     echo "[${SCRIPT_NAME}]: [Skipped]: ${FUNCNAME[0]} has ran before" 2>&1 | tee -a "${REPORT_FILE}"
     echo "=~=~=~=~=~=~=~=~=~" 2>&1 | tee -a "${REPORT_FILE}"
   fi
+  if [[ "${option}" == "--force-exit" ]]; then
+    exit 0
+  fi
 }
 
 configure_da_dns_templates() {
-  local option="$1"
-  if [[ "${option}" == "--force" ]]; then
-    rm -rf "${CONF_PATH}/${FUNCNAME[0]}_executed"
-  elif [[ "${option}" == "--force-exit" ]]; then
-    rm -rf "${CONF_PATH}/${FUNCNAME[0]}_executed"
-    exit 0
+  local option executed_function
+  option="$1"
+  executed_function="${CONF_PATH}/${FUNCNAME[0]}_executed"
+  if [[ "${option}" == "--force" || "${option}" == "--force-exit" ]]; then
+    rm -rf "${executed_function}"
   else
     option=""
   fi
@@ -5342,16 +5435,18 @@ configure_da_dns_templates() {
     echo "[${SCRIPT_NAME}]: [Skipped]: ${FUNCNAME[0]} has ran before" 2>&1 | tee -a "${REPORT_FILE}"
     echo "=~=~=~=~=~=~=~=~=~" 2>&1 | tee -a "${REPORT_FILE}"
   fi
+  if [[ "${option}" == "--force-exit" ]]; then
+    exit 0
+  fi
 }
 # Maybe we need to log into owner (so we fix the menu, time format etc)
 # it's best not to use owner. Use admin instead to manage DA user for security purpose
 function configure_da_owner_skins() {
-  local option="$1"
-  if [[ "${option}" == "--force" ]]; then
-    rm -rf "${CONF_PATH}/${FUNCNAME[0]}_executed"
-  elif [[ "${option}" == "--force-exit" ]]; then
-    rm -rf "${CONF_PATH}/${FUNCNAME[0]}_executed"
-    exit 0
+  local option executed_function
+  option="$1"
+  executed_function="${CONF_PATH}/${FUNCNAME[0]}_executed"
+  if [[ "${option}" == "--force" || "${option}" == "--force-exit" ]]; then
+    rm -rf "${executed_function}"
   else
     option=""
   fi
@@ -5408,16 +5503,18 @@ function configure_da_owner_skins() {
     echo "[${SCRIPT_NAME}]: [Skipped]: ${FUNCNAME[0]} has ran before" 2>&1 | tee -a "${REPORT_FILE}"
     echo "=~=~=~=~=~=~=~=~=~" 2>&1 | tee -a "${REPORT_FILE}"
   fi
+  if [[ "${option}" == "--force-exit" ]]; then
+    exit 0
+  fi
 }
 
 # Configure DA skins like set the time format, set logo (focus on Evolution Skin)
 function configure_da_admin_skins() {
-  local option="$1"
-  if [[ "${option}" == "--force" ]]; then
-    rm -rf "${CONF_PATH}/${FUNCNAME[0]}_executed"
-  elif [[ "${option}" == "--force-exit" ]]; then
-    rm -rf "${CONF_PATH}/${FUNCNAME[0]}_executed"
-    exit 0
+  local option executed_function
+  option="$1"
+  executed_function="${CONF_PATH}/${FUNCNAME[0]}_executed"
+  if [[ "${option}" == "--force" || "${option}" == "--force-exit" ]]; then
+    rm -rf "${executed_function}"
   else
     option=""
   fi
@@ -5474,15 +5571,17 @@ function configure_da_admin_skins() {
     echo "[${SCRIPT_NAME}]: [Skipped]: ${FUNCNAME[0]} has ran before" 2>&1 | tee -a "${REPORT_FILE}"
     echo "=~=~=~=~=~=~=~=~=~" 2>&1 | tee -a "${REPORT_FILE}"
   fi
+  if [[ "${option}" == "--force-exit" ]]; then
+    exit 0
+  fi
 }
 
 function configure_da_reseller_skins() {
-  local option="$1"
-  if [[ "${option}" == "--force" ]]; then
-    rm -rf "${CONF_PATH}/${FUNCNAME[0]}_executed"
-  elif [[ "${option}" == "--force-exit" ]]; then
-    rm -rf "${CONF_PATH}/${FUNCNAME[0]}_executed"
-    exit 0
+  local option executed_function
+  option="$1"
+  executed_function="${CONF_PATH}/${FUNCNAME[0]}_executed"
+  if [[ "${option}" == "--force" || "${option}" == "--force-exit" ]]; then
+    rm -rf "${executed_function}"
   else
     option=""
   fi
@@ -5537,28 +5636,33 @@ function configure_da_reseller_skins() {
     echo "[${SCRIPT_NAME}]: [Skipped]: ${FUNCNAME[0]} has ran before" 2>&1 | tee -a "${REPORT_FILE}"
     echo "=~=~=~=~=~=~=~=~=~" 2>&1 | tee -a "${REPORT_FILE}"
   fi
-
+  if [[ "${option}" == "--force-exit" ]]; then
+    exit 0
+  fi
 }
 
 function configure_da_admin_admin_settings() {
-  local option="$1"
-  if [[ "${option}" == "--force" ]]; then
-    rm -rf "${CONF_PATH}/${FUNCNAME[0]}_executed"
-  elif [[ "${option}" == "--force-exit" ]]; then
-    rm -rf "${CONF_PATH}/${FUNCNAME[0]}_executed"
-    exit 0
+  local option executed_function
+  option="$1"
+  executed_function="${CONF_PATH}/${FUNCNAME[0]}_executed"
+  if [[ "${option}" == "--force" || "${option}" == "--force-exit" ]]; then
+    rm -rf "${executed_function}"
   else
     option=""
   fi
   :
-}
-function configure_da_owner_accounts() {
-  local option="$1"
-  if [[ "${option}" == "--force" ]]; then
-    rm -rf "${CONF_PATH}/${FUNCNAME[0]}_executed"
-  elif [[ "${option}" == "--force-exit" ]]; then
-    rm -rf "${CONF_PATH}/${FUNCNAME[0]}_executed"
+  ######
+  if [[ "${option}" == "--force-exit" ]]; then
     exit 0
+  fi
+}
+
+function configure_da_owner_accounts() {
+  local option executed_function
+  option="$1"
+  executed_function="${CONF_PATH}/${FUNCNAME[0]}_executed"
+  if [[ "${option}" == "--force" || "${option}" == "--force-exit" ]]; then
+    rm -rf "${executed_function}"
   else
     option=""
   fi
@@ -5567,24 +5671,26 @@ function configure_da_owner_accounts() {
     echo "Renaming owner account name to ${DA_OWNER_NAME1} ..."
     da_api_admin "signas+owner"
     da_api_admin "modify-user" "${DA_OWNER_USERNAME1}" "name" "${DA_OWNER_NAME1}"
-    echo "[${SCRIPT_NAME}]: Restarting directadmin before configuring Directadmin accounts ..." 2>&1 | tee -a "${REPORT_FILE}"
-    restart_da
+    #echo "[${SCRIPT_NAME}]: Restarting directadmin before configuring Directadmin accounts ..." 2>&1 | tee -a "${REPORT_FILE}"
+    #restart_da
     check_finish_reboot "${FUNCNAME[0]}"
   else
     echo "[${SCRIPT_NAME}]: [Skipped]: ${FUNCNAME[0]} has ran before" 2>&1 | tee -a "${REPORT_FILE}"
     echo "=~=~=~=~=~=~=~=~=~" 2>&1 | tee -a "${REPORT_FILE}"
+  fi
+  if [[ "${option}" == "--force-exit" ]]; then
+    exit 0
   fi
 }
 # This function is to configure da_admin accounts
 # eg: You can create any extra admin accounts here or create multiple reseller packages.
 # Note: Only DA owner or existing admin can create another admin account
 function configure_da_admin_accounts() {
-  local option="$1"
-  if [[ "${option}" == "--force" ]]; then
-    rm -rf "${CONF_PATH}/${FUNCNAME[0]}_executed"
-  elif [[ "${option}" == "--force-exit" ]]; then
-    rm -rf "${CONF_PATH}/${FUNCNAME[0]}_executed"
-    exit 0
+  local option executed_function
+  option="$1"
+  executed_function="${CONF_PATH}/${FUNCNAME[0]}_executed"
+  if [[ "${option}" == "--force" || "${option}" == "--force-exit" ]]; then
+    rm -rf "${executed_function}"
   else
     option=""
   fi
@@ -5592,8 +5698,8 @@ function configure_da_admin_accounts() {
     echo "[${SCRIPT_NAME}]: Executing ${FUNCNAME[0]} ..." 2>&1 | tee -a "${REPORT_FILE}"
     # An owner account must exist (this script will complain if it doesn't exist)
     # We will use admin account to fully manage DA instead of owner for security but for API we only use DA owner account
-    echo "[${SCRIPT_NAME}]: Restarting directadmin before configuring Directadmin admin accounts ..." 2>&1 | tee -a "${REPORT_FILE}"
-    restart_da
+    #echo "[${SCRIPT_NAME}]: Restarting directadmin before configuring Directadmin admin accounts ..." 2>&1 | tee -a "${REPORT_FILE}"
+    #restart_da
     echo "[${SCRIPT_NAME}]: Creating new DA admin account ..." 2>&1 | tee -a "${REPORT_FILE}"
     echo "~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~"
     # Must sign in as owner to create a new admin account. If sign in as admin you get error admin not exist
@@ -5627,7 +5733,9 @@ function configure_da_admin_accounts() {
     echo "[${SCRIPT_NAME}]: [Skipped]: ${FUNCNAME[0]} has ran before" 2>&1 | tee -a "${REPORT_FILE}"
     echo "=~=~=~=~=~=~=~=~=~" 2>&1 | tee -a "${REPORT_FILE}"
   fi
-
+  if [[ "${option}" == "--force-exit" ]]; then
+    exit 0
+  fi
 }
 # Create reseller accounts here including packages and reseller and all domains
 # For security purpose, all reseller users creation depend on admin account. So, we must create at least an admin account to manage this
@@ -5638,12 +5746,11 @@ function configure_da_admin_accounts() {
 # https://forum.directadmin.com/threads/default-user-package-s-for-resellers.49156/
 
 function configure_da_reseller_accounts() {
-  local option="$1"
-  if [[ "${option}" == "--force" ]]; then
-    rm -rf "${CONF_PATH}/${FUNCNAME[0]}_executed"
-  elif [[ "${option}" == "--force-exit" ]]; then
-    rm -rf "${CONF_PATH}/${FUNCNAME[0]}_executed"
-    exit 0
+  local option executed_function
+  option="$1"
+  executed_function="${CONF_PATH}/${FUNCNAME[0]}_executed"
+  if [[ "${option}" == "--force" || "${option}" == "--force-exit" ]]; then
+    rm -rf "${executed_function}"
   else
     option=""
   fi
@@ -6032,15 +6139,17 @@ function configure_da_reseller_accounts() {
     echo "[${SCRIPT_NAME}]: [Skipped]: ${FUNCNAME[0]} has ran before" 2>&1 | tee -a "${REPORT_FILE}"
     echo "=~=~=~=~=~=~=~=~=~" 2>&1 | tee -a "${REPORT_FILE}"
   fi
+  if [[ "${option}" == "--force-exit" ]]; then
+    exit 0
+  fi
 }
 
 function configure_da_reseller_root_domains() {
-  local option="$1"
-  if [[ "${option}" == "--force" ]]; then
-    rm -rf "${CONF_PATH}/${FUNCNAME[0]}_executed"
-  elif [[ "${option}" == "--force-exit" ]]; then
-    rm -rf "${CONF_PATH}/${FUNCNAME[0]}_executed"
-    exit 0
+  local option executed_function
+  option="$1"
+  executed_function="${CONF_PATH}/${FUNCNAME[0]}_executed"
+  if [[ "${option}" == "--force" || "${option}" == "--force-exit" ]]; then
+    rm -rf "${executed_function}"
   else
     option=""
   fi
@@ -6133,14 +6242,16 @@ function configure_da_reseller_root_domains() {
     echo "[${SCRIPT_NAME}]: [Skipped]: ${FUNCNAME[0]} has ran before" 2>&1 | tee -a "${REPORT_FILE}"
     echo "=~=~=~=~=~=~=~=~=~" 2>&1 | tee -a "${REPORT_FILE}"
   fi
+  if [[ "${option}" == "--force-exit" ]]; then
+    exit 0
+  fi
 }
 function configure_da_reseller_wildcard_domains() {
-  local option="$1"
-  if [[ "${option}" == "--force" ]]; then
-    rm -rf "${CONF_PATH}/${FUNCNAME[0]}_executed"
-  elif [[ "${option}" == "--force-exit" ]]; then
-    rm -rf "${CONF_PATH}/${FUNCNAME[0]}_executed"
-    exit 0
+  local option executed_function
+  option="$1"
+  executed_function="${CONF_PATH}/${FUNCNAME[0]}_executed"
+  if [[ "${option}" == "--force" || "${option}" == "--force-exit" ]]; then
+    rm -rf "${executed_function}"
   else
     option=""
   fi
@@ -6232,16 +6343,18 @@ function configure_da_reseller_wildcard_domains() {
     echo "[${SCRIPT_NAME}]: [Skipped]: ${FUNCNAME[0]} has ran before" 2>&1 | tee -a "${REPORT_FILE}"
     echo "=~=~=~=~=~=~=~=~=~" 2>&1 | tee -a "${REPORT_FILE}"
   fi
+  if [[ "${option}" == "--force-exit" ]]; then
+    exit 0
+  fi
 }
 
 # This will create user accounts and domains
 function configure_da_user_accounts() {
-  local option="$1"
-  if [[ "${option}" == "--force" ]]; then
-    rm -rf "${CONF_PATH}/${FUNCNAME[0]}_executed"
-  elif [[ "${option}" == "--force-exit" ]]; then
-    rm -rf "${CONF_PATH}/${FUNCNAME[0]}_executed"
-    exit 0
+  local option executed_function
+  option="$1"
+  executed_function="${CONF_PATH}/${FUNCNAME[0]}_executed"
+  if [[ "${option}" == "--force" || "${option}" == "--force-exit" ]]; then
+    rm -rf "${executed_function}"
   else
     option=""
   fi
@@ -6559,16 +6672,17 @@ function configure_da_user_accounts() {
     echo "[${SCRIPT_NAME}]: [Skipped]: ${FUNCNAME[0]} has ran before" 2>&1 | tee -a "${REPORT_FILE}"
     echo "=~=~=~=~=~=~=~=~=~" 2>&1 | tee -a "${REPORT_FILE}"
   fi
-
+  if [[ "${option}" == "--force-exit" ]]; then
+    exit 0
+  fi
 }
 
 function configure_da_user_root_domains() {
-  local option="$1"
-  if [[ "${option}" == "--force" ]]; then
-    rm -rf "${CONF_PATH}/${FUNCNAME[0]}_executed"
-  elif [[ "${option}" == "--force-exit" ]]; then
-    rm -rf "${CONF_PATH}/${FUNCNAME[0]}_executed"
-    exit 0
+  local option executed_function
+  option="$1"
+  executed_function="${CONF_PATH}/${FUNCNAME[0]}_executed"
+  if [[ "${option}" == "--force" || "${option}" == "--force-exit" ]]; then
+    rm -rf "${executed_function}"
   else
     option=""
   fi
@@ -6661,16 +6775,17 @@ function configure_da_user_root_domains() {
     echo "[${SCRIPT_NAME}]: [Skipped]: ${FUNCNAME[0]} has ran before" 2>&1 | tee -a "${REPORT_FILE}"
     echo "=~=~=~=~=~=~=~=~=~" 2>&1 | tee -a "${REPORT_FILE}"
   fi
-
+  if [[ "${option}" == "--force-exit" ]]; then
+    exit 0
+  fi
 }
 
 function configure_da_user_wildcard_domains() {
-  local option="$1"
-  if [[ "${option}" == "--force" ]]; then
-    rm -rf "${CONF_PATH}/${FUNCNAME[0]}_executed"
-  elif [[ "${option}" == "--force-exit" ]]; then
-    rm -rf "${CONF_PATH}/${FUNCNAME[0]}_executed"
-    exit 0
+  local option executed_function
+  option="$1"
+  executed_function="${CONF_PATH}/${FUNCNAME[0]}_executed"
+  if [[ "${option}" == "--force" || "${option}" == "--force-exit" ]]; then
+    rm -rf "${executed_function}"
   else
     option=""
   fi
@@ -6762,15 +6877,17 @@ function configure_da_user_wildcard_domains() {
     echo "[${SCRIPT_NAME}]: [Skipped]: ${FUNCNAME[0]} has ran before" 2>&1 | tee -a "${REPORT_FILE}"
     echo "=~=~=~=~=~=~=~=~=~" 2>&1 | tee -a "${REPORT_FILE}"
   fi
+  if [[ "${option}" == "--force-exit" ]]; then
+    exit 0
+  fi
 }
 
 function configure_da_reseller_subdomains() {
-  local option="$1"
-  if [[ "${option}" == "--force" ]]; then
-    rm -rf "${CONF_PATH}/${FUNCNAME[0]}_executed"
-  elif [[ "${option}" == "--force-exit" ]]; then
-    rm -rf "${CONF_PATH}/${FUNCNAME[0]}_executed"
-    exit 0
+  local option executed_function
+  option="$1"
+  executed_function="${CONF_PATH}/${FUNCNAME[0]}_executed"
+  if [[ "${option}" == "--force" || "${option}" == "--force-exit" ]]; then
+    rm -rf "${executed_function}"
   else
     option=""
   fi
@@ -6882,15 +6999,17 @@ function configure_da_reseller_subdomains() {
     echo "[${SCRIPT_NAME}]: [Skipped]: ${FUNCNAME[0]} has ran before" 2>&1 | tee -a "${REPORT_FILE}"
     echo "=~=~=~=~=~=~=~=~=~" 2>&1 | tee -a "${REPORT_FILE}"
   fi
+  if [[ "${option}" == "--force-exit" ]]; then
+    exit 0
+  fi
 }
 
 function configure_da_user_subdomains() {
-  local option="$1"
-  if [[ "${option}" == "--force" ]]; then
-    rm -rf "${CONF_PATH}/${FUNCNAME[0]}_executed"
-  elif [[ "${option}" == "--force-exit" ]]; then
-    rm -rf "${CONF_PATH}/${FUNCNAME[0]}_executed"
-    exit 0
+  local option executed_function
+  option="$1"
+  executed_function="${CONF_PATH}/${FUNCNAME[0]}_executed"
+  if [[ "${option}" == "--force" || "${option}" == "--force-exit" ]]; then
+    rm -rf "${executed_function}"
   else
     option=""
   fi
@@ -6988,14 +7107,16 @@ function configure_da_user_subdomains() {
     echo "[${SCRIPT_NAME}]: [Skipped]: ${FUNCNAME[0]} has ran before" 2>&1 | tee -a "${REPORT_FILE}"
     echo "=~=~=~=~=~=~=~=~=~" 2>&1 | tee -a "${REPORT_FILE}"
   fi
+  if [[ "${option}" == "--force-exit" ]]; then
+    exit 0
+  fi
 }
 function configure_da_reseller_emails() {
-  local option="$1"
-  if [[ "${option}" == "--force" ]]; then
-    rm -rf "${CONF_PATH}/${FUNCNAME[0]}_executed"
-  elif [[ "${option}" == "--force-exit" ]]; then
-    rm -rf "${CONF_PATH}/${FUNCNAME[0]}_executed"
-    exit 0
+  local option executed_function
+  option="$1"
+  executed_function="${CONF_PATH}/${FUNCNAME[0]}_executed"
+  if [[ "${option}" == "--force" || "${option}" == "--force-exit" ]]; then
+    rm -rf "${executed_function}"
   else
     option=""
   fi
@@ -7079,16 +7200,17 @@ function configure_da_reseller_emails() {
     echo "[${SCRIPT_NAME}]: [Skipped]: ${FUNCNAME[0]} has ran before" 2>&1 | tee -a "${REPORT_FILE}"
     echo "=~=~=~=~=~=~=~=~=~" 2>&1 | tee -a "${REPORT_FILE}"
   fi
-
+  if [[ "${option}" == "--force-exit" ]]; then
+    exit 0
+  fi
 }
 
 function configure_da_user_emails() {
-  local option="$1"
-  if [[ "${option}" == "--force" ]]; then
-    rm -rf "${CONF_PATH}/${FUNCNAME[0]}_executed"
-  elif [[ "${option}" == "--force-exit" ]]; then
-    rm -rf "${CONF_PATH}/${FUNCNAME[0]}_executed"
-    exit 0
+  local option executed_function
+  option="$1"
+  executed_function="${CONF_PATH}/${FUNCNAME[0]}_executed"
+  if [[ "${option}" == "--force" || "${option}" == "--force-exit" ]]; then
+    rm -rf "${executed_function}"
   else
     option=""
   fi
@@ -7171,22 +7293,17 @@ function configure_da_user_emails() {
     echo "[${SCRIPT_NAME}]: [Skipped]: ${FUNCNAME[0]} has ran before" 2>&1 | tee -a "${REPORT_FILE}"
     echo "=~=~=~=~=~=~=~=~=~" 2>&1 | tee -a "${REPORT_FILE}"
   fi
-
+  if [[ "${option}" == "--force-exit" ]]; then
+    exit 0
+  fi
 }
 
 function configure_da_reseller_domain_ssl_pre() {
-  local option="$1"
-  if [[ "${option}" == "--force" ]]; then
-    rm -rf "${CONF_PATH}/${FUNCNAME[0]}_executed"
-  elif [[ "${option}" == "--force-exit" ]]; then
-    rm -rf "${CONF_PATH}/${FUNCNAME[0]}_executed"
-    exit 0
-  else
-    option=""
-  fi
-  local option="$1"
-  if [[ "${option}" == "--force" ]]; then
-    rm -rf "${CONF_PATH}/${FUNCNAME[0]}_executed"
+  local option executed_function
+  option="$1"
+  executed_function="${CONF_PATH}/${FUNCNAME[0]}_executed"
+  if [[ "${option}" == "--force" || "${option}" == "--force-exit" ]]; then
+    rm -rf "${executed_function}"
   else
     option=""
   fi
@@ -7273,16 +7390,17 @@ function configure_da_reseller_domain_ssl_pre() {
     echo "[${SCRIPT_NAME}]: [Skipped]: ${FUNCNAME[0]} has ran before" 2>&1 | tee -a "${REPORT_FILE}"
     echo "=~=~=~=~=~=~=~=~=~" 2>&1 | tee -a "${REPORT_FILE}"
   fi
-
+  if [[ "${option}" == "--force-exit" ]]; then
+    exit 0
+  fi
 }
 
 function configure_da_user_domain_ssl_pre() {
-  local option="$1"
-  if [[ "${option}" == "--force" ]]; then
-    rm -rf "${CONF_PATH}/${FUNCNAME[0]}_executed"
-  elif [[ "${option}" == "--force-exit" ]]; then
-    rm -rf "${CONF_PATH}/${FUNCNAME[0]}_executed"
-    exit 0
+  local option executed_function
+  option="$1"
+  executed_function="${CONF_PATH}/${FUNCNAME[0]}_executed"
+  if [[ "${option}" == "--force" || "${option}" == "--force-exit" ]]; then
+    rm -rf "${executed_function}"
   else
     option=""
   fi
@@ -7355,16 +7473,17 @@ function configure_da_user_domain_ssl_pre() {
     echo "[${SCRIPT_NAME}]: [Skipped]: ${FUNCNAME[0]} has ran before" 2>&1 | tee -a "${REPORT_FILE}"
     echo "=~=~=~=~=~=~=~=~=~" 2>&1 | tee -a "${REPORT_FILE}"
   fi
-
+  if [[ "${option}" == "--force-exit" ]]; then
+    exit 0
+  fi
 }
 
 function configure_da_reseller_domain_ssl() {
-  local option="$1"
-  if [[ "${option}" == "--force" ]]; then
-    rm -rf "${CONF_PATH}/${FUNCNAME[0]}_executed"
-  elif [[ "${option}" == "--force-exit" ]]; then
-    rm -rf "${CONF_PATH}/${FUNCNAME[0]}_executed"
-    exit 0
+  local option executed_function
+  option="$1"
+  executed_function="${CONF_PATH}/${FUNCNAME[0]}_executed"
+  if [[ "${option}" == "--force" || "${option}" == "--force-exit" ]]; then
+    rm -rf "${executed_function}"
   else
     option=""
   fi
@@ -7466,15 +7585,16 @@ function configure_da_reseller_domain_ssl() {
     echo "[${SCRIPT_NAME}]: [Skipped]: ${FUNCNAME[0]} has ran before" 2>&1 | tee -a "${REPORT_FILE}"
     echo "=~=~=~=~=~=~=~=~=~" 2>&1 | tee -a "${REPORT_FILE}"
   fi
-
+  if [[ "${option}" == "--force-exit" ]]; then
+    exit 0
+  fi
 }
 function configure_da_user_domain_ssl() {
-  local option="$1"
-  if [[ "${option}" == "--force" ]]; then
-    rm -rf "${CONF_PATH}/${FUNCNAME[0]}_executed"
-  elif [[ "${option}" == "--force-exit" ]]; then
-    rm -rf "${CONF_PATH}/${FUNCNAME[0]}_executed"
-    exit 0
+  local option executed_function
+  option="$1"
+  executed_function="${CONF_PATH}/${FUNCNAME[0]}_executed"
+  if [[ "${option}" == "--force" || "${option}" == "--force-exit" ]]; then
+    rm -rf "${executed_function}"
   else
     option=""
   fi
@@ -7574,15 +7694,17 @@ function configure_da_user_domain_ssl() {
     echo "[${SCRIPT_NAME}]: [Skipped]: ${FUNCNAME[0]} has ran before" 2>&1 | tee -a "${REPORT_FILE}"
     echo "=~=~=~=~=~=~=~=~=~" 2>&1 | tee -a "${REPORT_FILE}"
   fi
+  if [[ "${option}" == "--force-exit" ]]; then
+    exit 0
+  fi
 }
 
 function configure_da_owner_security() {
-  local option="$1"
-  if [[ "${option}" == "--force" ]]; then
-    rm -rf "${CONF_PATH}/${FUNCNAME[0]}_executed"
-  elif [[ "${option}" == "--force-exit" ]]; then
-    rm -rf "${CONF_PATH}/${FUNCNAME[0]}_executed"
-    exit 0
+  local option executed_function
+  option="$1"
+  executed_function="${CONF_PATH}/${FUNCNAME[0]}_executed"
+  if [[ "${option}" == "--force" || "${option}" == "--force-exit" ]]; then
+    rm -rf "${executed_function}"
   else
     option=""
   fi
@@ -7648,15 +7770,17 @@ function configure_da_owner_security() {
     echo "[${SCRIPT_NAME}]: [Skipped]: ${FUNCNAME[0]} has ran before" 2>&1 | tee -a "${REPORT_FILE}"
     echo "=~=~=~=~=~=~=~=~=~" 2>&1 | tee -a "${REPORT_FILE}"
   fi
+  if [[ "${option}" == "--force-exit" ]]; then
+    exit 0
+  fi
 }
 
 function configure_da_admin_security() {
-  local option="$1"
-  if [[ "${option}" == "--force" ]]; then
-    rm -rf "${CONF_PATH}/${FUNCNAME[0]}_executed"
-  elif [[ "${option}" == "--force-exit" ]]; then
-    rm -rf "${CONF_PATH}/${FUNCNAME[0]}_executed"
-    exit 0
+  local option executed_function
+  option="$1"
+  executed_function="${CONF_PATH}/${FUNCNAME[0]}_executed"
+  if [[ "${option}" == "--force" || "${option}" == "--force-exit" ]]; then
+    rm -rf "${executed_function}"
   else
     option=""
   fi
@@ -7722,15 +7846,17 @@ function configure_da_admin_security() {
     echo "[${SCRIPT_NAME}]: [Skipped]: ${FUNCNAME[0]} has ran before" 2>&1 | tee -a "${REPORT_FILE}"
     echo "=~=~=~=~=~=~=~=~=~" 2>&1 | tee -a "${REPORT_FILE}"
   fi
+  if [[ "${option}" == "--force-exit" ]]; then
+    exit 0
+  fi
 }
 
 function configure_da_reseller_security() {
-  local option="$1"
-  if [[ "${option}" == "--force" ]]; then
-    rm -rf "${CONF_PATH}/${FUNCNAME[0]}_executed"
-  elif [[ "${option}" == "--force-exit" ]]; then
-    rm -rf "${CONF_PATH}/${FUNCNAME[0]}_executed"
-    exit 0
+  local option executed_function
+  option="$1"
+  executed_function="${CONF_PATH}/${FUNCNAME[0]}_executed"
+  if [[ "${option}" == "--force" || "${option}" == "--force-exit" ]]; then
+    rm -rf "${executed_function}"
   else
     option=""
   fi
@@ -7796,15 +7922,17 @@ function configure_da_reseller_security() {
     echo "[${SCRIPT_NAME}]: [Skipped]: ${FUNCNAME[0]} has ran before" 2>&1 | tee -a "${REPORT_FILE}"
     echo "=~=~=~=~=~=~=~=~=~" 2>&1 | tee -a "${REPORT_FILE}"
   fi
+  if [[ "${option}" == "--force-exit" ]]; then
+    exit 0
+  fi
 }
 
 function configure_da_user_security() {
-  local option="$1"
-  if [[ "${option}" == "--force" ]]; then
-    rm -rf "${CONF_PATH}/${FUNCNAME[0]}_executed"
-  elif [[ "${option}" == "--force-exit" ]]; then
-    rm -rf "${CONF_PATH}/${FUNCNAME[0]}_executed"
-    exit 0
+  local option executed_function
+  option="$1"
+  executed_function="${CONF_PATH}/${FUNCNAME[0]}_executed"
+  if [[ "${option}" == "--force" || "${option}" == "--force-exit" ]]; then
+    rm -rf "${executed_function}"
   else
     option=""
   fi
@@ -7870,16 +7998,18 @@ function configure_da_user_security() {
     echo "[${SCRIPT_NAME}]: [Skipped]: ${FUNCNAME[0]} has ran before" 2>&1 | tee -a "${REPORT_FILE}"
     echo "=~=~=~=~=~=~=~=~=~" 2>&1 | tee -a "${REPORT_FILE}"
   fi
+  if [[ "${option}" == "--force-exit" ]]; then
+    exit 0
+  fi
 }
 
 # Function to create all reseller databases
 function configure_da_reseller_databases() {
-  local option="$1"
-  if [[ "${option}" == "--force" ]]; then
-    rm -rf "${CONF_PATH}/${FUNCNAME[0]}_executed"
-  elif [[ "${option}" == "--force-exit" ]]; then
-    rm -rf "${CONF_PATH}/${FUNCNAME[0]}_executed"
-    exit 0
+  local option executed_function
+  option="$1"
+  executed_function="${CONF_PATH}/${FUNCNAME[0]}_executed"
+  if [[ "${option}" == "--force" || "${option}" == "--force-exit" ]]; then
+    rm -rf "${executed_function}"
   else
     option=""
   fi
@@ -7961,16 +8091,18 @@ function configure_da_reseller_databases() {
     echo "[${SCRIPT_NAME}]: [Skipped]: ${FUNCNAME[0]} has ran before" 2>&1 | tee -a "${REPORT_FILE}"
     echo "=~=~=~=~=~=~=~=~=~" 2>&1 | tee -a "${REPORT_FILE}"
   fi
+  if [[ "${option}" == "--force-exit" ]]; then
+    exit 0
+  fi
 }
 
 # Function to create all user databases
 function configure_da_user_databases() {
-  local option="$1"
-  if [[ "${option}" == "--force" ]]; then
-    rm -rf "${CONF_PATH}/${FUNCNAME[0]}_executed"
-  elif [[ "${option}" == "--force-exit" ]]; then
-    rm -rf "${CONF_PATH}/${FUNCNAME[0]}_executed"
-    exit 0
+  local option executed_function
+  option="$1"
+  executed_function="${CONF_PATH}/${FUNCNAME[0]}_executed"
+  if [[ "${option}" == "--force" || "${option}" == "--force-exit" ]]; then
+    rm -rf "${executed_function}"
   else
     option=""
   fi
@@ -8053,15 +8185,17 @@ function configure_da_user_databases() {
     echo "[${SCRIPT_NAME}]: [Skipped]: ${FUNCNAME[0]} has ran before" 2>&1 | tee -a "${REPORT_FILE}"
     echo "=~=~=~=~=~=~=~=~=~" 2>&1 | tee -a "${REPORT_FILE}"
   fi
+  if [[ "${option}" == "--force-exit" ]]; then
+    exit 0
+  fi
 }
 # This is a custom function used to modify user websites configuration
 function configure_da_custom_webs() {
-  local option="$1"
-  if [[ "${option}" == "--force" ]]; then
-    rm -rf "${CONF_PATH}/${FUNCNAME[0]}_executed"
-  elif [[ "${option}" == "--force-exit" ]]; then
-    rm -rf "${CONF_PATH}/${FUNCNAME[0]}_executed"
-    exit 0
+  local option executed_function
+  option="$1"
+  executed_function="${CONF_PATH}/${FUNCNAME[0]}_executed"
+  if [[ "${option}" == "--force" || "${option}" == "--force-exit" ]]; then
+    rm -rf "${executed_function}"
   else
     option=""
   fi
@@ -8086,15 +8220,17 @@ function configure_da_custom_webs() {
     echo "[${SCRIPT_NAME}]: [Skipped]: ${FUNCNAME[0]} has ran before" 2>&1 | tee -a "${REPORT_FILE}"
     echo "=~=~=~=~=~=~=~=~=~" 2>&1 | tee -a "${REPORT_FILE}"
   fi
+  if [[ "${option}" == "--force-exit" ]]; then
+    exit 0
+  fi
 }
 
 function harden_with_lynis() {
-  local option="$1"
-  if [[ "${option}" == "--force" ]]; then
-    rm -rf "${CONF_PATH}/${FUNCNAME[0]}_executed"
-  elif [[ "${option}" == "--force-exit" ]]; then
-    rm -rf "${CONF_PATH}/${FUNCNAME[0]}_executed"
-    exit 0
+  local option executed_function
+  option="$1"
+  executed_function="${CONF_PATH}/${FUNCNAME[0]}_executed"
+  if [[ "${option}" == "--force" || "${option}" == "--force-exit" ]]; then
+    rm -rf "${executed_function}"
   else
     option=""
   fi
@@ -8125,15 +8261,17 @@ function harden_with_lynis() {
     echo "[${SCRIPT_NAME}]: [Skipped]: ${FUNCNAME[0]} has ran before" 2>&1 | tee -a "${REPORT_FILE}"
     echo "=~=~=~=~=~=~=~=~=~" 2>&1 | tee -a "${REPORT_FILE}"
   fi
+  if [[ "${option}" == "--force-exit" ]]; then
+    exit 0
+  fi
 }
 
 function configure_cronjobs() {
-  local option="$1"
-  if [[ "${option}" == "--force" ]]; then
-    rm -rf "${CONF_PATH}/${FUNCNAME[0]}_executed"
-  elif [[ "${option}" == "--force-exit" ]]; then
-    rm -rf "${CONF_PATH}/${FUNCNAME[0]}_executed"
-    exit 0
+  local option executed_function
+  option="$1"
+  executed_function="${CONF_PATH}/${FUNCNAME[0]}_executed"
+  if [[ "${option}" == "--force" || "${option}" == "--force-exit" ]]; then
+    rm -rf "${executed_function}"
   else
     option=""
   fi
@@ -8153,16 +8291,18 @@ function configure_cronjobs() {
     echo "[${SCRIPT_NAME}]: [Skipped]: ${FUNCNAME[0]} has ran before" 2>&1 | tee -a "${REPORT_FILE}"
     echo "=~=~=~=~=~=~=~=~=~" 2>&1 | tee -a "${REPORT_FILE}"
   fi
+  if [[ "${option}" == "--force-exit" ]]; then
+    exit 0
+  fi
 }
 
 # This is used to install extra packages like ncdu, htop and more
 function post_setup() {
-  local option="$1"
-  if [[ "${option}" == "--force" ]]; then
-    rm -rf "${CONF_PATH}/${FUNCNAME[0]}_executed"
-  elif [[ "${option}" == "--force-exit" ]]; then
-    rm -rf "${CONF_PATH}/${FUNCNAME[0]}_executed"
-    exit 0
+  local option executed_function
+  option="$1"
+  executed_function="${CONF_PATH}/${FUNCNAME[0]}_executed"
+  if [[ "${option}" == "--force" || "${option}" == "--force-exit" ]]; then
+    rm -rf "${executed_function}"
   else
     option=""
   fi
@@ -8613,17 +8753,24 @@ while [ "$#" -gt 0 ]; do
       echo ""
       sleep 2
       # exit 1
+      # TODO automated below with remote console (not currently possible)
+      #ssh -i /root/.ssh/linode.id_rsa -t "${DNS_PROVIDER_USER}@${TERMINAL_SERVER}" "${BOX_HOSTNAME_FQDN}"
+      #screen -d -m bash -c "ssh -i /root/.ssh/linode.id_rsa -t ${DNS_PROVIDER_USER}@${DNS_PROVIDER_TERMINAL_SERVER} ${BOX_HOSTNAME_FQDN}; wget http://ftp.debian.org/debian/dists/stable/main/installer-amd64/current/images/netboot/mini.iso; dd if=mini.iso of=/dev/sda"
+      test=$(ssh -i /root/.ssh/linode.id_rsa -tt "${DNS_PROVIDER_USER}@${DNS_PROVIDER_TERMINAL_SERVER}" "${BOX_HOSTNAME_FQDN}" <linode/lish_command.sh >/dev/null 2>&1 &)
+      # Not able to get return value
+      echo "Allowing 30 seconds finish copying ..."
+      sleep 30
       # TODO automated below with remote console
-      echo "[${SCRIPT_NAME}]: Now it's time to copy operating system installer into boot disk"
-      echo ""
-      linode_id=$(${LINODE_CLI_BIN} linodes list --json --pretty | ${JQ_BIN} ".[] | select(.label == \"${BOX_HOSTNAME_FQDN}\") | .id")
-      echo "Goto this URL to enter into linode terminal: https://cloud.linode.com/linodes/${linode_id}/lish/weblish"
-      echo "Then execute the following command (COPY PASTE) to copy OS installer into boot disk"
-      echo ""
-      echo "wget http://ftp.debian.org/debian/dists/stable/main/installer-amd64/current/images/netboot/mini.iso"
-      echo "dd if=mini.iso of=/dev/sda"
-      echo "poweroff"
-      echo ""
+      #echo "[${SCRIPT_NAME}]: Now it's time to copy operating system installer into boot disk"
+      #echo ""
+      #linode_id=$(${LINODE_CLI_BIN} linodes list --json --pretty | ${JQ_BIN} ".[] | select(.label == \"${BOX_HOSTNAME_FQDN}\") | .id")
+      #echo "Goto this URL to enter into linode terminal: https://cloud.linode.com/linodes/${linode_id}/lish/weblish"
+      #echo "Then execute the following command (COPY PASTE) to copy OS installer into boot disk"
+      #echo ""
+      #echo "wget http://ftp.debian.org/debian/dists/stable/main/installer-amd64/current/images/netboot/mini.iso"
+      #echo "dd if=mini.iso of=/dev/sda"
+      #echo "poweroff"
+      #echo ""
       _confirm "I have finished copying minimal disk installer. Continue next execution? [y/Y]: "
       # 8) Shutdown linode first
       #linode_api_admin "shutdown-linode" "${BOX_HOSTNAME_FQDN}"
@@ -8649,6 +8796,7 @@ while [ "$#" -gt 0 ]; do
       echo "2) Type 'ip a' and compare the interface name with /etc/network/interface"
       echo "If same then skip, else modify the interface based on 'ip a'"
       echo "3) Enable SSH root login temporarily by modifying PermitRootLogin yes"
+      echo "4) Reload sshd"
       echo ""
       _confirm "Continue next execution? [y/Y]: "
       echo "Now you might be able to use SSH client to login into the server (such as putty)"
@@ -8693,10 +8841,14 @@ while [ "$#" -gt 0 ]; do
     exit 0
     break
     ;;
+  # ./maxisetup --ssh-login <optional_key_location>
   # ./maxisetup --ssh-login "~/.ssh/sofibox.id_rsa"
   -sshl | --ssh-login)
     shift
     key_location="$1"
+    # Copy all rsa keys
+    cp "${SCRIPT_PATH}"/secure/*.id_rsa* /root/.ssh/
+    chmod -R 600 /root/.ssh/
     #key_location="~/.ssh/sofibox.id_rsa"
     if [ -z "${key_location}" ]; then
       echo "Connecting to ${BOX_HOSTNAME_FQDN} without private key ..."
@@ -8710,11 +8862,23 @@ while [ "$#" -gt 0 ]; do
     exit 0
     break
     ;;
+  # Deprecated, only use this for reboot, restart etc ...
+  -ll | --lish-login)
+    # Only run this in local machine
+    #  ssh -i /root/.ssh/linode.id_rsa -tt "${DNS_PROVIDER_USER}@${DNS_PROVIDER_TERMINAL_SERVER}" "${BOX_HOSTNAME_FQDN}" < linode/lish_command.sh >/dev/null &
+    #ssh -i /root/.ssh/linode.id_rsa -tt "${DNS_PROVIDER_USER}@${DNS_PROVIDER_TERMINAL_SERVER}" "${BOX_HOSTNAME_FQDN}" <linode/lish_command.sh &
+    test=$(ssh -i /root/.ssh/linode.id_rsa -tt "${DNS_PROVIDER_USER}@${DNS_PROVIDER_TERMINAL_SERVER}" "${BOX_HOSTNAME_FQDN}" <linode/lish_command.sh >/dev/null 2>&1 &)
+    #test=$(ssh -i /root/.ssh/linode.id_rsa -tt "${DNS_PROVIDER_USER}@${DNS_PROVIDER_TERMINAL_SERVER}" "${BOX_HOSTNAME_FQDN}" <linode/lish_command.sh)
+    #echo "Allowing 30 seconds finish copying ..."
+    #sleep 30
+    exit 0
+    break
+    ;;
   -t | --test)
-    shift
+    #shift
     # Put any test scripts here
     # _confirm "Continue script? [y/Y]: "
-    linode_api_admin "boot-linode" "sun.sofibox.com" "Boot_Config"
+    #linode_api_admin "boot-linode" "sun.sofibox.com" "Boot_Config"
     exit 0
     break
     ;;
