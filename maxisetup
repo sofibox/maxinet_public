@@ -3,7 +3,7 @@
 # Author: Arafat Ali | Email: webmaster@sofibox.com
 APP_SPECIFIC_NAME="Maxisetup"
 APP_STATUS="beta"
-APP_VERSION="0.4.1.4-${APP_STATUS}"
+APP_VERSION="0.4.1.5-${APP_STATUS}"
 # This is an initial server hardening script for CentOS and Debian.
 # Compatible 100% with Directadmin. Supported OS: CentOS + Debian (Planned on FreeBSD)
 # You can choose to install as the other stack server such as LEMP, (TODO) Laravel and more defined in config file
@@ -696,6 +696,12 @@ function linode_api_admin() {
     shift
     local linode_id hostname_fqdn
     hostname_fqdn="$1"
+    if [ -z "${hostname_fqdn}" ]; then
+      echo "Warning, hostname not specified in the first argument, using hostname from config file ..."
+      hostname_fqdn="${BOX_HOSTNAME_FQDN}"
+    else
+      echo "Hostname supplied is ${hostname_fqdn}"
+    fi
     echo "[${SCRIPT_NAME}]: Getting linode ID for ${hostname_fqdn}..."
     linode_id=$(${LINODE_CLI_BIN} linodes list --json --pretty | ${JQ_BIN} ".[] | select(.label == \"${hostname_fqdn}\") | .id")
     echo "${linode_id}"
@@ -703,12 +709,18 @@ function linode_api_admin() {
     shift
     local linode_id linode_status hostname_fqdn
     hostname_fqdn="$1"
+    if [ -z "${hostname_fqdn}" ]; then
+      echo "Warning, hostname not specified in the first argument, using hostname from config file ..."
+      hostname_fqdn="${BOX_HOSTNAME_FQDN}"
+    else
+      echo "Hostname supplied is ${hostname_fqdn}"
+    fi
     linode_id=$(${LINODE_CLI_BIN} linodes list --json --pretty | ${JQ_BIN} ".[] | select(.label == \"${hostname_fqdn}\") | .id")
     echo "[${SCRIPT_NAME}]: Getting linode status for ${hostname_fqdn} ..."
     linode_status=$(${LINODE_CLI_BIN} linodes view "${linode_id}" --json --pretty | ${JQ_BIN} -r ".[] | .status")
     echo "${linode_status}"
     # linode_api_admin "rescue-linode" "<hostname_fqdn>" "<disk-options>"
-  elif [[ "${action}" == "rescue-linode" ]]; then
+  elif [[ "${action}" == "rescue-linode" || "${action}" == "rescue" || "${action}" == "rescue-mode" || "${action}" == "boot-rescue" || "${action}" == "rescue-boot" ]]; then
     shift
     local linode_id hostname_fqdn linode_status config_disk_devsda config_disk_devsdb config_disk_devsdc \
       config_disk_devsdd config_disk_devsde config_disk_devsdf config_disk_devsdg config_disk_devsdh \
@@ -716,6 +728,12 @@ function linode_api_admin() {
 
     hostname_fqdn="$1"
 
+    if [ -z "${hostname_fqdn}" ]; then
+      echo "Warning, hostname not specified in the first argument, using hostname from config file ..."
+      hostname_fqdn="${BOX_HOSTNAME_FQDN}"
+    else
+      echo "Hostname supplied is ${hostname_fqdn}"
+    fi
     config_disk_devsda="$2"
     config_disk_devsdb="$3"
     config_disk_devsdc="$4"
@@ -796,10 +814,16 @@ function linode_api_admin() {
         sleep ${wait_time}
       fi
     done
-  elif [[ "${action}" == "shutdown-linode" ]]; then
+  elif [[ "${action}" == "shutdown-linode" || "${action}" == "poweroff-linode" || "${action}" == "turnoff-linode" || "${action}" == "shutdown" || "${action}" == "poweroff" || "${action}" == "turnoff" ]]; then
     shift
     local linode_id hostname_fqdn shutdown_wait shutdown_wait_max shutdown_wait_total linode_status
     hostname_fqdn="$1"
+    if [ -z "${hostname_fqdn}" ]; then
+      echo "Warning, hostname not specified in the first argument, using hostname from config file ..."
+      hostname_fqdn="${BOX_HOSTNAME_FQDN}"
+    else
+      echo "Hostname supplied is ${hostname_fqdn}"
+    fi
     shutdown_wait=10
     shutdown_wait_total=0
     shutdown_wait_max=240
@@ -850,10 +874,16 @@ function linode_api_admin() {
       done
     fi
     # linode_api_admin "boot-linode" "sun.sofibox.com" "Boot_Config"
-  elif [[ "${action}" == "boot-linode" ]]; then
+  elif [[ "${action}" == "start-linode" || "${action}" == "boot-linode" || "${action}" == "boot" || "${action}" == "start" ]]; then
     shift
     local linode_id hostname_fqdn config_label config_id wait_time
     hostname_fqdn="$1"
+    if [ -z "${hostname_fqdn}" ]; then
+      echo "Warning, hostname not specified in the first argument, using hostname from config file ..."
+      hostname_fqdn="${BOX_HOSTNAME_FQDN}"
+    else
+      echo "Hostname supplied is ${hostname_fqdn}"
+    fi
     config_label="$2"
     wait_time=10
     echo "[${SCRIPT_NAME}]: Booting linode ${hostname_fqdn} using config label ${config_label} ..."
@@ -898,10 +928,16 @@ function linode_api_admin() {
         sleep ${wait_time}
       fi
     done
-  elif [[ "${action}" == "restart-linode" || "${action}" == "reboot-linode" ]]; then
+  elif [[ "${action}" == "restart-linode" || "${action}" == "reboot-linode" || "${action}" == "restart" || "${action}" == "reboot" ]]; then
     shift
     local linode_id hostname_fqdn
     hostname_fqdn="$1"
+    if [ -z "${hostname_fqdn}" ]; then
+      echo "Warning, hostname not specified in the first argument, using hostname from config file ..."
+      hostname_fqdn="${BOX_HOSTNAME_FQDN}"
+    else
+      echo "Hostname supplied is ${hostname_fqdn}"
+    fi
     echo "[${SCRIPT_NAME}]: Rebooting linode ${hostname_fqdn} ..."
     linode_id=$(${LINODE_CLI_BIN} linodes list --json --pretty | ${JQ_BIN} ".[] | select(.label == \"${hostname_fqdn}\") | .id")
     ${LINODE_CLI_BIN} linodes reboot "${linode_id}"
@@ -909,6 +945,12 @@ function linode_api_admin() {
     shift
     local linode_id hostname_fqdn
     hostname_fqdn="$1"
+    if [ -z "${hostname_fqdn}" ]; then
+      echo "Warning, hostname not specified in the first argument, using hostname from config file ..."
+      hostname_fqdn="${BOX_HOSTNAME_FQDN}"
+    else
+      echo "Hostname supplied is ${hostname_fqdn}"
+    fi
     echo "[${SCRIPT_NAME}]: Viewing linode ${hostname_fqdn} ..."
     linode_id=$(${LINODE_CLI_BIN} linodes list --json --pretty | ${JQ_BIN} ".[] | select(.label == \"${hostname_fqdn}\") | .id")
     ${LINODE_CLI_BIN} linodes view "${linode_id}"
@@ -918,6 +960,12 @@ function linode_api_admin() {
     shift
     local linode_id hostname_fqdn disk_label disk_id
     hostname_fqdn="$1"
+    if [ -z "${hostname_fqdn}" ]; then
+      echo "Warning, hostname not specified in the first argument, using hostname from config file ..."
+      hostname_fqdn="${BOX_HOSTNAME_FQDN}"
+    else
+      echo "Hostname supplied is ${hostname_fqdn}"
+    fi
     disk_label="$2"
     echo "[${SCRIPT_NAME}]: listing config ${hostname_fqdn} ..."
     linode_id=$(${LINODE_CLI_BIN} linodes list --json --pretty | ${JQ_BIN} ".[] | select(.label == \"${hostname_fqdn}\") | .id")
@@ -927,6 +975,12 @@ function linode_api_admin() {
     shift
     local linode_id hostname_fqdn
     hostname_fqdn="$1"
+    if [ -z "${hostname_fqdn}" ]; then
+      echo "Warning, hostname not specified in the first argument, using hostname from config file ..."
+      hostname_fqdn="${BOX_HOSTNAME_FQDN}"
+    else
+      echo "Hostname supplied is ${hostname_fqdn}"
+    fi
     echo "[${SCRIPT_NAME}]: listing config ${hostname_fqdn} ..."
     linode_id=$(${LINODE_CLI_BIN} linodes list --json --pretty | ${JQ_BIN} ".[] | select(.label == \"${hostname_fqdn}\") | .id")
     ${LINODE_CLI_BIN} linodes disks-list "${linode_id}" --json --pretty
@@ -938,6 +992,12 @@ function linode_api_admin() {
     echo "[${SCRIPT_NAME}]: Deleting all the disks created for linode ${hostname_fqdn} ..."
     local linode_id disk_ids hostname_fqdn disk_status disk_ids_count disk_count
     hostname_fqdn="$1"
+    if [ -z "${hostname_fqdn}" ]; then
+      echo "Warning, hostname not specified in the first argument, using hostname from config file ..."
+      hostname_fqdn="${BOX_HOSTNAME_FQDN}"
+    else
+      echo "Hostname supplied is ${hostname_fqdn}"
+    fi
     linode_id=$(${LINODE_CLI_BIN} linodes list --json --pretty | ${JQ_BIN} ".[] | select(.label == \"${hostname_fqdn}\") | .id")
     disk_ids=$(${LINODE_CLI_BIN} linodes disks-list "${linode_id}" --json --pretty | ${JQ_BIN} ".[] | .id")
     disk_ids_count=$(echo "${disk_ids}" | wc -w)
@@ -973,6 +1033,12 @@ function linode_api_admin() {
       wait_second wait_second_max wait_second_total
 
     hostname_fqdn="$1"
+    if [ -z "${hostname_fqdn}" ]; then
+      echo "Warning, hostname not specified in the first argument, using hostname from config file ..."
+      hostname_fqdn="${BOX_HOSTNAME_FQDN}"
+    else
+      echo "Hostname supplied is ${hostname_fqdn}"
+    fi
     disk_label="$2"
     disk_filetype="$3"
     disk_size="$4"
@@ -1031,6 +1097,12 @@ function linode_api_admin() {
     shift
     local linode_id hostname_fqdn
     hostname_fqdn="$1"
+    if [ -z "${hostname_fqdn}" ]; then
+      echo "Warning, hostname not specified in the first argument, using hostname from config file ..."
+      hostname_fqdn="${BOX_HOSTNAME_FQDN}"
+    else
+      echo "Hostname supplied is ${hostname_fqdn}"
+    fi
     echo "[${SCRIPT_NAME}]: listing config ${hostname_fqdn} ..."
     linode_id=$(${LINODE_CLI_BIN} linodes list --json --pretty | ${JQ_BIN} ".[] | select(.label == \"${hostname_fqdn}\") | .id")
     ${LINODE_CLI_BIN} linodes configs-list "${linode_id}" --json --pretty
@@ -1039,6 +1111,12 @@ function linode_api_admin() {
     shift
     local linode_id config_ids hostname_fqdn
     hostname_fqdn="$1"
+    if [ -z "${hostname_fqdn}" ]; then
+      echo "Warning, hostname not specified in the first argument, using hostname from config file ..."
+      hostname_fqdn="${BOX_HOSTNAME_FQDN}"
+    else
+      echo "Hostname supplied is ${hostname_fqdn}"
+    fi
     echo "[${SCRIPT_NAME}]: Deleting all config profile for ${hostname_fqdn} ..."
     linode_id=$(${LINODE_CLI_BIN} linodes list --json --pretty | ${JQ_BIN} ".[] | select(.label == \"${hostname_fqdn}\") | .id")
     config_ids=$(${LINODE_CLI_BIN} linodes configs-list "${linode_id}" --json --pretty | ${JQ_BIN} ".[] | .id")
@@ -1051,6 +1129,12 @@ function linode_api_admin() {
     shift
     local linode_id hostname_fqdn config_id config_label
     hostname_fqdn="$1"
+    if [ -z "${hostname_fqdn}" ]; then
+      echo "Warning, hostname not specified in the first argument, using hostname from config file ..."
+      hostname_fqdn="${BOX_HOSTNAME_FQDN}"
+    else
+      echo "Hostname supplied is ${hostname_fqdn}"
+    fi
     config_label="$2"
     echo "[${SCRIPT_NAME}]: listing config ${hostname_fqdn} ..."
     linode_id=$(${LINODE_CLI_BIN} linodes list --json --pretty | ${JQ_BIN} ".[] | select(.label == \"${hostname_fqdn}\") | .id")
@@ -1070,6 +1154,12 @@ function linode_api_admin() {
       disk_id config_disks
 
     hostname_fqdn="$1"
+    if [ -z "${hostname_fqdn}" ]; then
+      echo "Warning, hostname not specified in the first argument, using hostname from config file ..."
+      hostname_fqdn="${BOX_HOSTNAME_FQDN}"
+    else
+      echo "Hostname supplied is ${hostname_fqdn}"
+    fi
     config_label="$2"
     config_comment="$3"
     config_virmode="$4"
@@ -8756,7 +8846,7 @@ while [ "$#" -gt 0 ]; do
       # TODO automated below with remote console (not currently possible)
       #ssh -i /root/.ssh/linode.id_rsa -t "${DNS_PROVIDER_USER}@${TERMINAL_SERVER}" "${BOX_HOSTNAME_FQDN}"
       #screen -d -m bash -c "ssh -i /root/.ssh/linode.id_rsa -t ${DNS_PROVIDER_USER}@${DNS_PROVIDER_TERMINAL_SERVER} ${BOX_HOSTNAME_FQDN}; wget http://ftp.debian.org/debian/dists/stable/main/installer-amd64/current/images/netboot/mini.iso; dd if=mini.iso of=/dev/sda"
-      test=$(ssh -i /root/.ssh/linode.id_rsa -tt "${DNS_PROVIDER_USER}@${DNS_PROVIDER_TERMINAL_SERVER}" "${BOX_HOSTNAME_FQDN}" <linode/lish_command.sh >/dev/null 2>&1 &)
+      test=$(ssh -i /root/.ssh/linodelish.id_rsa -tt "${DNS_PROVIDER_USER}@${DNS_PROVIDER_TERMINAL_SERVER}" "${BOX_HOSTNAME_FQDN}" <linode/lish_command.sh >/dev/null 2>&1 &)
       # Not able to get return value
       echo "Allowing 30 seconds finish copying ..."
       sleep 30
@@ -8818,7 +8908,7 @@ while [ "$#" -gt 0 ]; do
     ;;
   # Test or user linode API here
   # eg: maxisetup --linode-api "get-linode-id" "sun.sofibox.com"
-  -la | --linode-api)
+  -la | --linode-api | --linode_api | --linode)
     shift
     linode_api_admin "$@"
     exit 0
@@ -8841,36 +8931,42 @@ while [ "$#" -gt 0 ]; do
     exit 0
     break
     ;;
-  # ./maxisetup --ssh-login <optional_key_location>
-  # ./maxisetup --ssh-login "~/.ssh/sofibox.id_rsa"
+  # ./maxisetup --ssh-login <optional_option>
+  # ./maxisetup --ssh-login "--secure"
   -sshl | --ssh-login)
     shift
-    key_location="$1"
+    option="$1"
     # Copy all rsa keys
     cp "${SCRIPT_PATH}"/secure/*.id_rsa* /root/.ssh/
     chmod -R 600 /root/.ssh/
     #key_location="~/.ssh/sofibox.id_rsa"
-    if [ -z "${key_location}" ]; then
-      echo "Connecting to ${BOX_HOSTNAME_FQDN} without private key ..."
+    if [ -z "${option}" ]; then
+      echo "Connecting to ${BOX_HOSTNAME_FQDN} using default port 22 without private key ..."
       ssh "root@${IPV4_ADD0}"
-    elif [ -f "${key_location}" ]; then
-      echo "Connecting to ${BOX_HOSTNAME_FQDN} with private key ..."
-      ssh -p "${SSH_PORT}" -i "${key_location}" "${SSH_USERNAME}@${IPV4_ADD0}"
+    elif [ "${option}" == "--secure" ]; then
+      echo "Connecting to ${BOX_HOSTNAME_FQDN} using port ${SSH_PORT} with private key ${BOX_HOSTNAME_FQDN}.id_rsa ..."
+      ssh -p "${SSH_PORT}" -i "/root/.ssh/${BOX_HOSTNAME_FQDN}.id_rsa" "${SSH_USERNAME}@${IPV4_ADD0}"
     else
-      echo "Invalid key location"
+      echo "Invalid option [ either --secure or blank ]"
     fi
     exit 0
     break
     ;;
   # Deprecated, only use this for reboot, restart etc ...
-  -ll | --lish-login)
+  # lish-login <option>
+  -ll | --lish-login | --lish)
+    shift
+    options="$*"
     # Only run this in local machine
+    cp "${SCRIPT_PATH}"/secure/*.id_rsa* /root/.ssh/
+    chmod -R 600 /root/.ssh/
     #  ssh -i /root/.ssh/linode.id_rsa -tt "${DNS_PROVIDER_USER}@${DNS_PROVIDER_TERMINAL_SERVER}" "${BOX_HOSTNAME_FQDN}" < linode/lish_command.sh >/dev/null &
     #ssh -i /root/.ssh/linode.id_rsa -tt "${DNS_PROVIDER_USER}@${DNS_PROVIDER_TERMINAL_SERVER}" "${BOX_HOSTNAME_FQDN}" <linode/lish_command.sh &
-    test=$(ssh -i /root/.ssh/linode.id_rsa -tt "${DNS_PROVIDER_USER}@${DNS_PROVIDER_TERMINAL_SERVER}" "${BOX_HOSTNAME_FQDN}" <linode/lish_command.sh >/dev/null 2>&1 &)
+    #test=$(ssh -i /root/.ssh/linode.id_rsa -tt "${DNS_PROVIDER_USER}@${DNS_PROVIDER_TERMINAL_SERVER}" "${BOX_HOSTNAME_FQDN}" <linode/lish_command.sh >/dev/null 2>&1 &)
     #test=$(ssh -i /root/.ssh/linode.id_rsa -tt "${DNS_PROVIDER_USER}@${DNS_PROVIDER_TERMINAL_SERVER}" "${BOX_HOSTNAME_FQDN}" <linode/lish_command.sh)
     #echo "Allowing 30 seconds finish copying ..."
     #sleep 30
+    ssh -i /root/.ssh/linodelish.id_rsa -tt "${DNS_PROVIDER_USER}@${DNS_PROVIDER_TERMINAL_SERVER}" "${BOX_HOSTNAME_FQDN}" ${options}
     exit 0
     break
     ;;
@@ -8879,6 +8975,7 @@ while [ "$#" -gt 0 ]; do
     # Put any test scripts here
     # _confirm "Continue script? [y/Y]: "
     #linode_api_admin "boot-linode" "sun.sofibox.com" "Boot_Config"
+    ssh -i /root/.ssh/linodelish.id_rsa -tt "${DNS_PROVIDER_USER}@${DNS_PROVIDER_TERMINAL_SERVER}" "${BOX_HOSTNAME_FQDN}" <linode/lish_command.sh &
     exit 0
     break
     ;;
