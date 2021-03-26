@@ -3,7 +3,7 @@
 # Author: Arafat Ali | Email: webmaster@sofibox.com
 APP_SPECIFIC_NAME="Maxisetup"
 APP_STATUS="beta"
-APP_VERSION="0.4.1.5-${APP_STATUS}"
+APP_VERSION="0.4.1.6-${APP_STATUS}"
 # This is an initial server hardening script for CentOS and Debian.
 # Compatible 100% with Directadmin. Supported OS: CentOS + Debian (Planned on FreeBSD)
 # You can choose to install as the other stack server such as LEMP, (TODO) Laravel and more defined in config file
@@ -696,11 +696,16 @@ function linode_api_admin() {
     shift
     local linode_id hostname_fqdn
     hostname_fqdn="$1"
-    if [ -z "${hostname_fqdn}" ]; then
-      echo "Warning, hostname not specified in the first argument, using hostname from config file ..."
-      hostname_fqdn="${BOX_HOSTNAME_FQDN}"
+    local retval
+    host "${hostname_fqdn}" >/dev/null 2>&1
+    retval=$?
+    if [ ${retval} -eq 0 ]; then
+      echo "[${SCRIPT_NAME}]: Ok, ${hostname_fqdn} is a FQDN"
+      shift
     else
-      echo "Hostname supplied is ${hostname_fqdn}"
+      echo "[${SCRIPT_NAME}]: Warning, hostname is not a FQDN: ${hostname_fqdn}"
+      hostname_fqdn=${BOX_HOSTNAME_FQDN}
+      echo "[${SCRIPT_NAME}]: Hostname is now set as: ${hostname_fqdn} from config file"
     fi
     echo "[${SCRIPT_NAME}]: Getting linode ID for ${hostname_fqdn}..."
     linode_id=$(${LINODE_CLI_BIN} linodes list --json --pretty | ${JQ_BIN} ".[] | select(.label == \"${hostname_fqdn}\") | .id")
@@ -709,97 +714,135 @@ function linode_api_admin() {
     shift
     local linode_id linode_status hostname_fqdn
     hostname_fqdn="$1"
-    if [ -z "${hostname_fqdn}" ]; then
-      echo "Warning, hostname not specified in the first argument, using hostname from config file ..."
-      hostname_fqdn="${BOX_HOSTNAME_FQDN}"
+    local retval
+    host "${hostname_fqdn}" >/dev/null 2>&1
+    retval=$?
+    if [ ${retval} -eq 0 ]; then
+      echo "[${SCRIPT_NAME}]: Ok, ${hostname_fqdn} is a FQDN"
+      shift
     else
-      echo "Hostname supplied is ${hostname_fqdn}"
+      echo "[${SCRIPT_NAME}]: Warning, hostname is not a FQDN: ${hostname_fqdn}"
+      hostname_fqdn=${BOX_HOSTNAME_FQDN}
+      echo "[${SCRIPT_NAME}]: Hostname is now set as: ${hostname_fqdn} from config file"
     fi
     linode_id=$(${LINODE_CLI_BIN} linodes list --json --pretty | ${JQ_BIN} ".[] | select(.label == \"${hostname_fqdn}\") | .id")
     echo "[${SCRIPT_NAME}]: Getting linode status for ${hostname_fqdn} ..."
     linode_status=$(${LINODE_CLI_BIN} linodes view "${linode_id}" --json --pretty | ${JQ_BIN} -r ".[] | .status")
     echo "${linode_status}"
-    # linode_api_admin "rescue-linode" "<hostname_fqdn>" "<disk-options>"
+    # linode_api_admin "rescue-linode" <hostname> <optional_mount_disk1> <optional_mount_disk2> <optional_mount_diskN> ... <optional_mount_disk9>"
   elif [[ "${action}" == "rescue-linode" || "${action}" == "rescue" || "${action}" == "rescue-mode" || "${action}" == "boot-rescue" || "${action}" == "rescue-boot" ]]; then
     shift
     local linode_id hostname_fqdn linode_status config_disk_devsda config_disk_devsdb config_disk_devsdc \
       config_disk_devsdd config_disk_devsde config_disk_devsdf config_disk_devsdg config_disk_devsdh \
       disk_id config_disks wait_time
-
+    local config_disk_devsda_id_option config_disk_devsdb_id_option config_disk_devsdc_id_option \
+      config_disk_devsdd_id_option config_disk_devsde_id_option config_disk_devsdf_id_option \
+      config_disk_devsdg_id_option config_disk_devsdh_id_option config_disks_id_options config_disks_label
     hostname_fqdn="$1"
-
-    if [ -z "${hostname_fqdn}" ]; then
-      echo "Warning, hostname not specified in the first argument, using hostname from config file ..."
-      hostname_fqdn="${BOX_HOSTNAME_FQDN}"
+    local retval
+    host "${hostname_fqdn}" >/dev/null 2>&1
+    retval=$?
+    if [ ${retval} -eq 0 ]; then
+      echo "[${SCRIPT_NAME}]: Ok, ${hostname_fqdn} is a FQDN"
+      shift
     else
-      echo "Hostname supplied is ${hostname_fqdn}"
+      echo "[${SCRIPT_NAME}]: Warning, hostname is not a FQDN: ${hostname_fqdn}"
+      hostname_fqdn=${BOX_HOSTNAME_FQDN}
+      echo "[${SCRIPT_NAME}]: Hostname is now set as: ${hostname_fqdn} from config file"
     fi
-    config_disk_devsda="$2"
-    config_disk_devsdb="$3"
-    config_disk_devsdc="$4"
-    config_disk_devsdd="$5"
-    config_disk_devsde="$6"
-    config_disk_devsdf="$7"
-    config_disk_devsdg="$8"
-    config_disk_devsdh="$9"
+    config_disk_devsda="$1"
+    config_disk_devsdb="$2"
+    config_disk_devsdc="$3"
+    config_disk_devsdd="$4"
+    config_disk_devsde="$5"
+    config_disk_devsdf="$6"
+    config_disk_devsdg="$7"
+    config_disk_devsdh="$8"
     config_disks=""
     wait_time=10
-    echo "[${SCRIPT_NAME}]: Putting linode ${hostname_fqdn} into rescue mode"
-
+    echo "[${SCRIPT_NAME}]: Putting linode ${hostname_fqdn} into rescue mode ..."
     linode_id=$(${LINODE_CLI_BIN} linodes list --json --pretty | ${JQ_BIN} ".[] | select(.label == \"${hostname_fqdn}\") | .id")
-
     # Convert the disk label to ID if not empty
     if [[ -n "${config_disk_devsda}" ]]; then
-      config_disk_devsda=$(${LINODE_CLI_BIN} linodes disks-list "${linode_id}" --json --pretty | ${JQ_BIN} ".[] | select(.label == \"${config_disk_devsda}\") | .id")
-      config_disk_devsda="--devices.sda.disk_id ${config_disk_devsda}"
+      config_disk_devsda_id=$(${LINODE_CLI_BIN} linodes disks-list "${linode_id}" --json --pretty | ${JQ_BIN} ".[] | select(.label == \"${config_disk_devsda}\") | .id")
+      config_disk_devsda_id_option="--devices.sda.disk_id ${config_disk_devsda_id}"
+      config_disks_id_options="${config_disks_id_options} ${config_disk_devsda_id_option}"
+      config_disks_label="${config_disk_devsda}"
       # eg: Now config_disk_devsda is: --devices.sda.disk_id 123122
     fi
 
     # Convert the disk label to ID if not empty
     if [[ -n "${config_disk_devsdb}" ]]; then
-      config_disk_devsdb=$(${LINODE_CLI_BIN} linodes disks-list "${linode_id}" --json --pretty | ${JQ_BIN} ".[] | select(.label == \"${config_disk_devsdb}\") | .id")
-      config_disk_devsdb="--devices.sdb.disk_id ${config_disk_devsdb}"
+      config_disk_devsdb_id=$(${LINODE_CLI_BIN} linodes disks-list "${linode_id}" --json --pretty | ${JQ_BIN} ".[] | select(.label == \"${config_disk_devsdb}\") | .id")
+      config_disk_devsdb_id_option="--devices.sdb.disk_id ${config_disk_devsdb_id}"
+      config_disks_id_options="${config_disks_id_options} ${config_disk_devsdb_id_option}"
+      config_disks_label="${config_disks_label}, ${config_disk_devsdb}"
       # eg: Now config_disk_devsdb is: --devices.sdb.disk_id 123122
     fi
     # Convert the disk label to ID if not empty
     if [[ -n "${config_disk_devsdc}" ]]; then
-      config_disk_devsdc=$(${LINODE_CLI_BIN} linodes disks-list "${linode_id}" --json --pretty | ${JQ_BIN} ".[] | select(.label == \"${config_disk_devsdc}\") | .id")
-      config_disk_devsdc="--devices.sdc.disk_id ${config_disk_devsdc}"
+      config_disk_devsdc_id=$(${LINODE_CLI_BIN} linodes disks-list "${linode_id}" --json --pretty | ${JQ_BIN} ".[] | select(.label == \"${config_disk_devsdc}\") | .id")
+      config_disk_devsdc_id_option="--devices.sdc.disk_id ${config_disk_devsdc_id}"
+      config_disks_id_options="${config_disks_id_options} ${config_disk_devsdc_id_option}"
+      config_disks_label="${config_disks_label}, ${config_disk_devsdc}"
       # eg: Now config_disk_devsdc is: --devices.sdc.disk_id 123122
     fi
     # Convert the disk label to ID if not empty
     if [[ -n "${config_disk_devsdd}" ]]; then
-      config_disk_devsdd=$(${LINODE_CLI_BIN} linodes disks-list "${linode_id}" --json --pretty | ${JQ_BIN} ".[] | select(.label == \"${config_disk_devsdd}\") | .id")
-      config_disk_devsdd="--devices.sdd.disk_id ${config_disk_devsdd}"
+      config_disk_devsdd_id=$(${LINODE_CLI_BIN} linodes disks-list "${linode_id}" --json --pretty | ${JQ_BIN} ".[] | select(.label == \"${config_disk_devsdd}\") | .id")
+      config_disk_devsdd_id_option="--devices.sdd.disk_id ${config_disk_devsdd_id}"
+      config_disks_id_options="${config_disks_id_options} ${config_disk_devsdd_id_option}"
+      config_disks_label="${config_disks_label}, ${config_disk_devsdd}"
       # eg: Now config_disk_devsdd is: --devices.sdd.disk_id 123122
     fi
     # Convert the disk label to ID if not empty
     if [[ -n "${config_disk_devsde}" ]]; then
-      config_disk_devsde=$(${LINODE_CLI_BIN} linodes disks-list "${linode_id}" --json --pretty | ${JQ_BIN} ".[] | select(.label == \"${config_disk_devsde}\") | .id")
-      config_disk_devsde="--devices.sde.disk_id ${config_disk_devsde}"
+      config_disk_devsde_id=$(${LINODE_CLI_BIN} linodes disks-list "${linode_id}" --json --pretty | ${JQ_BIN} ".[] | select(.label == \"${config_disk_devsde}\") | .id")
+      config_disk_devsde_id_option="--devices.sde.disk_id ${config_disk_devsde_id}"
+      config_disks_id_options="${config_disks_id_options} ${config_disk_devsde_id_option}"
+      config_disks_label="${config_disks_label}, ${config_disk_devsde}"
       # eg: Now config_disk_devsde is: --devices.sde.disk_id 123122
     fi
     # Convert the disk label to ID if not empty
     if [[ -n "${config_disk_devsdf}" ]]; then
-      config_disk_devsdf=$(${LINODE_CLI_BIN} linodes disks-list "${linode_id}" --json --pretty | ${JQ_BIN} ".[] | select(.label == \"${config_disk_devsdf}\") | .id")
-      config_disk_devsdf="--devices.sdf.disk_id ${config_disk_devsdf}"
+      config_disk_devsdf_id=$(${LINODE_CLI_BIN} linodes disks-list "${linode_id}" --json --pretty | ${JQ_BIN} ".[] | select(.label == \"${config_disk_devsdf}\") | .id")
+      config_disk_devsdf_id_option="--devices.sdf.disk_id ${config_disk_devsdf_id}"
+      config_disks_id_options="${config_disks_id_options} ${config_disk_devsdf_id_option}"
+      config_disks_label="${config_disks_label}, ${config_disk_devsdf}"
       # eg: Now config_disk_devsdf is: --devices.sdf.disk_id 123122
     fi
     # Convert the disk label to ID if not empty
     if [[ -n "${config_disk_devsdg}" ]]; then
-      config_disk_devsdg=$(${LINODE_CLI_BIN} linodes disks-list "${linode_id}" --json --pretty | ${JQ_BIN} ".[] | select(.label == \"${config_disk_devsdg}\") | .id")
-      config_disk_devsdg="--devices.sdg.disk_id ${config_disk_devsdg}"
+      config_disk_devsdg_id=$(${LINODE_CLI_BIN} linodes disks-list "${linode_id}" --json --pretty | ${JQ_BIN} ".[] | select(.label == \"${config_disk_devsdg}\") | .id")
+      config_disk_devsdg_id_option="--devices.sdg.disk_id ${config_disk_devsdg_id}"
+      config_disks_id_options="${config_disks_id_options} ${config_disk_devsdg_id_option}"
+      config_disks_label="${config_disks_label}, ${config_disk_devsdg}"
       # eg: Now config_disk_devsdg is: --devices.sdg.disk_id 123122
     fi
     # Convert the disk label to ID if not empty
     if [[ -n "${config_disk_devsdh}" ]]; then
-      config_disk_devsdh=$(${LINODE_CLI_BIN} linodes disks-list "${linode_id}" --json --pretty | ${JQ_BIN} ".[] | select(.label == \"${config_disk_devsdh}\") | .id")
-      config_disk_devsdh="--devices.sdh.disk_id ${config_disk_devsdh}"
+      config_disk_devsdh_id=$(${LINODE_CLI_BIN} linodes disks-list "${linode_id}" --json --pretty | ${JQ_BIN} ".[] | select(.label == \"${config_disk_devsdh}\") | .id")
+      config_disk_devsdh_id_option="--devices.sdh.disk_id ${config_disk_devsdh_id}"
+      config_disks_id_options="${config_disks_id_options} ${config_disk_devsdh_id_option}"
+      config_disks_label="${config_disks_label}, ${config_disk_devsdh}"
       # eg: Now config_disk_devsdh is: --devices.sdh.disk_id 123122
     fi
-    config_disks="${config_disk_devsda} ${config_disk_devsdb} ${config_disk_devsdc} ${config_disk_devsdd} ${config_disk_devsde} ${config_disk_devsdf} ${config_disk_devsdg} ${config_disk_devsdh}"
+    #config_disks_id_options="${config_disk_devsda_id_option} ${config_disk_devsdb_id_option} ${config_disk_devsdc_id_option} ${config_disk_devsdd_id_option} ${config_disk_devsde_id_option} ${config_disk_devsdf_id_option} ${config_disk_devsdg_id_option} ${config_disk_devsdh_id_option}"
+    #config_disks_label="${config_disk_devsda} ${config_disk_devsdb} ${config_disk_devsdc} ${config_disk_devsdd} ${config_disk_devsde} ${config_disk_devsdf} ${config_disk_devsdg} ${config_disk_devsdh}"
 
-    ${LINODE_CLI_BIN} linodes rescue "${linode_id}" ${config_disks}
+    #echo "Config_value:pre_${config_disks}_post"
+
+    if [[ "${config_disks_id_options}" =~ ^[[:blank:]][[:blank:]]*$ ]]; then
+      echo "[${SCRIPT_NAME}]: Config disk option is blank. Linode will boot in rescue mode without mounting any disks"
+    else
+      echo "[${SCRIPT_NAME}]: Notice, Linode will boot in rescue mode and mounting the following disk(s) in order:"
+      echo ""
+      echo "Disk Label: ${config_disks_label}"
+      echo "Disk ID: ${config_disks_id_options}"
+      echo ""
+    fi
+
+    ${LINODE_CLI_BIN} linodes rescue "${linode_id}" ${config_disks_id_options}
     echo "[${SCRIPT_NAME}]: Allowing ${wait_time} seconds to finish booting into rescue mode"
     sleep ${wait_time}
     while :; do
@@ -814,16 +857,24 @@ function linode_api_admin() {
         sleep ${wait_time}
       fi
     done
+    # linode-api shutdown-linode
+    # linode-api shutdown-linode <hostname_fqdn>
   elif [[ "${action}" == "shutdown-linode" || "${action}" == "poweroff-linode" || "${action}" == "turnoff-linode" || "${action}" == "shutdown" || "${action}" == "poweroff" || "${action}" == "turnoff" ]]; then
     shift
     local linode_id hostname_fqdn shutdown_wait shutdown_wait_max shutdown_wait_total linode_status
     hostname_fqdn="$1"
-    if [ -z "${hostname_fqdn}" ]; then
-      echo "Warning, hostname not specified in the first argument, using hostname from config file ..."
-      hostname_fqdn="${BOX_HOSTNAME_FQDN}"
+    local retval
+    host "${hostname_fqdn}" >/dev/null 2>&1
+    retval=$?
+    if [ ${retval} -eq 0 ]; then
+      echo "[${SCRIPT_NAME}]: Ok, ${hostname_fqdn} is a FQDN"
+      shift
     else
-      echo "Hostname supplied is ${hostname_fqdn}"
+      echo "[${SCRIPT_NAME}]: Warning, hostname is not a FQDN: ${hostname_fqdn}"
+      hostname_fqdn=${BOX_HOSTNAME_FQDN}
+      echo "[${SCRIPT_NAME}]: Hostname is now set as: ${hostname_fqdn} from config file"
     fi
+
     shutdown_wait=10
     shutdown_wait_total=0
     shutdown_wait_max=240
@@ -860,7 +911,6 @@ function linode_api_admin() {
           echo "[${SCRIPT_NAME}]: Warning, linode for ${hostname_fqdn} has unknown unidentified status: ${linode_status}" 2>&1 | tee -a "${REPORT_FILE}"
           # Don't exit still give time
           #_exit 1
-
         fi
         # Sometimes linode is stuck at terminal when reboot, start or shutdown, so we need to display error for inspection here:
         ((shutdown_wait_total = shutdown_wait_total + shutdown_wait))
@@ -878,13 +928,18 @@ function linode_api_admin() {
     shift
     local linode_id hostname_fqdn config_label config_id wait_time
     hostname_fqdn="$1"
-    if [ -z "${hostname_fqdn}" ]; then
-      echo "Warning, hostname not specified in the first argument, using hostname from config file ..."
-      hostname_fqdn="${BOX_HOSTNAME_FQDN}"
+    local retval
+    host "${hostname_fqdn}" >/dev/null 2>&1
+    retval=$?
+    if [ ${retval} -eq 0 ]; then
+      echo "[${SCRIPT_NAME}]: Ok, ${hostname_fqdn} is a FQDN"
+      shift
     else
-      echo "Hostname supplied is ${hostname_fqdn}"
+      echo "[${SCRIPT_NAME}]: Warning, hostname is not a FQDN: ${hostname_fqdn}"
+      hostname_fqdn=${BOX_HOSTNAME_FQDN}
+      echo "[${SCRIPT_NAME}]: Hostname is now set as: ${hostname_fqdn} from config file"
     fi
-    config_label="$2"
+    config_label="$1"
     wait_time=10
     echo "[${SCRIPT_NAME}]: Booting linode ${hostname_fqdn} using config label ${config_label} ..."
     linode_id=$(${LINODE_CLI_BIN} linodes list --json --pretty | ${JQ_BIN} ".[] | select(.label == \"${hostname_fqdn}\") | .id")
@@ -910,7 +965,6 @@ function linode_api_admin() {
       done
     fi
     echo "[${SCRIPT_NAME}]: Booting linode ${hostname_fqdn} ..."
-
     ${LINODE_CLI_BIN} linodes boot "${linode_id}" --config_id "${config_id}"
     echo "[${SCRIPT_NAME}]: Allowing ${wait_time} seconds to finish booting using config ${config_label}"
     sleep ${wait_time}
@@ -932,24 +986,36 @@ function linode_api_admin() {
     shift
     local linode_id hostname_fqdn
     hostname_fqdn="$1"
-    if [ -z "${hostname_fqdn}" ]; then
-      echo "Warning, hostname not specified in the first argument, using hostname from config file ..."
-      hostname_fqdn="${BOX_HOSTNAME_FQDN}"
+    local retval
+    host "${hostname_fqdn}" >/dev/null 2>&1
+    retval=$?
+    if [ ${retval} -eq 0 ]; then
+      echo "[${SCRIPT_NAME}]: Ok, ${hostname_fqdn} is a FQDN"
+      shift
     else
-      echo "Hostname supplied is ${hostname_fqdn}"
+      echo "[${SCRIPT_NAME}]: Warning, hostname is not a FQDN: ${hostname_fqdn}"
+      hostname_fqdn=${BOX_HOSTNAME_FQDN}
+      echo "[${SCRIPT_NAME}]: Hostname is now set as: ${hostname_fqdn} from config file"
     fi
     echo "[${SCRIPT_NAME}]: Rebooting linode ${hostname_fqdn} ..."
     linode_id=$(${LINODE_CLI_BIN} linodes list --json --pretty | ${JQ_BIN} ".[] | select(.label == \"${hostname_fqdn}\") | .id")
     ${LINODE_CLI_BIN} linodes reboot "${linode_id}"
+  # linode-api view-linode
+  # linode-api view-linode <hostname_fqdn>
   elif [[ "${action}" == "view-linode" || "${action}" == "lookup-linode" ]]; then
     shift
     local linode_id hostname_fqdn
     hostname_fqdn="$1"
-    if [ -z "${hostname_fqdn}" ]; then
-      echo "Warning, hostname not specified in the first argument, using hostname from config file ..."
-      hostname_fqdn="${BOX_HOSTNAME_FQDN}"
+    local retval
+    host "${hostname_fqdn}" >/dev/null 2>&1
+    retval=$?
+    if [ ${retval} -eq 0 ]; then
+      echo "[${SCRIPT_NAME}]: Ok, ${hostname_fqdn} is a FQDN"
+      shift
     else
-      echo "Hostname supplied is ${hostname_fqdn}"
+      echo "[${SCRIPT_NAME}]: Warning, hostname is not a FQDN: ${hostname_fqdn}"
+      hostname_fqdn=${BOX_HOSTNAME_FQDN}
+      echo "[${SCRIPT_NAME}]: Hostname is now set as: ${hostname_fqdn} from config file"
     fi
     echo "[${SCRIPT_NAME}]: Viewing linode ${hostname_fqdn} ..."
     linode_id=$(${LINODE_CLI_BIN} linodes list --json --pretty | ${JQ_BIN} ".[] | select(.label == \"${hostname_fqdn}\") | .id")
@@ -960,13 +1026,18 @@ function linode_api_admin() {
     shift
     local linode_id hostname_fqdn disk_label disk_id
     hostname_fqdn="$1"
-    if [ -z "${hostname_fqdn}" ]; then
-      echo "Warning, hostname not specified in the first argument, using hostname from config file ..."
-      hostname_fqdn="${BOX_HOSTNAME_FQDN}"
+    local retval
+    host "${hostname_fqdn}" >/dev/null 2>&1
+    retval=$?
+    if [ ${retval} -eq 0 ]; then
+      echo "[${SCRIPT_NAME}]: Ok, ${hostname_fqdn} is a FQDN"
+      shift
     else
-      echo "Hostname supplied is ${hostname_fqdn}"
+      echo "[${SCRIPT_NAME}]: Warning, hostname is not a FQDN: ${hostname_fqdn}"
+      hostname_fqdn=${BOX_HOSTNAME_FQDN}
+      echo "[${SCRIPT_NAME}]: Hostname is now set as: ${hostname_fqdn} from config file"
     fi
-    disk_label="$2"
+    disk_label="$1"
     echo "[${SCRIPT_NAME}]: listing config ${hostname_fqdn} ..."
     linode_id=$(${LINODE_CLI_BIN} linodes list --json --pretty | ${JQ_BIN} ".[] | select(.label == \"${hostname_fqdn}\") | .id")
     disk_id=$(${LINODE_CLI_BIN} linodes disks-list "${linode_id}" --json --pretty | ${JQ_BIN} ".[] | select(.label == \"${disk_label}\") | .id")
@@ -975,11 +1046,16 @@ function linode_api_admin() {
     shift
     local linode_id hostname_fqdn
     hostname_fqdn="$1"
-    if [ -z "${hostname_fqdn}" ]; then
-      echo "Warning, hostname not specified in the first argument, using hostname from config file ..."
-      hostname_fqdn="${BOX_HOSTNAME_FQDN}"
+    local retval
+    host "${hostname_fqdn}" >/dev/null 2>&1
+    retval=$?
+    if [ ${retval} -eq 0 ]; then
+      echo "[${SCRIPT_NAME}]: Ok, ${hostname_fqdn} is a FQDN"
+      shift
     else
-      echo "Hostname supplied is ${hostname_fqdn}"
+      echo "[${SCRIPT_NAME}]: Warning, hostname is not a FQDN: ${hostname_fqdn}"
+      hostname_fqdn=${BOX_HOSTNAME_FQDN}
+      echo "[${SCRIPT_NAME}]: Hostname is now set as: ${hostname_fqdn} from config file"
     fi
     echo "[${SCRIPT_NAME}]: listing config ${hostname_fqdn} ..."
     linode_id=$(${LINODE_CLI_BIN} linodes list --json --pretty | ${JQ_BIN} ".[] | select(.label == \"${hostname_fqdn}\") | .id")
@@ -992,11 +1068,16 @@ function linode_api_admin() {
     echo "[${SCRIPT_NAME}]: Deleting all the disks created for linode ${hostname_fqdn} ..."
     local linode_id disk_ids hostname_fqdn disk_status disk_ids_count disk_count
     hostname_fqdn="$1"
-    if [ -z "${hostname_fqdn}" ]; then
-      echo "Warning, hostname not specified in the first argument, using hostname from config file ..."
-      hostname_fqdn="${BOX_HOSTNAME_FQDN}"
+    local retval
+    host "${hostname_fqdn}" >/dev/null 2>&1
+    retval=$?
+    if [ ${retval} -eq 0 ]; then
+      echo "[${SCRIPT_NAME}]: Ok, ${hostname_fqdn} is a FQDN"
+      shift
     else
-      echo "Hostname supplied is ${hostname_fqdn}"
+      echo "[${SCRIPT_NAME}]: Warning, hostname is not a FQDN: ${hostname_fqdn}"
+      hostname_fqdn=${BOX_HOSTNAME_FQDN}
+      echo "[${SCRIPT_NAME}]: Hostname is now set as: ${hostname_fqdn} from config file"
     fi
     linode_id=$(${LINODE_CLI_BIN} linodes list --json --pretty | ${JQ_BIN} ".[] | select(.label == \"${hostname_fqdn}\") | .id")
     disk_ids=$(${LINODE_CLI_BIN} linodes disks-list "${linode_id}" --json --pretty | ${JQ_BIN} ".[] | .id")
@@ -1033,15 +1114,21 @@ function linode_api_admin() {
       wait_second wait_second_max wait_second_total
 
     hostname_fqdn="$1"
-    if [ -z "${hostname_fqdn}" ]; then
-      echo "Warning, hostname not specified in the first argument, using hostname from config file ..."
-      hostname_fqdn="${BOX_HOSTNAME_FQDN}"
+    local retval
+    host "${hostname_fqdn}" >/dev/null 2>&1
+    retval=$?
+    if [ ${retval} -eq 0 ]; then
+      echo "[${SCRIPT_NAME}]: Ok, ${hostname_fqdn} is a FQDN"
+      shift
     else
-      echo "Hostname supplied is ${hostname_fqdn}"
+      echo "[${SCRIPT_NAME}]: Warning, hostname is not a FQDN: ${hostname_fqdn}"
+      hostname_fqdn=${BOX_HOSTNAME_FQDN}
+      echo "[${SCRIPT_NAME}]: Hostname is now set as: ${hostname_fqdn} from config file"
     fi
-    disk_label="$2"
-    disk_filetype="$3"
-    disk_size="$4"
+
+    disk_label="$1"
+    disk_filetype="$2"
+    disk_size="$3"
 
     wait_second=10
     wait_second_max=240
@@ -1097,11 +1184,16 @@ function linode_api_admin() {
     shift
     local linode_id hostname_fqdn
     hostname_fqdn="$1"
-    if [ -z "${hostname_fqdn}" ]; then
-      echo "Warning, hostname not specified in the first argument, using hostname from config file ..."
-      hostname_fqdn="${BOX_HOSTNAME_FQDN}"
+    local retval
+    host "${hostname_fqdn}" >/dev/null 2>&1
+    retval=$?
+    if [ ${retval} -eq 0 ]; then
+      echo "[${SCRIPT_NAME}]: Ok, ${hostname_fqdn} is a FQDN"
+      shift
     else
-      echo "Hostname supplied is ${hostname_fqdn}"
+      echo "[${SCRIPT_NAME}]: Warning, hostname is not a FQDN: ${hostname_fqdn}"
+      hostname_fqdn=${BOX_HOSTNAME_FQDN}
+      echo "[${SCRIPT_NAME}]: Hostname is now set as: ${hostname_fqdn} from config file"
     fi
     echo "[${SCRIPT_NAME}]: listing config ${hostname_fqdn} ..."
     linode_id=$(${LINODE_CLI_BIN} linodes list --json --pretty | ${JQ_BIN} ".[] | select(.label == \"${hostname_fqdn}\") | .id")
@@ -1111,11 +1203,16 @@ function linode_api_admin() {
     shift
     local linode_id config_ids hostname_fqdn
     hostname_fqdn="$1"
-    if [ -z "${hostname_fqdn}" ]; then
-      echo "Warning, hostname not specified in the first argument, using hostname from config file ..."
-      hostname_fqdn="${BOX_HOSTNAME_FQDN}"
+    local retval
+    host "${hostname_fqdn}" >/dev/null 2>&1
+    retval=$?
+    if [ ${retval} -eq 0 ]; then
+      echo "[${SCRIPT_NAME}]: Ok, ${hostname_fqdn} is a FQDN"
+      shift
     else
-      echo "Hostname supplied is ${hostname_fqdn}"
+      echo "[${SCRIPT_NAME}]: Warning, hostname is not a FQDN: ${hostname_fqdn}"
+      hostname_fqdn=${BOX_HOSTNAME_FQDN}
+      echo "[${SCRIPT_NAME}]: Hostname is now set as: ${hostname_fqdn} from config file"
     fi
     echo "[${SCRIPT_NAME}]: Deleting all config profile for ${hostname_fqdn} ..."
     linode_id=$(${LINODE_CLI_BIN} linodes list --json --pretty | ${JQ_BIN} ".[] | select(.label == \"${hostname_fqdn}\") | .id")
@@ -1129,13 +1226,18 @@ function linode_api_admin() {
     shift
     local linode_id hostname_fqdn config_id config_label
     hostname_fqdn="$1"
-    if [ -z "${hostname_fqdn}" ]; then
-      echo "Warning, hostname not specified in the first argument, using hostname from config file ..."
-      hostname_fqdn="${BOX_HOSTNAME_FQDN}"
+    local retval
+    host "${hostname_fqdn}" >/dev/null 2>&1
+    retval=$?
+    if [ ${retval} -eq 0 ]; then
+      echo "[${SCRIPT_NAME}]: Ok, ${hostname_fqdn} is a FQDN"
+      shift
     else
-      echo "Hostname supplied is ${hostname_fqdn}"
+      echo "[${SCRIPT_NAME}]: Warning, hostname is not a FQDN: ${hostname_fqdn}"
+      hostname_fqdn=${BOX_HOSTNAME_FQDN}
+      echo "[${SCRIPT_NAME}]: Hostname is now set as: ${hostname_fqdn} from config file"
     fi
-    config_label="$2"
+    config_label="$1"
     echo "[${SCRIPT_NAME}]: listing config ${hostname_fqdn} ..."
     linode_id=$(${LINODE_CLI_BIN} linodes list --json --pretty | ${JQ_BIN} ".[] | select(.label == \"${hostname_fqdn}\") | .id")
     config_id=$(${LINODE_CLI_BIN} linodes configs-list "${linode_id}" --json --pretty | ${JQ_BIN} ".[] | select(.label == \"${config_label}\") | .id")
@@ -1154,27 +1256,32 @@ function linode_api_admin() {
       disk_id config_disks
 
     hostname_fqdn="$1"
-    if [ -z "${hostname_fqdn}" ]; then
-      echo "Warning, hostname not specified in the first argument, using hostname from config file ..."
-      hostname_fqdn="${BOX_HOSTNAME_FQDN}"
+    local retval
+    host "${hostname_fqdn}" >/dev/null 2>&1
+    retval=$?
+    if [ ${retval} -eq 0 ]; then
+      echo "[${SCRIPT_NAME}]: Ok, ${hostname_fqdn} is a FQDN"
+      shift
     else
-      echo "Hostname supplied is ${hostname_fqdn}"
+      echo "[${SCRIPT_NAME}]: Warning, hostname is not a FQDN: ${hostname_fqdn}"
+      hostname_fqdn=${BOX_HOSTNAME_FQDN}
+      echo "[${SCRIPT_NAME}]: Hostname is now set as: ${hostname_fqdn} from config file"
     fi
-    config_label="$2"
-    config_comment="$3"
-    config_virmode="$4"
-    config_kernel="$5"
-    config_runlevel="$6"
+    config_label="$1"
+    config_comment="$2"
+    config_virmode="$3"
+    config_kernel="$4"
+    config_runlevel="$5"
     # Only disk for now
-    config_rootdevice="$7"
-    config_disk_devsda="$8"
-    config_disk_devsdb="$9"
-    config_disk_devsdc="${10}"
-    config_disk_devsdd="${11}"
-    config_disk_devsde="${12}"
-    config_disk_devsdf="${13}"
-    config_disk_devsdg="${14}"
-    config_disk_devsdh="${15}"
+    config_rootdevice="$6"
+    config_disk_devsda="$7"
+    config_disk_devsdb="$8"
+    config_disk_devsdc="${9}"
+    config_disk_devsdd="${10}"
+    config_disk_devsde="${11}"
+    config_disk_devsdf="${12}"
+    config_disk_devsdg="${13}"
+    config_disk_devsdh="${14}"
     config_disks=""
 
     linode_id=$(${LINODE_CLI_BIN} linodes list --json --pretty | ${JQ_BIN} ".[] | select(.label == \"${hostname_fqdn}\") | .id")
