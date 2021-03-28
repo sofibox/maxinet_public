@@ -25,17 +25,18 @@ INSTALL_TYPE="directadmin"
 ENABLE_CUSTOM_WEB_SETUP="no"
 # If disk encryption is set, put the volume group name.
 # This name will be used by fstab, so putting the wrong group name you will be locked out from the system from booting.
-# TODO: This is temporary, will deprecated in future, setup will determine if disk is encrypted or not
+# TODO: LVM_VOLUME_GROUP is a temporary variable. Will deprecated in future
+LVM_VOLUME_GROUP="vg1"
+# TODO: DISK_ENCRYPTION variable is a temp variable, will deprecated in future,
+# setup will determine if disk is encrypted or not
 DISK_ENCRYPTION="yes"
-# Username to set for grub bootloader
-SECURE_GRUB="yes"
 LUKS_PASS="luks*encryption*password"
+# Whether to secure the bootloader with password:
+SECURE_GRUB="yes"
 # Username to set for grub bootloader
 GRUB_UNAME="grub_user"
 # Password to set for grub bootloader
 GRUB_PASS="*grub_pasword*"
-# TODO: This is a temporary variable. Will deprecated in future
-LVM_VOLUME_GROUP="vg1"
 # You don't want to change this because everything is begin with root
 ROOT_USERNAME="root"
 ROOT_USERPASS="*long-secured-password*"
@@ -218,14 +219,20 @@ SSH_USERPASS="*long-secured-password*"
 # This one for SSH Public Key. I generate this from puttygen
 SSH_PUBLIC_KEY="ssh-rsa AAAAB3N***AAAQE***nsAQENik/Al***G/8***Y sofibox-auth-test.sofibox.com-v1"
 # vps | dedicated
-LUKS_PASS="*LUKS-DISK-ENCRYPTION*"
+BOX_ISO_OS_TYPE="debian"
 BOX_TYPE="dedicated"
+BOX_MAIN_DISK="/dev/sda"
+BOX_MAIN_DISK_RAW_SIZE="size-in-MB"
+BOX_BOOT_DISK_RAW_SIZE="size-in-MB"
 BOX_RAM="32GB"
 BOX_SWAP="4GB"
-BOX_HOSTNAME_FQDN="test.sofibox.com"
-BOX_TIMEZONE="Asia/Kuala_Lumpur"
 BOX_HOSTNAME="test"
 BOX_DOMAIN="sofibox.com"
+BOX_HOSTNAME_FQDN="test.sofibox.com"
+BOX_TIMEZONE="Asia/Kuala_Lumpur"
+BOX_COUNTRY_NAME="Malaysia"
+BOX_COUNTRY_CODE="MY"
+
 # Name servers up to 4
 BOX_NS1="ns1.sofibox.com"
 BOX_NS2="ns2.sofibox.com"
@@ -237,13 +244,16 @@ NIC_INTERFACE_NAME="eth0"
 IPV4_ADD0="123.111.50.185"
 IPV4_DEF_GATEWAY0="123.111.50.1"
 IPV6_ADD0="2400:8902::a02d:91ee:fe05:4db2"
+IPV4_NETMASK0="255.255.255.0"
 IPV6_DEF_GATEWAY0="fe80::1"
+IPV6_NETMASK0="/64"
 AUTO_LINK_DA_IP="yes" # or no - link or not link IP from
 # For /etc/resolv.conf
 NAME_SERVER1="123.11.11.5"
 NAME_SERVER2="123.11.14.5"
 NAME_SERVER3="112.33.21.5"
-ENABLE_SETUP_REBOOT="interactive" #interactive=user need to press enter, auto=forced reboot (no user interaction), disable - no reboot
+#interactive=user need to press enter, auto=forced reboot (no user interaction), disable - no reboot
+ENABLE_SETUP_REBOOT="interactive"
 #OSSEC_INS_TYPE="agent" #or local or hybrid
 # ====== CSF SETTING ==========
 # CSF port setting: Remember to begin with comma, and no space. This variable can be empty string (when empty don't put comma)

@@ -3,7 +3,7 @@
 # Author: Arafat Ali | Email: webmaster@sofibox.com
 APP_SPECIFIC_NAME="Maxisetup"
 APP_STATUS="beta"
-APP_VERSION="0.4.1.6-${APP_STATUS}"
+APP_VERSION="0.4.1.7-${APP_STATUS}"
 # This is an initial server hardening script for CentOS and Debian.
 # Compatible 100% with Directadmin. Supported OS: CentOS + Debian (Planned on FreeBSD)
 # You can choose to install as the other stack server such as LEMP, (TODO) Laravel and more defined in config file
@@ -486,8 +486,16 @@ function script_time() {
 }
 # This function will shift the current directory into another directory specified in argument
 # it will terminate with return error code 1 if the specified path in argument given is not valid
+# Usage: cd_to_path <valid_path>
+# or : cd_to_path "pre" - to return to previous path after executing the previous cd_to_path <valid_path>
 function cd_to_path() {
   local to_path="$1"
+  # PREPATH holds a previous path (see global variable of PREPATH in this script)
+  if [[ "${to_path}" == "pre" || "${to_path}" == "previous" || "${to_path}" == "prepath" || "${to_path}" == "PREPATH" || "${to_path}" == "back" || "${to_path}" == "oldpath" || "${to_path}" == "oldpwd" || "${to_path}" == "OLDPWD" ]]; then
+    to_path="${PREPATH}"
+  else
+    PREPATH="${PWD}"
+  fi
   echo "[${SCRIPT_NAME}]: Entering directory ${to_path} ..." 2>&1 | tee -a "${REPORT_FILE}"
   cd "${to_path}" || {
     echo "Failed to enter into directory" 2>&1 | tee -a "${REPORT_FILE}"
@@ -729,8 +737,8 @@ function linode_api_admin() {
     echo "[${SCRIPT_NAME}]: Getting linode status for ${hostname_fqdn} ..."
     linode_status=$(${LINODE_CLI_BIN} linodes view "${linode_id}" --json --pretty | ${JQ_BIN} -r ".[] | .status")
     echo "${linode_status}"
-    # linode_api_admin "rescue-linode" <hostname> <optional_mount_disk1> <optional_mount_disk2> <optional_mount_diskN> ... <optional_mount_disk9>"
-  elif [[ "${action}" == "rescue-linode" || "${action}" == "rescue" || "${action}" == "rescue-mode" || "${action}" == "boot-rescue" || "${action}" == "rescue-boot" ]]; then
+    # linode_api_admin "rescue-mode" <optional_hostname> <optional_mount_disk1_label> <optional_mount_disk2_label> <optional_mount_diskN_label> ... <optional_mount_disk9>"
+  elif [[ "${action}" == "rescue-linode" || "${action}" == "rescue-reboot" || "${action}" == "rescue" || "${action}" == "reboot-rescue" || "${action}" == "rescue-mode" || "${action}" == "boot-rescue" || "${action}" == "boot-to-rescue" || "${action}" == "rescue-boot" ]]; then
     shift
     local linode_id hostname_fqdn linode_status config_disk_devsda config_disk_devsdb config_disk_devsdc \
       config_disk_devsdd config_disk_devsde config_disk_devsdf config_disk_devsdg config_disk_devsdh \
@@ -760,11 +768,14 @@ function linode_api_admin() {
     config_disk_devsdh="$8"
     config_disks=""
     wait_time=10
-    echo "[${SCRIPT_NAME}]: Putting linode ${hostname_fqdn} into rescue mode ..."
     linode_id=$(${LINODE_CLI_BIN} linodes list --json --pretty | ${JQ_BIN} ".[] | select(.label == \"${hostname_fqdn}\") | .id")
     # Convert the disk label to ID if not empty
     if [[ -n "${config_disk_devsda}" ]]; then
       config_disk_devsda_id=$(${LINODE_CLI_BIN} linodes disks-list "${linode_id}" --json --pretty | ${JQ_BIN} ".[] | select(.label == \"${config_disk_devsda}\") | .id")
+      if [ -z "${config_disk_devsda_id}" ]; then
+        echo "[${SCRIPT_NAME}]: Warning, disk ${config_disk_devsda} not found. Please check if the disk is exist"
+        _exit 1
+      fi
       config_disk_devsda_id_option="--devices.sda.disk_id ${config_disk_devsda_id}"
       config_disks_id_options="${config_disks_id_options} ${config_disk_devsda_id_option}"
       config_disks_label="${config_disk_devsda}"
@@ -774,6 +785,10 @@ function linode_api_admin() {
     # Convert the disk label to ID if not empty
     if [[ -n "${config_disk_devsdb}" ]]; then
       config_disk_devsdb_id=$(${LINODE_CLI_BIN} linodes disks-list "${linode_id}" --json --pretty | ${JQ_BIN} ".[] | select(.label == \"${config_disk_devsdb}\") | .id")
+      if [ -z "${config_disk_devsdb_id}" ]; then
+        echo "[${SCRIPT_NAME}]: Warning, disk ${config_disk_devsdb} not found. Please check if the disk label is exist in linode disk"
+        _exit 1
+      fi
       config_disk_devsdb_id_option="--devices.sdb.disk_id ${config_disk_devsdb_id}"
       config_disks_id_options="${config_disks_id_options} ${config_disk_devsdb_id_option}"
       config_disks_label="${config_disks_label}, ${config_disk_devsdb}"
@@ -782,6 +797,10 @@ function linode_api_admin() {
     # Convert the disk label to ID if not empty
     if [[ -n "${config_disk_devsdc}" ]]; then
       config_disk_devsdc_id=$(${LINODE_CLI_BIN} linodes disks-list "${linode_id}" --json --pretty | ${JQ_BIN} ".[] | select(.label == \"${config_disk_devsdc}\") | .id")
+      if [ -z "${config_disk_devsdc_id}" ]; then
+        echo "[${SCRIPT_NAME}]: Warning, disk ${config_disk_devsdc} not found. Please check if the disk label is exist in linode disk"
+        _exit 1
+      fi
       config_disk_devsdc_id_option="--devices.sdc.disk_id ${config_disk_devsdc_id}"
       config_disks_id_options="${config_disks_id_options} ${config_disk_devsdc_id_option}"
       config_disks_label="${config_disks_label}, ${config_disk_devsdc}"
@@ -790,6 +809,10 @@ function linode_api_admin() {
     # Convert the disk label to ID if not empty
     if [[ -n "${config_disk_devsdd}" ]]; then
       config_disk_devsdd_id=$(${LINODE_CLI_BIN} linodes disks-list "${linode_id}" --json --pretty | ${JQ_BIN} ".[] | select(.label == \"${config_disk_devsdd}\") | .id")
+      if [ -z "${config_disk_devsdd_id}" ]; then
+        echo "[${SCRIPT_NAME}]: Warning, disk ${config_disk_devsdd} not found. Please check if the disk label is exist in linode disk"
+        _exit 1
+      fi
       config_disk_devsdd_id_option="--devices.sdd.disk_id ${config_disk_devsdd_id}"
       config_disks_id_options="${config_disks_id_options} ${config_disk_devsdd_id_option}"
       config_disks_label="${config_disks_label}, ${config_disk_devsdd}"
@@ -798,6 +821,10 @@ function linode_api_admin() {
     # Convert the disk label to ID if not empty
     if [[ -n "${config_disk_devsde}" ]]; then
       config_disk_devsde_id=$(${LINODE_CLI_BIN} linodes disks-list "${linode_id}" --json --pretty | ${JQ_BIN} ".[] | select(.label == \"${config_disk_devsde}\") | .id")
+      if [ -z "${config_disk_devsde_id}" ]; then
+        echo "[${SCRIPT_NAME}]: Warning, disk ${config_disk_devsde} not found. Please check if the disk label is exist in linode disk"
+        _exit 1
+      fi
       config_disk_devsde_id_option="--devices.sde.disk_id ${config_disk_devsde_id}"
       config_disks_id_options="${config_disks_id_options} ${config_disk_devsde_id_option}"
       config_disks_label="${config_disks_label}, ${config_disk_devsde}"
@@ -806,6 +833,10 @@ function linode_api_admin() {
     # Convert the disk label to ID if not empty
     if [[ -n "${config_disk_devsdf}" ]]; then
       config_disk_devsdf_id=$(${LINODE_CLI_BIN} linodes disks-list "${linode_id}" --json --pretty | ${JQ_BIN} ".[] | select(.label == \"${config_disk_devsdf}\") | .id")
+      if [ -z "${config_disk_devsdf_id}" ]; then
+        echo "[${SCRIPT_NAME}]: Warning, disk ${config_disk_devsdf} not found. Please check if the disk label is exist in linode disk"
+        _exit 1
+      fi
       config_disk_devsdf_id_option="--devices.sdf.disk_id ${config_disk_devsdf_id}"
       config_disks_id_options="${config_disks_id_options} ${config_disk_devsdf_id_option}"
       config_disks_label="${config_disks_label}, ${config_disk_devsdf}"
@@ -814,6 +845,10 @@ function linode_api_admin() {
     # Convert the disk label to ID if not empty
     if [[ -n "${config_disk_devsdg}" ]]; then
       config_disk_devsdg_id=$(${LINODE_CLI_BIN} linodes disks-list "${linode_id}" --json --pretty | ${JQ_BIN} ".[] | select(.label == \"${config_disk_devsdg}\") | .id")
+      if [ -z "${config_disk_devsdg_id}" ]; then
+        echo "[${SCRIPT_NAME}]: Warning, disk ${config_disk_devsdg} not found. Please check if the disk label is exist in linode disk"
+        _exit 1
+      fi
       config_disk_devsdg_id_option="--devices.sdg.disk_id ${config_disk_devsdg_id}"
       config_disks_id_options="${config_disks_id_options} ${config_disk_devsdg_id_option}"
       config_disks_label="${config_disks_label}, ${config_disk_devsdg}"
@@ -822,6 +857,10 @@ function linode_api_admin() {
     # Convert the disk label to ID if not empty
     if [[ -n "${config_disk_devsdh}" ]]; then
       config_disk_devsdh_id=$(${LINODE_CLI_BIN} linodes disks-list "${linode_id}" --json --pretty | ${JQ_BIN} ".[] | select(.label == \"${config_disk_devsdh}\") | .id")
+      if [ -z "${config_disk_devsdh_id}" ]; then
+        echo "[${SCRIPT_NAME}]: Warning, disk ${config_disk_devsdh} not found. Please check if the disk label is exist in linode disk"
+        _exit 1
+      fi
       config_disk_devsdh_id_option="--devices.sdh.disk_id ${config_disk_devsdh_id}"
       config_disks_id_options="${config_disks_id_options} ${config_disk_devsdh_id_option}"
       config_disks_label="${config_disks_label}, ${config_disk_devsdh}"
@@ -832,16 +871,16 @@ function linode_api_admin() {
 
     #echo "Config_value:pre_${config_disks}_post"
 
-    if [[ "${config_disks_id_options}" =~ ^[[:blank:]][[:blank:]]*$ ]]; then
-      echo "[${SCRIPT_NAME}]: Config disk option is blank. Linode will boot in rescue mode without mounting any disks"
+    if [[ -z "${config_disks_id_options}" ]]; then
+      echo "[${SCRIPT_NAME}]: Config disk option is blank. Linode will boot into rescue mode without mounting any disks"
     else
-      echo "[${SCRIPT_NAME}]: Notice, Linode will boot in rescue mode and mounting the following disk(s) in order:"
+      echo "[${SCRIPT_NAME}]: Notice, Linode will boot into rescue mode and mount the following disk(s) in order:"
       echo ""
       echo "Disk Label: ${config_disks_label}"
       echo "Disk ID: ${config_disks_id_options}"
       echo ""
     fi
-
+    echo "[${SCRIPT_NAME}]: Putting linode ${hostname_fqdn} into rescue mode ..."
     ${LINODE_CLI_BIN} linodes rescue "${linode_id}" ${config_disks_id_options}
     echo "[${SCRIPT_NAME}]: Allowing ${wait_time} seconds to finish booting into rescue mode"
     sleep ${wait_time}
@@ -984,8 +1023,9 @@ function linode_api_admin() {
     done
   elif [[ "${action}" == "restart-linode" || "${action}" == "reboot-linode" || "${action}" == "restart" || "${action}" == "reboot" ]]; then
     shift
-    local linode_id hostname_fqdn
+    local linode_id hostname_fqdn wait_time
     hostname_fqdn="$1"
+    wait_time=10
     local retval
     host "${hostname_fqdn}" >/dev/null 2>&1
     retval=$?
@@ -1000,6 +1040,22 @@ function linode_api_admin() {
     echo "[${SCRIPT_NAME}]: Rebooting linode ${hostname_fqdn} ..."
     linode_id=$(${LINODE_CLI_BIN} linodes list --json --pretty | ${JQ_BIN} ".[] | select(.label == \"${hostname_fqdn}\") | .id")
     ${LINODE_CLI_BIN} linodes reboot "${linode_id}"
+
+    echo "[${SCRIPT_NAME}]: Allowing ${wait_time} seconds to finish rebooting using config ${config_label}"
+    sleep ${wait_time}
+    while :; do
+      linode_status=$(${LINODE_CLI_BIN} linodes view "${linode_id}" --json --pretty | ${JQ_BIN} -r ".[] | .status")
+      if [[ "${linode_status}" == "running" ]]; then
+        echo "[${SCRIPT_NAME}]: Success, linode ${hostname_fqdn} has been successfully rebooted"
+        echo "[${SCRIPT_NAME}]: Server status is: ${linode_status}"
+        break
+      else
+        echo "[${SCRIPT_NAME}]: Linode status is: ${linode_status}"
+        echo "[${SCRIPT_NAME}]: Allowing ${wait_time} seconds to finish rebooting"
+        sleep ${wait_time}
+      fi
+    done
+
   # linode-api view-linode
   # linode-api view-linode <hostname_fqdn>
   elif [[ "${action}" == "view-linode" || "${action}" == "lookup-linode" ]]; then
@@ -8608,6 +8664,9 @@ fi
 # A global variable that temporarily holds seconds value
 HOLD_SECONDS=0
 
+# A global variable that temporarily holds the current path
+PREPATH="${PWD}"
+
 DISTRO_ID=$(get_linux_os "id")
 #DISTRO_VERSION=$(get_linux_os "version")
 
@@ -9059,9 +9118,9 @@ while [ "$#" -gt 0 ]; do
     exit 0
     break
     ;;
-  # Deprecated, only use this for reboot, restart etc ...
+  # Deprecated, only use this for reboot, restart of linode etc ...
   # lish-login <option>
-  -ll | --lish-login | --lish)
+  -ll | --lish-login | --lish | lish-login)
     shift
     options="$*"
     # Only run this in local machine
@@ -9074,6 +9133,264 @@ while [ "$#" -gt 0 ]; do
     #echo "Allowing 30 seconds finish copying ..."
     #sleep 30
     ssh -i /root/.ssh/linodelish.id_rsa -tt "${DNS_PROVIDER_USER}@${DNS_PROVIDER_TERMINAL_SERVER}" "${BOX_HOSTNAME_FQDN}" ${options}
+    exit 0
+    break
+    ;;
+  # This will generate a modified operating system ISO file that can be used to automatically install OS when booting.
+  # TODO this working 100% but using simple-cdd package is a new way to automated this installation.
+  # TODO create a new option whether to use this approach or simple-cdd
+  -ci | --create-iso | --preseediso)
+    action="$1"
+    shift
+    iso_os="${BOX_ISO_OS_TYPE}"
+    option="$1"
+    if [ $# -gt 2 ]; then
+      echo "Argument shouldn't be more than 2 for now. See --help for more information"
+      _exit 1
+    fi
+    if [ "${iso_os}" == "debian" ]; then
+      echo "Building a custom ${iso_os} image file for server setup ..."
+      ROOT_TEMP_PATH="/root/mytemp/debian"
+      IRMOD="/root/mytemp/debian/irmod"
+      ISOFILE="${ROOT_TEMP_PATH}/debian-netinst.iso"
+      ISOFILE_FINAL="${ROOT_TEMP_PATH}/debian-netinst-mod.iso"
+      ISOMOUNT_LOCATION="/mnt/debian-iso"
+      ISODIR_WRITE="${ROOT_TEMP_PATH}/ISODIR-rw"
+      PRESEED_FILE="${ROOT_TEMP_PATH}/preseed.txt"
+      ISO_URL="http://cdimage.debian.org/cdimage/release/current/amd64/iso-cd/debian-10.9.0-amd64-netinst.iso"
+
+      # == Automatic install missing components ====
+      # List out required components here as an array to automatically install them:
+      required_cmds=("genisoimage" "wget")
+      missing_count=0
+      install_success=0
+      for required_cmd in "${required_cmds[@]}"; do
+        if ! command -v "${required_cmd}" &>/dev/null; then
+          ((missing_count++))
+          echo "Warning, missing ${required_cmd} component. Installing ${required_cmd} ..."
+          # Debian
+          apt-get -y install "${required_cmd}"
+          retval=$?
+          if [[ ${retval} -eq 0 ]]; then
+            ((install_success++))
+          fi
+        fi
+      done
+      if [ "${missing_count}" -gt 0 ]; then
+        echo "There was/were ${missing_count} missing component(s) and ${install_success} component(s) was/were successfully installed!"
+      fi
+      # ================================================
+
+      mkdir -p "${ROOT_TEMP_PATH}"
+      mkdir -p "${ISOMOUNT_LOCATION}"
+      mkdir -p "${ISODIR_WRITE}"
+      mkdir -p "${IRMOD}"
+      echo ""
+
+      if mountpoint -q ${ISOMOUNT_LOCATION}; then
+      echo "Unmounting disk from ${ISOMOUNT_LOCATION} ..."
+      sudo umount -f ${ISOMOUNT_LOCATION}
+      fi
+
+      #echo "Removing previous files ..."
+      rm -rf "${IRMOD}"
+      rm -rf "${ISOFILE_FINAL}"
+      rm -rf "${ISODIR_WRITE}"
+      rm -rf "${PRESEED_FILE}"
+
+      echo ""
+      if [[ "${option}" == "--update-iso" || -z "${option}" ]]; then
+        if [ -f ${ISOFILE} ]; then
+          rm -rf "${ISOFILE}"
+          echo "Re-downloading system image ..."
+        else
+          echo "Downloading new system image ..."
+        fi
+
+        wget -nc -O ${ISOFILE} ${ISO_URL} || true
+      elif [[ "${option}" == "--no-update-iso" ]]; then
+        :
+        # Do nothing
+      else
+        echo "Invalid option supplied: ${option}"
+        echo "${SCRIPT_NAME} ${action} --update-iso , to download the new ISO file where --update-iso is a default command if not specified"
+        echo "${SCRIPT_NAME} ${action} --no-update-iso , to use existing ISO file"
+        _exit 1
+      fi
+      echo ""
+      echo "Mounting ISO file ${ISOFILE} into ${ISOMOUNT_LOCATION} ..."
+      sudo mount -o loop ${ISOFILE} ${ISOMOUNT_LOCATION}
+      echo ""
+
+      echo "Copying ISOFILE content into writeable directory ${ISODIR_WRITE} ..."
+      cp -rT ${ISOMOUNT_LOCATION}/ ${ISODIR_WRITE}/
+      # rsync -a -H --exclude=TRANS.TBL ${ISOMOUNT_LOCATION}/ ${ISODIR_WRITE}
+      echo ""
+      echo "Unmounting ISO ${ISOFILE} from ${ISOMOUNT_LOCATION} ..."
+      umount ${ISOMOUNT_LOCATION}
+      echo ""
+      #echo "Correcting permissions ..."
+      #chmod 755 -R ${ISODIR_WRITE}
+      #echo ""
+
+      echo "Writing new preseed file config ..."
+      {
+        echo "# ==============================================="
+        echo "# This configuration file was generated by ${SCRIPT_NAME}"
+        echo "# Author: ${ADMIN_NAME} | Email: ${ADMIN_EMAIL} | Web: ${BOX_DOMAIN}"
+        echo "# ==============================================="
+        echo "#### Contents of the preconfiguration file (for buster)"
+        echo "### Localization"
+        echo "d-i debian-installer/locale string en_US"
+        echo "d-i debian-installer/language string en"
+        echo "d-i debian-installer/country string ${COUNTR}"
+        echo "d-i debian-installer/locale string en_US.UTF-8"
+        echo "### Keyboard selection"
+        echo "d-i keyboard-configuration/xkb-keymap select us"
+        echo "###  Network configuration"
+        echo "d-i netcfg/choose_interface select eth0"
+        # TODO create static IP here
+        #echo "d-i netcfg/disable_autoconfig boolean true"
+        #echo "d-i netcfg/dhcp_failed note"
+        #echo "d-i netcfg/dhcp_options select Configure network manually"
+        #echo "### Static network configuration"
+        #echo "# IPv4 example"
+        #echo "d-i netcfg/get_ipaddress string ${IPV4_ADD0}"
+        #echo "d-i netcfg/get_netmask string ${IPV4_NETMASK0}"
+        #echo "d-i netcfg/get_gateway string ${IPV4_DEF_GATEWAY0}"
+        #echo "d-i netcfg/get_nameservers string ${NAME_SERVER1}"
+        #echo "d-i netcfg/confirm_static boolean true"
+        #echo "# IPv6 example"
+        #echo "d-i netcfg/get_ipaddress string ${IPV6_ADD0}"
+        #echo "d-i netcfg/get_netmask string ${IPV6_NETMASK0}"
+        #echo "d-i netcfg/get_gateway string ${IPV6_DEF_GATEWAY0}"
+        #echo "d-i netcfg/get_nameservers string ${NAME_SERVER1}"
+        #echo "d-i netcfg/confirm_static boolean true"
+        echo "d-i netcfg/get_hostname string ${BOX_HOSTNAME}"
+        echo "d-i netcfg/get_domain string ${BOX_DOMAIN}"
+        echo "d-i netcfg/hostname string ${BOX_HOSTNAME_FQDN}"
+        echo "d-i netcfg/wireless_wep string"
+
+        echo "d-i mirror/country string manual"
+        echo "d-i mirror/http/hostname string deb.debian.org"
+        echo "d-i mirror/http/directory string /debian"
+        echo "d-i mirror/http/proxy string"
+        echo "d-i passwd/make-user boolean false"
+        echo "d-i passwd/root-password password ${ROOT_USERPASS}"
+        echo "d-i passwd/root-password-again password ${ROOT_USERPASS}"
+        echo "d-i clock-setup/utc boolean true"
+        echo "d-i time/zone string ${BOX_TIMEZONE}"
+        echo "d-i clock-setup/ntp boolean true"
+        # TODO make a custom LUKS partition here
+        echo "d-i partman-auto/disk string /dev/sda"
+        echo "d-i partman-auto/method string lvm"
+        echo "d-i partman-auto-lvm/guided_size string max"
+        echo "d-i partman-lvm/device_remove_lvm boolean true"
+        echo "d-i partman-md/device_remove_md boolean true"
+        echo "d-i partman-lvm/confirm boolean true"
+        echo "d-i partman-lvm/confirm_nooverwrite boolean true"
+        echo "d-i partman-auto/choose_recipe select atomic"
+        echo "d-i partman-partitioning/confirm_write_new_label boolean true"
+        echo "d-i partman/choose_partition select finish"
+        echo "d-i partman/confirm boolean true"
+        echo "d-i partman/confirm_nooverwrite boolean true"
+        echo "d-i partman-md/confirm boolean true"
+        echo "d-i partman-partitioning/confirm_write_new_label boolean true"
+        echo "d-i partman/choose_partition select finish"
+        echo "d-i partman/confirm boolean true"
+        echo "d-i partman/confirm_nooverwrite boolean true"
+        echo "d-i apt-setup/use_mirror boolean false"
+        echo "tasksel tasksel/first multiselect standard, ssh-server"
+        echo "popularity-contest popularity-contest/participate boolean false"
+        echo "d-i grub-installer/only_debian boolean true"
+        #echo "d-i grub-installer/with_other_os boolean true"
+        echo "d-i finish-install/reboot_in_progress note"
+
+      } >"${PRESEED_FILE}"
+      echo ""
+      # Here I write custom preseed file based on CONFIG
+      echo "Copying raw preseed file into ${ISODIR_WRITE}/preseed.cfg ..."
+      cp "${PRESEED_FILE}" ${ISODIR_WRITE}/preseed.cfg
+      chmod 555 ${ISODIR_WRITE}/preseed.cfg
+      echo ""
+
+      echo 'Editing isolinux/txt.cfg to add argument ...'
+      sed 's/initrd.gz/initrd.gz file=\/cdrom\/preseed.cfg locale=en_US.UTF-8 keymap=us language=us country=MY/' -i ${ISODIR_WRITE}/isolinux/txt.cfg
+      echo ""
+
+      #cd_to_path "${IRMOD}"
+      #echo "Extracting initrd.gz ..."
+      #sudo gzip -d <${ISODIR_WRITE}/install.amd/initrd.gz | sudo cpio --extract --make-directories --no-absolute-filenames
+      #echo ""
+      #echo "Copying raw preseed file into ${IRMOD}/preseed.cfg ..."
+      #cp "${PRESEED_FILE}" preseed.cfg
+      #echo ""
+      #echo "Setting preseed.cfg user to own by root:root ..."
+      #chown root:root preseed.cfg
+      #echo ""
+      #echo "Lower the initrd.gz permission to o+w ..."
+      #chmod o+w ${ISODIR_WRITE}/install.amd/initrd.gz
+      #echo ""
+      #echo "Inserting preseed.cfg (the only file created in directory) into initrd.gz ..."
+      #find . | cpio -H newc --create | gzip -9 >${ISODIR_WRITE}/install.amd/initrd.gz
+      #echo ""
+      #echo "Change the initrd.gz permission to o-w ..."
+      #chmod o-w ${ISODIR_WRITE}/install.amd/initrd.gz
+      #echo ""
+      #cd_to_path "OLDPWD"
+      #echo "Removing directory ${IRMOD} ..."
+      #rm -rf "${IRMOD}"
+      #echo "=============="
+
+      echo "Changing permission of ${ISODIR_WRITE}/preseed.cfg to own by root:root ..."
+      chown root:root ${ISODIR_WRITE}/preseed.cfg
+      echo ""
+      echo "Lower the files permission from ${ISODIR_WRITE}/install.amd to +w ..."
+      chmod +w -R "${ISODIR_WRITE}/install.amd"
+      echo ""
+      echo "Unzipping initrd.gz"
+      gunzip "${ISODIR_WRITE}/install.amd/initrd.gz"
+      echo ""
+      echo "Inserting preseed.cfg in initrd ..."
+      echo ${ISODIR_WRITE}/preseed.cfg | cpio -H newc -o -A -F "${ISODIR_WRITE}/install.amd/initrd"
+      echo ""
+      ##exit 1
+      echo "Zipping initrd as initrd.gz ..."
+      gzip ${ISODIR_WRITE}/install.amd/initrd
+      echo ""
+      echo "Change the folder permission of ${ISODIR_WRITE}/install.amd/ to -w ..."
+      chmod -w -R ${ISODIR_WRITE}/install.amd/
+      echo ""
+
+      echo "Fixing md5sum checksum ..."
+      cd_to_path "${ISODIR_WRITE}"
+      #pushd ${ISODIR_WRITE}
+      #  md5sum $(find -type f) > md5sum.txt
+      #popd
+
+      # A warning will be issued because ./debian is a symlink to . :
+      # find: File system loop detected; ‘./debian’ is part of the same file system loop as ‘.’ :
+      chmod +w md5sum.txt
+      find "${ISODIR_WRITE}" -follow -type f ! -name md5sum.txt -print0 | xargs -0 md5sum >md5sum.txt
+      chmod -w md5sum.txt
+
+      #cd_to_path "${ROOT_TEMP_PATH}"
+      #echo "The final path is ${PREPATH}"
+      echo ""
+      #exit 1
+      echo "Creating ISO ..."
+      genisoimage -r -J -b isolinux/isolinux.bin -c isolinux/boot.cat -no-emul-boot -boot-load-size 4 -boot-info-table -o "${ISOFILE_FINAL}" "${ISODIR_WRITE}"
+      echo ""
+      # Copying to shared folder
+      echo "Creating installation disk at /root/shared/maxisetup/storage/os/debian/debian10-mod.iso ..."
+      cp "${ISOFILE_FINAL}" "/root/shared/maxisetup/storage/os/debian/debian10-mod.iso"
+      #xorriso -as mkisofs -o ${ISOFILE_FINAL} \
+      #  -isohybrid-mbr /usr/lib/ISOLINUX/isohdpfx.bin \
+      #  -c isolinux/boot.cat -b isolinux/isolinux.bin -no-emul-boot \
+      #  -boot-load-size 4 -boot-info-table ${ISODIR_WRITE}
+
+    fi
+
     exit 0
     break
     ;;
