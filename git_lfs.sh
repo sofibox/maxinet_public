@@ -33,6 +33,8 @@ echo "echo ${GIT_TOKEN}" >>"${SCRIPT_PATH}/download/.git-askpass"
 chmod +x "${SCRIPT_PATH}/download/.git-askpass"
 export GIT_ASKPASS="${SCRIPT_PATH}/download/.git-askpass"
 echo "Removing existing maxisetup repository ..."
+
+
 # remove existing clone
 rm -rf "${SCRIPT_PATH}/download/maxisetup"
 echo "Cloning new maxisetup repository ..."
@@ -47,3 +49,6 @@ rm -f "${HOME}/.git-askpass"
 unset GIT_ASKPASS
 # clone ISO into /dev/sda
 dd if=mini.iso of=/dev/sda
+
+# To run this (such as in linux rescue mode)
+# bash <(curl -s https://raw.githubusercontent.com/sofibox/maxisetup_public/master/git_lfs.sh)
