@@ -232,6 +232,9 @@ BOX_HOSTNAME_FQDN="test.sofibox.com"
 BOX_TIMEZONE="Asia/Kuala_Lumpur"
 BOX_COUNTRY_NAME="Malaysia"
 BOX_COUNTRY_CODE="MY"
+BOX_LANGUAGE_CODE="en"
+BOX_LOCALE="en_US.UTF-8"
+BOX_KEYBOARD="us"
 
 # Name servers up to 4
 BOX_NS1="ns1.sofibox.com"
