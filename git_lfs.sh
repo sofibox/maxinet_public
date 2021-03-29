@@ -7,6 +7,11 @@ SCRIPT_PATH="$(dirname "$(readlink -f "$0")")"
 SETUP_GIT_URL="https://token@github.com/sofibox/maxisetup.git"
 GIT_TOKEN="YOUR-GIT-TOKEN-KEY"
 
+if [[ "${GIT_TOKEN}" == "YOUR-GIT-TOKEN-KEY" || -z "${GIT_TOKEN}" ]]; then
+  read -r -s -p "Enter GIT TOKEN: " GIT_TOKEN
+  echo
+fi
+
 # Install git
 if ! command -v git &>/dev/null; then
 	sudo apt-get -y install git
