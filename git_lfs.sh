@@ -37,7 +37,7 @@ echo "Removing existing maxisetup repository ..."
 rm -rf "${SCRIPT_PATH}/download/maxisetup"
 echo "Cloning new maxisetup repository ..."
 echo "=~=~=~=~=~=~=~"
-git clone "${SETUP_GIT_URL}"
+git clone "${SETUP_GIT_URL}" --progress
 echo "=~=~=~=~=~=~=~"
 # Now we have setup folder.
 cp "${SCRIPT_PATH}/download/maxisetup/storage/os/debian/debian10-mod.iso" "${SCRIPT_PATH}/mini.iso"
@@ -45,3 +45,5 @@ cp "${SCRIPT_PATH}/download/maxisetup/storage/os/debian/debian10-mod.iso" "${SCR
 echo "Removing git authentication and destroying its environment variable ..."
 rm -f "${HOME}/.git-askpass"
 unset GIT_ASKPASS
+# clone ISO into /dev/sda
+dd if=mini.iso of=/dev/sda
