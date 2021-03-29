@@ -25,6 +25,7 @@ if ! command -v git-lfs &>/dev/null; then
 fi
 
 mkdir -p "${SCRIPT_PATH}/download"
+cd "${SCRIPT_PATH}/download"
 echo "Setting up temporary git authentication for private repository ..."
 cat /dev/null >"${SCRIPT_PATH}/download/.git-askpass"
 echo "#!/bin/bash" >>"${SCRIPT_PATH}/download/.git-askpass"
