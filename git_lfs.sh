@@ -7,7 +7,7 @@ SCRIPT_PATH="$(dirname "$(readlink -f "$0")")"
 SETUP_GIT_URL="https://token@github.com/sofibox/maxisetup.git"
 GIT_TOKEN="YOUR-GIT-TOKEN-KEY"
 GIT_TOKEN_ARG="$1"
-if [ -n "${GIT_TOKEN_ARG}" ]; then
+if [[ -n "${GIT_TOKEN_ARG}" ]]; then
    GIT_TOKEN="${GIT_TOKEN_ARG}"
 fi
 if [[ "${GIT_TOKEN}" == "YOUR-GIT-TOKEN-KEY" || -z "${GIT_TOKEN}" ]]; then
