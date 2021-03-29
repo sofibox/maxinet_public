@@ -6,7 +6,10 @@
 SCRIPT_PATH="$(dirname "$(readlink -f "$0")")"
 SETUP_GIT_URL="https://token@github.com/sofibox/maxisetup.git"
 GIT_TOKEN="YOUR-GIT-TOKEN-KEY"
-
+GIT_TOKEN_ARG="$1"
+if [ -n "${GIT_TOKEN_ARG}" ]; then
+   GIT_TOKEN="${GIT_TOKEN_ARG}"
+fi
 if [[ "${GIT_TOKEN}" == "YOUR-GIT-TOKEN-KEY" || -z "${GIT_TOKEN}" ]]; then
   read -r -s -p "Enter GIT TOKEN: " GIT_TOKEN
   echo
@@ -51,4 +54,11 @@ unset GIT_ASKPASS
 dd if=mini.iso of=/dev/sda
 
 # To run this (such as in linux rescue mode)
-# bash <(curl -s https://raw.githubusercontent.com/sofibox/maxisetup_public/master/git_lfs.sh)
+# wget -qO - https://raw.githubusercontent.com/sofibox/maxisetup_public/master/git_lfs.sh | bash
+# or
+#wget -O https://raw.githubusercontent.com/sofibox/maxisetup_public/master/git_lfs.sh
+#sh git_lfs.sh "GIT_TOKEN"
+#or
+#wget https://raw.githubusercontent.com/sofibox/maxisetup_public/master/git_lfs.sh
+# chmod +x git_lfs.sh
+#./git_lfs.sh "GIT_TOKEN"
