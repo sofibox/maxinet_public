@@ -10,8 +10,10 @@
     <select />
   </component>
   <component name="ChangeListManager">
-    <list default="true" id="113c828c-9a32-4b24-ab1e-978ce50c6320" name="Default Changelist" comment="Added the ability to build an ISO file with preseed config used to customize server installation. This ISO file will automatically install server without any interaction.&#10;Updated cd_to_path function to store previous path&#10;Improved linode API&#10;&#10;New variables:&#10;&#10;IPV4_NETMASK0=&#10;IPV6_NETMASK0=&#10;BOX_COUNTRY_NAME=&quot;Malaysia&quot;&#10;BOX_COUNTRY_CODE=&quot;MY&quot;">
+    <list default="true" id="113c828c-9a32-4b24-ab1e-978ce50c6320" name="Default Changelist" comment="Improved iso-creation and modified new preseed configs&#10;&#10;New variables:&#10;&#10;BOX_LANGUAGE_CODE=&quot;en&quot;&#10;BOX_LOCALE=&quot;en_US.UTF-8&quot;&#10;BOX_KEYBOARD=&quot;us&quot;">
+      <change afterPath="$PROJECT_DIR$/git_lfs.sh" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/maxisetup" beforeDir="false" afterPath="$PROJECT_DIR$/maxisetup" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -53,15 +55,13 @@
     </key>
   </component>
   <component name="RunManager">
-    <configuration default="true" type="ArquillianTestNG" factoryName="" nameIsGenerated="true">
+    <configuration default="true" type="ArquillianJUnit" factoryName="" nameIsGenerated="true">
       <option name="arquillianRunConfiguration">
         <value>
           <option name="containerStateName" value="" />
         </value>
       </option>
-      <option name="TEST_OBJECT" value="CLASS" />
-      <properties />
-      <listeners />
+      <option name="TEST_OBJECT" value="class" />
       <method v="2">
         <option name="Make" enabled="true" />
       </method>
@@ -140,13 +140,8 @@
       <workItem from="1616485060127" duration="218000" />
       <workItem from="1616775489791" duration="247000" />
       <workItem from="1616967729570" duration="663000" />
-    </task>
-    <task id="LOCAL-00018" summary="Update DA API to be able to obtain the value of domain DNS record, dmarc, spf and dkim. These 3 values are important to have in order to prevent website or email spams. We will pass this value to external DNS such as linode (if it's enabled in ENV file as the external DNS provider)">
-      <created>1611677049887</created>
-      <option name="number" value="00018" />
-      <option name="presentableId" value="LOCAL-00018" />
-      <option name="project" value="LOCAL" />
-      <updated>1611677049887</updated>
+      <workItem from="1616992234065" duration="657000" />
+      <workItem from="1617015443162" duration="350000" />
     </task>
     <task id="LOCAL-00019" summary="Add additional information about the script feature">
       <created>1611679482448</created>
@@ -484,7 +479,14 @@
       <option name="project" value="LOCAL" />
       <updated>1616967783378</updated>
     </task>
-    <option name="localTasksCounter" value="67" />
+    <task id="LOCAL-00067" summary="Improved iso-creation and modified new preseed configs&#10;&#10;New variables:&#10;&#10;BOX_LANGUAGE_CODE=&quot;en&quot;&#10;BOX_LOCALE=&quot;en_US.UTF-8&quot;&#10;BOX_KEYBOARD=&quot;us&quot;">
+      <created>1616992282790</created>
+      <option name="number" value="00067" />
+      <option name="presentableId" value="LOCAL-00067" />
+      <option name="project" value="LOCAL" />
+      <updated>1616992282790</updated>
+    </task>
+    <option name="localTasksCounter" value="68" />
     <servers />
   </component>
   <component name="TypeScriptGeneratedFilesManager">
@@ -503,7 +505,6 @@
     <option name="oldMeFiltersMigrated" value="true" />
   </component>
   <component name="VcsManagerConfiguration">
-    <MESSAGE value="Improved documentation LUKS.md (private repo)&#10;Increased max_wait value for restarting wait time for 120 seconds&#10;Fixed missing argument for set max_username_length&#10;Fixed checking mysqld process doesn't detect running mysql process when using pgrep command. Changed code from &#10;&#10;if pgrep -x &quot;mysqld&quot; &gt;/dev/null 2&gt;&amp;1; then&#10;&#10;to &#10;&#10;if command -v mysqld &amp;&gt;/dev/null; then" />
     <MESSAGE value="Add vps_setup_luks.md for tutorial setting up encryption partition" />
     <MESSAGE value="Updated vps_setup_luks.md" />
     <MESSAGE value="Added reference for LUKS.md (private repo)&#10;Added new checking for changing variable GRUB_CMDLINE_LINUX in /etc/default/grub. If the variable is empty, we create new not append." />
@@ -528,6 +529,7 @@
     <MESSAGE value="Improved linode API and other small changes" />
     <MESSAGE value="Improved linode API" />
     <MESSAGE value="Added the ability to build an ISO file with preseed config used to customize server installation. This ISO file will automatically install server without any interaction.&#10;Updated cd_to_path function to store previous path&#10;Improved linode API&#10;&#10;New variables:&#10;&#10;IPV4_NETMASK0=&#10;IPV6_NETMASK0=&#10;BOX_COUNTRY_NAME=&quot;Malaysia&quot;&#10;BOX_COUNTRY_CODE=&quot;MY&quot;" />
-    <option name="LAST_COMMIT_MESSAGE" value="Added the ability to build an ISO file with preseed config used to customize server installation. This ISO file will automatically install server without any interaction.&#10;Updated cd_to_path function to store previous path&#10;Improved linode API&#10;&#10;New variables:&#10;&#10;IPV4_NETMASK0=&#10;IPV6_NETMASK0=&#10;BOX_COUNTRY_NAME=&quot;Malaysia&quot;&#10;BOX_COUNTRY_CODE=&quot;MY&quot;" />
+    <MESSAGE value="Improved iso-creation and modified new preseed configs&#10;&#10;New variables:&#10;&#10;BOX_LANGUAGE_CODE=&quot;en&quot;&#10;BOX_LOCALE=&quot;en_US.UTF-8&quot;&#10;BOX_KEYBOARD=&quot;us&quot;" />
+    <option name="LAST_COMMIT_MESSAGE" value="Improved iso-creation and modified new preseed configs&#10;&#10;New variables:&#10;&#10;BOX_LANGUAGE_CODE=&quot;en&quot;&#10;BOX_LOCALE=&quot;en_US.UTF-8&quot;&#10;BOX_KEYBOARD=&quot;us&quot;" />
   </component>
 </project>

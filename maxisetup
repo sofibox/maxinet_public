@@ -3,7 +3,7 @@
 # Author: Arafat Ali | Email: webmaster@sofibox.com
 APP_SPECIFIC_NAME="Maxisetup"
 APP_STATUS="beta"
-APP_VERSION="0.4.1.8-${APP_STATUS}"
+APP_VERSION="0.4.1.9-${APP_STATUS}"
 # This is an initial server hardening script for CentOS and Debian.
 # Compatible 100% with Directadmin. Supported OS: CentOS + Debian (Planned on FreeBSD)
 # You can choose to install as the other stack server such as LEMP, (TODO) Laravel and more defined in config file
@@ -426,6 +426,13 @@ function get_rnd_alpha() {
   length="$1"
   tr -dc A-Za-z </dev/urandom | head -c "${length}"
   echo ''
+}
+# This function will transform a plain-text password into a hash encrypted password + salt generation which is more secure
+# eg: test=$(get_hash_pwd "mypassword")
+function get_hash_pwd() {
+  local password="$1" sha_pass
+  sha_pass=$(mkpasswd -m sha-512 -S "$(pwgen -ns 16 1)" "$1")
+  echo "${sha_pass}"
 }
 
 # This function will pause the current running terminal
@@ -9160,7 +9167,7 @@ while [ "$#" -gt 0 ]; do
       DEBIAN_SELECT_VERSION="10.9.0"
       DEBIAN_SELECT_PLATFORM="amd64"
       ISO_URL="http://cdimage.debian.org/cdimage/release/current/amd64/iso-cd/debian-${DEBIAN_SELECT_VERSION}-${DEBIAN_SELECT_PLATFORM}-netinst.iso"
-      ISO_OUTPUT_PATH="/root/shared/maxisetup/debian10xx.iso"
+      ISO_OUTPUT_PATH="/root/shared/maxisetup/storage/os/debian/debian10-mod.iso"
 
       # == Automatic install missing components ====
       # List out required components here as an array to automatically install them:
@@ -9297,8 +9304,10 @@ while [ "$#" -gt 0 ]; do
         echo "d-i passwd/make-user boolean false"
 
         echo "# Set root password"
-        echo "d-i passwd/root-password password abma892xx892999--"
-        echo "d-i passwd/root-password-again password abma892xx892999--"
+        #echo "d-i passwd/root-password password ${ROOT_USERPASS_INITIAL}"
+        #echo "d-i passwd/root-password-again password ${ROOT_USERPASS_INITIAL}"
+        echo "# or encrypted using a crypt(3)  hash."
+        echo "d-i passwd/root-password-crypted password $(get_hash_pwd "${ROOT_USERPASS_INITIAL}")"
         echo ""
         echo "### Clock and time zone setup"
         echo "# Set hardware clock to UTC"
@@ -9374,10 +9383,19 @@ while [ "$#" -gt 0 ]; do
       chmod 555 ${ISODIR_WRITE}/preseed.cfg
       echo ""
 
-      echo 'Editing isolinux/txt.cfg to add extra arguments for initial setup ...'
+      # For text menu setup
+      echo "Editing isolinux/txt.cfg to add extra arguments for initial setup ..."
       sed -i "s/initrd.gz/initrd.gz file=\/cdrom\/preseed.cfg locale=${BOX_LOCALE} keymap=${BOX_KEYBOARD} language=${BOX_LANGUAGE_CODE} country=${BOX_COUNTRY_CODE}/" ${ISODIR_WRITE}/isolinux/txt.cfg
       echo ""
 
+      # For graphic menu setup
+      echo "Editing isolinux/gtk.cfg to add extra arguments for initial setup ..."
+      sed -i "s/initrd.gz/initrd.gz file=\/cdrom\/preseed.cfg locale=${BOX_LOCALE} keymap=${BOX_KEYBOARD} language=${BOX_LANGUAGE_CODE} country=${BOX_COUNTRY_CODE}/" ${ISODIR_WRITE}/isolinux/gtk.cfg
+      echo ""
+
+      echo "Editing isolinux/isolinux.cfg to disable setup menu (straight to the first menu on startup) ..."
+      sed -i "s/timeout 0/timeout 1/" ${ISODIR_WRITE}/isolinux/isolinux.cfg
+      echo ""
       #cd_to_path "${IRMOD}"
       #echo "Extracting initrd.gz ..."
       #sudo gzip -d <${ISODIR_WRITE}/install.amd/initrd.gz | sudo cpio --extract --make-directories --no-absolute-filenames
@@ -9459,7 +9477,42 @@ while [ "$#" -gt 0 ]; do
     # Put any test scripts here
     # _confirm "Continue script? [y/Y]: "
     #linode_api_admin "boot-linode" "sun.sofibox.com" "Boot_Config"
-    ssh -i /root/.ssh/linodelish.id_rsa -tt "${DNS_PROVIDER_USER}@${DNS_PROVIDER_TERMINAL_SERVER}" "${BOX_HOSTNAME_FQDN}" <linode/lish_command.sh &
+    #ssh -i /root/.ssh/linodelish.id_rsa -tt "${DNS_PROVIDER_USER}@${DNS_PROVIDER_TERMINAL_SERVER}" "${BOX_HOSTNAME_FQDN}" <linode/lish_command.sh &
+    #test=$(get_hash_pwd "mypassword")
+    #echo "${test}"
+
+    # This one work for both CentOS and Debian
+    if ! command -v git &>/dev/null; then
+      sudo apt-get -y install git
+    fi
+    if ! command -v git-lfs &>/dev/null; then
+      curl -s https://packagecloud.io/install/repositories/github/git-lfs/script.deb.sh | sudo bash
+      sudo apt-get -y install git-lfs
+    fi
+
+    mkdir -p "${SCRIPT_PATH}/download"
+    cd_to_path "${SCRIPT_PATH}/download"
+    echo "[${SCRIPT_NAME}]: Setting up temporary git authentication for private repository ..." 2>&1 | tee -a "${REPORT_FILE}"
+    cat /dev/null >"${SCRIPT_PATH}/download/.git-askpass"
+    echo "#!/bin/bash" >>"${SCRIPT_PATH}/download/.git-askpass"
+    echo "echo ${GIT_TOKEN}" >>"${SCRIPT_PATH}/download/.git-askpass"
+    chmod +x "${SCRIPT_PATH}/download/.git-askpass"
+    export GIT_ASKPASS="${SCRIPT_PATH}/download/.git-askpass"
+
+    echo "[${SCRIPT_NAME}]: Removing existing maxisetup repository ..." 2>&1 | tee -a "${REPORT_FILE}"
+    # remove existing setup
+    rm -rf "${SCRIPT_PATH}/download/maxisetup"
+    echo "[${SCRIPT_NAME}]: Cloning new maxisetup repository ..." 2>&1 | tee -a "${REPORT_FILE}"
+    echo "=~=~=~=~=~=~=~"
+    git clone "${SETUP_GIT_URL}" 2>&1 | tee -a "${REPORT_FILE}"
+    echo "=~=~=~=~=~=~=~"
+    # Now we have setup folder.
+    cp "${SCRIPT_PATH}/download/maxisetup/storage/os/debian/debian10-mod.iso" ~/debiantest.iso
+    # Delete these files for security
+    echo "[${SCRIPT_NAME}]: Removing git authentication and destroying its environment variable ..." 2>&1 | tee -a "${REPORT_FILE}"
+    rm -f "${HOME}/.git-askpass"
+    unset GIT_ASKPASS
+
     exit 0
     break
     ;;
