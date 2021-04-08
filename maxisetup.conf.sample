@@ -220,6 +220,9 @@ SSH_USERPASS="*long-secured-password*"
 SSH_PUBLIC_KEY="ssh-rsa AAAAB3N***AAAQE***nsAQENik/Al***G/8***Y sofibox-auth-test.sofibox.com-v1"
 # vps | dedicated
 BOX_ISO_OS_TYPE="debian"
+# values: custom, normal, console | do not use console if system support GUI, else you will see blank UI
+# only use console for system that doesn't support graphic display, for example linode lish without glish.
+BOX_OS_INSTALL_UI="normal"
 BOX_TYPE="dedicated"
 BOX_MAIN_DISK="/dev/sda"
 BOX_MAIN_DISK_RAW_SIZE="size-in-MB"
@@ -246,8 +249,9 @@ BOX_NS4="ns4.sofibox.com"
 NIC_INTERFACE_NAME="eth0"
 IPV4_ADD0="123.111.50.185"
 IPV4_DEF_GATEWAY0="123.111.50.1"
+IPV4_NETMASK0="/24"
+IPV4_NETMASK_IP0="255.255.255.0"
 IPV6_ADD0="2400:8902::a02d:91ee:fe05:4db2"
-IPV4_NETMASK0="255.255.255.0"
 IPV6_DEF_GATEWAY0="fe80::1"
 IPV6_NETMASK0="/64"
 AUTO_LINK_DA_IP="yes" # or no - link or not link IP from

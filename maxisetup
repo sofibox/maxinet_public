@@ -3,7 +3,7 @@
 # Author: Arafat Ali | Email: webmaster@sofibox.com
 APP_SPECIFIC_NAME="Maxisetup"
 APP_STATUS="beta"
-APP_VERSION="0.4.1.9-${APP_STATUS}"
+APP_VERSION="0.4.2.0-${APP_STATUS}"
 # This is an initial server hardening script for CentOS and Debian.
 # Compatible 100% with Directadmin. Supported OS: CentOS + Debian (Planned on FreeBSD)
 # You can choose to install as the other stack server such as LEMP, (TODO) Laravel and more defined in config file
@@ -17,8 +17,11 @@ APP_VERSION="0.4.1.9-${APP_STATUS}"
 # TODO: enable --dry-run (that will simulate testing for this script)
 # TODO: provide an optional option to automatically create google domain verification TXT record through API (need Google business account at console) - Google site verification
 # TODO: create hostname and setup dkim, dmarc, at linode spf at linode (use common subdomain, ftp, mail, www, smtp, pop) - normally it should be created first before installing DA but dkim need to be updated.
-# TODO redirect error in error log file: exec 2>/usr/local/directadmin/customscripts.error.log
+# TODO: redirect error in error log file: exec 2>/usr/local/directadmin/customscripts.error.log
+# TODO: use finnix official image for booting instead of linode one.
+# TODO: This is the way how to check if port is available: https://unix.stackexchange.com/questions/6809/how-can-i-check-that-a-remote-computer-is-online-for-ssh-script-access
 # This function will validate if config is valid, if one of the variables missing, it will complain and exit
+
 function validate_config() {
   local count_user total_valid_user this_da_owner_uname
   echo "[${SCRIPT_NAME}]: Checking DA users configuration ... " 2>&1 | tee -a "${REPORT_FILE}"
@@ -418,6 +421,59 @@ function get_linux_os() {
   fi
 
 }
+
+# This will install required component automatically if doesn't exist,
+# It will do nothing if the component exist.
+# eg: install_required "htop" "vim"
+function install_required() {
+  required_cmds="$*"
+  missing_count=0
+  install_success=0
+  install_failed=0
+  detect_by=""
+  # Do not quote the array, we want split elements:
+  for required_cmd in ${required_cmds[*]}; do
+    #command -v "${required_cmd}" &>/dev/null
+    #cmd_status=$?
+    dpkg_status=$(
+      dpkg -s "${required_cmd}" 2>&1 | grep -qF "Status: install ok installed"
+      echo $?
+    )
+    if [[ "${dpkg_status}" -eq 1 ]]; then
+      ((missing_count++))
+
+      if [ "${dpkg_status}" -eq 1 ]; then
+        detect_by="dpkg_status"
+        # elif [ "${cmd_status}" = 1 ]; then
+        #   detect_by="cmd_status"
+        # elif [[ "${dpkg_status}" == 1 && "${cmd_status}" == 1 ]]; then
+        #   detect_by="dpkg_status and cmd_status"
+      fi
+      echo ""
+      echo "Warning, missing ${required_cmd} component detected by ${detect_by}. Installing ${required_cmd} ..."
+      if [ "${missing_count}" -eq 1 ]; then
+        echo ""
+        echo "Running apt-get update for the first missing package ..."
+        apt-get -y update
+        echo ""
+      fi
+      apt-get -y install "${required_cmd}"
+      retval=$?
+      if [[ "${retval}" -eq 0 ]]; then
+        ((install_success++))
+      else
+        ((install_failed++))
+      fi
+    fi
+  done
+  if [ "${missing_count}" -gt 0 ]; then
+    echo ""
+    echo "Total missing component: ${missing_count}"
+    echo "Total success installed: ${install_success}"
+    echo "Total failed installed: ${install_failed}"
+    echo ""
+  fi
+}
 # This is a random string that will return alphabet character (lower and uppercase)
 # syntax: get_rnd_alpha <length>
 # eg: get_rnd_alpha 10
@@ -473,6 +529,29 @@ function _exit() {
   exit "$1"
 }
 
+function _echo() {
+  option="$1"
+  shift
+  if [ "${option}" == "black" ]; then
+    echo -e "\033[1;30m${*}\033[0m"
+  elif [ "${option}" == "red" ]; then
+    echo -e "\033[1;31m${*}\033[0m"
+  elif [ "${option}" == "green" ]; then
+    echo -e "\033[1;32m${*}\033[0m"
+  elif [ "${option}" == "yellow" ]; then
+    echo -e "\033[1;33m${*}\033[0m"
+  elif [ "${option}" == "blue" ]; then
+    echo -e "\033[1;34m${*}\033[0m"
+  elif [ "${option}" == "purple" ]; then
+    echo -e "\033[1;35m${*}\033[0m"
+  elif [ "${option}" == "cyan" ]; then
+    echo -e "\033[1;36m${*}\033[0m"
+  else
+    # TODO test
+    echo -e "${*}"
+  fi
+}
+
 # This function is used to reboot the system using force reboot -r now without any arguments
 # syntax _reboot
 function _reboot() {
@@ -508,6 +587,194 @@ function cd_to_path() {
     echo "Failed to enter into directory" 2>&1 | tee -a "${REPORT_FILE}"
     _exit 1
   }
+}
+
+# Store long file text creation in function to avoid duplication
+# create_file <name> <optional_path>
+function create_file() {
+  local name path
+  name="$1"
+  path="$2"
+
+  if [[ ${name} == "debian-preseed" ]]; then
+    install_required "whois" "pwgen"
+    {
+      # 1 Good reading: https://serverfault.com/questions/893483/what-means-3-numbers-in-manual-partitioning-of-hdd-in-preseed-for-ubuntu
+      # 2 Useful setting for SSH: https://github.com/coreprocess/linux-unattended-installation/blob/master/ubuntu/20.04/custom/preseed.cfg
+      # 3 This one contains setting for CD rom not in new documentation: https://images.validation.linaro.org/kvm/debian-8.3.0-cd1-preseed.cfg
+      echo "# ==============================================="
+      echo "# This configuration file was generated by ${SCRIPT_NAME}"
+      echo "# Author: ${ADMIN_NAME} | Email: ${ADMIN_EMAIL} | Web: ${BOX_DOMAIN}"
+      echo "# ==============================================="
+      echo "#### Preseed preconfiguration file (for Debian buster)"
+      echo "### Kernal parameter"
+      echo "d-i debian-installer/add-kernel-opts string net.ifnames=0 biosdevname=0"
+      echo "### Localization"
+      #echo "Test: Fixing no common CDROM on linode:"
+      #=============================================
+      #https://lists.debian.org/debian-boot/2011/01/msg00169.html
+      #https://github.com/uweplonus/adia-install/blob/master/initrd/preseed.cfg#L3
+      #https://serverfault.com/questions/685302/unattended-installation-of-ubuntu-from-usb-drive-not-mounted-correctly
+      #echo "d-i partman/early_command string mount /dev/sdb /cdrom"
+      #echo "d-i preseed/early_command string mount /dev/sdb /cdrom"
+      #echo "d-i cdrom-detect/cdrom_device string /dev/sdb"
+      #echo "d-i preseed/early_command string \\"
+      #echo "umount /cdrom; \\"1
+      #echo "mkdir -p /cdrom; \\"
+      #echo "mount -t vfat /dev/sdb /cdrom;"
+      # All above fixes are not working (left it as reference) because this ISO installer doesn't support booting from hard drive. Need to follow this:
+      # https://www.debian.org/releases/buster/amd64/ch04s04.en.html (BOOTING WITH GRUB OR LILO)
+      #================================================
+      echo "d-i debian-installer/locale string ${BOX_LOCALE}"
+      echo "d-i debian-installer/language string ${BOX_LANGUAGE_CODE}"
+      echo "d-i debian-installer/country string ${BOX_COUNTRY_CODE}"
+      echo ""
+      echo "### Keyboard selection"
+      echo "d-i keyboard-configuration/xkb-keymap select ${BOX_KEYBOARD}"
+      echo ""
+      echo "###  Network configuration"
+      # This one has many bug reported in Debian forum, need to put in kernel parameter: netcfg/choose_interface eth0 (if not working)
+      echo "d-i netcfg/choose_interface select eth0"
+      echo "d-i netcfg/use_dhcp string false"
+      # If I disable autoconfig, I will get mirror error if network is not configured correctly
+      # Actually no need to set IP4 and IPv6 because I use late command is better.
+      echo "d-i netcfg/disable_autoconfig boolean true"
+      echo "d-i netcfg/dhcp_failed note"
+      echo "d-i netcfg/dhcp_options select Configure network manually"
+      echo "# IPv4 Static network configuration"
+      echo "d-i netcfg/get_ipaddress string ${IPV4_ADD0}"
+      echo "d-i netcfg/get_netmask string ${IPV4_NETMASK_IP0}"
+      echo "d-i netcfg/get_gateway string ${IPV4_DEF_GATEWAY0}"
+      echo "d-i netcfg/get_nameservers string ${NAME_SERVER1}"
+      echo "d-i netcfg/confirm_static boolean true"
+      echo ""
+      #echo "# IPv6 Static network configuration"
+      #echo "d-i netcfg/get_ipaddress string ${IPV6_ADD0}"
+      #echo "d-i netcfg/get_netmask string ${IPV6_NETMASK0}"
+      #echo "d-i netcfg/get_gateway string ${IPV6_DEF_GATEWAY0}"
+      #echo "d-i netcfg/get_nameservers string ${NAME_SERVER1}"
+      #echo "d-i netcfg/confirm_static boolean true"
+      #echo ""
+      echo "# Set a hostname"
+      echo "d-i netcfg/get_hostname string ${BOX_HOSTNAME}"
+      echo "d-i netcfg/get_domain string ${BOX_DOMAIN}"
+      echo "# Force a hostname"
+      echo "d-i netcfg/hostname string ${BOX_HOSTNAME_FQDN}"
+      echo "# Disable that annoying WEP key dialog"
+      echo "d-i netcfg/wireless_wep string"
+      echo ""
+      echo "### Mirror settings"
+      echo "d-i mirror/country string manual"
+      echo "d-i mirror/http/hostname string deb.debian.org"
+      echo "d-i mirror/http/directory string /debian"
+      echo "d-i mirror/http/proxy string"
+      echo ""
+      echo "### Account setup"
+      echo "# Skip creation of a normal user account"
+      echo "d-i passwd/make-user boolean false"
+
+      echo "# Set root password"
+      #echo "d-i passwd/root-password password ${ROOT_USERPASS_INITIAL}"
+      #echo "d-i passwd/root-password-again password ${ROOT_USERPASS_INITIAL}"
+      echo "# or encrypted using a crypt(3)  hash."
+      echo "d-i passwd/root-password-crypted password $(get_hash_pwd "${ROOT_USERPASS_INITIAL}")"
+      echo ""
+      echo "### Clock and time zone setup"
+      echo "# Set hardware clock to UTC"
+      echo "d-i clock-setup/utc boolean true"
+      echo "# Set timezone"
+      echo "d-i time/zone string ${BOX_TIMEZONE}"
+      echo "# Use NTP clock during installation"
+      echo "d-i clock-setup/ntp boolean true"
+      echo ""
+      echo "### Partitioning"
+      # TODO make a custom LUKS partition here
+      # Good reading :https://gist.github.com/chuckn246/ca24d26c048b3cc4ffa8188708f5dccf
+      # Another good one: https://www.linuxjournal.com/content/preseeding-full-disk-encryption
+      echo "d-i partman-auto/disk string ${BOX_MAIN_DISK}"
+      echo "d-i partman-auto/method string lvm"
+      echo "d-i partman-auto-lvm/guided_size string max"
+      echo "d-i partman-lvm/device_remove_lvm boolean true"
+      echo "d-i partman-md/device_remove_md boolean true"
+      echo "d-i partman-lvm/confirm boolean true"
+      echo "d-i partman-lvm/confirm_nooverwrite boolean true"
+      echo "d-i partman-auto/choose_recipe select atomic"
+      echo "d-i partman-partitioning/confirm_write_new_label boolean true"
+      echo "d-i partman/choose_partition select finish"
+      echo "d-i partman/confirm boolean true"
+      echo "d-i partman/confirm_nooverwrite boolean true"
+      echo "d-i partman-md/confirm boolean true"
+      echo "d-i partman-partitioning/confirm_write_new_label boolean true"
+      echo "d-i partman/choose_partition select finish"
+      echo "d-i partman/confirm boolean true"
+      echo "d-i partman/confirm_nooverwrite boolean true"
+      echo ""
+      #echo "### Apt setup"
+      # Disable mirror will cause problem with software selection
+      #echo "d-i apt-setup/use_mirror boolean false"
+      echo "d-i apt-setup/cdrom/set-first boolean false"
+      echo "d-i apt-setup/cdrom/set-next boolean false"
+      echo "d-i apt-setup/cdrom/set-failed boolean false"
+      echo "d-i apt-setup/services-select multiselect security, updates"
+      echo "d-i apt-setup/security_host string security.debian.org"
+      #echo ""
+      echo "### Package selection"
+      echo "tasksel tasksel/first multiselect standard"
+      echo "# Individual additional packages to install"
+      echo "d-i pkgsel/include string openssh-server"
+      echo "popularity-contest popularity-contest/participate boolean false"
+      echo ""
+      echo "### Boot loader installation"
+      echo "# Grub location"
+      echo "d-i grub-installer/only_debian boolean true"
+      echo "d-i grub-installer/with_other_os boolean true"
+      echo "d-i grub-installer/bootdev  string /dev/sda"
+      echo ""
+      echo "# Grub password"
+      echo "#d-i grub-installer/password password r00tme"
+      echo "#d-i grub-installer/password-again password r00tme"
+      echo "# or encrypted using an MD5 hash, see grub-md5-crypt(8)."
+      echo "#d-i grub-installer/password-crypted password [MD5 hash]"
+      echo ""
+      echo "### Finishing up the installation"
+      echo "# Avoid that last message about the install being complete."
+      # This will skip the dialog box after installation finished
+      #echo "d-i finish-install/reboot_in_progress note"
+      # Shutdown after install
+      echo "d-i debian-installer/exit/poweroff boolean true"
+
+      # Good reading for executing script or store: https://github.com/uweplonus/adia-install/blob/master/initrd/preseed.cfg#L3
+      echo "### Execute final scripts "
+      # To install other package using late_command
+      # new line separated by \
+      echo "d-i preseed/late_command string \\"
+      # Allow root login (TODO: make sure it used cert to login)
+      echo "in-target sed -i 's/^.*PermitRootLogin.*/PermitRootLogin yes/g' /etc/ssh/sshd_config; \\"
+      # This will disable the interface name convention (just put in kernel line)
+      #echo "in-target sed -i 's/GRUB_CMDLINE_LINUX=\"[^\"]*/&net.ifnames=0 biosdevname=0/' /etc/default/grub; \\"
+      #echo "in-target grub-mkconfig -o /boot/grub/grub.cfg; \\"
+      # This will write a new static IP and use the default interface eth0
+      echo "echo "\"source /target/etc/network/interfaces.d/*\"" > /target/etc/network/interfaces; \\"
+      echo "echo "\"auto lo\"" >> /target/etc/network/interfaces; \\"
+      echo "echo "\"iface lo inet loopback\"" >> /target/etc/network/interfaces; \\"
+      echo "echo "\"auto ${NIC_INTERFACE_NAME}\"" >> /target/etc/network/interfaces; \\"
+      echo "echo "\"iface ${NIC_INTERFACE_NAME} inet static\"" >> /target/etc/network/interfaces; \\"
+      echo "echo "\"address ${IPV4_ADD0}/${IPV4_NETMASK0}\"" >> /target/etc/network/interfaces; \\"
+      echo "echo "\"gateway ${IPV4_DEF_GATEWAY0}\"" >> /target/etc/network/interfaces; \\"
+      echo "echo "\"iface ${NIC_INTERFACE_NAME} inet6 static\"" >> /target/etc/network/interfaces; \\"
+      echo "echo "\"address ${IPV6_ADD0}/${IPV6_NETMASK0}\"" >> /target/etc/network/interfaces; \\"
+      echo "echo "\"address ${IPV6_DEF_GATEWAY0}\"" >> /target/etc/network/interfaces; \\"
+      # This will write a new resolve at /etc/resolv.conf
+      echo "echo "\"search ${BOX_DOMAIN}\"" > /target/etc/resolv.conf; \\"
+      echo "echo "\"domains ${BOX_HOSTNAME_FQDN}\"" >> /target/etc/resolv.conf; \\"
+      echo "echo "\"options rotate\"" > /target/etc/resolv.conf; \\"
+      echo "echo "\"nameserver ${NAME_SERVER1}\"" >> /target/etc/resolv.conf; \\"
+      echo "echo "\"nameserver ${NAME_SERVER2}\"" >> /target/etc/resolv.conf; \\"
+      echo "echo "\"nameserver ${NAME_SERVER3}\"" >> /target/etc/resolv.conf; \\"
+      # Installing some packages
+      echo "in-target apt-get -y install htop;"
+    } >"${path}"
+  fi
 }
 
 # This function allows Directadmin to restart quickly but we don't take priority on other pending tasks.
@@ -2552,7 +2819,7 @@ function configure_net() {
     echo "${ADMIN_EMAIL}" >/root/.forward  #Forward all email to admin (webmaster)
     echo "[${SCRIPT_NAME}]: Configuring network interface ..." 2>&1 | tee -a "${REPORT_FILE}"
     #sleep 2
-
+    # Warning, LAN can have one or more
     current_lan=$(ip link | awk -F: '$0 !~ "lo|vir|wl|^[^0-9]"{print $2}' | sed 's/ //g')
     if [ "${current_lan}" != "${NIC_INTERFACE_NAME}" ]; then
       echo "[${SCRIPT_NAME}]: [Warning]: Current LAN interface is emulated with ${current_lan} but it was set as: ${NIC_INTERFACE_NAME}" 2>&1 | tee -a "${REPORT_FILE}"
@@ -8641,12 +8908,12 @@ if [ -s "${CONFIG_FILE}" ]; then
   if [ ${retval} = 0 ]; then
     # Let's do the weird thing on string:
     if [ -n "${source_errs}" ]; then
-      echo "[${SCRIPT_NAME}]: Warning, problem with config file"
-      echo "Error details:"
+      _echo 'red' "[${SCRIPT_NAME}]: Warning, problem with config file"
+      _echo 'red' "Error details:"
       printf "%s\n" "${source_errs}"
       _exit 1
     else
-      echo "[${SCRIPT_NAME}]: OK, config file is valid"
+      _echo 'green' "[${SCRIPT_NAME}]: OK, config file is valid"
       #echo "[${SCRIPT_NAME}]: Sourcing environment file from ${CONFIG_FILE} ..."
       source "${CONFIG_FILE}"
       echo ""
@@ -9009,7 +9276,7 @@ while [ "$#" -gt 0 ]; do
       linode_api_admin "create-config" "${BOX_HOSTNAME_FQDN}" "Boot_Config" "The installer boot configuration" "paravirt" "linode/direct-disk" "default" "/dev/sdb" "OS_Disk" "Boot_Disk"
       echo ""
       # 7) Creating the second profile for OS_Disk
-      linode_api_admin "create-config" "${BOX_HOSTNAME_FQDN}" "OS_Config" "The operating boot configuration" "paravirt" "linode/direct-disk" "default" "/dev/sda" "OS_Disk" "Boot_Disk"
+      linode_api_admin "create-config" "${BOX_HOSTNAME_FQDN}" "OS_Config" "The operating boot configuration" "paravirt" "linode/direct-disk" "default" "/dev/sda" "OS_Disk"
       echo ""
       # 8) Putting linode into rescue mode
       linode_api_admin "rescue-linode" "${BOX_HOSTNAME_FQDN}" "Boot_Disk"
@@ -9104,7 +9371,26 @@ while [ "$#" -gt 0 ]; do
     exit 0
     break
     ;;
-  # ./maxisetup --ssh-login <optional_option>
+
+  -lui | --linode-upload-iso)
+    shift
+    cp "${SCRIPT_PATH}"/secure/*.id_rsa* /root/.ssh/
+    chmod -R 600 /root/.ssh/
+    ssh -i /root/.ssh/linodelish.id_rsa -tt "${DNS_PROVIDER_USER}@${DNS_PROVIDER_TERMINAL_SERVER}" "${BOX_HOSTNAME_FQDN}" <linode/permit_root.sh
+    echo "Script executed"
+    # sleep 30
+    #exit 1
+    echo "Uploading ISO file into ~/ at ${IPV4_ADD0} using SCP protocol ..."
+    iso_file="${SCRIPT_PATH}/storage/os/debian/debian10-mod.iso"
+    scp "${iso_file}" root@"${IPV4_ADD0}":~/mini.iso
+    echo "Cloning setup file mini.iso into /dev/sda"
+    ssh "root@${IPV4_ADD0}" 'bash -s' <<"ENDSSH"
+      dd if=mini.iso of=/dev/sda
+ENDSSH
+    exit 0
+    break
+    ;;
+    # ./maxisetup --ssh-login <optional_option>
   # ./maxisetup --ssh-login "--secure"
   -sshl | --ssh-login)
     shift
@@ -9144,70 +9430,64 @@ while [ "$#" -gt 0 ]; do
     break
     ;;
   # This will generate a modified operating system ISO file that can be used to automatically install OS when booting.
-  # TODO this working 100% but using simple-cdd package is a new way to automated this installation.
-  # TODO create a new option whether to use this approach or simple-cdd
-  -ci | --create-iso | --preseediso)
+  -ci | --create-iso | --build-iso | --preseediso)
     action="$1"
+    retval=0
     shift
     iso_os="${BOX_ISO_OS_TYPE}"
-    option="$1"
-    if [ $# -gt 2 ]; then
-      echo "Argument shouldn't be more than 2 for now. See --help for more information"
+    method="$1"
+    option="$2"
+    if [ $# -gt 3 ]; then
+      echo "Argument shouldn't be more than 3 for now. See --help for more information"
       _exit 1
     fi
-    if [ "${iso_os}" == "debian" ]; then
-      echo "Building a custom ${iso_os} image file for server setup ..."
-      ROOT_TEMP_PATH="/root/mytemp/debian"
-      IRMOD="/root/mytemp/debian/irmod"
-      ISOFILE="${ROOT_TEMP_PATH}/debian-netinst.iso"
-      ISOFILE_FINAL="${ROOT_TEMP_PATH}/debian-netinst-mod.iso"
-      ISOMOUNT_LOCATION="/mnt/debian-iso"
-      ISODIR_WRITE="${ROOT_TEMP_PATH}/ISODIR-rw"
-      PRESEED_FILE="${ROOT_TEMP_PATH}/preseed.txt"
-      DEBIAN_SELECT_VERSION="10.9.0"
-      DEBIAN_SELECT_PLATFORM="amd64"
-      ISO_URL="http://cdimage.debian.org/cdimage/release/current/amd64/iso-cd/debian-${DEBIAN_SELECT_VERSION}-${DEBIAN_SELECT_PLATFORM}-netinst.iso"
-      ISO_OUTPUT_PATH="/root/shared/maxisetup/storage/os/debian/debian10-mod.iso"
+    YEAR_MONTH_DAY=$(date "+%Y-%m-%d")
+    ROOT_TEMP_PATH="/root/tmp_iso/debian"
+    ISOFILE="${ROOT_TEMP_PATH}/debian-netinst.iso"
+    ISOFILE_FINAL="${ROOT_TEMP_PATH}/deb10mod-final.iso"
+    ISOFILE_FINAL_BASE_NAME="$(basename -- ${ISOFILE_FINAL})"
+    ISOMOUNT_LOCATION="/mnt/mount_iso"
+    ISODIR_WRITE="${ROOT_TEMP_PATH}/iso-rw"
+    ISODIR_WRITE_TMP="${ROOT_TEMP_PATH}/iso-rw-tmp"
+    PRESEED_FILE="${ROOT_TEMP_PATH}/preseed.txt"
+    SOURCE_FILE="${ROOT_TEMP_PATH}/sources.list"
+    DEBIAN_NAME="debian"
+    DEBIAN_RELEASE="buster"
+    DEBIAN_SELECT_VERSION="10.9.0"
+    DEBIAN_SELECT_PLATFORM="amd64"
+    DEBIAN_IMAGE_TYPE="iso-cd"
+    DEBIAN_ISO_INSTALLATION_TYPE="netinst"
 
-      # == Automatic install missing components ====
+    ISO_URL="http://cdimage.debian.org/cdimage/release/current/${DEBIAN_SELECT_PLATFORM}/${DEBIAN_IMAGE_TYPE}/${DEBIAN_NAME}-${DEBIAN_SELECT_VERSION}-${DEBIAN_SELECT_PLATFORM}-${DEBIAN_ISO_INSTALLATION_TYPE}.iso"
+    #http://cdimage.debian.org/cdimage/release/current/amd64/iso-cd/debian-10.9.0-amd64-netinst.iso
+    INITRD_GZ_URL="http://ftp.debian.org/debian/dists/buster/main/installer-amd64/current/images/hd-media/initrd.gz"
+    VMLINUZ_URL="http://ftp.debian.org/debian/dists/buster/main/installer-amd64/current/images/hd-media/vmlinuz"
+    ISO_OUTPUT_PATH="/mnt/c/Users/Maxibi/IdeaProjects/maxisetup/storage/os/debian/deb10mod.iso"
+
+    #if mountpoint -q ${ISOMOUNT_LOCATION}; then
+    #  echo "Unmounting disk from ${ISOMOUNT_LOCATION} ..."
+    #  sudo umount -f ${ISOMOUNT_LOCATION}
+    #fi
+
+    #echo "Removing previous files ..."
+
+    rm -rf "${ISOFILE_FINAL}"
+    rm -rf "${ISODIR_WRITE}"
+    rm -rf "${ISODIR_WRITE_TMP}"
+    rm -rf "${PRESEED_FILE}"
+    rm -rf "${SOURCE_FILE}"
+
+    mkdir -p "${ROOT_TEMP_PATH}"
+    mkdir -p "${ISOMOUNT_LOCATION}"
+    mkdir -p "${ISODIR_WRITE}"
+    mkdir -p "${ISODIR_WRITE_TMP}"
+    echo ""
+
+    if [ "${method}" == "--legacy" ]; then
+      echo "Building a custom ${iso_os} image file for server setup in legacy mode ..."
+      # whois contains mkpasswd
       # List out required components here as an array to automatically install them:
-      required_cmds=("genisoimage" "wget")
-      missing_count=0
-      install_success=0
-      for required_cmd in "${required_cmds[@]}"; do
-        if ! command -v "${required_cmd}" &>/dev/null; then
-          ((missing_count++))
-          echo "Warning, missing ${required_cmd} component. Installing ${required_cmd} ..."
-          # Debian
-          apt-get -y install "${required_cmd}"
-          retval=$?
-          if [[ ${retval} -eq 0 ]]; then
-            ((install_success++))
-          fi
-        fi
-      done
-      if [ "${missing_count}" -gt 0 ]; then
-        echo "There was/were ${missing_count} missing component(s) and ${install_success} component(s) was/were successfully installed!"
-      fi
-      # ================================================
-
-      mkdir -p "${ROOT_TEMP_PATH}"
-      mkdir -p "${ISOMOUNT_LOCATION}"
-      mkdir -p "${ISODIR_WRITE}"
-      mkdir -p "${IRMOD}"
-      echo ""
-
-      if mountpoint -q ${ISOMOUNT_LOCATION}; then
-        echo "Unmounting disk from ${ISOMOUNT_LOCATION} ..."
-        sudo umount -f ${ISOMOUNT_LOCATION}
-      fi
-
-      #echo "Removing previous files ..."
-      rm -rf "${IRMOD}"
-      rm -rf "${ISOFILE_FINAL}"
-      rm -rf "${ISODIR_WRITE}"
-      rm -rf "${PRESEED_FILE}"
-
+      install_required "genisoimage" "wget" "pwgen" "whois" "xorriso" "debconf" "isolinux" "syslinux-utils"
       echo ""
       if [[ "${option}" == "--update-iso" || -z "${option}" ]]; then
         if [ -f ${ISOFILE} ]; then
@@ -9233,154 +9513,43 @@ while [ "$#" -gt 0 ]; do
         _exit 1
       fi
       echo ""
-      echo "Mounting ISO file ${ISOFILE} into ${ISOMOUNT_LOCATION} ..."
-      sudo mount -o loop ${ISOFILE} ${ISOMOUNT_LOCATION}
-      echo ""
+      #echo "Mounting ISO file ${ISOFILE} into ${ISOMOUNT_LOCATION} ..."
+      #sudo mount -o loop ${ISOFILE} ${ISOMOUNT_LOCATION}
+      #echo ""
+
+      #echo "Copying ISOFILE content into writeable directory ${ISODIR_WRITE} ..."
+      #cp -rT ${ISOMOUNT_LOCATION}/ ${ISODIR_WRITE}/
+      # rsync -a -H --exclude=TRANS.TBL ${ISOMOUNT_LOCATION}/ ${ISODIR_WRITE}
+      #echo ""
+      #echo "Unmounting ISO ${ISOFILE} from ${ISOMOUNT_LOCATION} ..."
+      #umount ${ISOMOUNT_LOCATION}
+      #echo ""
 
       echo "Copying ISOFILE content into writeable directory ${ISODIR_WRITE} ..."
-      cp -rT ${ISOMOUNT_LOCATION}/ ${ISODIR_WRITE}/
-      # rsync -a -H --exclude=TRANS.TBL ${ISOMOUNT_LOCATION}/ ${ISODIR_WRITE}
-      echo ""
-      echo "Unmounting ISO ${ISOFILE} from ${ISOMOUNT_LOCATION} ..."
-      umount ${ISOMOUNT_LOCATION}
-      echo ""
+      xorriso -osirrox on -indev ${ISOFILE} -extract / ${ISODIR_WRITE}/
+
+      echo "Removing initial ISO file ..."
+      rm -rf "${ISOFILE}"
       #echo "Correcting permissions ..."
       #chmod 755 -R ${ISODIR_WRITE}
       #echo ""
-      # Good reading 1: https://serverfault.com/questions/893483/what-means-3-numbers-in-manual-partitioning-of-hdd-in-preseed-for-ubuntu
-      # 2 Useful setting for SSH: https://github.com/coreprocess/linux-unattended-installation/blob/master/ubuntu/20.04/custom/preseed.cfg
-      # 3 This one contains setting for CD rom not in new documentation: https://images.validation.linaro.org/kvm/debian-8.3.0-cd1-preseed.cfg
+
       echo "Writing new preseed file config ..."
-      {
-        echo "# ==============================================="
-        echo "# This configuration file was generated by ${SCRIPT_NAME}"
-        echo "# Author: ${ADMIN_NAME} | Email: ${ADMIN_EMAIL} | Web: ${BOX_DOMAIN}"
-        echo "# ==============================================="
-        echo "#### Preseed preconfiguration file (for Debian buster)"
-        echo "### Localization"
-        echo "d-i debian-installer/locale string ${BOX_LOCALE}"
-        echo "d-i debian-installer/language string ${BOX_LANGUAGE_CODE}"
-        echo "d-i debian-installer/country string ${BOX_COUNTRY_CODE}"
-        echo ""
-        echo "### Keyboard selection"
-        echo "d-i keyboard-configuration/xkb-keymap select ${BOX_KEYBOARD}"
-        echo ""
-        echo "###  Network configuration"
-        echo "d-i netcfg/choose_interface select ${NIC_INTERFACE_NAME}"
-        # TODO create static IP here
-        #echo "d-i netcfg/disable_autoconfig boolean true"
-        echo "d-i netcfg/dhcp_failed note"
-        echo "d-i netcfg/dhcp_options select Configure network manually"
-        echo "# IPv4 Static network configuration"
-        echo "d-i netcfg/get_ipaddress string ${IPV4_ADD0}"
-        echo "d-i netcfg/get_netmask string ${IPV4_NETMASK0}"
-        echo "d-i netcfg/get_gateway string ${IPV4_DEF_GATEWAY0}"
-        echo "d-i netcfg/get_nameservers string ${NAME_SERVER1}"
-        echo "d-i netcfg/confirm_static boolean true"
-        echo ""
-        echo "# IPv6 Static network configuration"
-        #echo "d-i netcfg/get_ipaddress string ${IPV6_ADD0}"
-        #echo "d-i netcfg/get_netmask string ${IPV6_NETMASK0}"
-        #echo "d-i netcfg/get_gateway string ${IPV6_DEF_GATEWAY0}"
-        #echo "d-i netcfg/get_nameservers string ${NAME_SERVER1}"
-        #echo "d-i netcfg/confirm_static boolean true"
-        echo ""
-        echo "# Set a hostname"
-        echo "d-i netcfg/get_hostname string ${BOX_HOSTNAME}"
-        echo "d-i netcfg/get_domain string ${BOX_DOMAIN}"
-        echo "# Force a hostname"
-        echo "d-i netcfg/hostname string ${BOX_HOSTNAME_FQDN}"
-        echo "# Disable that annoying WEP key dialog"
-        echo "d-i netcfg/wireless_wep string"
-        echo ""
-        echo "### Mirror settings"
-        echo "d-i mirror/country string manual"
-        echo "d-i mirror/http/hostname string deb.debian.org"
-        echo "d-i mirror/http/directory string /debian"
-        echo "d-i mirror/http/proxy string"
-        echo ""
-        echo "### Account setup"
-        echo "# Skip creation of a normal user account"
-        echo "d-i passwd/make-user boolean false"
+      create_file "debian-preseed" ${PRESEED_FILE}
+      echo ""
 
-        echo "# Set root password"
-        #echo "d-i passwd/root-password password ${ROOT_USERPASS_INITIAL}"
-        #echo "d-i passwd/root-password-again password ${ROOT_USERPASS_INITIAL}"
-        echo "# or encrypted using a crypt(3)  hash."
-        echo "d-i passwd/root-password-crypted password $(get_hash_pwd "${ROOT_USERPASS_INITIAL}")"
-        echo ""
-        echo "### Clock and time zone setup"
-        echo "# Set hardware clock to UTC"
-        echo "d-i clock-setup/utc boolean true"
-        echo "# Set timezone"
-        echo "d-i time/zone string ${BOX_TIMEZONE}"
-        echo "# Use NTP clock during installation"
-        echo "d-i clock-setup/ntp boolean true"
-        echo ""
-        echo "### Partitioning"
-        # TODO make a custom LUKS partition here
-        echo "d-i partman-auto/disk string ${BOX_MAIN_DISK}"
-        echo "d-i partman-auto/method string lvm"
-        echo "d-i partman-auto-lvm/guided_size string max"
-        echo "d-i partman-lvm/device_remove_lvm boolean true"
-        echo "d-i partman-md/device_remove_md boolean true"
-        echo "d-i partman-lvm/confirm boolean true"
-        echo "d-i partman-lvm/confirm_nooverwrite boolean true"
-        echo "d-i partman-auto/choose_recipe select atomic"
-        echo "d-i partman-partitioning/confirm_write_new_label boolean true"
-        echo "d-i partman/choose_partition select finish"
-        echo "d-i partman/confirm boolean true"
-        echo "d-i partman/confirm_nooverwrite boolean true"
-        echo "d-i partman-md/confirm boolean true"
-        echo "d-i partman-partitioning/confirm_write_new_label boolean true"
-        echo "d-i partman/choose_partition select finish"
-        echo "d-i partman/confirm boolean true"
-        echo "d-i partman/confirm_nooverwrite boolean true"
-        echo ""
-        #echo "### Apt setup"
-        # Disable mirror will cause problem with software selection
-        #echo "d-i apt-setup/use_mirror boolean false"
-        echo "d-i apt-setup/cdrom/set-first boolean false"
-        echo "d-i apt-setup/cdrom/set-next boolean false"
-        echo "d-i apt-setup/cdrom/set-failed boolean false"
-        echo "d-i apt-setup/services-select multiselect security, updates"
-        echo "d-i apt-setup/security_host string security.debian.org"
-        #echo ""
-        echo "### Package selection"
-        echo "tasksel tasksel/first multiselect standard"
-        echo "# Individual additional packages to install"
-        echo "d-i pkgsel/include string openssh-server"
-        echo "popularity-contest popularity-contest/participate boolean false"
-        echo ""
-        echo "### Boot loader installation"
-        echo "# Grub location"
-        echo "d-i grub-installer/only_debian boolean true"
-        echo "d-i grub-installer/with_other_os boolean true"
-        echo "d-i grub-installer/bootdev  string /dev/sda"
-        echo ""
-        echo "# Grub password"
-        echo "#d-i grub-installer/password password r00tme"
-        echo "#d-i grub-installer/password-again password r00tme"
-        echo "# or encrypted using an MD5 hash, see grub-md5-crypt(8)."
-        echo "#d-i grub-installer/password-crypted password [MD5 hash]"
-        echo ""
-        echo "### Finishing up the installation"
-        echo "# Avoid that last message about the install being complete."
-        echo "d-i finish-install/reboot_in_progress note"
-
-        echo "### Execute final scripts "
-        # To install other package using late_command
-        # new line separated by \
-        echo "d-i preseed/late_command string \\"
-        # allow root login
-        echo "in-target sh -c 'sed -i \"s/^#PermitRootLogin.*\\$/PermitRootLogin yes/g\" /etc/ssh/sshd_config'; \\"
-        echo "in-target apt-get -y install htop"
-      } >"${PRESEED_FILE}"
+      echo "Checking preseed syntax file ${PRESEED_FILE} ..."
+      if ! debconf-set-selections -c "${PRESEED_FILE}"; then
+        echo "There is an error in the preseed.cfg. Check the syntax of the preconfiguration file."
+        _exit 1
+      else
+        echo "The preseed file ${PRESEED_FILE} syntax is ok"
+      fi
       echo ""
       # Here I write custom preseed file based on CONFIG
       echo "Copying raw preseed file into ${ISODIR_WRITE}/preseed.cfg ..."
       cp "${PRESEED_FILE}" ${ISODIR_WRITE}/preseed.cfg
-      chmod 555 ${ISODIR_WRITE}/preseed.cfg
+      #chmod 555 ${ISODIR_WRITE}/preseed.cfg
       echo ""
 
       # For text menu setup
@@ -9388,37 +9557,57 @@ while [ "$#" -gt 0 ]; do
       sed -i "s/initrd.gz/initrd.gz file=\/cdrom\/preseed.cfg locale=${BOX_LOCALE} keymap=${BOX_KEYBOARD} language=${BOX_LANGUAGE_CODE} country=${BOX_COUNTRY_CODE}/" ${ISODIR_WRITE}/isolinux/txt.cfg
       echo ""
 
+      # For adtxt menu setup
+      echo "Editing isolinux/adtxt.cfg to add extra arguments for initial setup ..."
+      sed -i "s/initrd.gz/initrd.gz file=\/cdrom\/preseed.cfg locale=${BOX_LOCALE} keymap=${BOX_KEYBOARD} language=${BOX_LANGUAGE_CODE} country=${BOX_COUNTRY_CODE}/" ${ISODIR_WRITE}/isolinux/adtxt.cfg
+      echo ""
+
       # For graphic menu setup
       echo "Editing isolinux/gtk.cfg to add extra arguments for initial setup ..."
       sed -i "s/initrd.gz/initrd.gz file=\/cdrom\/preseed.cfg locale=${BOX_LOCALE} keymap=${BOX_KEYBOARD} language=${BOX_LANGUAGE_CODE} country=${BOX_COUNTRY_CODE}/" ${ISODIR_WRITE}/isolinux/gtk.cfg
       echo ""
 
-      echo "Editing isolinux/isolinux.cfg to disable setup menu (straight to the first menu on startup) ..."
-      sed -i "s/timeout 0/timeout 1/" ${ISODIR_WRITE}/isolinux/isolinux.cfg
-      echo ""
-      #cd_to_path "${IRMOD}"
-      #echo "Extracting initrd.gz ..."
-      #sudo gzip -d <${ISODIR_WRITE}/install.amd/initrd.gz | sudo cpio --extract --make-directories --no-absolute-filenames
-      #echo ""
-      #echo "Copying raw preseed file into ${IRMOD}/preseed.cfg ..."
-      #cp "${PRESEED_FILE}" preseed.cfg
-      #echo ""
-      #echo "Setting preseed.cfg user to own by root:root ..."
-      #chown root:root preseed.cfg
-      #echo ""
-      #echo "Lower the initrd.gz permission to o+w ..."
-      #chmod o+w ${ISODIR_WRITE}/install.amd/initrd.gz
-      #echo ""
-      #echo "Inserting preseed.cfg (the only file created in directory) into initrd.gz ..."
-      #find . | cpio -H newc --create | gzip -9 >${ISODIR_WRITE}/install.amd/initrd.gz
-      #echo ""
-      #echo "Change the initrd.gz permission to o-w ..."
-      #chmod o-w ${ISODIR_WRITE}/install.amd/initrd.gz
-      #echo ""
-      #cd_to_path "OLDPWD"
-      #echo "Removing directory ${IRMOD} ..."
-      #rm -rf "${IRMOD}"
-      #echo "=============="
+      # There are bunch of other cfg files like adtxt.cfg that required modification,
+      # append it like above if it doesn't work for other system or just use BOX_OS_INSTALL_UI=custom for universal menu
+
+      #  (https://serverfault.com/questions/238844/debian-installation-from-rescue-system-with-preseed-fully-automated)
+      if [ "${BOX_OS_INSTALL_UI}" == "normal" ]; then
+        echo "Editing isolinux/isolinux.cfg to disable setup menu (straight to the first menu on startup) ..."
+        sed -i "s/timeout 0/timeout 3/" ${ISODIR_WRITE}/isolinux/isolinux.cfg
+        echo ""
+      elif [ "${BOX_OS_INSTALL_UI}" == "custom" ]; then
+        {
+          echo "default install"
+          echo "LABEL install"
+          echo "   kernel /install.amd/vmlinuz"
+          echo "   append vga=normal initrd=/install.amd/initrd.gz preseed/file=/cdrom/preseed.cfg locale=${BOX_LOCALE} keymap=${BOX_KEYBOARD} language=${BOX_LANGUAGE_CODE} country=${BOX_COUNTRY_CODE} --"
+          echo "LABEL linux"
+          echo "   kernel /install.amd/vmlinuz"
+          echo "   append vga=normal initrd=/install.amd/initrd.gz preseed/file=/cdrom/preseed.cfg locale=${BOX_LOCALE} keymap=${BOX_KEYBOARD} language=${BOX_LANGUAGE_CODE} country=${BOX_COUNTRY_CODE} --"
+          echo "prompt 0"
+          echo "timeout 1"
+        } >${ISODIR_WRITE}/isolinux/isolinux.cfg
+      elif [ "${BOX_OS_INSTALL_UI}" == "console" ]; then
+
+        {
+          # This will install OS using serial of console for system that doesn't support graphic install -- BETA
+          echo "serial 0 115200"
+          echo "console 0"
+          echo "default install"
+          echo "LABEL install"
+          echo "   kernel /install.amd/vmlinuz"
+          echo "   append priority=low vga=788 console=ttyS0,115200n8 initrd=/install.amd/initrd.gz preseed/file=/cdrom/preseed.cfg locale=${BOX_LOCALE} keymap=${BOX_KEYBOARD} language=${BOX_LANGUAGE_CODE} country=${BOX_COUNTRY_CODE} --- console=ttyS0,115200n8"
+          echo "LABEL linux"
+          echo "   kernel /install.amd/vmlinuz"
+          echo "   append priority=low vga=788 console=ttyS0,115200n8 initrd=/install.amd/initrd.gz preseed/file=/cdrom/preseed.cfg locale=${BOX_LOCALE} keymap=${BOX_KEYBOARD} language=${BOX_LANGUAGE_CODE} country=${BOX_COUNTRY_CODE} --- console=ttyS0,115200n8"
+          echo "prompt 0"
+          echo "timeout 1"
+
+        } >${ISODIR_WRITE}/isolinux/isolinux.cfg
+      else
+        echo "Error, invalid variable supplied for BOX_OS_INSTALL_UI: ${BOX_OS_INSTALL_UI}"
+        _exit 1
+      fi
 
       echo "Changing permission of ${ISODIR_WRITE}/preseed.cfg to own by root:root ..."
       chown root:root ${ISODIR_WRITE}/preseed.cfg
@@ -9457,18 +9646,475 @@ while [ "$#" -gt 0 ]; do
       echo ""
       #exit 1
       echo "Creating ISO ..."
-      genisoimage -r -J -b isolinux/isolinux.bin -c isolinux/boot.cat -no-emul-boot -boot-load-size 4 -boot-info-table -o "${ISOFILE_FINAL}" "${ISODIR_WRITE}"
-      echo ""
-      # Copying to shared folder
-      echo "Creating installation disk at ${ISO_OUTPUT_PATH} ..."
-      cp "${ISOFILE_FINAL}" "${ISO_OUTPUT_PATH}"
+
+      #genisoimage -r -J -b isolinux/isolinux.bin -c isolinux/boot.cat -no-emul-boot -boot-load-size 4 -boot-info-table -o "${ISOFILE_FINAL}" "${ISODIR_WRITE}"
+
       #xorriso -as mkisofs -o ${ISOFILE_FINAL} \
       #  -isohybrid-mbr /usr/lib/ISOLINUX/isohdpfx.bin \
       #  -c isolinux/boot.cat -b isolinux/isolinux.bin -no-emul-boot \
       #  -boot-load-size 4 -boot-info-table ${ISODIR_WRITE}
 
+      xorriso -as mkisofs \
+        -isohybrid-mbr /usr/lib/ISOLINUX/isohdpfx.bin \
+        -c isolinux/boot.cat \
+        -b isolinux/isolinux.bin \
+        -no-emul-boot \
+        -boot-load-size 4 \
+        -boot-info-table \
+        -eltorito-alt-boot \
+        -e boot/grub/efi.img \
+        -no-emul-boot \
+        -isohybrid-gpt-basdat \
+        -o ${ISOFILE_FINAL} \
+        ${ISODIR_WRITE}
+
+      echo ""
+      # Copying to shared folder
+      echo "Creating installation disk at ${ISO_OUTPUT_PATH} ..."
+      cp "${ISOFILE_FINAL}" "${ISO_OUTPUT_PATH}"
+      #echo "Uploading ISO file to dropbox"
+      #dbxcli put "${ISO_OUTPUT_PATH}"
+    # My custom method for server (Like the LILO or GRUB method)
+    elif [[ "${method}" == "--hdd-iso" || "${method}" == "--hdd-boot" || "${method}" == "--hdd" || "${method}" == "--isolinux" ]]; then
+      # For hard disk booting
+      echo "Building a custom ${iso_os} image file for server setup in syslinux bootloader (Hardisk Booting) ..."
+      echo ""
+      install_required "debconf" "isolinux" "syslinux-utils" "xorriso" "wget"
+      if [[ "${option}" == "--update-iso" || -z "${option}" ]]; then
+        # wget --timestamping option also can be used
+        if [ -f ${ISOFILE} ]; then
+          rm -rf "${ISOFILE}"
+          echo "Re-downloading system image ..."
+        else
+          echo "Downloading new system image ..."
+        fi
+        wget -nc -O ${ISOFILE} ${ISO_URL} || true
+      elif [[ "${option}" == "--no-update-iso" ]]; then
+        if [ -f ${ISOFILE} ]; then
+          echo "Using the existing ISO file ..."
+        else
+          echo "Warning, existing ISO file is missing! Use --update-iso or ignore the --no-update-iso option to download new file"
+          _exit 1
+        fi
+      else
+        echo "Invalid option supplied: ${option}"
+        echo "${SCRIPT_NAME} ${action} --update-iso , to download the new ISO file where --update-iso is a default command if not specified"
+        echo "${SCRIPT_NAME} ${action} --no-update-iso , to use existing ISO file"
+        _exit 1
+      fi
+      echo ""
+      echo "Writing new preseed file config ..."
+      # Writing new preseed.cfg
+      create_file "debian-preseed" ${PRESEED_FILE}
+      echo ""
+      echo "Checking preseed syntax file ${PRESEED_FILE} ..."
+      if ! debconf-set-selections -c "${PRESEED_FILE}"; then
+        echo "There is an error in the preseed.cfg. Check the syntax of the preconfiguration file."
+        _exit 1
+      else
+        echo "The preseed file ${PRESEED_FILE} syntax is ok"
+      fi
+      echo ""
+      echo "Copying ISOFILE content into temporary writeable directory ${ISODIR_WRITE_TMP} ..."
+      xorriso -osirrox on -indev ${ISOFILE} -extract / ${ISODIR_WRITE_TMP}/
+      echo ""
+      echo "Removing initial ISO file ..."
+      rm -rf "${ISOFILE}"
+
+      #echo "Editing isolinux/isolinux.cfg to disable setup menu (straight to the first menu on startup) ..."
+      #sed -i "s/timeout 0/timeout 1/" ${ISODIR_WRITE_TMP}/isolinux/isolinux.cfg
+      echo ""
+      echo "Copying raw preseed file into ${ISODIR_WRITE_TMP}/preseed.cfg ..."
+      cp "${PRESEED_FILE}" ${ISODIR_WRITE_TMP}/preseed.cfg
+      #chmod 555 ${ISODIR_WRITE}/preseed.cfg
+      echo ""
+
+      echo "Changing permission of ${ISODIR_WRITE_TMP}/preseed.cfg to own by root:root ..."
+      chown root:root ${ISODIR_WRITE_TMP}/preseed.cfg
+      echo ""
+      echo "Lower the files permission from ${ISODIR_WRITE_TMP}/install.amd to +w ..."
+      chmod +w -R "${ISODIR_WRITE_TMP}/install.amd"
+      echo ""
+      echo "Unzipping initrd.gz"
+      gunzip "${ISODIR_WRITE_TMP}/install.amd/initrd.gz"
+      echo ""
+      echo "Inserting preseed.cfg in initrd ..."
+      echo ${ISODIR_WRITE_TMP}/preseed.cfg | cpio -H newc -o -A -F "${ISODIR_WRITE_TMP}/install.amd/initrd"
+      echo ""
+      ##exit 1
+      echo "Zipping initrd as initrd.gz ..."
+      gzip ${ISODIR_WRITE_TMP}/install.amd/initrd
+      echo ""
+      echo "Change the folder permission of ${ISODIR_WRITE_TMP}/install.amd/ to -w ..."
+      chmod -w -R ${ISODIR_WRITE_TMP}/install.amd/
+      echo ""
+
+      echo "Fixing md5sum checksum ..."
+      cd_to_path "${ISODIR_WRITE_TMP}"
+
+      # Alternative method:
+      #pushd ${ISODIR_WRITE}
+      #  md5sum $(find -type f) > md5sum.txt
+      #popd
+
+      # A warning will be issued because ./debian is a symlink to . :
+      # find: File system loop detected; ‘./debian’ is part of the same file system loop as ‘.’ :
+      chmod +w md5sum.txt
+      find -follow -type f ! -name md5sum.txt -print0 | xargs -0 md5sum >md5sum.txt
+      chmod -w md5sum.txt
+      echo ""
+
+      echo "Creating standalone ISO installation inside ${ISODIR_WRITE}/${ISOFILE_FINAL} ..."
+      xorriso -as mkisofs \
+        -isohybrid-mbr /usr/lib/ISOLINUX/isohdpfx.bin \
+        -c isolinux/boot.cat \
+        -b isolinux/isolinux.bin \
+        -no-emul-boot \
+        -boot-load-size 4 \
+        -boot-info-table \
+        -eltorito-alt-boot \
+        -e boot/grub/efi.img \
+        -no-emul-boot \
+        -isohybrid-gpt-basdat \
+        -o ${ISODIR_WRITE}/${DEBIAN_NAME}-${DEBIAN_RELEASE}-${DEBIAN_ISO_INSTALLATION_TYPE}.iso \
+        ${ISODIR_WRITE_TMP}
+      echo ""
+
+      echo "Copying ${ISODIR_WRITE_TMP}/boot into ${ISODIR_WRITE} ..."
+      cp -rp ${ISODIR_WRITE_TMP}/boot ${ISODIR_WRITE}
+      echo ""
+      echo "Creating new boot installation directory at ${ISODIR_WRITE}/boot/os ..."
+      mkdir -p ${ISODIR_WRITE}/boot/os
+      echo ""
+      cd_to_path "${ISODIR_WRITE}/boot/os"
+      echo "Downloading initrd.gz file into ${ISODIR_WRITE}/boot/os ..."
+      wget -O initrd.gz ${INITRD_GZ_URL}
+      echo ""
+      echo "Downloading vmlinuz file into ${ISODIR_WRITE}/boot/os ..."
+      wget -O vmlinuz ${VMLINUZ_URL}
+      echo ""
+      echo "Copying ${ISODIR_WRITE_TMP}/isolinux into ${ISODIR_WRITE} ..."
+      cp -rp ${ISODIR_WRITE_TMP}/isolinux ${ISODIR_WRITE}
+      echo ""
+
+      echo "Backing up isolinux.cfg file at ${ISODIR_WRITE}/isolinux/isolinux.cfg ..."
+      mv ${ISODIR_WRITE}/isolinux/isolinux.cfg ${ISODIR_WRITE}/isolinux/original_isolinux.cfg
+      echo ""
+
+      echo "Creating new menu for isolinux.cfg ..."
+      {
+
+        ## Reference: https://www.alteeve.com/an-repo/files/isolinux.cfg
+        # Use high-color menu
+        echo "UI vesamenu.c32"
+        # Timeout unit is 1/10s, 100 means 10 seconds
+        echo "TIMEOUT 1000"
+        echo "PROMPT 0"
+
+        echo "DEFAULT Debian - Auto Installation"
+        echo "# Console Prompt"
+        echo "say **********************************************************************"
+        echo "say Sofibox Cloud Sdn Bhd."
+        echo "say TOSP, Cyberjaya Malaysia."
+        echo "say sofibox.com, tosp.sofibox.com"
+        echo "say OPERATING SYSTEM INSTALLER"
+        echo "say Automatically booting: Debian - Auto Installation in 20 seconds ..."
+        echo "say **********************************************************************"
+
+        echo "# Allow client to edit the boot parameters"
+        echo "ALLOWOPTIONS 1"
+
+        # If don't set default would be 640x480
+        #MENU RESOLUTION 1024 768
+
+        # The background image
+        #MENU BACKGROUND pxe_splash_1024_768.jpg
+
+        echo "# Menu Title"
+        echo "MENU TITLE Sofibox - Maxisetup Rescue Mode"
+
+        echo "MENU AUTOBOOT Will boot the next device as configured in your BIOS in # second{,s}."
+        echo "MENU TABMSG   Press the <tab> key to edit the boot parameters of the highlighted option."
+        echo "MENU NOTABMSG Editing of this option is disabled."
+
+        #Color
+        echo "# Format is: MENU COLOR <Item> <ANSI Seq.> <foreground> <background> <shadow type>"
+        echo "MENU COLOR screen      0  #80ffffff #00000000 std      # background colour not covered by the splash image"
+        echo "MENU COLOR border      0  #ffffffff #ee000000 std      # The wire-frame border"
+        echo "MENU COLOR title       0  #ffff3f7f #ee000000 std      # Menu title text"
+        echo "MENU COLOR sel         0  #ff00dfdf #ee000000 std      # Selected menu option"
+        echo "MENU COLOR hotsel      0  #ff7f7fff #ee000000 std      # The selected hotkey (set with ^ in MENU LABEL)"
+        echo "MENU COLOR unsel       0  #ffffffff #ee000000 std      # Unselected menu options"
+        echo "MENU COLOR hotkey      0  #ff7f7fff #ee000000 std      # Unselected hotkeys (set with ^ in MENU LABEL)"
+        echo "MENU COLOR tabmsg      0  #c07f7fff #00000000 std      # Tab text"
+        echo "MENU COLOR timeout_msg 0  #8000dfdf #00000000 std      # Timout text"
+        echo "MENU COLOR timeout     0  #c0ff3f7f #00000000 std      # Timout counter"
+        echo "MENU COLOR disabled    0  #807f7f7f #ee000000 std      # Disabled menu options, including SEPARATORs"
+        echo "MENU COLOR cmdmark     0  #c000ffff #ee000000 std      # Command line marker - The '> ' on the left when editing an option"
+        echo "MENU COLOR cmdline     0  #c0ffffff #ee000000 std      # Command line - The text being edited"
+        echo "# Options below haven't been tested, descriptions may be lacking."
+        echo "MENU COLOR scrollbar   0  #40000000 #00000000 std      # Scroll bar"
+        echo "MENU COLOR pwdborder   0  #80ffffff #20ffffff std      # Password box wire-frame border"
+        echo "MENU COLOR pwdheader   0  #80ff8080 #20ffffff std      # Password box header"
+        echo "MENU COLOR pwdentry    0  #80ffffff #20ffffff std      # Password entry field"
+        echo "MENU COLOR help        0  #c0ffffff #00000000 std      # Help text, if set via 'TEXT HELP ... ENDTEXT'"
+
+        echo "LABEL Debian - Auto Installation"
+        echo "    MENU LABEL ^1) Auto install Debian"
+        echo "    MENU DEFAULT"
+        echo "    KERNEL /boot/os/vmlinuz"
+        #echo "important, preseed file location need to be cdrom"
+        # TOOD this one said that we need to use priority=high or try critical: https://www.reddit.com/r/debian/comments/an03dj/preseed_netcfg_section_completely_ignored/
+        # TODO try this if cannot interface=eth1 https://askubuntu.com/questions/617558/preseed-doesnt-automatically-select-network-interface-on-ubuntu-14-04-automate
+        # TODO I just removed priority=critical auto=true from kernel parameter , let's test this if it works without this later.
+        echo "    APPEND initrd=/boot/os/initrd.gz preseed/file=/cdrom/preseed.cfg locale=${BOX_LOCALE} keymap=${BOX_KEYBOARD} language=${BOX_LANGUAGE_CODE} country=${BOX_COUNTRY_CODE} --"
+        echo "    TEXT HELP"
+        echo "    * This is an auto installation"
+        echo "    * WARNING: ALL DATA ON DISKS WILL BE OVERWRITTEN WITHOUT ANY QUESTIONS"
+        echo "    ENDTEXT"
+        echo "LABEL Debian - Manual installation"
+        echo "   MENU LABEL ^2) Manual Debian Installation"
+        echo "   KERNEL  /boot/os/vmlinuz"
+        echo "   APPEND initrd=/boot/os/initrd.gz --"
+        echo "    TEXT HELP"
+        echo "    * This is a manual installation"
+        echo "    * NOTE: USE THIS MENU IF YOU WANT TO INSTALL DEBIAN INTERACTIVELY"
+        echo "    ENDTEXT"
+        # TODO: This menu is beta
+        echo "LABEL Debian - System Backup"
+        echo "MENU LABEL ^3) Debian Full System Backup"
+        echo "   KERNEL  /boot/os/vmlinuz"
+        echo "   APPEND initrd=/boot/os/initrd.gz --"
+        echo "    TEXT HELP"
+        echo "    * This is an operating system full backup mode"
+        echo "    * NOTE: USE THIS MENU IF YOU WANT TO MAKE FULL BACKUP (TESTING)"
+        echo "    ENDTEXT"
+
+      } >${ISODIR_WRITE}/isolinux/isolinux.cfg
+
+      echo "Fixing md5sum checksum in ${ISODIR_WRITE_TMP} ..."
+      cp -p ${ISODIR_WRITE_TMP}/md5sum.txt ${ISODIR_WRITE}
+      rm -rf "${ISODIR_WRITE_TMP}"
+      cd_to_path "${ISODIR_WRITE}"
+
+      chmod +w md5sum.txt
+      find -follow -type f ! -name md5sum.txt -print0 | xargs -0 md5sum >md5sum.txt
+      chmod -w md5sum.txt
+      echo ""
+
+      echo "Creating the final ISO file ..."
+      xorriso -as mkisofs \
+        -isohybrid-mbr /usr/lib/ISOLINUX/isohdpfx.bin \
+        -c isolinux/boot.cat \
+        -b isolinux/isolinux.bin \
+        -no-emul-boot \
+        -boot-load-size 4 \
+        -boot-info-table \
+        -eltorito-alt-boot \
+        -e boot/grub/efi.img \
+        -no-emul-boot \
+        -isohybrid-gpt-basdat \
+        -o ${ISOFILE_FINAL} \
+        ${ISODIR_WRITE}
+      echo ""
+      # Copying to shared folder
+      #echo "Creating copy of installation disk at ${ISO_OUTPUT_PATH} ..."
+      #cp "${ISOFILE_FINAL}" "${ISO_OUTPUT_PATH}"
+
+      # Uploading to dropbox
+      echo "Uploading ${ISOFILE_FINAL} into dropbox /files/${ISOFILE_FINAL_BASE_NAME} ..."
+      dbx upload "${ISOFILE_FINAL}" "/files"
+
+      echo "Creating download link ..."
+      file_direct_link=$(dbx share "/files/${ISOFILE_FINAL_BASE_NAME}" | awk '{ print $4}' | sed 's/0$/1/g')
+      echo "File direct link is: ${file_direct_link}"
+      echo ""
+      echo "Creating rescue disk script for copy paste temporarily ..."
+      _echo 'red' "=================================="
+      echo ""
+      _echo 'green' "wget -O mini.iso \"${file_direct_link}\""
+      _echo 'green' "dd if=mini.iso of=/dev/sda"
+      _echo 'green' "mkdir /mnt/iso"
+      _echo 'green' "mount mini.iso /mnt/iso"
+      _echo 'green' "echo \"\""
+      echo ""
+      _echo 'red' "=================================="
+
+      echo ""
+      echo "Removing working directory ..."
+      rm -rf "${ISODIR_WRITE}"
+      echo ""
+      echo "Removing preseed file ..."
+      rm -rf "${PRESEED_FILE}"
+
+      # My custom method
+    elif [[ "${method}" == "--custom" ]]; then
+      :
+    else
+      ################ ALTERNATIVE METHOD ####################################
+      echo "Building a custom ${iso_os} image file for server setup in alternative mode ..."
+      # Check required component:
+      install_required "debconf" "isolinux" "syslinux-utils" "xorriso" "wget"
+      echo ""
+      if [[ "${option}" == "--update-iso" || -z "${option}" ]]; then
+        # wget --timestamping - no need
+        if [ -f ${ISOFILE} ]; then
+          rm -rf "${ISOFILE}"
+          echo "Re-downloading system image ..."
+        else
+          echo "Downloading new system image ..."
+        fi
+
+        wget -nc -O ${ISOFILE} ${ISO_URL} || true
+      elif [[ "${option}" == "--no-update-iso" ]]; then
+        if [ -f ${ISOFILE} ]; then
+          echo "Using the existing ISO file ..."
+        else
+          echo "Warning, existing ISO file is missing! Use --update-iso option to download new file"
+          _exit 1
+        fi
+        # Do nothing
+      else
+        echo "Invalid option supplied: ${option}"
+        echo "${SCRIPT_NAME} ${action} --update-iso , to download the new ISO file where --update-iso is a default command if not specified"
+        echo "${SCRIPT_NAME} ${action} --no-update-iso , to use existing ISO file"
+        _exit 1
+      fi
+      echo ""
+      echo "Writing new preseed file config ..."
+      # Writing new preseed.cfg
+      create_file "debian-preseed" ${PRESEED_FILE}
+
+      echo "Checking preseed syntax file ${PRESEED_FILE} ..."
+      if ! debconf-set-selections -c "${PRESEED_FILE}"; then
+        echo "There is an error in the preseed.cfg. Check the syntax of the preconfiguration file."
+        _exit 1
+      else
+        echo "The preseed file ${PRESEED_FILE} syntax is ok"
+      fi
+
+      echo "Copying ISOFILE content into writeable directory ${ISODIR_WRITE} ..."
+      xorriso -osirrox on -indev ${ISOFILE} -extract / ${ISODIR_WRITE}/
+
+      echo "Lowering the permission of install.amd ..."
+      chmod +w -R ${ISODIR_WRITE}/install.amd/
+      echo "Uncompress the initrd gzip ..."
+      gunzip ${ISODIR_WRITE}/install.amd/initrd.gz
+      echo "Copying the preseed file into the initrd archive ..."
+      echo "${PRESEED_FILE}" | cpio -H newc -o -A -F ${ISODIR_WRITE}/install.amd/initrd
+      echo ""
+
+      echo "Creating new sources.list file ..."
+      {
+        echo "# The main Debian repository with contrib and non-free."
+        echo "deb http://deb.debian.org/debian/ buster main contrib non-free"
+        echo "# The security updates repository with contrib and non-free."
+        echo "deb http://security.debian.org/debian-security buster/updates main contrib non-free"
+        echo "# The buster-updates repository previously known as volatile."
+        echo "deb http://deb.debian.org/debian/ buster-updates main contrib non-free"
+      } >${SOURCE_FILE}
+
+      echo "Copying the sources.list file into the initrd archive ..."
+      echo "${SOURCE_FILE}" | cpio -H newc -o -A -F ${ISODIR_WRITE}/install.amd/initrd
+
+      echo "Compressing the initrd using gzip ..."
+      gzip ${ISODIR_WRITE}/install.amd/initrd
+      echo ""
+      echo "Raising the permission of install.amd ..."
+      chmod -w -R ${ISODIR_WRITE}/install.amd/
+
+      echo "Backing up grub.cfg file ..."
+      mv ${ISODIR_WRITE}/boot/grub/grub.cfg ${ISODIR_WRITE}/boot/grub/original_grub.cfg
+      echo "Writing new grub.cfg content .."
+      cd_to_path "${ISODIR_WRITE}"
+      {
+        echo "if loadfont \$prefix/font.pf2 ; then"
+        echo "  set gfxmode=800x600"
+        echo "  set gfxpayload=keep"
+        echo "  insmod efi_gop"
+        echo "  insmod efi_uga"
+        echo "  insmod video_bochs"
+        echo "  insmod video_cirrus"
+        echo "  insmod gfxterm"
+        echo "  insmod png"
+        echo "  terminal_output gfxterm"
+        echo "fi"
+        echo "if background_image /isolinux/splash.png; then"
+        echo "  set color_normal=light-gray/black"
+        echo "  set color_highlight=white/black"
+        echo "elif background_image /splash.png; then"
+        echo "  set color_normal=light-gray/black"
+        echo "  set color_highlight=white/black"
+        echo "else"
+        echo "  set menu_color_normal=cyan/blue"
+        echo "  set menu_color_highlight=white/blue"
+        echo "fi"
+        echo "default=\"0\""
+        echo "timeout=5"
+        echo "echo \"\""
+        echo "echo \"The install starting automatically in 5 seconds, hit 'c' or 'e' to abort.\""
+        echo "echo \"\""
+        echo "insmod play"
+        echo "play 2000 400 4 0 1 500 4 0 1 600 4 0 1 800 6"
+        echo "menuentry --hotkey=a 'Start automated install...' {"
+        echo "    set background_color=black"
+        echo "    linux    /install.amd/vmlinuz auto=true priority=critical vga=788 --- quiet"
+        echo "    initrd   /install.amd/initrd.gz"
+        echo "}"
+      } >boot/grub/grub.cfg
+
+      echo "Generating checksums for each file using relative paths ..."
+      pushd ${ISODIR_WRITE}/ || exit
+      chmod +w md5sum.txt
+      md5sum $(find -follow -type f) >md5sum.txt
+      popd || exit
+
+      #OUTPUT_FILE=${ISOFILE_FINAL}
+      #YEAR_MONTH_DAY=$(date "+%Y-%m-%d")
+
+      echo "Creating ISO ..."
+      xorriso -as mkisofs \
+        -r -V "preseed-iso-${YEAR_MONTH_DAY}" \
+        -o ${ISOFILE_FINAL} \
+        -cache-inodes \
+        -isohybrid-mbr /usr/lib/ISOLINUX/isohdpfx.bin \
+        -b isolinux/isolinux.bin \
+        -c isolinux/boot.cat \
+        -boot-load-size 4 -boot-info-table -no-emul-boot \
+        -eltorito-alt-boot \
+        -e boot/grub/efi.img \
+        -no-emul-boot -isohybrid-gpt-basdat -isohybrid-apm-hfsplus \
+        ${ISODIR_WRITE}
+
+      echo "Creating a checksum of the final file for transport ..."
+      md5sum ${ISOFILE_FINAL} >${ISOFILE_FINAL}.md5
+
+      echo "Copying final ${ISOFILE_FINAL} ISO into project path ${ISO_OUTPUT_PATH} ..."
+      cp "${ISOFILE_FINAL}" "${ISO_OUTPUT_PATH}"
+
+      echo "Removing the working directory ..."
+      rm -rf ${ISODIR_WRITE}
+
     fi
 
+    exit 0
+    break
+    ;;
+  -b | --build)
+    shift
+    package_name="$1"
+    cd_to_path "${HOME}"
+    if [ "${package_name}" == "go" ]; then
+      apt-get -y install golang-go
+    elif [ "${package_name}" == "dbxcli" ]; then
+      install_required "git" "golang-go" "gox"
+      mkdir $HOME/go
+      go get github.com/dropbox/dbxcli
+      cd_to_path "$HOME/go/src/github.com/dropbox/dbxcli"
+      # To be continued ...
+    else
+      echo "No known package!"
+    fi
     exit 0
     break
     ;;
@@ -9480,39 +10126,6 @@ while [ "$#" -gt 0 ]; do
     #ssh -i /root/.ssh/linodelish.id_rsa -tt "${DNS_PROVIDER_USER}@${DNS_PROVIDER_TERMINAL_SERVER}" "${BOX_HOSTNAME_FQDN}" <linode/lish_command.sh &
     #test=$(get_hash_pwd "mypassword")
     #echo "${test}"
-
-    # This one work for both CentOS and Debian
-    if ! command -v git &>/dev/null; then
-      sudo apt-get -y install git
-    fi
-    if ! command -v git-lfs &>/dev/null; then
-      curl -s https://packagecloud.io/install/repositories/github/git-lfs/script.deb.sh | sudo bash
-      sudo apt-get -y install git-lfs
-    fi
-
-    mkdir -p "${SCRIPT_PATH}/download"
-    cd_to_path "${SCRIPT_PATH}/download"
-    echo "[${SCRIPT_NAME}]: Setting up temporary git authentication for private repository ..." 2>&1 | tee -a "${REPORT_FILE}"
-    cat /dev/null >"${SCRIPT_PATH}/download/.git-askpass"
-    echo "#!/bin/bash" >>"${SCRIPT_PATH}/download/.git-askpass"
-    echo "echo ${GIT_TOKEN}" >>"${SCRIPT_PATH}/download/.git-askpass"
-    chmod +x "${SCRIPT_PATH}/download/.git-askpass"
-    export GIT_ASKPASS="${SCRIPT_PATH}/download/.git-askpass"
-
-    echo "[${SCRIPT_NAME}]: Removing existing maxisetup repository ..." 2>&1 | tee -a "${REPORT_FILE}"
-    # remove existing setup
-    rm -rf "${SCRIPT_PATH}/download/maxisetup"
-    echo "[${SCRIPT_NAME}]: Cloning new maxisetup repository ..." 2>&1 | tee -a "${REPORT_FILE}"
-    echo "=~=~=~=~=~=~=~"
-    git clone "${SETUP_GIT_URL}" 2>&1 | tee -a "${REPORT_FILE}"
-    echo "=~=~=~=~=~=~=~"
-    # Now we have setup folder.
-    cp "${SCRIPT_PATH}/download/maxisetup/storage/os/debian/debian10-mod.iso" ~/debiantest.iso
-    # Delete these files for security
-    echo "[${SCRIPT_NAME}]: Removing git authentication and destroying its environment variable ..." 2>&1 | tee -a "${REPORT_FILE}"
-    rm -f "${HOME}/.git-askpass"
-    unset GIT_ASKPASS
-
     exit 0
     break
     ;;
