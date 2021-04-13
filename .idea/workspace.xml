@@ -10,9 +10,7 @@
     <select />
   </component>
   <component name="ChangeListManager">
-    <list default="true" id="113c828c-9a32-4b24-ab1e-978ce50c6320" name="Default Changelist" comment="Added hash function for creating password&#10;&#10;Added argument to run preseed.cfg for both graphic and text setup&#10;Added timeout to skip setup menu for custom ISO">
-      <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-    </list>
+    <list default="true" id="113c828c-9a32-4b24-ab1e-978ce50c6320" name="Default Changelist" comment="Added function to automatically install missing components by define them in array&#10;Added colorful _echo() function&#10;Added function create_file to store file creation template in one place&#10;Added ability to upload iso file into linode lish&#10;Ability to generate ISO file with different method&#10;&#10;New variables:&#10;&#10;BOX_OS_INSTALL_UI&#10;IPV4_NETMASK_IP0" />
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
     <option name="HIGHLIGHT_NON_ACTIVE_CHANGELIST" value="false" />
@@ -23,7 +21,6 @@
   </component>
   <component name="Git.Settings">
     <option name="RECENT_GIT_ROOT_PATH" value="$PROJECT_DIR$" />
-    <option name="UPDATE_TYPE" value="REBASE" />
   </component>
   <component name="GitToolBoxStore">
     <option name="projectConfigVersion" value="2" />
@@ -53,15 +50,13 @@
     </key>
   </component>
   <component name="RunManager">
-    <configuration default="true" type="ArquillianTestNG" factoryName="" nameIsGenerated="true">
+    <configuration default="true" type="ArquillianJUnit" factoryName="" nameIsGenerated="true">
       <option name="arquillianRunConfiguration">
         <value>
           <option name="containerStateName" value="" />
         </value>
       </option>
-      <option name="TEST_OBJECT" value="CLASS" />
-      <properties />
-      <listeners />
+      <option name="TEST_OBJECT" value="class" />
       <method v="2">
         <option name="Make" enabled="true" />
       </method>
@@ -142,13 +137,7 @@
       <workItem from="1616967729570" duration="663000" />
       <workItem from="1616992234065" duration="657000" />
       <workItem from="1617015443162" duration="1289000" />
-    </task>
-    <task id="LOCAL-00020" summary="Add the ability to switch DA installation from beta to stable or vise versa based on Poralix idea:&#10; &#10; Switch to stable version -&gt; maxida --switch-da stable or switch to beta version -&gt; maxida --switch-da beta&#10; &#10; Switching to beta version is useful to test beta function of Directadmin. For example the wildcard certificate using external DNS is supported in beta version of DA only.&#10;&#10;TODO: Planning to integrate script with wildcard certificate installation using Lego">
-      <created>1611720786588</created>
-      <option name="number" value="00020" />
-      <option name="presentableId" value="LOCAL-00020" />
-      <option name="project" value="LOCAL" />
-      <updated>1611720786588</updated>
+      <workItem from="1617911212573" duration="711000" />
     </task>
     <task id="LOCAL-00021" summary="1) Update maxida to use custombuild and directadmin functionalities.&#10;&#10;For example to set directadmin ssl=1 use the following:&#10;maxida --da set ssl 1&#10;&#10;To check Directadmin ssl setting:&#10;&#10;maxida --da get ssl&#10;output: ssl=1&#10;&#10;To reboot DA: &#10;maxida --reboot-da or maxida --da reboot&#10;&#10;To build lesencrypt package: &#10;maxida --cb letsencrypt&#10;&#10;To edit directadmin.conf: maxida --edit-daconf&#10;&#10;To edit custombuild options.conf: maxida --edit-cbconf&#10;&#10;To run DA in debug mode: &#10;maxida --debug or maxida --da debug&#10;&#10;=====&#10;&#10;2) Minor change to maxisetup">
       <created>1611759582431</created>
@@ -486,7 +475,14 @@
       <option name="project" value="LOCAL" />
       <updated>1617016115065</updated>
     </task>
-    <option name="localTasksCounter" value="69" />
+    <task id="LOCAL-00069" summary="Added function to automatically install missing components by define them in array&#10;Added colorful _echo() function&#10;Added function create_file to store file creation template in one place&#10;Added ability to upload iso file into linode lish&#10;Ability to generate ISO file with different method&#10;&#10;New variables:&#10;&#10;BOX_OS_INSTALL_UI&#10;IPV4_NETMASK_IP0">
+      <created>1617911288501</created>
+      <option name="number" value="00069" />
+      <option name="presentableId" value="LOCAL-00069" />
+      <option name="project" value="LOCAL" />
+      <updated>1617911288501</updated>
+    </task>
+    <option name="localTasksCounter" value="70" />
     <servers />
   </component>
   <component name="TypeScriptGeneratedFilesManager">
@@ -505,7 +501,6 @@
     <option name="oldMeFiltersMigrated" value="true" />
   </component>
   <component name="VcsManagerConfiguration">
-    <MESSAGE value="Updated vps_setup_luks.md" />
     <MESSAGE value="Added reference for LUKS.md (private repo)&#10;Added new checking for changing variable GRUB_CMDLINE_LINUX in /etc/default/grub. If the variable is empty, we create new not append." />
     <MESSAGE value="Updated maxibox script (private repo)&#10;Updated maxicron script (private repo). Maxicron script includes the ability to stop some services to reduce memory usage. Such as clamav background process (private repo)&#10;Added maxicron-agent (private repo)&#10;Added maxicron installation in maxisetup and stop some services in post_setup() function to free memory for some not-so important background services&#10;Updated webapps to include prestashop updated version 1.7.7.2. Moved all prestashop related files to prestashop folder (private repo)" />
     <MESSAGE value="Added cronjobs function to disable some services that can cause memory leaks with small system" />
@@ -530,6 +525,7 @@
     <MESSAGE value="Added the ability to build an ISO file with preseed config used to customize server installation. This ISO file will automatically install server without any interaction.&#10;Updated cd_to_path function to store previous path&#10;Improved linode API&#10;&#10;New variables:&#10;&#10;IPV4_NETMASK0=&#10;IPV6_NETMASK0=&#10;BOX_COUNTRY_NAME=&quot;Malaysia&quot;&#10;BOX_COUNTRY_CODE=&quot;MY&quot;" />
     <MESSAGE value="Improved iso-creation and modified new preseed configs&#10;&#10;New variables:&#10;&#10;BOX_LANGUAGE_CODE=&quot;en&quot;&#10;BOX_LOCALE=&quot;en_US.UTF-8&quot;&#10;BOX_KEYBOARD=&quot;us&quot;" />
     <MESSAGE value="Added hash function for creating password&#10;&#10;Added argument to run preseed.cfg for both graphic and text setup&#10;Added timeout to skip setup menu for custom ISO" />
-    <option name="LAST_COMMIT_MESSAGE" value="Added hash function for creating password&#10;&#10;Added argument to run preseed.cfg for both graphic and text setup&#10;Added timeout to skip setup menu for custom ISO" />
+    <MESSAGE value="Added function to automatically install missing components by define them in array&#10;Added colorful _echo() function&#10;Added function create_file to store file creation template in one place&#10;Added ability to upload iso file into linode lish&#10;Ability to generate ISO file with different method&#10;&#10;New variables:&#10;&#10;BOX_OS_INSTALL_UI&#10;IPV4_NETMASK_IP0" />
+    <option name="LAST_COMMIT_MESSAGE" value="Added function to automatically install missing components by define them in array&#10;Added colorful _echo() function&#10;Added function create_file to store file creation template in one place&#10;Added ability to upload iso file into linode lish&#10;Ability to generate ISO file with different method&#10;&#10;New variables:&#10;&#10;BOX_OS_INSTALL_UI&#10;IPV4_NETMASK_IP0" />
   </component>
 </project>

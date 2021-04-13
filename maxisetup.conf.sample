@@ -25,7 +25,7 @@ INSTALL_TYPE="directadmin"
 ENABLE_CUSTOM_WEB_SETUP="no"
 # If disk encryption is set, put the volume group name.
 # This name will be used by fstab, so putting the wrong group name you will be locked out from the system from booting.
-# TODO: LVM_VOLUME_GROUP is a temporary variable. Will deprecated in future
+# Specify group of LVM
 LVM_VOLUME_GROUP="vg1"
 # TODO: DISK_ENCRYPTION variable is a temp variable, will deprecated in future,
 # setup will determine if disk is encrypted or not
@@ -225,8 +225,17 @@ BOX_ISO_OS_TYPE="debian"
 BOX_OS_INSTALL_UI="normal"
 BOX_TYPE="dedicated"
 BOX_MAIN_DISK="/dev/sda"
+# Partition size information
 BOX_MAIN_DISK_RAW_SIZE="size-in-MB"
+BOX_RESCUE_DISK_RAW_SIZE="size-in-MB"
 BOX_BOOT_DISK_RAW_SIZE="size-in-MB"
+# Partition scheme
+BOX_BOOT_SIZE="size-in-MB"
+BOX_ROOT_SIZE="size-in-MB"
+BOX_TMP_SIZE="size-in-MB"
+BOX_SWAP_SIZE="size-in-MB"
+# -1 = largest available size (put last so can expand easier)
+BOX_HOME_SIZE="-1"
 BOX_RAM="32GB"
 BOX_SWAP="4GB"
 BOX_HOSTNAME="test"
