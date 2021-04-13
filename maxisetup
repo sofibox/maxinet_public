@@ -3,7 +3,7 @@
 # Author: Arafat Ali | Email: webmaster@sofibox.com
 APP_SPECIFIC_NAME="Maxisetup"
 APP_STATUS="beta"
-APP_VERSION="0.4.2.1-${APP_STATUS}"
+APP_VERSION="0.4.2.2-${APP_STATUS}"
 # This is an initial server hardening script for CentOS and Debian.
 # Compatible 100% with Directadmin. Supported OS: CentOS + Debian (Planned on FreeBSD)
 # You can choose to install as the other stack server such as LEMP, (TODO) Laravel and more defined in config file
@@ -886,6 +886,10 @@ function create_file() {
 }
 function create_rescue_iso() {
 
+  if [[ "${HOST_MAX_PROCESSOR}" -lt 2 ]]; then
+    _echo 'red' "Warning, this process will run slower when using compression tool because HOST_MAX_PROCESSOR is set less than 2"
+    echo ""
+  fi
   echo "Creating a new RSA Key for rescue root login ..."
   ssh-keygen -f "${SCRIPT_PATH}/secure/rescue_root_${BOX_HOSTNAME_FQDN}.id_rsa" -t rsa -b 4096 -P "" <<<y
   local rsa_public_key="${SCRIPT_PATH}/secure/rescue_root_${BOX_HOSTNAME_FQDN}.id_rsa.pub"
@@ -968,11 +972,12 @@ function create_rescue_iso() {
   echo ""
   cd_to_path "${isodir_write}/live/workdir"
   echo "Extracting squashfs file filesystem.squashfs ..."
-  unsquashfs -processors 4 filesystem.squashfs
+  unsquashfs -processors "${HOST_MAX_PROCESSOR}" filesystem.squashfs
   echo ""
   echo "Removing the old filesystem.squashfs file ..."
   rm -rf filesystem.squashfs
   echo ""
+  #exit 1
   # Now we have all file in here: isodir_write/live/workdir/squashfs-root/*
   echo "Creating .ssh directory in ${isodir_write}/live/workdir/squashfs-root/root/.ssh ..."
   mkdir -p "${isodir_write}/live/workdir/squashfs-root/root/.ssh"
@@ -986,8 +991,16 @@ function create_rescue_iso() {
   echo "Disabling SSH root login in sshd_config ..."
   sed -i 's/^.*PermitRootLogin.*/PermitRootLogin no/g' "${isodir_write}/live/workdir/squashfs-root/etc/ssh/sshd_config"
   echo ""
+
+  echo "Changing SSH login port to ${RESCUE_SSH_PORT} ..."
+  sed -i "s/#Port 22/Port ${RESCUE_SSH_PORT}/" "${isodir_write}/live/workdir/squashfs-root/etc/ssh/sshd_config"
+  echo ""
+
+  echo "Creating startup command to restart sshd on startup ..."
+  echo "@reboot systemctl restart ssh" >>"${isodir_write}/live/workdir/squashfs-root/etc/crontab"
+  echo ""
   echo "Recreating the squashfs	filesystem from filesystem.squashfs ..."
-  mksquashfs squashfs-root filesystem.squashfs -b 1024k -comp xz -Xbcj x86 -e boot -processors 4
+  mksquashfs squashfs-root filesystem.squashfs -b 1024k -comp xz -Xbcj x86 -e boot -processors "${HOST_MAX_PROCESSOR}"
   echo ""
 
   echo "Moving filesystem.squashfs into ${isodir_write}/live/filesystem.squashfs ..."
@@ -999,7 +1012,8 @@ function create_rescue_iso() {
   cd_to_path "${isodir_write}"
   echo "Fixing sha256sum checksum ..."
   chmod +w sha256sum.txt
-  find "${isodir_write}" -follow -type f ! -name sha256sum.txt -print0 | xargs -0 sha256sum >sha256sum.txt
+  find "${isodir_write}" -follow -type f ! -name sha256sum.txt -print0 | xargs -0 sha256sum >sha256sum_tmp.txt
+  cp -fp sha256sum_tmp.txt sha256sum.txt
   chmod -w sha256sum.txt
 
   echo ""
@@ -10423,6 +10437,7 @@ ENDSSH
 
     ssh_user="$2"
     # Copy all rsa keys
+    echo >/root/.ssh/known_hosts
     cp "${SCRIPT_PATH}"/secure/*.id_rsa* /root/.ssh/
     chmod -R 600 /root/.ssh/
     #key_location="~/.ssh/sofibox.id_rsa"
@@ -10436,9 +10451,14 @@ ENDSSH
 
       ssh -o "StrictHostKeyChecking no" -p "${ssh_port}" -i "/root/.ssh/root_${BOX_HOSTNAME_FQDN}.id_rsa" "${IPV4_ADD0}"
       #sshpass -p "${ROOT_USERPASS_INITIAL}" ssh -o "StrictHostKeyChecking no" -p "${ssh_port}" -i "/root/.ssh/root_${BOX_HOSTNAME_FQDN}.id_rsa" "${IPV4_ADD0}"
+    elif [[ "${ssh_user}" == "rescue" ]]; then
+      echo "Connecting to ${BOX_HOSTNAME_FQDN} using port ${ssh_port} with private key rescue_root_${BOX_HOSTNAME_FQDN}.id_rsa ..."
+
+      ssh -o "StrictHostKeyChecking no" -p "${ssh_port}" -i "/root/.ssh/rescue_root_${BOX_HOSTNAME_FQDN}.id_rsa" "${IPV4_ADD0}"
     else
       # For normal SSH user
       echo "Connecting to ${BOX_HOSTNAME_FQDN} using port ${ssh_port} with private key user_${BOX_HOSTNAME_FQDN}.id_rsa ..."
+
       sshpass -p "${SSH_USERPASS}" ssh -o "StrictHostKeyChecking no" -p "${ssh_port}" -i "/root/.ssh/user_${BOX_HOSTNAME_FQDN}.id_rsa" "${SSH_USERNAME}@${IPV4_ADD0}"
     fi
     exit 0

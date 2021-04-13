@@ -10,6 +10,7 @@
 # Directadmin cannot contains this character in password, it will not work with API -> '+'
 # =====================================
 
+HOST_MAX_PROCESSOR="4"
 # yes = only one log file name | no = use multi log file based on unique date
 USE_ONE_LOG_FILE="yes"
 # This is a temporary allowed IP during setup which won't be blocked by firewall
@@ -213,6 +214,7 @@ HTTPASSWD_ROUNDCUBE_PASS="*long-secured-password*"
 SETUP_GIT_URL="https://token@github.com/sofibox/maxisetup.git"
 GIT_TOKEN="*git-token-key*"
 # To reduce server bot attack on SSH, you must change this SSH PORT
+RESCUE_SSH_PORT="823"
 SSH_PORT="928"
 SSH_USERNAME="ssh-uname"
 SSH_USERPASS="*long-secured-password*"
