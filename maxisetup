@@ -3,7 +3,7 @@
 # Author: Arafat Ali | Email: webmaster@sofibox.com
 APP_SPECIFIC_NAME="Maxisetup"
 APP_STATUS="beta"
-APP_VERSION="0.4.2.2-${APP_STATUS}"
+APP_VERSION="0.4.2.3-${APP_STATUS}"
 # This is an initial server hardening script for CentOS and Debian.
 # Compatible 100% with Directadmin. Supported OS: CentOS + Debian (Planned on FreeBSD)
 # You can choose to install as the other stack server such as LEMP, (TODO) Laravel and more defined in config file
@@ -20,8 +20,133 @@ APP_VERSION="0.4.2.2-${APP_STATUS}"
 # TODO: redirect error in error log file: exec 2>/usr/local/directadmin/customscripts.error.log
 # TODO: use finnix official image for booting instead of linode one.
 # TODO: This is the way how to check if port is available: https://unix.stackexchange.com/questions/6809/how-can-i-check-that-a-remote-computer-is-online-for-ssh-script-access
-# This function will validate if config is valid, if one of the variables missing, it will complain and exit
 
+function ssh_login() {
+  #shift
+  install_required "sshpass"
+  hostname_fqdn="$1"
+  host "${hostname_fqdn}" >/dev/null 2>&1
+  retval=$?
+  if [ ${retval} -eq 0 ]; then
+    #echo "[${SCRIPT_NAME}]: OK, ${hostname_fqdn} is a FQDN"
+    shift
+  else
+    _echo 'red' "[${SCRIPT_NAME}]: Warning, hostname is not a FQDN: ${hostname_fqdn}"
+    hostname_fqdn=${BOX_HOSTNAME_FQDN}
+    echo "[${SCRIPT_NAME}]: Hostname is now set as: ${hostname_fqdn} from config file"
+  fi
+  #shift
+  ssh_port="$1"
+  if ! [[ ${ssh_port} =~ ^[0-9]+$ ]]; then
+    ssh_port="${SSH_PORT}"
+    _echo 'red' "Warning, no valid port is defined. SSH port is now set to ${ssh_port}"
+  fi
+
+  ssh_user="$2"
+  script="$3"
+  mode="$4"
+  # Copy all rsa keys
+  echo >/root/.ssh/known_hosts
+  cp "${SCRIPT_PATH}"/secure/*.id_rsa* /root/.ssh/
+  chmod -R 600 /root/.ssh/
+  #key_location="~/.ssh/sofibox.id_rsa"
+  if [[ "${mode}" == "--silent" || "${mode}" == "silent" ]]; then
+    mode1="-q"
+    #mode2="> /dev/null 2>&1 &"
+  fi
+  #ssh -o "StrictHostKeyChecking no" -p "${ssh_port}" -i "/root/.ssh/root_${BOX_HOSTNAME_FQDN}.id_rsa" "${SSH_USERNAME}@${IPV4_ADD0}"
+  # For root user
+  if [[ -z "${ssh_user}" || "${ssh_user}" == "root" ]]; then
+    echo "Connecting to ${BOX_HOSTNAME_FQDN} using port ${ssh_port} with private key root_${BOX_HOSTNAME_FQDN}.id_rsa ..."
+    if [[ -n "${script}" ]]; then
+      ssh ${mode1} -o "StrictHostKeyChecking no" -p "${ssh_port}" -i "/root/.ssh/root_${BOX_HOSTNAME_FQDN}.id_rsa" "${IPV4_ADD0}" /dev/null <"${script}" 2>&1 &
+    #sshpass -p "${ROOT_USERPASS_INITIAL}" ssh -o "StrictHostKeyChecking no" -p "${ssh_port}" -i "/root/.ssh/root_${BOX_HOSTNAME_FQDN}.id_rsa" "${IPV4_ADD0}"
+    else
+      # Normal root SSH
+      ssh -o "StrictHostKeyChecking no" -p "${ssh_port}" -i "/root/.ssh/root_${BOX_HOSTNAME_FQDN}.id_rsa" "${IPV4_ADD0}"
+    fi
+  elif [[ "${ssh_user}" == "rescue" ]]; then
+    if [[ -n "${script}" ]]; then
+      echo "Connecting to ${BOX_HOSTNAME_FQDN} using port ${RESCUE_SSH_PORT} with private key rescue_root_${BOX_HOSTNAME_FQDN}.id_rsa ..."
+      ssh ${mode1} -o "StrictHostKeyChecking no" -p "${RESCUE_SSH_PORT}" -i "/root/.ssh/rescue_root_${BOX_HOSTNAME_FQDN}.id_rsa" "${IPV4_ADD0}" <"${script}" >/dev/null 2>&1 &
+    else
+      echo "Connecting to ${BOX_HOSTNAME_FQDN} using port ${RESCUE_SSH_PORT} with private key rescue_root_${BOX_HOSTNAME_FQDN}.id_rsa ..."
+      ssh ${mode1} -o "StrictHostKeyChecking no" -p "${RESCUE_SSH_PORT}" -i "/root/.ssh/rescue_root_${BOX_HOSTNAME_FQDN}.id_rsa" "${IPV4_ADD0}"
+    fi
+  else
+    # For normal SSH user
+    if [[ -n "${script}" ]]; then
+      echo "Connecting to ${BOX_HOSTNAME_FQDN} using port ${ssh_port} with private key user_${BOX_HOSTNAME_FQDN}.id_rsa ..."
+      sshpass -p "${SSH_USERPASS}" ssh ${mode1} -o "StrictHostKeyChecking no" -p "${ssh_port}" -i "/root/.ssh/user_${BOX_HOSTNAME_FQDN}.id_rsa" "${SSH_USERNAME}@${IPV4_ADD0}" <"${script}" >/dev/null 2>&1 &
+    else
+      echo "Connecting to ${BOX_HOSTNAME_FQDN} using port ${ssh_port} with private key user_${BOX_HOSTNAME_FQDN}.id_rsa ..."
+      sshpass -p "${SSH_USERPASS}" ssh ${mode1} -o "StrictHostKeyChecking no" -p "${ssh_port}" -i "/root/.ssh/user_${BOX_HOSTNAME_FQDN}.id_rsa" "${SSH_USERNAME}@${IPV4_ADD0}"
+    fi
+  fi
+}
+
+function check_linode_status_until() {
+  option="$1"
+  if [[ "${option}" == "offline" ]]; then
+    echo "Checking linode status ..."
+    while :; do
+      linode_status=$(linode_api_admin "get-linode-status" "${BOX_HOSTNAME_FQDN}" | tail -n 1)
+      if [ "${linode_status}" == "online" ]; then
+        spinner start "Linode is online, waiting for offline status"
+        # Re-execute reboot command
+        ssh -o "StrictHostKeyChecking no" -i /root/.ssh/linodelish.id_rsa -tt "${DNS_PROVIDER_USER}@${DNS_PROVIDER_TERMINAL_SERVER}" "${BOX_HOSTNAME_FQDN}" /dev/null <"${SCRIPT_PATH}/linode/reboot_command.sh" 2>&1 &
+      elif [ "${linode_status}" == "offline" ]; then
+        spinner stop "Success, Linode is offline"
+        break
+      else
+        spinner start "Linode status is ${linode_status}, waiting for offline status"
+      fi
+    done
+  elif [[ "${option}" == "online" ]]; then
+    echo "Checking linode status ..."
+    while :; do
+      linode_status=$(linode_api_admin "get-linode-status" "${BOX_HOSTNAME_FQDN}" | tail -n 1)
+      if [ "${linode_status}" == "online" ]; then
+        spinner stop "Success, Linode is online"
+        break
+      elif [ "${linode_status}" == "offline" ]; then
+        spinner start "Linode is offline, waiting for online status"
+      else
+        spinner start "Linode status is ${linode_status}, waiting for offline status"
+      fi
+    done
+  else
+    echo "Wrong unknown argument passed!"
+  fi
+}
+
+# This function will display spinning progress.
+# SPIN_PROGRESS and SPIN_COUNT must be declared outside function
+# Use inside function with loop to show animation of the spinner
+# Usage:
+# spinner <start/stop> <message>
+# to start spinner: spinner start "Deleting that one ..."
+# output: Deleting that one ... /
+# to stop spinner and replace with success message: spinner stop "Success deleted that one!"
+# output: Success deleted that one!
+# Not recommend to use long string for the spinning message that fill up the width of the terminal with weird output.
+function spinner() {
+  local option strings_start strings_end
+  option="$1"
+  #string_count=0
+  if [[ "${option}" == "spin" || "${option}" == "start" ]]; then
+    shift
+    strings_start="$1"
+    echo -ne "\r${strings_start} ${SPIN_PROGRESS:SPIN_COUNT++:1}"
+    ((SPIN_COUNT == ${#SPIN_PROGRESS})) && SPIN_COUNT=0
+  elif [[ "${option}" == "endspin" || "${option}" == "stop" ]]; then
+    shift
+    strings_end="$*"
+    #add \033[K or \e[K after the \r to clear text
+    echo -ne "\r\e[K${strings_end}\n"
+  fi
+}
+# This function will validate if config is valid, if one of the variables missing, it will complain and exit
 function validate_config() {
   local count_user total_valid_user this_da_owner_uname
   echo "[${SCRIPT_NAME}]: Checking DA users configuration ... " 2>&1 | tee -a "${REPORT_FILE}"
@@ -855,7 +980,9 @@ function create_file() {
       echo "in-target mkdir -p /target/root/.ssh; \\"
       echo "in-target cp /cdrom/root_${BOX_HOSTNAME_FQDN}.id_rsa.pub /target/root/.ssh/authorized_keys; \\"
       echo "in-target chmod -R go-rwx /target/root/.ssh; \\"
-      echo "in-target sed -i 's/^.*PermitRootLogin.*/PermitRootLogin no/g' /target/etc/ssh/sshd_config; \\"
+      echo "in-target sed -i 's/^.*PermitRootLogin.*/PermitRootLogin without-password/g' /target/etc/ssh/sshd_config; \\"
+      echo "in-target sed -i 's/^.*PubkeyAuthentication.*/PubkeyAuthentication yes/g' /target/etc/ssh/sshd_config; \\"
+      echo "in-target sed -i 's/#Port 22/Port ${SSH_PORT}/' /target/etc/ssh/sshd_config; \\"
       # This will disable the interface name convention (just put in kernel line)
       #echo "in-target sed -i 's/GRUB_CMDLINE_LINUX=\"[^\"]*/&net.ifnames=0 biosdevname=0/' /etc/default/grub; \\"
       echo "echo "\"GRUB_TERMINAL=serial\""  >> /target/etc/default/grub; \\"
@@ -885,7 +1012,8 @@ function create_file() {
   fi
 }
 function create_rescue_iso() {
-
+  install_required "genisoimage" "wget" "pwgen" "whois" "xorriso" "debconf" "isolinux" "syslinux-utils" "squashfs-tools" "putty-tools"
+  dbx_cli="${SCRIPT_PATH}/storage/os/debian/usr/local/maxicode/maxicloud/dropbox/dbx"
   if [[ "${HOST_MAX_PROCESSOR}" -lt 2 ]]; then
     _echo 'red' "Warning, this process will run slower when using compression tool because HOST_MAX_PROCESSOR is set less than 2"
     echo ""
@@ -893,6 +1021,9 @@ function create_rescue_iso() {
   echo "Creating a new RSA Key for rescue root login ..."
   ssh-keygen -f "${SCRIPT_PATH}/secure/rescue_root_${BOX_HOSTNAME_FQDN}.id_rsa" -t rsa -b 4096 -P "" <<<y
   local rsa_public_key="${SCRIPT_PATH}/secure/rescue_root_${BOX_HOSTNAME_FQDN}.id_rsa.pub"
+  local rsa_private_key="${SCRIPT_PATH}/secure/rescue_root_${BOX_HOSTNAME_FQDN}.id_rsa"
+  puttygen "${rsa_private_key}" -o "rescue_root_${BOX_HOSTNAME_FQDN}.ppk"
+  local rsa_private_key_ppk="${SCRIPT_PATH}/secure/rescue_root_${BOX_HOSTNAME_FQDN}.ppk"
 
   # Good guide : https://www.dotpointer.ga/?section=notes&view=note&id_notes=164
   # Good guide 2: https://rmprepusb.com/tutorials/011-make-an-image-recovery-usb-drive-using-finnix/
@@ -902,7 +1033,6 @@ function create_rescue_iso() {
   local option="$2"
   local root_temp_path isofile isofile_final isomount_location finnix_select_version isodir_write iso_url isofile_final_base_name file_direct_link
 
-  install_required "genisoimage" "wget" "pwgen" "whois" "xorriso" "debconf" "isolinux" "syslinux-utils" "squashfs-tools"
   if [ $# -gt 3 ]; then
     echo "Argument shouldn't be more than 3 for now. See --help for more information"
     _exit 1
@@ -962,7 +1092,26 @@ function create_rescue_iso() {
   echo ""
   echo "Removing initial ISO file ..."
   rm -rf "${isofile}"
-
+  echo ""
+  echo "Disabling startup timer menu (straight boot to the default menu) ..."
+  sed -i "s/timeout .*/timeout 1/" ${isodir_write}/isolinux/isolinux.cfg
+  echo ""
+  #echo "Adding noeject and noprompt boot parameter at grub.cfg ..."
+  #{
+  #  echo "source /boot/grub/config.cfg"
+  #  echo "# Live boot"
+  #  echo "menuentry \"Live system\" --hotkey=l {"
+  #  echo "    linux	/live/vmlinuz-5.10.0-3-amd64 quiet"
+  #  echo "    initrd	/live/initrd.img-5.10.0-3-amd64"
+  #  echo "}"
+  #} >${isodir_write}/boot/grub/grub.cfg
+  echo ""
+  echo "Creating startup script on startup ..."
+  #Guide here: https://www.finnix.org/Overlays (Startup shell scripts)
+  mkdir -p "${isodir_write}/finnix/arch/indep/rc"
+  echo "#!/bin/bash" >"${isodir_write}/finnix/arch/indep/rc/initial.sh"
+  echo "#any startup script here" >>"${isodir_write}/finnix/arch/indep/rc/initial.sh"
+  chmod +x "${isodir_write}/finnix/arch/indep/rc/initial.sh"
   echo ""
   echo "Creating working directory ${isodir_write}/live/workdir"
   mkdir -p "${isodir_write}/live/workdir"
@@ -996,9 +1145,11 @@ function create_rescue_iso() {
   sed -i "s/#Port 22/Port ${RESCUE_SSH_PORT}/" "${isodir_write}/live/workdir/squashfs-root/etc/ssh/sshd_config"
   echo ""
 
-  echo "Creating startup command to restart sshd on startup ..."
-  echo "@reboot systemctl restart ssh" >>"${isodir_write}/live/workdir/squashfs-root/etc/crontab"
+  echo "Creating startup script at .profile to restart ssh on startup ..."
+  echo "systemctl restart ssh" >>"${isodir_write}/live/workdir/squashfs-root/root/.profile"
+  #chmod +x "${isodir_write}/live/workdir/squashfs-root/etc/rc.local"
   echo ""
+
   echo "Recreating the squashfs	filesystem from filesystem.squashfs ..."
   mksquashfs squashfs-root filesystem.squashfs -b 1024k -comp xz -Xbcj x86 -e boot -processors "${HOST_MAX_PROCESSOR}"
   echo ""
@@ -1010,14 +1161,12 @@ function create_rescue_iso() {
   rm -rf ${isodir_write}/live/workdir
   echo ""
   cd_to_path "${isodir_write}"
-  echo "Fixing sha256sum checksum ..."
+  echo "Creating new sha256sum checksum for sha256sum.txt ..."
   chmod +w sha256sum.txt
   find "${isodir_write}" -follow -type f ! -name sha256sum.txt -print0 | xargs -0 sha256sum >sha256sum_tmp.txt
-  cp -fp sha256sum_tmp.txt sha256sum.txt
+  mv -f sha256sum_tmp.txt sha256sum.txt
   chmod -w sha256sum.txt
-
   echo ""
-
   echo "Creating standalone ISO installation inside ${isofile_final} ..."
   xorriso -as mkisofs \
     -isohybrid-mbr /usr/lib/ISOLINUX/isohdpfx.bin \
@@ -1037,18 +1186,24 @@ function create_rescue_iso() {
   # Copying to shared folder
   echo "Creating installation disk at ${iso_output_path} ..."
   cp "${isofile_final}" "${iso_output_path}"
+  echo ""
+  echo "Copying RSA private keys inside ISO output ..."
+  cp "${rsa_private_key}" "$(dirname "${iso_output_path}")/"
+  cp "${rsa_private_key_ppk}" "$(dirname "${iso_output_path}")/"
   # Uploading to dropbox
   echo ""
   echo "Uploading ${isofile_final} into dropbox /files/${isofile_final_base_name} ..."
-  dbx upload "${isofile_final}" "/files"
+  ${dbx_cli} upload "${isofile_final}" "/files"
 
   echo "Creating download link ..."
-  file_direct_link=$(dbx share "/files/${isofile_final_base_name}" | awk '{ print $4}' | sed 's/0$/1/g')
+  file_direct_link=$(${dbx_cli} share "/files/${isofile_final_base_name}" | awk '{ print $4}' | sed 's/0$/1/g')
   echo "File direct link is: ${file_direct_link}"
   echo ""
   echo "Creating rescue disk script for copy paste temporarily ..."
   _echo 'red' "=================================="
   echo ""
+  echo "wget -O mini.iso \"${file_direct_link}\"" >"$(dirname "${iso_output_path}")/install.txt"
+  echo "dd if=mini.iso of=/dev/sda" >>"$(dirname "${iso_output_path}")/install.txt"
   _echo 'green' "wget -O mini.iso \"${file_direct_link}\""
   _echo 'green' "dd if=mini.iso of=/dev/sda"
   _echo 'green' "mkdir /mnt/iso"
@@ -1057,6 +1212,17 @@ function create_rescue_iso() {
   echo ""
   _echo 'red' "=================================="
   echo ""
+
+  echo "Copying script into linode script ${SCRIPT_PATH}/linode... "
+  {
+    echo "#!/bin/bash"
+    echo "wget -O mini.iso ${file_direct_link}"
+    echo "dd if=mini.iso of=/dev/sda"
+    # Need this option to reboot when reboot check
+    echo "reboot -f"
+    echo "exit 0"
+  } >"${SCRIPT_PATH}/linode/rescue_write.sh"
+
   echo "Removing working directory ..."
   rm -rf "${isodir_write}"
 }
@@ -1125,7 +1291,6 @@ function create_os_iso() {
       else
         echo "Downloading new system image ..."
       fi
-
       wget -nc -O ${ISOFILE} ${ISO_URL} || true
     elif [[ "${option}" == "--no-update-iso" ]]; then
       if [ -f ${ISOFILE} ]; then
@@ -1305,11 +1470,18 @@ function create_os_iso() {
     #dbxcli put "${ISO_OUTPUT_PATH}"
   # My custom method for server (Like the LILO or GRUB method)
   elif [[ "${method}" == "--hdd-iso" || "${method}" == "--hdd-boot" || "${method}" == "--hdd" || "${method}" == "--isolinux" ]]; then
+
     # For hard disk booting
+    dbx_cli="${SCRIPT_PATH}/storage/os/debian/usr/local/maxicode/maxicloud/dropbox/dbx"
     echo "Creating new RSA Key for root login ..."
     # This will create 2 files one is private and another one with the extension .pub
+
     ssh-keygen -f "${SCRIPT_PATH}/secure/root_${BOX_HOSTNAME_FQDN}.id_rsa" -t rsa -b 4096 -P "" <<<y
     local rsa_public_key="${SCRIPT_PATH}/secure/root_${BOX_HOSTNAME_FQDN}.id_rsa.pub"
+    local rsa_private_key="${SCRIPT_PATH}/secure/root_${BOX_HOSTNAME_FQDN}.id_rsa"
+    puttygen "${rsa_private_key}" -o "root_${BOX_HOSTNAME_FQDN}.ppk"
+    local rsa_private_key_ppk="${SCRIPT_PATH}/secure/root_${BOX_HOSTNAME_FQDN}.ppk"
+
     if [ ! -f "${rsa_public_key}" ]; then
       echo "RSA public key file not found!"
       _exit 1
@@ -1319,6 +1491,8 @@ function create_os_iso() {
     echo ""
     echo "Building a custom ${iso_os} image file for server setup in syslinux bootloader (Hardisk Booting) ..."
     echo ""
+    # Fixing
+    cd_to_path "${SCRIPT_PATH}"
     install_required "debconf" "isolinux" "syslinux-utils" "xorriso" "wget"
     if [[ "${option}" == "--update-iso" || -z "${option}" ]]; then
       # wget --timestamping option also can be used
@@ -1564,15 +1738,17 @@ function create_os_iso() {
 
     # Uploading to dropbox
     echo "Uploading ${ISOFILE_FINAL} into dropbox /files/${ISOFILE_FINAL_BASE_NAME} ..."
-    dbx upload "${ISOFILE_FINAL}" "/files"
+    ${dbx_cli} upload "${ISOFILE_FINAL}" "/files"
 
     echo "Creating download link ..."
-    file_direct_link=$(dbx share "/files/${ISOFILE_FINAL_BASE_NAME}" | awk '{ print $4}' | sed 's/0$/1/g')
+    file_direct_link=$(${dbx_cli} share "/files/${ISOFILE_FINAL_BASE_NAME}" | awk '{ print $4}' | sed 's/0$/1/g')
     echo "File direct link is: ${file_direct_link}"
     echo ""
     echo "Creating rescue disk script for copy paste temporarily ..."
     _echo 'red' "=================================="
     echo ""
+    echo "wget -O mini.iso \"${file_direct_link}\"" >"$(dirname "${iso_output_path}")/install.txt"
+    echo "dd if=mini.iso of=/dev/sda" >>"$(dirname "${ISO_OUTPUT_PATH}")/install.txt"
     _echo 'green' "wget -O mini.iso \"${file_direct_link}\""
     _echo 'green' "dd if=mini.iso of=/dev/sda"
     _echo 'green' "mkdir /mnt/iso"
@@ -1581,16 +1757,16 @@ function create_os_iso() {
     echo ""
     _echo 'red' "=================================="
     echo ""
+
     echo "Copying script into linode script ${SCRIPT_PATH}/linode... "
     {
       echo "#!/bin/bash"
       echo "wget -O mini.iso ${file_direct_link}"
       echo "dd if=mini.iso of=/dev/sda"
-      echo ""
-      echo "~."
-      clear
-      echo "END"
-    } >"${SCRIPT_PATH}/linode/lish_command.sh"
+      # Need this option to reboot when reboot check
+      echo "reboot -f"
+      echo "exit 0"
+    } >"${SCRIPT_PATH}/linode/os_write.sh"
 
     echo ""
     echo "Removing working directory ..."
@@ -1966,7 +2142,7 @@ function linode_api_admin() {
     shift
     echo "[${SCRIPT_NAME}]: Getting linode ID for ${hostname_fqdn}..."
     linode_id=$(${LINODE_CLI_BIN} linodes list --json --pretty | ${JQ_BIN} ".[] | select(.label == \"${hostname_fqdn}\") | .id")
-    echo "${linode_id}"
+    #echo "${linode_id}"
   elif [[ "${action}" == "get-linode-status" ]]; then
     shift
     local linode_id linode_status hostname_fqdn
@@ -1987,6 +2163,18 @@ function linode_api_admin() {
     echo "[${SCRIPT_NAME}]: Getting linode status for ${hostname_fqdn} ..."
     linode_status=$(${LINODE_CLI_BIN} linodes view "${linode_id}" --json --pretty | ${JQ_BIN} -r ".[] | .status")
     echo "${linode_status}"
+
+    #0=online
+    #1=offline
+    #3=other
+
+    #if [ "${linode_status}" == "online" ]; then
+    #  return 0
+    #elif [ "${linode_status}"  == "offline" ]; then
+    #  return 1
+    #else
+    #  return 3
+    #fi
     # linode_api_admin "rescue-mode" <optional_hostname> <optional_mount_disk1_label> <optional_mount_disk2_label> <optional_mount_diskN_label> ... <optional_mount_disk9>"
   elif [[ "${action}" == "rescue-linode" || "${action}" == "rescue-reboot" || "${action}" == "rescue" || "${action}" == "reboot-rescue" || "${action}" == "rescue-mode" || "${action}" == "boot-rescue" || "${action}" == "boot-to-rescue" || "${action}" == "rescue-boot" ]]; then
     shift
@@ -2133,25 +2321,27 @@ function linode_api_admin() {
     fi
     echo "[${SCRIPT_NAME}]: Putting linode ${hostname_fqdn} into rescue mode ..."
     ${LINODE_CLI_BIN} linodes rescue "${linode_id}" ${config_disks_id_options}
-    echo "[${SCRIPT_NAME}]: Allowing ${wait_time} seconds to finish booting into rescue mode"
-    sleep ${wait_time}
+    echo "[${SCRIPT_NAME}]: Waiting for linode to finish booting into rescue mode ..."
+    # sleep ${wait_time}
     while :; do
       linode_status=$(${LINODE_CLI_BIN} linodes view "${linode_id}" --json --pretty | ${JQ_BIN} -r ".[] | .status")
       if [[ "${linode_status}" == "running" ]]; then
-        echo "[${SCRIPT_NAME}]: Success, linode ${hostname_fqdn} has been successfully booted into rescue mode."
-        echo "[${SCRIPT_NAME}]: Server status is: ${linode_status}"
+        #echo "[${SCRIPT_NAME}]: Success, linode ${hostname_fqdn} has been successfully booted into rescue mode."
+        spinner stop "[${SCRIPT_NAME}]: Success, linode ${hostname_fqdn} has been successfully booted into rescue mode."
+        #echo "[${SCRIPT_NAME}]: Server status is: ${linode_status}"
         break
       else
-        echo "[${SCRIPT_NAME}]: Linode status is: ${linode_status}"
-        echo "[${SCRIPT_NAME}]: Allowing ${wait_time} seconds to finish booting into rescue mode"
-        sleep ${wait_time}
+        #echo "[${SCRIPT_NAME}]: Linode status is: ${linode_status}"
+        #echo "[${SCRIPT_NAME}]: Allowing ${wait_time} seconds to finish booting into rescue mode"
+        #sleep ${wait_time}
+        spinner start "[${SCRIPT_NAME}]: Linode status is ${linode_status}. Waiting for running status ..."
       fi
     done
     # linode-api shutdown-linode
     # linode-api shutdown-linode <hostname_fqdn>
   elif [[ "${action}" == "shutdown-linode" || "${action}" == "poweroff-linode" || "${action}" == "turnoff-linode" || "${action}" == "shutdown" || "${action}" == "poweroff" || "${action}" == "turnoff" ]]; then
     shift
-    local linode_id hostname_fqdn shutdown_wait shutdown_wait_max shutdown_wait_total linode_status
+    local linode_id hostname_fqdn linode_status #shutdown_wait shutdown_wait_max shutdown_wait_total
     hostname_fqdn="$1"
     local retval
     host "${hostname_fqdn}" >/dev/null 2>&1
@@ -2165,9 +2355,9 @@ function linode_api_admin() {
       echo "[${SCRIPT_NAME}]: Hostname is now set as: ${hostname_fqdn} from config file"
     fi
     shift
-    shutdown_wait=10
-    shutdown_wait_total=0
-    shutdown_wait_max=240
+    #shutdown_wait=10
+    #shutdown_wait_total=0
+    #shutdown_wait_max=240
     echo "[${SCRIPT_NAME}]: Shutting down linode ${hostname_fqdn} ..."
     linode_id=$(${LINODE_CLI_BIN} linodes list --json --pretty | ${JQ_BIN} ".[] | select(.label == \"${hostname_fqdn}\") | .id")
     linode_status=$(${LINODE_CLI_BIN} linodes view "${linode_id}" --json --pretty | ${JQ_BIN} -r ".[] | .status")
@@ -2176,41 +2366,43 @@ function linode_api_admin() {
       echo "[${SCRIPT_NAME}]: Notice, linode ${hostname_fqdn} status is already offline!"
     else
       echo "[${SCRIPT_NAME}]: Notice, linode ${hostname_fqdn} status is ${linode_status}"
-      count_off=0
+      #count_off=0
       echo "[${SCRIPT_NAME}]: Shutting down linode ${hostname_fqdn} ..."
       ${LINODE_CLI_BIN} linodes shutdown "${linode_id}"
       while :; do
         linode_status=$(${LINODE_CLI_BIN} linodes view "${linode_id}" --json --pretty | ${JQ_BIN} -r ".[] | .status")
-        if [ "${count_off}" -gt 0 ]; then
-          echo "[${SCRIPT_NAME}]: Allowing another ${shutdown_wait} seconds to finish shutting down linode ${hostname_fqdn} ..."
-        else
-          echo "[${SCRIPT_NAME}]: Allowing the first ${shutdown_wait} seconds to finish shutting down linode ${hostname_fqdn} ..."
-        fi
-        sleep "${shutdown_wait}"
+        #if [ "${count_off}" -gt 0 ]; then
+        #  echo "[${SCRIPT_NAME}]: Allowing another ${shutdown_wait} seconds to finish shutting down linode ${hostname_fqdn} ..."
+        #else
+        #  echo "[${SCRIPT_NAME}]: Allowing the first ${shutdown_wait} seconds to finish shutting down linode ${hostname_fqdn} ..."
+        #fi
+        #sleep "${shutdown_wait}"
         if [ "${linode_status}" == "running" ]; then
-          echo "[${SCRIPT_NAME}]: Linode for ${hostname_fqdn} status is: running" 2>&1 | tee -a "${REPORT_FILE}"
+          echo "[${SCRIPT_NAME}]: Linode for ${hostname_fqdn} status is: running"
         elif [ "${linode_status}" == "offline" ]; then
-          echo "[${SCRIPT_NAME}]: Success, linode for ${hostname_fqdn} status is: offline" 2>&1 | tee -a "${REPORT_FILE}"
-          echo "Total wait in second is: ${shutdown_wait_total}"
-          echo "Max wait in second is: ${shutdown_wait_max}"
+          spinner stop "[${SCRIPT_NAME}]: Success, linode for ${hostname_fqdn} status is: offline"
+          #echo "Total wait in second is: ${shutdown_wait_total}"
+          #echo "Max wait in second is: ${shutdown_wait_max}"
           break
         elif [ "${linode_status}" == "shutting_down" ]; then
-          echo "[${SCRIPT_NAME}]: Linode for ${hostname_fqdn} status is: shutting_down" 2>&1 | tee -a "${REPORT_FILE}"
+          #echo "[${SCRIPT_NAME}]: Linode for ${hostname_fqdn} status is: shutting_down"
+          spinner start "[${SCRIPT_NAME}]: Linode for ${hostname_fqdn} status is: shutting_down"
         # Do more statement here based on linode_status string
         else
-          echo "[${SCRIPT_NAME}]: Warning, linode for ${hostname_fqdn} has unknown unidentified status: ${linode_status}" 2>&1 | tee -a "${REPORT_FILE}"
+          # echo "[${SCRIPT_NAME}]: Warning, linode for ${hostname_fqdn} has unknown unidentified status: ${linode_status}"
+          spinner start "[${SCRIPT_NAME}]: Warning, linode for ${hostname_fqdn} has unknown unidentified status: ${linode_status}"
           # Don't exit still give time
           #_exit 1
         fi
         # Sometimes linode is stuck at terminal when reboot, start or shutdown, so we need to display error for inspection here:
-        ((shutdown_wait_total = shutdown_wait_total + shutdown_wait))
-        if [ "${shutdown_wait_total}" -gt ${shutdown_wait_max} ]; then
-          echo "[${SCRIPT_NAME}]: Warning, something is wrong while trying to turn off linode for ${hostname_fqdn}. It took more than ${shutdown_wait_total} seconds. Please, inspect why!"
-          echo "Total wait in second is: ${shutdown_wait_total}"
-          echo "Max wait in second is: ${shutdown_wait_max}"
-          _exit 1
-        fi
-        ((count_off++))
+        #((shutdown_wait_total = shutdown_wait_total + shutdown_wait))
+        #if [ "${shutdown_wait_total}" -gt ${shutdown_wait_max} ]; then
+        #  echo "[${SCRIPT_NAME}]: Warning, something is wrong while trying to turn off linode for ${hostname_fqdn}. It took more than ${shutdown_wait_total} seconds. Please, inspect why!"
+        #  echo "Total wait in second is: ${shutdown_wait_total}"
+        #  echo "Max wait in second is: ${shutdown_wait_max}"
+        #  _exit 1
+        #fi
+        #((count_off++))
       done
     fi
     # linode_api_admin "boot-linode" "sun.sofibox.com" "Boot_Config"
@@ -2231,53 +2423,43 @@ function linode_api_admin() {
     fi
     shift
     config_label="$1"
-    wait_time=10
+    #wait_time=10
     echo "[${SCRIPT_NAME}]: Booting linode ${hostname_fqdn} using config label ${config_label} ..."
     linode_id=$(${LINODE_CLI_BIN} linodes list --json --pretty | ${JQ_BIN} ".[] | select(.label == \"${hostname_fqdn}\") | .id")
     config_id=$(${LINODE_CLI_BIN} linodes configs-list "${linode_id}" --json --pretty | ${JQ_BIN} ".[] | select(.label == \"${config_label}\") | .id")
-    linode_status=$(${LINODE_CLI_BIN} linodes view "${linode_id}" --json --pretty | ${JQ_BIN} -r ".[] | .status")
-    # Make sure it's shutdown first before booting:
-    if [[ "${linode_status}" == "running" ]]; then
-      ${LINODE_CLI_BIN} linodes shutdown "${linode_id}"
-      echo "[${SCRIPT_NAME}]: Allowing ${wait_time} seconds to finish shutting down linode ${linode_id}"
-      sleep ${wait_time}
-      while :; do
-        linode_status=$(${LINODE_CLI_BIN} linodes view "${linode_id}" --json --pretty | ${JQ_BIN} -r ".[] | .status")
-        if [[ "${linode_status}" == "offline" ]]; then
-          echo "[${SCRIPT_NAME}]: Success, linode ${hostname_fqdn} has been successfully put in offline mode."
-          echo "[${SCRIPT_NAME}]: Server status is: ${linode_status}"
-          break
-        else
-          echo "[${SCRIPT_NAME}]: Linode status is: ${linode_status}"
-          ${LINODE_CLI_BIN} linodes shutdown "${linode_id}"
-          echo "[${SCRIPT_NAME}]: Allowing ${wait_time} seconds to finish shutting down linode ${linode_id}"
-          sleep ${wait_time}
-        fi
-      done
+    if [ -z "${config_id}" ]; then
+      echo "[${SCRIPT_NAME}]: Warning, no config ${config_label} is found!"
+      return 1
     fi
+    linode_status=$(${LINODE_CLI_BIN} linodes view "${linode_id}" --json --pretty | ${JQ_BIN} -r ".[] | .status")
+    ${LINODE_CLI_BIN} linodes shutdown "${linode_id}"
+
     echo "[${SCRIPT_NAME}]: Booting linode ${hostname_fqdn} ..."
     ${LINODE_CLI_BIN} linodes boot "${linode_id}" --config_id "${config_id}"
-    echo "[${SCRIPT_NAME}]: Allowing ${wait_time} seconds to finish booting using config ${config_label}"
-    sleep ${wait_time}
+    echo "[${SCRIPT_NAME}]: Waiting linode to finish booting using config ${config_label} ..."
+    #sleep ${wait_time}
     while :; do
       linode_status=$(${LINODE_CLI_BIN} linodes view "${linode_id}" --json --pretty | ${JQ_BIN} -r ".[] | .status")
       if [[ "${linode_status}" == "running" ]]; then
-        echo "[${SCRIPT_NAME}]: Success, linode ${hostname_fqdn} has been successfully booted using config ${config_label}."
-        echo "[${SCRIPT_NAME}]: Server status is: ${linode_status}"
+        #echo "[${SCRIPT_NAME}]: Success, linode ${hostname_fqdn} has been successfully booted using config ${config_label}."
+        #echo "[${SCRIPT_NAME}]: Server status is: ${linode_status}"
+        spinner stop "[${SCRIPT_NAME}]: Success, linode ${hostname_fqdn} has been successfully booted using config ${config_label}"
         break
-      elif [[ "${linode_status}" == "offline" ]]; then
-        ${LINODE_CLI_BIN} linodes boot "${linode_id}" --config_id "${config_id}"
+        # elif [[ "${linode_status}" == "offline" ]]; then
+        #   ${LINODE_CLI_BIN} linodes boot "${linode_id}" --config_id "${config_id}"
       else
-        echo "[${SCRIPT_NAME}]: Linode status is: ${linode_status}"
-        echo "[${SCRIPT_NAME}]: Allowing ${wait_time} seconds to finish booting using config ${config_label}"
-        sleep ${wait_time}
+        #echo "[${SCRIPT_NAME}]: Linode status is: ${linode_status}"
+        #echo "[${SCRIPT_NAME}]: Allowing ${wait_time} seconds to finish booting using config ${config_label}"
+        #sleep ${wait_time}
+        spinner start "[${SCRIPT_NAME}]: Linode status is ${linode_status}. Waiting for running status ..."
+
       fi
     done
   elif [[ "${action}" == "restart-linode" || "${action}" == "reboot-linode" || "${action}" == "restart" || "${action}" == "reboot" ]]; then
     shift
     local linode_id hostname_fqdn wait_time
     hostname_fqdn="$1"
-    wait_time=10
+    #wait_time=10
     local retval
     host "${hostname_fqdn}" >/dev/null 2>&1
     retval=$?
@@ -2294,18 +2476,21 @@ function linode_api_admin() {
     linode_id=$(${LINODE_CLI_BIN} linodes list --json --pretty | ${JQ_BIN} ".[] | select(.label == \"${hostname_fqdn}\") | .id")
     ${LINODE_CLI_BIN} linodes reboot "${linode_id}"
 
-    echo "[${SCRIPT_NAME}]: Allowing ${wait_time} seconds to finish rebooting using config ${config_label}"
-    sleep ${wait_time}
+    echo "[${SCRIPT_NAME}]: Waiting linode to finish rebooting using config ${config_label} ..."
+    #sleep ${wait_time}
     while :; do
       linode_status=$(${LINODE_CLI_BIN} linodes view "${linode_id}" --json --pretty | ${JQ_BIN} -r ".[] | .status")
       if [[ "${linode_status}" == "running" ]]; then
-        echo "[${SCRIPT_NAME}]: Success, linode ${hostname_fqdn} has been successfully rebooted"
-        echo "[${SCRIPT_NAME}]: Server status is: ${linode_status}"
+        #echo "[${SCRIPT_NAME}]: Success, linode ${hostname_fqdn} has been successfully rebooted"
+        #echo "[${SCRIPT_NAME}]: Server status is: ${linode_status}"
+        spinner stop "[${SCRIPT_NAME}]: Success, linode ${hostname_fqdn} has been successfully rebooted"
+
         break
       else
-        echo "[${SCRIPT_NAME}]: Linode status is: ${linode_status}"
-        echo "[${SCRIPT_NAME}]: Allowing ${wait_time} seconds to finish rebooting"
-        sleep ${wait_time}
+        #echo "[${SCRIPT_NAME}]: Linode status is: ${linode_status}"
+        #echo "[${SCRIPT_NAME}]: Allowing ${wait_time} seconds to finish rebooting"
+        #sleep ${wait_time}
+        spinner start "[${SCRIPT_NAME}]: Linode status is ${linode_status}. Waiting for running status ..."
       fi
     done
 
@@ -2373,6 +2558,71 @@ function linode_api_admin() {
     linode_id=$(${LINODE_CLI_BIN} linodes list --json --pretty | ${JQ_BIN} ".[] | select(.label == \"${hostname_fqdn}\") | .id")
     ${LINODE_CLI_BIN} linodes disks-list "${linode_id}" --json --pretty
     echo $?
+    # linode_api_admin "delete-disk" <hostname_fqdn> <disk_label>
+  elif [[ "${action}" == "delete-disk" || "${action}" == "remove-disk" ]]; then
+    # Make sure to shutdown linode first
+    shift
+    local linode_id disk_ids hostname_fqdn disk_status disk_ids_count disk_count linode_status
+    hostname_fqdn="$1"
+    local retval
+    host "${hostname_fqdn}" >/dev/null 2>&1
+    retval=$?
+    if [ ${retval} -eq 0 ]; then
+      #echo "[${SCRIPT_NAME}]: Ok, ${hostname_fqdn} is a FQDN"
+      :
+    else
+      echo "[${SCRIPT_NAME}]: Warning, hostname is not a FQDN: ${hostname_fqdn}"
+      hostname_fqdn=${BOX_HOSTNAME_FQDN}
+      echo "[${SCRIPT_NAME}]: Hostname is now set as: ${hostname_fqdn} from config file"
+    fi
+    shift
+
+    disk_label="$1"
+    linode_id=$(${LINODE_CLI_BIN} linodes list --json --pretty | ${JQ_BIN} ".[] | select(.label == \"${hostname_fqdn}\") | .id")
+    linode_status=$(${LINODE_CLI_BIN} linodes view "${linode_id}" --json --pretty | ${JQ_BIN} -r ".[] | .status")
+    #echo "LINODE STATUS: ${linode_status}"
+    if [[ "${linode_status}" == "offline" ]]; then
+      echo "[${SCRIPT_NAME}]: Deleting disk ${disk_label} created from linode ${hostname_fqdn} ..."
+      linode_id=$(${LINODE_CLI_BIN} linodes list --json --pretty | ${JQ_BIN} ".[] | select(.label == \"${hostname_fqdn}\") | .id")
+      disk_id=$(${LINODE_CLI_BIN} linodes disks-list "${linode_id}" --json --pretty | ${JQ_BIN} ".[] | select(.label == \"${disk_label}\") | .id")
+      if [ -n "${disk_id}" ]; then
+        echo "[${SCRIPT_NAME}]: Deleting disk ${disk_label} with ID ${disk_id} from ${hostname_fqdn} (this may take some time) ..."
+        #echo ""
+        ${LINODE_CLI_BIN} linodes disk-delete "${linode_id}" "${disk_id}"
+        #sleep 1 # Pause 1 second
+      else
+        echo "[${SCRIPT_NAME}]: Warning, no disk label ${disk_label} is found!"
+        # Return 1 and end this function to caller
+        return 1
+      fi
+      # Deleting disks take time, wait for new status
+      #  Lowering this deleting_wait value will cause API rate limit (when checking disk status) but it's fast
+      #deleting_wait=1
+      while :; do
+        disk_status=$(${LINODE_CLI_BIN} linodes disks-list "${linode_id}" --json --pretty | ${JQ_BIN} -r ".[] | select(.id == ${disk_id}) | .status")
+        if [[ -z "${disk_status}" ]]; then
+          # If disk_status is empty meaning that it has been deleted!
+          # stop spinner and replace with success message
+          spinner stop "[${SCRIPT_NAME}]: Success, the linode disk ID ${disk_id} has been deleted!"
+          break
+        elif [[ ${disk_status} == "deleting" ]]; then
+          # Show spinner
+          spinner start "[${SCRIPT_NAME}]: Deleting ..."
+          # Below code has wait time that is good if API is limited:
+          #echo "[${SCRIPT_NAME}]: Linode Disk ID ${disk_id} status is: ${disk_status}"
+          #echo "[${SCRIPT_NAME}]: Allowing ${deleting_wait} seconds to finish deleting disk ID ${disk_id} for ${BOX_HOSTNAME_FQDN} ..."
+          #sleep "${deleting_wait}"
+        else
+          echo "[${SCRIPT_NAME}]: Warning, unknown disk status: ${disk_status}"
+          _exit 1
+        fi
+      done
+
+    else
+      echo "[${SCRIPT_NAME}]: Error, linode ${hostname_fqdn} must be offline first to delete disk but its current status is ${linode_status}"
+      _exit 1
+    fi
+
     # linode_api_admin "delete-disks" <hostname_fqdn> # Plural disks remove all
   elif [[ "${action}" == "delete-disks" || "${action}" == "remove-disks" ]]; then
     # Make sure to shutdown linode first
@@ -2402,34 +2652,62 @@ function linode_api_admin() {
       echo "[${SCRIPT_NAME}]: Deleting disk ${disk_count} out of ${disk_ids_count} with ID ${disk_id} ..."
       ${LINODE_CLI_BIN} linodes disk-delete "${linode_id}" "${disk_id}"
       # Deleting disks take time, wait at least 10 seconds
-      deleting_wait=10
+      #deleting_wait=10
       while :; do
         disk_status=$(${LINODE_CLI_BIN} linodes disks-list "${linode_id}" --json --pretty | ${JQ_BIN} -r ".[] | select(.id == ${disk_id}) | .status")
         if [[ -z "${disk_status}" ]]; then
           # If disk_status is empty meaning that it has been deleted!
-          echo "[${SCRIPT_NAME}]: Success, the linode disk ID ${disk_id} has been deleted!"
+          spinner stop "[${SCRIPT_NAME}]: Success, the linode disk ID ${disk_id} has been deleted!"
+          #echo "[${SCRIPT_NAME}]: Success, the linode disk ID ${disk_id} has been deleted!"
           break
         elif [[ ${disk_status} == "deleting" ]]; then
-          echo "[${SCRIPT_NAME}]: Linode Disk ID ${disk_id} status is: ${disk_status}"
-          echo "[${SCRIPT_NAME}]: Allowing ${deleting_wait} seconds to finish deleting disk ID ${disk_id} for ${BOX_HOSTNAME_FQDN} ..."
-          sleep "${deleting_wait}"
+          spinner start "[${SCRIPT_NAME}]: Deleting ..."
+          #echo "[${SCRIPT_NAME}]: Linode Disk ID ${disk_id} status is: ${disk_status}"
+          #echo "[${SCRIPT_NAME}]: Allowing ${deleting_wait} seconds to finish deleting disk ID ${disk_id} for ${BOX_HOSTNAME_FQDN} ..."
+          #sleep "${deleting_wait}"
         else
           echo "Other status: ${disk_status}"
           _exit 1
         fi
       done
     done
-    # --linode-api create-disk sun.sofibox.com <label> <filetype> <size-in-MB>
+    # --linode-api check-disk-status sun.sofibox.com <disk_label>
+  elif [[ "${action}" == "check-disk-status" || "${action}" == "disk-status" ]]; then
+    shift
+    hostname_fqdn="$1"
+    local retval
+    host "${hostname_fqdn}" >/dev/null 2>&1
+    retval=$?
+    if [ ${retval} -eq 0 ]; then
+      #echo "[${SCRIPT_NAME}]: Ok, ${hostname_fqdn} is a FQDN"
+      :
+    else
+      echo "[${SCRIPT_NAME}]: Warning, hostname is not a FQDN: ${hostname_fqdn}"
+      hostname_fqdn=${BOX_HOSTNAME_FQDN}
+      echo "[${SCRIPT_NAME}]: Hostname is now set as: ${hostname_fqdn} from config file"
+    fi
+    shift
+    disk_label="$1"
+    linode_id=$(${LINODE_CLI_BIN} linodes list --json --pretty | ${JQ_BIN} ".[] | select(.label == \"${hostname_fqdn}\") | .id")
+    echo "[${SCRIPT_NAME}]: Checking disk status ${disk_label} from ${hostname_fqdn} ..."
+    rescue_disk_status=$(${LINODE_CLI_BIN} linodes disks-list "${linode_id}" --json --pretty | ${JQ_BIN} -r ".[] | select(.label == \"${disk_label}\") | .status" | tail -n 1)
+    if [ "${rescue_disk_status}" == "ready" ]; then
+      #echo "[${SCRIPT_NAME}]: Rescue Disk status is now ready"
+      return 0
+    else
+      #echo "[${SCRIPT_NAME}]: Disk status is not ready"
+      return 1
+    fi
+    # --linode-api create-disk sun.sofibox.com <disk_label> <disk_filetype> <disk_size_in_MB>
   elif [[ "${action}" == "create-disk" || "${action}" == "add-disk" ]]; then
     echo ""
     echo "[${SCRIPT_NAME}]: Creating new disk ..."
     # Make sure to shutdown linode first
     shift
-    local linode_id hostname_fqdn disk_label disk_filetype disk_size disk_label_created \
-      wait_second wait_second_max wait_second_total
-
+    local linode_id hostname_fqdn disk_label disk_filetype disk_size disk_label_created
+    #wait_second wait_second_max wait_second_total
     hostname_fqdn="$1"
-    echo "Hostname from argument is ${hostname_fqdn}"
+    #echo "Hostname from argument is ${hostname_fqdn}"
     local retval
     host "${hostname_fqdn}" >/dev/null 2>&1
     retval=$?
@@ -2450,9 +2728,9 @@ function linode_api_admin() {
     disk_size="$3"
     echo "Disk size: ${disk_size}"
     echo ""
-    wait_second=10
-    wait_second_max=240
-    wait_second_total=0
+    #wait_second=10
+    #wait_second_max=240
+    #wait_second_total=0
 
     linode_id=$(${LINODE_CLI_BIN} linodes list --json --pretty | ${JQ_BIN} ".[] | select(.label == \"${hostname_fqdn}\") | .id")
     echo "[${SCRIPT_NAME}]: Creating new disk for ${hostname_fqdn} ..."
@@ -2470,33 +2748,36 @@ function linode_api_admin() {
       echo "[${SCRIPT_NAME}]: Creating a new disk with label ${disk_label} ..."
       # This is first attempt
       ${LINODE_CLI_BIN} linodes disk-create "${linode_id}" --label "${disk_label}" --filesystem "${disk_filetype}" --size "${disk_size}"
-      echo "[${SCRIPT_NAME}]: Allowing ${wait_second} seconds to finish creating"
-      sleep ${wait_second}
+      echo "[${SCRIPT_NAME}]: Checking disk status ... (this may take some time)"
+      #sleep ${wait_second}
       while :; do
         disk_status=$(${LINODE_CLI_BIN} linodes disks-list "${linode_id}" --json --pretty | ${JQ_BIN} -r ".[] | select(.label == \"${disk_label}\") | .status" | tail -n 1)
         if [ "${disk_status}" == "ready" ]; then
-          echo "[${SCRIPT_NAME}]: Disk status is: ready"
+
+          spinner stop "[${SCRIPT_NAME}]: Disk status is now ready"
           break
         elif [ "${disk_status}" == "not ready" ]; then
-          echo "[${SCRIPT_NAME}]: Disk status is not ready yet. Allowing ${wait_second} seconds to finish creating"
-          sleep ${wait_second}
+          #echo "[${SCRIPT_NAME}]: Disk status is not ready yet. Allowing ${wait_second} seconds to finish creating"
+          spinner start "[${SCRIPT_NAME}]: Disk status is not ready. Waiting for disk status to be ready ..."
+          #sleep ${wait_second}
         else
-          echo "[${SCRIPT_NAME}]: Warning, unknown/empty disk status (not in condition): ${disk_status}"
-          echo "[${SCRIPT_NAME}]: Waiting ${wait_second} second(s) for new disk status ..."
-          sleep ${wait_second}
+          #echo "[${SCRIPT_NAME}]: Warning, unknown/empty disk status (not in condition): ${disk_status}"
+          spinner start "[${SCRIPT_NAME}]: Warning, unknown/empty disk status (not in condition): [${disk_status}]. Waiting for disk status to be ready ..."
+          #echo "[${SCRIPT_NAME}]: Waiting ${wait_second} second(s) for new disk status ..."
+          #sleep ${wait_second}
           # From my test, linode has issue where sometimes (randomly) the status is not shown after creating a first disk
           # So, if the condition is other than above, we still wait, do not terminate this script
-          #_exit 1
+          #return 1
         fi
 
-        ((wait_second_total = wait_second_total + wait_second))
+        #((wait_second_total = wait_second_total + wait_second))
 
-        if [ "${wait_second_total}" -gt ${wait_second_max} ]; then
-          echo "[${SCRIPT_NAME}]: Warning, something is wrong while trying to create disk in linode for ${hostname_fqdn}. It took more than ${shutdown_wait_total} seconds. Please, inspect why!"
-          echo "Total wait in second is: ${wait_second_total}"
-          echo "Max wait in second is: ${wait_second_max}"
-          _exit 1
-        fi
+        #if [ "${wait_second_total}" -gt ${wait_second_max} ]; then
+        #  echo "[${SCRIPT_NAME}]: Warning, something is wrong while trying to create disk in linode for ${hostname_fqdn}. It took more than ${shutdown_wait_total} seconds. Please, inspect why!"
+        #  echo "Total wait in second is: ${wait_second_total}"
+        #  echo "Max wait in second is: ${wait_second_max}"
+        #  _exit 1
+        #fi
       done
     fi
     # --linode-api "list-configs" <hostname_fqdn>
@@ -2543,6 +2824,40 @@ function linode_api_admin() {
       echo "[${SCRIPT_NAME}]: Deleting config ID ${config_id} from ${hostname_fqdn} ..."
       ${LINODE_CLI_BIN} linodes config-delete "${linode_id}" "${config_id}"
     done
+
+    # --linode-api "delete-config" <hostname_fqdn> <label>
+    # --linode-api "delete-config" sun.sofibox.com Boot_Config
+  elif [[ "${action}" == "delete-config" || "${action}" == "remove-config" ]]; then
+    shift
+    local linode_id config_id config_label hostname_fqdn
+    hostname_fqdn="$1"
+    local retval
+    host "${hostname_fqdn}" >/dev/null 2>&1
+    retval=$?
+    if [ ${retval} -eq 0 ]; then
+      #echo "[${SCRIPT_NAME}]: Ok, ${hostname_fqdn} is a FQDN"
+      :
+    else
+      echo "[${SCRIPT_NAME}]: Warning, hostname is not a FQDN: ${hostname_fqdn}"
+      hostname_fqdn=${BOX_HOSTNAME_FQDN}
+      echo "[${SCRIPT_NAME}]: Hostname is now set as: ${hostname_fqdn} from config file"
+    fi
+    shift
+    config_label="$1"
+
+    echo "[${SCRIPT_NAME}]: Deleting config ${config_label} profile for ${hostname_fqdn} ..."
+    linode_id=$(${LINODE_CLI_BIN} linodes list --json --pretty | ${JQ_BIN} ".[] | select(.label == \"${hostname_fqdn}\") | .id")
+    config_id=$(${LINODE_CLI_BIN} linodes configs-list "${linode_id}" --json --pretty | ${JQ_BIN} ".[] | select(.label == \"${config_label}\") | .id")
+
+    if [ -n "${config_id}" ]; then
+      echo "[${SCRIPT_NAME}]: Deleting config ID ${config_id} from ${hostname_fqdn} ..."
+      ${LINODE_CLI_BIN} linodes config-delete "${linode_id}" "${config_id}"
+      #echo $?
+    else
+      echo "[${SCRIPT_NAME}]: Warning, no config ${config_label} is found!"
+      return 1
+    fi
+
     # --linode-api config-view <hostname_fqdn> <config_label>
   elif [[ "${action}" == "config-view" ]]; then
     shift
@@ -2598,9 +2913,10 @@ function linode_api_admin() {
     config_runlevel="$5"
     # Only disk for now
     config_rootdevice="$6"
+
     config_disk_devsda="$7"
     config_disk_devsdb="$8"
-    config_disk_devsdc="${9}"
+    config_disk_devsdc="$9"
     config_disk_devsdd="${10}"
     config_disk_devsde="${11}"
     config_disk_devsdf="${12}"
@@ -9930,6 +10246,10 @@ else
   _exit 1
 fi
 
+# Global variable to hold progress spin
+SPIN_PROGRESS='/-\|'
+SPIN_COUNT=0
+
 # A global variable that temporarily holds seconds value
 HOLD_SECONDS=0
 
@@ -10244,11 +10564,35 @@ while [ "$#" -gt 0 ]; do
     break
     ;;
   # setup disk from scratch (eg: from linode)
+  # maxisetup --init-server <options>
+  # Deprecated documentation below (update later):
+  # maxisetup --init-server optional <rebuild-iso> optional <init-all>
+  # Note 1: Only use  to remove and start re-creating rescue disk and config
+  # Note 2: If you run like this maxisetup --init-server init-all
+  #   :This will remove all existing partitions including rescue disk and profile. No rescue disk and profile is created
+  # Note3: If you run like this (without argument): maxisetup --init-server
+  #   :This will remove and re-create system related partitions. It will not disturb the rescue option
   -is | --init-server)
+    shift
+    option1="$1"
+    option2="$2"
+    init_all=0
+    rebuild_iso=0
+
+    if [[ "${option1}" == "init-all" || "${option2}" == "init-all" ]]; then
+      _echo 'yellow' "[${SCRIPT_NAME}]: Warning, all disk partitions and configs will be removed with the option init-all"
+      init_all=1
+    fi
+    if [[ "${option1}" == "rebuild-iso" || "${option2}" == "rebuild-iso" ]]; then
+      _echo 'yellow' "[${SCRIPT_NAME}]: Warning, new ISO will be rebuilt with the config rebuild-iso (RSA key will be replaced)"
+      rebuild_iso=1
+    fi
+
     if [ "${EXTERNAL_DNS_PROVIDER}" == "linode" ]; then
+      #echo "${rescue_disk_status}"
       box_main_disk=${BOX_MAIN_DISK_RAW_SIZE}
       box_boot_disk=${BOX_BOOT_DISK_RAW_SIZE}
-      box_rescue_disk=${BOX_RESCUE_DISK_RAW_SIZE}
+      #box_rescue_disk=${BOX_RESCUE_DISK_RAW_SIZE}
       ((box_os_disk = box_main_disk - box_boot_disk))
       echo "[${SCRIPT_NAME}]: Configuring linode server for ${BOX_HOSTNAME_FQDN} ..."
       echo ""
@@ -10257,45 +10601,152 @@ while [ "$#" -gt 0 ]; do
       linode_api_admin "shutdown-linode" "${BOX_HOSTNAME_FQDN}"
       # 2) Delete all existing disks (if exist)
       echo ""
-      linode_api_admin "delete-disks" "${BOX_HOSTNAME_FQDN}"
-      echo ""
-      # 2.1) Create rescue disk (permanent replacement of linode Finnix)
-      linode_api_admin "create-disk" "${BOX_HOSTNAME_FQDN}" "Rescue_Disk" "raw" "${box_rescue_disk}"
-      echo ""
+
+      #2.1 Delete disk and config
+      if [[ "${init_all}" -eq 1 ]]; then
+        linode_api_admin "delete-disks" "${BOX_HOSTNAME_FQDN}"
+        echo ""
+        linode_api_admin "delete-configs" "${BOX_HOSTNAME_FQDN}"
+        echo ""
+      else
+        # Delete specific disks
+        linode_api_admin "delete-disk" "${BOX_HOSTNAME_FQDN}" "Boot_Disk"
+        echo ""
+        #2.2 Delete OS_Disk
+        linode_api_admin "delete-disk" "${BOX_HOSTNAME_FQDN}" "OS_Disk"
+        echo ""
+        #linode_api_admin "delete-disk" "${BOX_HOSTNAME_FQDN}" "Rescue_Disk"
+        #echo ""
+        linode_api_admin "delete-config" "${BOX_HOSTNAME_FQDN}" "Boot_Config"
+        echo ""
+        linode_api_admin "delete-config" "${BOX_HOSTNAME_FQDN}" "OS_Config"
+        echo ""
+        # Don't worry deleting rescue config and recreate have no effect on OS startup (it's better to have this)
+        #linode_api_admin "delete-config" "${BOX_HOSTNAME_FQDN}" "Rescue_Config"
+        #echo ""
+      fi
       # 3) Create a boot disk
       linode_api_admin "create-disk" "${BOX_HOSTNAME_FQDN}" "Boot_Disk" "raw" "${box_boot_disk}"
       echo ""
       # 4) Create an operating system disk
       linode_api_admin "create-disk" "${BOX_HOSTNAME_FQDN}" "OS_Disk" "raw" "${box_os_disk}"
       echo ""
-      # 5) Delete all existing config files to boot
-      linode_api_admin "delete-configs" "${BOX_HOSTNAME_FQDN}"
-      echo ""
-      # 5.1) Creating the first profile for Rescue_Disk
-      linode_api_admin "create-config" "${BOX_HOSTNAME_FQDN}" "Rescue_Disk" "The rescue disk configuration" "paravirt" "linode/direct-disk" "default" "/dev/sdb" "OS_Disk" "Rescue_Disk"
-      echo ""
-      # 6) Creating the second profile for Boot_Disk
+      #linode_api_admin "create-disk" "${BOX_HOSTNAME_FQDN}" "Rescue_Disk" "raw" "${box_rescue_disk}"
+      #echo ""
+
+      # 6) Creating the second profile for Boot_Disk (OS_Disk=/dev/sda, Boot_Disk=/dev/sdb) start /dev/sdb
       linode_api_admin "create-config" "${BOX_HOSTNAME_FQDN}" "Boot_Config" "The installer boot configuration" "paravirt" "linode/direct-disk" "default" "/dev/sdb" "OS_Disk" "Boot_Disk"
       echo ""
-      # 7) Creating the third profile for OS_Disk
+
+      # 7) Creating the third profile for OS_Disk (OS_Disk=/dev/sda) start /dev/sda
       linode_api_admin "create-config" "${BOX_HOSTNAME_FQDN}" "OS_Config" "The operating boot configuration" "paravirt" "linode/direct-disk" "default" "/dev/sda" "OS_Disk"
       echo ""
-      # 8) Putting linode into rescue mode
-      exit 1
-      linode_api_admin "rescue-linode" "${BOX_HOSTNAME_FQDN}" "Boot_Disk"
-      echo ""
-      sleep 2
+      # Creating the first profile for Rescue_Disk (OS_Disk=/dev/sda, Boot_Disk=/dev/sdb, Rescue_Disk=/dev/sdc) start /dev/sdc
+      #linode_api_admin "create-config" "${BOX_HOSTNAME_FQDN}" "Rescue_Config" "The rescue disk configuration" "paravirt" "linode/direct-disk" "default" "/dev/sdc" "OS_Disk" "Boot_Disk" "Rescue_Disk"
+      #echo ""
+      #rescue_disk_status=$(
+      #  linode_api_admin "check-disk-status" "${BOX_HOSTNAME_FQDN}" "Rescue_Disk"
+      #  echo $?
+      #)
+      # Only create this if the Rescue DISK exist because the config depends on this
+      # 0 - exist, 1 - doesn't exist
+      #if [ "${rescue_disk_status}" = 0 ]; then
+      #  echo "[${SCRIPT_NAME}]: Notice, Rescue Disk exist in linode. Creating rescue disk config Rescue_Config ..."
+      #  linode_api_admin "create-config" "${BOX_HOSTNAME_FQDN}" "Rescue_Config" "The rescue disk configuration" "paravirt" "linode/direct-disk" "default" "/dev/sdc" "OS_Disk" "Boot_Disk" "Rescue_Disk"
+      #else
+      #  echo "[${SCRIPT_NAME}]: Notice, Rescue Disk does not exist in linode. Not creating the config profile for Rescue_Config for now"
+      #fi
+      #echo ""
+      #if [ "${create_rescue}" -eq 1 ]; then
+      #2.3 Delete Rescue_Disk
+      #_echo 'yellow' "[${SCRIPT_NAME}]: Warning, rescue disk partition and config will be removed and re-created with the option init-rescue at this point"
+      #linode_api_admin "delete-disk" "${BOX_HOSTNAME_FQDN}" "Rescue_Disk"
+      #echo ""
+      #linode_api_admin "create-disk" "${BOX_HOSTNAME_FQDN}" "Rescue_Disk" "raw" "${box_rescue_disk}"
+      #echo ""
+      #linode_api_admin "delete-config" "${BOX_HOSTNAME_FQDN}" "Rescue_Config"
+      #echo ""
+      # Creating the first profile for Rescue_Disk (OS_Disk=/dev/sda, Boot_Disk=/dev/sdb, Rescue_Disk=/dev/sdc) start /dev/sdc
+      #linode_api_admin "create-config" "${BOX_HOSTNAME_FQDN}" "Rescue_Config" "The rescue disk configuration" "paravirt" "linode/direct-disk" "default" "/dev/sdc" "OS_Disk" "Boot_Disk" "Rescue_Disk"
+      #echo ""
+      #fi
 
-      # 9) Create ISO and upload to dropbox to get link download and also create lish_command.sh script
+      echo "Booting linode ${BOX_HOSTNAME_FQDN} into linode-finnix rescue mode ..."
+      # linode_api_admin "rescue-mode" <optional_hostname> <optional_mount_disk1_label> <optional_mount_disk2_label> <optional_mount_diskN_label> ... <optional_mount_disk9>"
+      linode_api_admin "boot-rescue" "${BOX_HOSTNAME_FQDN}" "Boot_Disk"
+
+      if [ "${rebuild_iso}" -eq 1 ]; then
+        _echo 'yellow' "[${SCRIPT_NAME}]: Warning, new ISO will be rebuilt with the option --rebuild-iso"
+        create_os_iso "--hdd"
+      else
+        _echo 'red' "Notice, using existing ISO because no option is passed to rebuild ISO (eg: --build-iso)"
+      fi
+      #check_linode_status_until "online"
+      echo >/root/.ssh/known_hosts
+      cp "${SCRIPT_PATH}"/secure/*.id_rsa* /root/.ssh/
+      chmod -R 600 /root/.ssh/
+      echo "Writing OS into Boot_Disk Partition ..."
+      ssh -q -o "StrictHostKeyChecking no" -i /root/.ssh/linodelish.id_rsa -tt "${DNS_PROVIDER_USER}@${DNS_PROVIDER_TERMINAL_SERVER}" "${BOX_HOSTNAME_FQDN}" <"${SCRIPT_PATH}/linode/os_write.sh" >/dev/null 2>&1 &
+
+      check_linode_status_until "offline"
+      # After system shutdown, then we can execute the following
+      linode_api_admin "boot-linode" "${BOX_HOSTNAME_FQDN}" "Boot_Config"
+      echo "Installing operating system on OS_Disk (wait until offline) ..."
+      check_linode_status_until "offline"
+      echo "Booting into operating system (make sure to unlock LUKS)"
+      linode_api_admin "boot-linode" "${BOX_HOSTNAME_FQDN}" "OS_Config"
+      echo "Make sure to unlock LUKS or automated this later"
+      # Need to follow this tutorial to unlock encrypted LUKS via SSH: https://www.arminpech.de/2019/12/23/debian-unlock-luks-root-partition-remotely-by-ssh-using-dropbear/
+      # https://www.gandalfk7.it/posts/20200914_02_Debian_9_and_10_boot_luks_unlock/
+
+      # Now you can SSH with :
+      # maxisetup --ssh-login sun.sofibox.com
+      echo "================ to be continued =========="
+      exit 1
+
+      echo "Booting linode ${BOX_HOSTNAME_FQDN} into linode-finnix rescue mode ..."
+      # linode_api_admin "rescue-mode" <optional_hostname> <optional_mount_disk1_label> <optional_mount_disk2_label> <optional_mount_diskN_label> ... <optional_mount_disk9>"
+      linode_api_admin "boot-rescue" "${BOX_HOSTNAME_FQDN}" "Rescue_Disk"
+      create_rescue_iso
+      echo ""
+      cp "${SCRIPT_PATH}"/secure/*.id_rsa* /root/.ssh/
+      chmod -R 600 /root/.ssh/
+      echo "Writing rescue OS into Rescue_Disk Partition"
+      ssh -o "StrictHostKeyChecking no" -i /root/.ssh/linodelish.id_rsa -tt "${DNS_PROVIDER_USER}@${DNS_PROVIDER_TERMINAL_SERVER}" "${BOX_HOSTNAME_FQDN}" <"${SCRIPT_PATH}/linode/rescue_write.sh" >/dev/null 2>&1 &
+
+      # Now check if the linode status is offline, that means it has finish writing because the rescue_write.sh contains reboot -f
+      check_linode_status_until "offline"
+      echo ""
+      # Now we know that linode is offline, after break above, it's time to start the first profile (this is my own Finnix recovery):
+      linode_api_admin "boot-linode" "${BOX_HOSTNAME_FQDN}" "Rescue_Config"
+      echo ""
       create_os_iso "--hdd"
+      # And now check again the status of this boot create custom ISO, etc...
+      echo "Login silently into SSH and send script to write OS file into Boot_Disk ..."
+      ssh_login "${BOX_HOSTNAME_FQDN}" "${RESCUE_SSH_PORT}" rescue "${SCRIPT_PATH}/linode/os_write.sh" --silent
+      echo ""
+      check_linode_status_until "online"
+      echo ""
+      linode_api_admin "boot-linode" "${BOX_HOSTNAME_FQDN}" "OS_Config"
+      exit 1
+      echo "Now, it's time to make sure that the rescue disk and config is bootable (eg: write the custom OS inside that rescue disk)"
+      echo "After that you can run this script without the option init-all or init-rescue (to not disturb the rescue disk partition in the future)"
+      echo "eg: maxisetup --init-server"
+      _exit 1
+
+      # Assume that rescue disk is good (without option init_all and init_rescue)
+      # 8) Putting linode into rescue mode (my own Finnix custom ISO)
+      linode_api_admin "boot-linode" "${BOX_HOSTNAME_FQDN}" "Rescue_Config"
+      echo ""
+      echo "Now time to check if linode rescue mode has been booted perfectly!"
+      _exit 1
+
       echo ""
 
       # 10) Copy all rsa authentication into /root/.ssh
 
-      cp "${SCRIPT_PATH}"/secure/*.id_rsa* /root/.ssh/
-      chmod -R 600 /root/.ssh/
-      ssh -i /root/.ssh/linodelish.id_rsa -tt "${DNS_PROVIDER_USER}@${DNS_PROVIDER_TERMINAL_SERVER}" "${BOX_HOSTNAME_FQDN}" <"${SCRIPT_PATH}/linode/lish_command.sh"
-      echo "Script executed"
+      #ssh -i /root/.ssh/linodelish.id_rsa -tt "${DNS_PROVIDER_USER}@${DNS_PROVIDER_TERMINAL_SERVER}" "${BOX_HOSTNAME_FQDN}" <"${SCRIPT_PATH}/linode/lish_command.sh"
+      #echo "Script executed"
       # 11) Login into lish and execute script lish_command.sh
       # exit 1
       # TODO automated below with remote console (not currently possible)
@@ -10415,52 +10866,8 @@ ENDSSH
     # ./maxisetup --ssh-login <optional_hostname> <optional_port> <optional_user>
     # If hostname or port are not provided, they will use the default ones from config file
   -sshl | --ssh-login)
-    install_required "sshpass"
     shift
-    hostname_fqdn="$1"
-    host "${hostname_fqdn}" >/dev/null 2>&1
-    retval=$?
-    if [ ${retval} -eq 0 ]; then
-      #echo "[${SCRIPT_NAME}]: OK, ${hostname_fqdn} is a FQDN"
-      shift
-    else
-      _echo 'red' "[${SCRIPT_NAME}]: Warning, hostname is not a FQDN: ${hostname_fqdn}"
-      hostname_fqdn=${BOX_HOSTNAME_FQDN}
-      echo "[${SCRIPT_NAME}]: Hostname is now set as: ${hostname_fqdn} from config file"
-    fi
-    #shift
-    ssh_port="$1"
-    if ! [[ ${ssh_port} =~ ^[0-9]+$ ]]; then
-      ssh_port="${SSH_PORT}"
-      _echo 'red' "Warning, no valid port is defined. SSH port is now set to ${ssh_port}"
-    fi
-
-    ssh_user="$2"
-    # Copy all rsa keys
-    echo >/root/.ssh/known_hosts
-    cp "${SCRIPT_PATH}"/secure/*.id_rsa* /root/.ssh/
-    chmod -R 600 /root/.ssh/
-    #key_location="~/.ssh/sofibox.id_rsa"
-
-    #ssh -o "StrictHostKeyChecking no" -p "${ssh_port}" -i "/root/.ssh/root_${BOX_HOSTNAME_FQDN}.id_rsa" "${SSH_USERNAME}@${IPV4_ADD0}"
-
-    # For root user
-    if [[ -z "${ssh_user}" || "${ssh_user}" == "root" ]]; then
-
-      echo "Connecting to ${BOX_HOSTNAME_FQDN} using port ${ssh_port} with private key root_${BOX_HOSTNAME_FQDN}.id_rsa ..."
-
-      ssh -o "StrictHostKeyChecking no" -p "${ssh_port}" -i "/root/.ssh/root_${BOX_HOSTNAME_FQDN}.id_rsa" "${IPV4_ADD0}"
-      #sshpass -p "${ROOT_USERPASS_INITIAL}" ssh -o "StrictHostKeyChecking no" -p "${ssh_port}" -i "/root/.ssh/root_${BOX_HOSTNAME_FQDN}.id_rsa" "${IPV4_ADD0}"
-    elif [[ "${ssh_user}" == "rescue" ]]; then
-      echo "Connecting to ${BOX_HOSTNAME_FQDN} using port ${ssh_port} with private key rescue_root_${BOX_HOSTNAME_FQDN}.id_rsa ..."
-
-      ssh -o "StrictHostKeyChecking no" -p "${ssh_port}" -i "/root/.ssh/rescue_root_${BOX_HOSTNAME_FQDN}.id_rsa" "${IPV4_ADD0}"
-    else
-      # For normal SSH user
-      echo "Connecting to ${BOX_HOSTNAME_FQDN} using port ${ssh_port} with private key user_${BOX_HOSTNAME_FQDN}.id_rsa ..."
-
-      sshpass -p "${SSH_USERPASS}" ssh -o "StrictHostKeyChecking no" -p "${ssh_port}" -i "/root/.ssh/user_${BOX_HOSTNAME_FQDN}.id_rsa" "${SSH_USERNAME}@${IPV4_ADD0}"
-    fi
+    ssh_login "$@"
     exit 0
     break
     ;;
@@ -10518,7 +10925,15 @@ ENDSSH
     break
     ;;
   -t | --test)
-    #shift
+    shift
+    ssh_login sun.sofibox.com 899 rescue "${SCRIPT_PATH}/linode/test.sh"
+    #echo >/root/.ssh/known_hosts
+    #cp "${SCRIPT_PATH}"/secure/*.id_rsa* /root/.ssh/
+    #chmod -R 600 /root/.ssh/
+    ## ssh -o "StrictHostKeyChecking no" -i /root/.ssh/linodelish.id_rsa -tt "${DNS_PROVIDER_USER}@${DNS_PROVIDER_TERMINAL_SERVER}" "${BOX_HOSTNAME_FQDN}" <"${SCRIPT_PATH}/linode/rescue_write.sh" >/dev/null 2>&1 &
+
+    #ssh -o "StrictHostKeyChecking no" -i /root/.ssh/linodelish.id_rsa -tt "${DNS_PROVIDER_USER}@${DNS_PROVIDER_TERMINAL_SERVER}" "${BOX_HOSTNAME_FQDN}" <"${SCRIPT_PATH}/linode/test.sh"
+
     # Put any test scripts here
     # _confirm "Continue script? [y/Y]: "
     #linode_api_admin "boot-linode" "sun.sofibox.com" "Boot_Config"
@@ -10530,12 +10945,23 @@ ENDSSH
     #cp "${SCRIPT_PATH}"/secure/*.id_rsa* /root/.ssh/
     #chmod -R 600 /root/.ssh/
     #ssh -i /root/.ssh/linodelish.id_rsa -tt "${DNS_PROVIDER_USER}@${DNS_PROVIDER_TERMINAL_SERVER}" "${BOX_HOSTNAME_FQDN}" <"${SCRIPT_PATH}/linode/lish_command.sh"
-    ssh -q -i /root/.ssh/linodelish.id_rsa -tt "${DNS_PROVIDER_USER}@${DNS_PROVIDER_TERMINAL_SERVER}" "${BOX_HOSTNAME_FQDN}" screen -d -m ${SCRIPT_PATH}/linode/lish_command.sh -s 'potato' # <${SCRIPT_PATH}/linode/lish_command.sh 2>&1 &
+    #ssh -q -i /root/.ssh/linodelish.id_rsa -tt "${DNS_PROVIDER_USER}@${DNS_PROVIDER_TERMINAL_SERVER}" "${BOX_HOSTNAME_FQDN}" screen -d -m ${SCRIPT_PATH}/linode/lish_command.sh -s 'potato' # <${SCRIPT_PATH}/linode/lish_command.sh 2>&1 &
 
-    ssh myuser@hostname
+    #ssh myuser@hostname
 
     #pkill ssh
     #echo "Script executed"
+    #count=0
+    #while :; do
+    #  spinner start "panjjdk adjsak jsakdj asdk asdjslka djsajdkl"
+    #  sleep 1
+    #  ((count++))
+    #  if [ "${count}" -eq 5 ]; then
+    #    spinner stop "stoppe dsa d asd adas d"
+    #    break
+    #  fi
+    #done
+
     exit 0
     break
     ;;

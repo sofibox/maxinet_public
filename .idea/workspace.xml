@@ -10,7 +10,7 @@
     <select />
   </component>
   <component name="ChangeListManager">
-    <list default="true" id="113c828c-9a32-4b24-ab1e-978ce50c6320" name="Default Changelist" comment="Enabled serial console interface during installation in kernel options from preseed file (compatible with linode LISH). For example, we can enter username and password through LISH console instead of GLISH&#10;&#10;Enabled full LUKS LVM disk encryption&#10;&#10;Added pre-defined SSH login and setup will disable root login automatically after installation (before restart)&#10;&#10;Created a new function to create rescue disk ISO (for finnix)&#10;&#10;Make small changes to linode API function&#10;&#10;Created extra disk for rescue disk in --init-server option&#10;&#10;Improved --ssh-login with the ability to define custom port and hostname&#10;&#10;New variables:&#10;&#10;# Partition size information&#10;BOX_RESCUE_DISK_RAW_SIZE=&quot;size-in-MB&quot;&#10;# Partition scheme&#10;BOX_BOOT_SIZE=&quot;size-in-MB&quot;&#10;BOX_ROOT_SIZE=&quot;size-in-MB&quot;&#10;BOX_TMP_SIZE=&quot;size-in-MB&quot;&#10;BOX_SWAP_SIZE=&quot;size-in-MB&quot;&#10;# -1 = largest available size (put last so can expand easier)&#10;BOX_HOME_SIZE=&quot;-1&quot;">
+    <list default="true" id="113c828c-9a32-4b24-ab1e-978ce50c6320" name="Default Changelist" comment="Changed rescue disk SSH login port and add startup script to automatically restart ssh (by default ssh is not running. Without restarting ssh process, we won't be able to login remotely)&#10;&#10;New variables:&#10;HOST_MAX_PROCESSOR=&quot;&quot;&#10;RESCUE_SSH_PORT=&quot;&quot;">
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
@@ -52,15 +52,13 @@
     </key>
   </component>
   <component name="RunManager">
-    <configuration default="true" type="ArquillianTestNG" factoryName="" nameIsGenerated="true">
+    <configuration default="true" type="ArquillianJUnit" factoryName="" nameIsGenerated="true">
       <option name="arquillianRunConfiguration">
         <value>
           <option name="containerStateName" value="" />
         </value>
       </option>
-      <option name="TEST_OBJECT" value="CLASS" />
-      <properties />
-      <listeners />
+      <option name="TEST_OBJECT" value="class" />
       <method v="2">
         <option name="Make" enabled="true" />
       </method>
@@ -143,13 +141,8 @@
       <workItem from="1617015443162" duration="1289000" />
       <workItem from="1617911212573" duration="711000" />
       <workItem from="1618281411540" duration="1061000" />
-    </task>
-    <task id="LOCAL-00022" summary="Add extra commands in maxida&#10;Disable https redirect for all domains (useful to test)&#10;&#10;Fixed, suricata version select version missing variable&#10;Fixed memcached status installation paused and stopped the script from continuing&#10;&#10;Add checking to select DNS provider external or local&#10;&#10;Move ssl configuration after created DA accounts">
-      <created>1611810696555</created>
-      <option name="number" value="00022" />
-      <option name="presentableId" value="LOCAL-00022" />
-      <option name="project" value="LOCAL" />
-      <updated>1611810696555</updated>
+      <workItem from="1618285814017" duration="456000" />
+      <workItem from="1618286364179" duration="597000" />
     </task>
     <task id="LOCAL-00023" summary="Update maxida argument&#10;Add new alpha version of maxidns&#10;Implemented linode_api_admin through linode-cli">
       <created>1612218929309</created>
@@ -487,7 +480,14 @@
       <option name="project" value="LOCAL" />
       <updated>1618281531772</updated>
     </task>
-    <option name="localTasksCounter" value="71" />
+    <task id="LOCAL-00071" summary="Changed rescue disk SSH login port and add startup script to automatically restart ssh (by default ssh is not running. Without restarting ssh process, we won't be able to login remotely)&#10;&#10;New variables:&#10;HOST_MAX_PROCESSOR=&quot;&quot;&#10;RESCUE_SSH_PORT=&quot;&quot;">
+      <created>1618285850239</created>
+      <option name="number" value="00071" />
+      <option name="presentableId" value="LOCAL-00071" />
+      <option name="project" value="LOCAL" />
+      <updated>1618285850239</updated>
+    </task>
+    <option name="localTasksCounter" value="72" />
     <servers />
   </component>
   <component name="TypeScriptGeneratedFilesManager">
@@ -506,7 +506,6 @@
     <option name="oldMeFiltersMigrated" value="true" />
   </component>
   <component name="VcsManagerConfiguration">
-    <MESSAGE value="Updated maxibox script (private repo)&#10;Updated maxicron script (private repo). Maxicron script includes the ability to stop some services to reduce memory usage. Such as clamav background process (private repo)&#10;Added maxicron-agent (private repo)&#10;Added maxicron installation in maxisetup and stop some services in post_setup() function to free memory for some not-so important background services&#10;Updated webapps to include prestashop updated version 1.7.7.2. Moved all prestashop related files to prestashop folder (private repo)" />
     <MESSAGE value="Added cronjobs function to disable some services that can cause memory leaks with small system" />
     <MESSAGE value="Added new function configure_fstab(), to configure disk mount options during installation&#10;&#10;New variable for new TODO feature which provide the ability to turn off or on Modsecurity:&#10;&#10;SYNTAX: &lt;domain&gt;:subdomain+&lt;ON/OFF&gt;:subdomain+&lt;ON/OFF&gt;: ...&#10;&#10;DA_RESELLER_MODSEC1=(&quot;sofibox.com:sales+OFF:login+ON&quot;)" />
     <MESSAGE value="Disabled maxicata.lua email reporting for maxicata (no need email in default config, it can auto block IPs). (private repo)&#10;&#10;Added configure_grub to set grub password&#10;&#10;Added configure_fstab to configure secured mount option for disk (with the condition DISK encryption is enabled at maxisetup.conf&#10;&#10;new variables:&#10;&#10;LUKS_PASS=&quot;luks*encryption*password&quot;&#10;# Username to set for grub bootloader&#10;GRUB_UNAME=&quot;grub_user&quot;&#10;# Password to set for grub bootloader&#10;GRUB_PASS=&quot;*grub_pasword*&quot;&#10;LVM_VOLUME_GROUP=&quot;vg1&quot;&#10;DISK_ENCRYPTION=&quot;yes&quot;" />
@@ -531,6 +530,7 @@
     <MESSAGE value="Added hash function for creating password&#10;&#10;Added argument to run preseed.cfg for both graphic and text setup&#10;Added timeout to skip setup menu for custom ISO" />
     <MESSAGE value="Added function to automatically install missing components by define them in array&#10;Added colorful _echo() function&#10;Added function create_file to store file creation template in one place&#10;Added ability to upload iso file into linode lish&#10;Ability to generate ISO file with different method&#10;&#10;New variables:&#10;&#10;BOX_OS_INSTALL_UI&#10;IPV4_NETMASK_IP0" />
     <MESSAGE value="Enabled serial console interface during installation in kernel options from preseed file (compatible with linode LISH). For example, we can enter username and password through LISH console instead of GLISH&#10;&#10;Enabled full LUKS LVM disk encryption&#10;&#10;Added pre-defined SSH login and setup will disable root login automatically after installation (before restart)&#10;&#10;Created a new function to create rescue disk ISO (for finnix)&#10;&#10;Make small changes to linode API function&#10;&#10;Created extra disk for rescue disk in --init-server option&#10;&#10;Improved --ssh-login with the ability to define custom port and hostname&#10;&#10;New variables:&#10;&#10;# Partition size information&#10;BOX_RESCUE_DISK_RAW_SIZE=&quot;size-in-MB&quot;&#10;# Partition scheme&#10;BOX_BOOT_SIZE=&quot;size-in-MB&quot;&#10;BOX_ROOT_SIZE=&quot;size-in-MB&quot;&#10;BOX_TMP_SIZE=&quot;size-in-MB&quot;&#10;BOX_SWAP_SIZE=&quot;size-in-MB&quot;&#10;# -1 = largest available size (put last so can expand easier)&#10;BOX_HOME_SIZE=&quot;-1&quot;" />
-    <option name="LAST_COMMIT_MESSAGE" value="Enabled serial console interface during installation in kernel options from preseed file (compatible with linode LISH). For example, we can enter username and password through LISH console instead of GLISH&#10;&#10;Enabled full LUKS LVM disk encryption&#10;&#10;Added pre-defined SSH login and setup will disable root login automatically after installation (before restart)&#10;&#10;Created a new function to create rescue disk ISO (for finnix)&#10;&#10;Make small changes to linode API function&#10;&#10;Created extra disk for rescue disk in --init-server option&#10;&#10;Improved --ssh-login with the ability to define custom port and hostname&#10;&#10;New variables:&#10;&#10;# Partition size information&#10;BOX_RESCUE_DISK_RAW_SIZE=&quot;size-in-MB&quot;&#10;# Partition scheme&#10;BOX_BOOT_SIZE=&quot;size-in-MB&quot;&#10;BOX_ROOT_SIZE=&quot;size-in-MB&quot;&#10;BOX_TMP_SIZE=&quot;size-in-MB&quot;&#10;BOX_SWAP_SIZE=&quot;size-in-MB&quot;&#10;# -1 = largest available size (put last so can expand easier)&#10;BOX_HOME_SIZE=&quot;-1&quot;" />
+    <MESSAGE value="Changed rescue disk SSH login port and add startup script to automatically restart ssh (by default ssh is not running. Without restarting ssh process, we won't be able to login remotely)&#10;&#10;New variables:&#10;HOST_MAX_PROCESSOR=&quot;&quot;&#10;RESCUE_SSH_PORT=&quot;&quot;" />
+    <option name="LAST_COMMIT_MESSAGE" value="Changed rescue disk SSH login port and add startup script to automatically restart ssh (by default ssh is not running. Without restarting ssh process, we won't be able to login remotely)&#10;&#10;New variables:&#10;HOST_MAX_PROCESSOR=&quot;&quot;&#10;RESCUE_SSH_PORT=&quot;&quot;" />
   </component>
 </project>
