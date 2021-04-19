@@ -3,7 +3,7 @@
 # Author: Arafat Ali | Email: webmaster@sofibox.com
 APP_SPECIFIC_NAME="Maxisetup"
 APP_STATUS="beta"
-APP_VERSION="0.4.2.4-${APP_STATUS}"
+APP_VERSION="0.4.3.0-${APP_STATUS}"
 # This is an initial server hardening script for CentOS and Debian.
 # Compatible 100% with Directadmin. Supported OS: CentOS + Debian (Planned on FreeBSD)
 # You can choose to install as the other stack server such as LEMP, (TODO) Laravel and more defined in config file
@@ -12,15 +12,12 @@ APP_VERSION="0.4.2.4-${APP_STATUS}"
 # You can always re-run this script to resume installation if it's halt due to known error or script has performed reboot
 # URL (public): github.com/sofibox/maxisetup_public | (private) github.com/sofibox/maxisetup (need access token)
 # =~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~="
+# Run with log output: ./maxisetup --setup 2>&1 | tee maxisetup.log
 # TOP TO DO LIST:
 # TODO: Enable DNSSEC https://help.directadmin.com/item.php?id=651
 # TODO: enable --dry-run (that will simulate testing for this script)
 # TODO: provide an optional option to automatically create google domain verification TXT record through API (need Google business account at console) - Google site verification
 # TODO: create hostname and setup dkim, dmarc, at linode spf at linode (use common subdomain, ftp, mail, www, smtp, pop) - normally it should be created first before installing DA but dkim need to be updated.
-# TODO: redirect error in error log file: exec 2>/usr/local/directadmin/customscripts.error.log
-# TODO: use finnix official image for booting instead of linode one.
-# TODO: This is the way how to check if port is available: https://unix.stackexchange.com/questions/6809/how-can-i-check-that-a-remote-computer-is-online-for-ssh-script-access
-
 # This function will be used to automatically unlock LUKS disk encryption on boot
 # Must pass the port and password
 # Usage: ssh_luks_unlock <port> <password>
@@ -64,28 +61,29 @@ function check_server_port() {
 function ssh_key_manager() {
   local action="$1"
   shift
-  local group uname ssh_secure_path rsa_public_key rsa_private_key_ppk comment
+  local group uname rsa_public_key rsa_private_key_ppk comment
   group="$1"
   uname="$2"
-  ssh_secure_path="${SCRIPT_PATH}/secure/ssh"
-  mkdir -p "${ssh_secure_path}"
 
-  rsa_public_key="${ssh_secure_path}/${group}_${uname}_${BOX_HOSTNAME_FQDN}.id_rsa.pub"
-  rsa_private_key="${ssh_secure_path}/${group}_${uname}_${BOX_HOSTNAME_FQDN}.id_rsa"
+  mkdir -p "${SCRIPT_PATH}/secure/ssh"
+
+  rsa_public_key="${SCRIPT_PATH}/secure/ssh/${group}_${uname}_${BOX_HOSTNAME_FQDN}.id_rsa.pub"
+  rsa_private_key="${SCRIPT_PATH}/secure/ssh/${group}_${uname}_${BOX_HOSTNAME_FQDN}.id_rsa"
+  rsa_private_key_ppk="${SCRIPT_PATH}/secure/ssh/${group}_${uname}_${BOX_HOSTNAME_FQDN}.ppk"
 
   if [ "${action}" == "create-key" ]; then
     comment="$3"
-    ssh-keygen -f "${ssh_secure_path}/${group}_${uname}_${BOX_HOSTNAME_FQDN}.id_rsa" -t rsa -b 4096 -P "" -C "${comment}" <<<y
+    ssh-keygen -f "${rsa_private_key}" -t rsa -b 4096 -P "" -C "${comment}" <<<y
   elif [ "${action}" == "create-key-with-putty" ]; then
     comment="$3"
-    install_required "puttygen"
-    ssh-keygen -f "${ssh_secure_path}/${group}_${uname}_${BOX_HOSTNAME_FQDN}.id_rsa" -t rsa -b 4096 -P "" -C "${comment}" <<<y
-    puttygen "${rsa_private_key}" -o "${group}_${uname}_${BOX_HOSTNAME_FQDN}.ppk"
+    install_required "putty-tools"
+    ssh-keygen -f "${rsa_private_key}" -t rsa -b 4096 -P "" -C "${comment}" <<<y
+    puttygen "${rsa_private_key}" -o "${rsa_private_key_ppk}"
   elif [ "${action}" == "get-public-key" ]; then
     if [ -f "${rsa_public_key}" ]; then
       cat "${rsa_public_key}"
     else
-      echo "Public key does not exist. Please create it first"
+      _echo 'red' "Warning, public key does not exist. Please create it first"
     fi
     # Warning this will replace existing key
   elif [ "${action}" == "copy-all-pubkeys" ]; then
@@ -95,9 +93,12 @@ function ssh_key_manager() {
   fi
 }
 # This function is used to login into server (SSH login)
-# It can be supplied with script and run in silent mode
+# It can be supplied with script and run in silent/noisy mode
 # Usage: ssh_login "<server>:<port>" "<group>:<user>" <silent> optional_script_path>
-# eg: ssh_login sun.sofibox.com:893 root:root silent /path_to_script
+# eg: ssh_login sun.sofibox.com:893 root:root silent/noisy /path_to_script
+# eg2: ssh_login sun.sofibox.com:893 root:root /path_to_script
+# eg3: ssh_login sun.sofibox.com:893 root:root
+# eg4: ssh_login sun.sofibox.com:893 root:root "noisy"
 function ssh_login() {
   if [ -z "$1" ]; then
     echo ""
@@ -113,7 +114,13 @@ function ssh_login() {
   server_port="$1"
   group_user="$2"
   mode="$3"
-  script="$4"
+
+  if [[ "${mode}" == "silent" || "${mode}" == "noisy" ]]; then
+    script="$4"
+  else
+    mode="noisy"
+    script="$3"
+  fi
 
   hostname_fqdn=$(echo "${server_port}" | awk -F':' '{ print $1 }')
   host_port=$(echo "${server_port}" | awk -F':' '{ print $2 }')
@@ -127,24 +134,61 @@ function ssh_login() {
   # Make sure they have 600 permission
   chmod -R 600 /root/.ssh/
 
-  if [[ "${mode}" == "--silent" || "${mode}" == "silent" ]]; then
-    mode1="-q"
-    #mode2="> /dev/null 2>&1 &"
-  fi
-
   echo "Connecting to ${hostname_fqdn} using port ${host_port} with private key ${ssh_group}_${ssh_user}_${BOX_HOSTNAME_FQDN}.id_rsa ..."
-  if [[ -n "${script}" && "${mode1}" == "-q" ]]; then
+  if [[ -n "${script}" && "${mode}" == "silent" ]]; then
     #echo "Script given and it's quite mod"
     ssh -q -o "StrictHostKeyChecking no" -p "${host_port}" -i "/root/.ssh/${ssh_group}_${ssh_user}_${BOX_HOSTNAME_FQDN}.id_rsa" "${IPV4_ADD0}" /dev/null <"${script}" 2>&1 &
-  elif [[ "${mode1}" == "-q" && -z "${script}" ]]; then
+  elif [[ "${mode}" == "noisy" && -n "${script}" ]]; then
+    # echo "script given but not quite mode"
+    ssh -o "StrictHostKeyChecking no" -p "${host_port}" -i "/root/.ssh/${ssh_group}_${ssh_user}_${BOX_HOSTNAME_FQDN}.id_rsa" "${IPV4_ADD0}" <"${script}"
+  elif [[ "${mode}" == "silent" && -z "${script}" ]]; then
     #echo "Script not given but it's quite mode"
     ssh -q -o "StrictHostKeyChecking no" -p "${host_port}" -i "/root/.ssh/${ssh_group}_${ssh_user}_${BOX_HOSTNAME_FQDN}.id_rsa" "${IPV4_ADD0}"
-  elif [[ -z "${mode1}" && -z "${script}" ]]; then
+  elif [[ "${mode}" == "noisy" && -z "${script}" ]]; then
     #echo "Script not given and no quite mod"
     ssh -o "StrictHostKeyChecking no" -p "${host_port}" -i "/root/.ssh/${ssh_group}_${ssh_user}_${BOX_HOSTNAME_FQDN}.id_rsa" "${IPV4_ADD0}"
   fi
 }
+# This function is use to transfer file over SSH using scp
+# Usage: ssh_transfer <hostname_fqdn>:<port> <group>:<user> <local_path> <remote_path>
+# To transfer multiple files, quote the local_path for example:
+# ssh_transfer sun.sofibox.com:897 root:root "/local/test1.txt local/test2.txt" ~/
+function ssh_transfer() {
+  if [ -z "$1" ]; then
+    echo ""
+    _echo 'yellow' "Usage: ssh_transfer sun.sofibox.com:port group:user local_path remote_path"
+    _echo 'yellow' "eg: ssh_transfer sun.sofibox.com:897 root:root /local/mini.iso ~/mini.iso"
+    _echo 'yellow' "To transfer multiple files, quote the local_path"
+    echo ""
+    _exit 1
+  fi
 
+  install_required "sshpass"
+  local server_port group_user local_path remote_path hostname_fqdn host_port ssh_group ssh_user
+  server_port="$1"
+  group_user="$2"
+  local_path="$3"
+  remote_path="$4"
+
+  hostname_fqdn=$(echo "${server_port}" | awk -F':' '{ print $1 }')
+  host_port=$(echo "${server_port}" | awk -F':' '{ print $2 }')
+  ssh_group=$(echo "${group_user}" | awk -F':' '{ print $1 }')
+  ssh_user=$(echo "${group_user}" | awk -F':' '{ print $2 }')
+
+  # Remove all known hosts (reset)
+  echo >/root/.ssh/known_hosts
+  # Copying all ssh public keys into /root/.ssh/
+  cp "${SCRIPT_PATH}"/secure/ssh/*.id_rsa* /root/.ssh/
+  # Make sure they have 600 permission
+  chmod -R 600 /root/.ssh/
+  # Do not quote local_path to enable multiple file transfers
+  echo "Transferring file local files(s) ${local_path} into remote SSH ${remote_path} ..."
+  scp -o "StrictHostKeyChecking no" -P "${host_port}" -i "/root/.ssh/${ssh_group}_${ssh_user}_${hostname_fqdn}.id_rsa" ${local_path} "${IPV4_ADD0}:${remote_path}" 2> >(grep -v 'Permanently' 1>&2)
+}
+# This function is used to check linode status until a specified condition and then it will break
+# Usage: check_linode_status_until online/offline
+# To recursively check linode status until offline
+# eg: check_linode_status_until offline
 function check_linode_status_until() {
   option="$1"
   if [[ "${option}" == "offline" ]]; then
@@ -176,7 +220,7 @@ function check_linode_status_until() {
       fi
     done
   else
-    echo "Wrong unknown argument passed!"
+    _echo 'red' "Error, unknown argument passed!"
   fi
 }
 
@@ -1040,7 +1084,8 @@ function create_file() {
       #echo "in-target /usr/local/bin/configure_box.sh; \\"
       echo "mkdir -p /target/root/.ssh; \\"
       #echo "cat ${rsa_private_key} > /target/root/.ssh/authorized_keys; \\"
-      echo "cp /cdrom/root_root_${BOX_HOSTNAME_FQDN}.id_rsa.pub /target/root/.ssh/authorized_keys; \\"
+      echo "cp /cdrom/root_${ROOT_USERNAME}_${BOX_HOSTNAME_FQDN}.id_rsa.pub /target/root/.ssh/authorized_keys; \\"
+      echo "cp /cdrom/user_${SSH_USERNAME}_${BOX_HOSTNAME_FQDN}.id_rsa.pub /target/root/user_${SSH_USERNAME}_${BOX_HOSTNAME_FQDN}.id_rsa.pub; \\"
       echo "chmod -R go-rwx /target/root/.ssh; \\"
       echo "sed -i 's/^#PermitRootLogin.*/PermitRootLogin prohibit-password/g' /target/etc/ssh/sshd_config; \\"
       echo "sed -i 's/^#PubkeyAuthentication.*/PubkeyAuthentication yes/g' /target/etc/ssh/sshd_config; \\"
@@ -1071,7 +1116,7 @@ function create_file() {
       # For LUKS auto login
       echo "sed -i 's/^#DROPBEAR_OPTIONS=/DROPBEAR_OPTIONS=\"-I 180 -j -k -p ${DROP_BEAR_PORT} -s\"/' /target/etc/dropbear-initramfs/config; \\"
       echo "echo "\"IP=${IPV4_ADD0}::${IPV4_DEF_GATEWAY0}:${IPV4_NETMASK_IP0}:${BOX_HOSTNAME}:${NIC_INTERFACE_NAME}:off\"" >> /target/etc/initramfs-tools/initramfs.conf; \\"
-      echo "cp /cdrom/root_root_${BOX_HOSTNAME_FQDN}.id_rsa.pub /target/etc/dropbear-initramfs/authorized_keys; \\"
+      echo "cp /cdrom/root_${ROOT_USERNAME}_${BOX_HOSTNAME_FQDN}.id_rsa.pub /target/etc/dropbear-initramfs/authorized_keys; \\"
       echo "in-target update-initramfs -u;"
 
       # Installing some packages
@@ -1087,7 +1132,7 @@ function create_rescue_iso() {
     echo ""
   fi
   echo "Creating a new RSA Key for rescue root login ..."
-  ssh_key_manager "create-key-with-putty" "rescue" "root" "${BOX_HOSTNAME_FQDN}_secure_auth}"
+  ssh_key_manager "create-key-with-putty" "rescue" "root" "${BOX_HOSTNAME_FQDN}_secure_auth"
 
   # Good guide : https://www.dotpointer.ga/?section=notes&view=note&id_notes=164
   # Good guide 2: https://rmprepusb.com/tutorials/011-make-an-image-recovery-usb-drive-using-finnix/
@@ -1542,10 +1587,14 @@ function create_os_iso() {
     dbx_cli="${SCRIPT_PATH}/storage/os/debian/usr/local/maxicode/maxicloud/dropbox/dbx"
     echo "Creating new RSA Key for root login ..."
     # This will create 2 files one is private and another one with the extension .pub
-    ssh_key_manager "create-key-with-putty" "root" "root" "${BOX_HOSTNAME_FQDN}_secure_auth"
-    local rsa_public_key="${SCRIPT_PATH}/secure/ssh/root_root_${BOX_HOSTNAME_FQDN}.id_rsa.pub"
-    local rsa_private_key="${SCRIPT_PATH}/secure/ssh/root_root_${BOX_HOSTNAME_FQDN}.id_rsa"
-    local rsa_private_key_ppk="${SCRIPT_PATH}/secure/ssh/root_root_${BOX_HOSTNAME_FQDN}.ppk"
+    # For root
+    ssh_key_manager "create-key-with-putty" "root" "${ROOT_USERNAME}" "${BOX_HOSTNAME_FQDN}_secure_auth"
+    local rsa_public_key="${SCRIPT_PATH}/secure/ssh/root_${ROOT_USERNAME}_${BOX_HOSTNAME_FQDN}.id_rsa.pub"
+    local rsa_private_key="${SCRIPT_PATH}/secure/ssh/root_${ROOT_USERNAME}_${BOX_HOSTNAME_FQDN}.id_rsa"
+    local rsa_private_key_ppk="${SCRIPT_PATH}/secure/ssh/root_${ROOT_USERNAME}_${BOX_HOSTNAME_FQDN}.ppk"
+
+    # For normal user
+    ssh_key_manager "create-key-with-putty" "user" "${SSH_USERNAME}" "${BOX_HOSTNAME_FQDN}_secure_auth"
 
     if [ ! -f "${rsa_public_key}" ]; then
       echo "RSA public key file not found!"
@@ -1608,9 +1657,13 @@ function create_os_iso() {
     #chmod 555 ${ISODIR_WRITE}/preseed.cfg
     echo ""
 
-    echo "Writing rsa public key file into ${ISODIR_WRITE_TMP}/root_root_${BOX_HOSTNAME_FQDN}.id_rsa.pub ..."
+    echo "Writing rsa public key (root) file into ${ISODIR_WRITE_TMP}/root_${ROOT_USERNAME}_${BOX_HOSTNAME_FQDN}.id_rsa.pub ..."
     #cp "${rsa_public_key}" "${ISODIR_WRITE_TMP}/root_${BOX_HOSTNAME_FQDN}.id_rsa.pub"
-    ssh_key_manager "get-public-key" "root" "root" >"${ISODIR_WRITE_TMP}/root_root_${BOX_HOSTNAME_FQDN}.id_rsa.pub"
+    ssh_key_manager "get-public-key" "root" "${ROOT_USERNAME}" >"${ISODIR_WRITE_TMP}/root_${ROOT_USERNAME}_${BOX_HOSTNAME_FQDN}.id_rsa.pub"
+    echo ""
+    echo "Writing rsa public key (user) file into ${ISODIR_WRITE_TMP}/user_${SSH_USERNAME}_${BOX_HOSTNAME_FQDN}.id_rsa.pub ..."
+    ssh_key_manager "get-public-key" "user" "${SSH_USERNAME}" >"${ISODIR_WRITE_TMP}/user_${SSH_USERNAME}_${BOX_HOSTNAME_FQDN}.id_rsa.pub"
+
     echo ""
 
     echo "Changing permission of ${ISODIR_WRITE_TMP}/preseed.cfg to own by root:root ..."
@@ -3990,7 +4043,16 @@ function secure_box() {
   fi
   if [ ! -f "${CONF_PATH}/${FUNCNAME[0]}_executed" ]; then
     echo "[${SCRIPT_NAME}]: Executing ${FUNCNAME[0]} ..." 2>&1 | tee -a "${REPORT_FILE}"
-    local find_au
+    local find_au rsa_public_key
+    rsa_public_key="/root/user_${SSH_USERNAME}_${BOX_HOSTNAME_FQDN}.id_rsa.pub"
+    if [ ! -f "${rsa_public_key}" ]; then
+      echo "The RSA public key file ${rsa_public_key} not found!"
+      _exit 1
+    else
+      echo "Using RSA public key from ${rsa_public_key} for ${SSH_USERNAME} SSH login ..."
+      # Reassign SSH_PUBLIC_KEY to the latest SSH key
+      SSH_PUBLIC_KEY=$(cat "${rsa_public_key}")
+    fi
     echo "[${SCRIPT_NAME}]: Securing ${BOX_HOSTNAME_FQDN} ..." 2>&1 | tee -a "${REPORT_FILE}"
     sleep 1
     echo "[${SCRIPT_NAME}]: Changing root password ..." 2>&1 | tee -a "${REPORT_FILE}"
@@ -4040,21 +4102,9 @@ function secure_box() {
     sudo -H -u "${SSH_USERNAME}" bash -c "mkdir -p ~/.ssh"
     echo "[${SCRIPT_NAME}]: Creating a file .ssh/authorized_keys in ${SSH_USERNAME}'s home directory ..." 2>&1 | tee -a "${REPORT_FILE}"
     sudo -H -u "${SSH_USERNAME}" bash -c "touch ~/.ssh/authorized_keys"
-    echo "[${SCRIPT_NAME}]: Inserting SSH private key into .ssh/authorized_keys ..." 2>&1 | tee -a "${REPORT_FILE}"
-    echo "[${SCRIPT_NAME}]: Creating a new RSA Key for rescue root login ..."
-    # create_ssh_key "<prefix>"
-    # TODO testing
-    ssh_key_manager "create-key" "user" "${SSH_USERNAME}" "${BOX_HOSTNAME_FQDN}_secure_auth"
-    local rsa_public_key="${SCRIPT_PATH}/secure/ssh/user_${SSH_USERNAME}_${BOX_HOSTNAME_FQDN}.id_rsa.pub"
 
-    if [ ! -f "${rsa_public_key}" ]; then
-      echo "RSA public key file not found!"
-      _exit 1
-    else
-      echo "Using RSA public key from ${rsa_public_key} ..."
-    fi
     echo "[${SCRIPT_NAME}]: Copying the public key into ~/.ssh/authorized_keys ..."
-    sudo -H -u "${SSH_USERNAME}" bash -c "echo $(ssh_key_manager "get-public-key" "user" "${SSH_USERNAME}") >~/.ssh/authorized_keys"
+    sudo -H -u "${SSH_USERNAME}" bash -c "echo ${SSH_PUBLIC_KEY} >~/.ssh/authorized_keys"
     echo "[${SCRIPT_NAME}]: Changing .ssh/authorized_keys permission to chmod 700 ..." 2>&1 | tee -a "${REPORT_FILE}"
     sudo -H -u "${SSH_USERNAME}" bash -c "chmod 700 ~/.ssh/authorized_keys"
 
@@ -10794,128 +10844,19 @@ while [ "$#" -gt 0 ]; do
         fi
       done
 
-      # Need to follow this tutorial to unlock encrypted LUKS via SSH: https://www.arminpech.de/2019/12/23/debian-unlock-luks-root-partition-remotely-by-ssh-using-dropbear/
-      # https://www.gandalfk7.it/posts/20200914_02_Debian_9_and_10_boot_luks_unlock/
-
+      # Guide: https://www.arminpech.de/2019/12/23/debian-unlock-luks-root-partition-remotely-by-ssh-using-dropbear/
+      # Guide 2: https://www.gandalfk7.it/posts/20200914_02_Debian_9_and_10_boot_luks_unlock/
       # Now you can SSH with :
       # maxisetup --ssh-login sun.sofibox.com
       sleep 5
-      echo "Connecting to ${BOX_HOSTNAME_FQDN}:${SSH_PORT} ..."
-      ssh_login "${BOX_HOSTNAME_FQDN}:${SSH_PORT}" "root:${ROOT_USERNAME}"
-      echo "================ to be continued =========="
-      exit 1
-
-      echo "Booting linode ${BOX_HOSTNAME_FQDN} into linode-finnix rescue mode ..."
-      # linode_api_admin "rescue-mode" <optional_hostname> <optional_mount_disk1_label> <optional_mount_disk2_label> <optional_mount_diskN_label> ... <optional_mount_disk9>"
-      linode_api_admin "boot-rescue" "${BOX_HOSTNAME_FQDN}" "Rescue_Disk"
-      create_rescue_iso
-      echo ""
-      cp "${SCRIPT_PATH}"/secure/ssh/*.id_rsa* /root/.ssh/
-      chmod -R 600 /root/.ssh/
-      echo "Writing rescue OS into Rescue_Disk Partition"
-      ssh -o "StrictHostKeyChecking no" -i /root/.ssh/linode_lish.id_rsa -tt "${DNS_PROVIDER_USER}@${DNS_PROVIDER_TERMINAL_SERVER}" "${BOX_HOSTNAME_FQDN}" <"${SCRIPT_PATH}/linode/rescue_write.sh" >/dev/null 2>&1 &
-
-      # Now check if the linode status is offline, that means it has finish writing because the rescue_write.sh contains reboot -f
-      check_linode_status_until "offline"
-      echo ""
-      # Now we know that linode is offline, after break above, it's time to start the first profile (this is my own Finnix recovery):
-      linode_api_admin "boot-linode" "${BOX_HOSTNAME_FQDN}" "Rescue_Config"
-      echo ""
-      create_os_iso "--hdd"
-      # And now check again the status of this boot create custom ISO, etc...
-
-      # New syntax to ssh_login
-      # ssh_login "sun.sofibox.com":"port" "group:user" "optional_silent_mode" "optional_script"
-      # eg: ssh_login sun.sofibox.com:893 root:root silent /path_to_script
-      echo "Login silently into SSH and send script to write OS file into Boot_Disk ..."
-      ssh_login "${BOX_HOSTNAME_FQDN}:${RESCUE_SSH_PORT}" "rescue:root" "silent" "${SCRIPT_PATH}/linode/os_write.sh"
-      # OLD syntax
-      # ssh_login "${BOX_HOSTNAME_FQDN}" "${RESCUE_SSH_PORT}" rescue "${SCRIPT_PATH}/linode/os_write.sh" --silent
-
-      echo ""
-      check_linode_status_until "online"
-      echo ""
-      linode_api_admin "boot-linode" "${BOX_HOSTNAME_FQDN}" "OS_Config"
-      exit 1
-      echo "Now, it's time to make sure that the rescue disk and config is bootable (eg: write the custom OS inside that rescue disk)"
-      echo "After that you can run this script without the option init-all or init-rescue (to not disturb the rescue disk partition in the future)"
-      echo "eg: maxisetup --init-server"
-      _exit 1
-
-      # Assume that rescue disk is good (without option init_all and init_rescue)
-      # 8) Putting linode into rescue mode (my own Finnix custom ISO)
-      linode_api_admin "boot-linode" "${BOX_HOSTNAME_FQDN}" "Rescue_Config"
-      echo ""
-      echo "Now time to check if linode rescue mode has been booted perfectly!"
-      _exit 1
-
-      echo ""
-
-      # 10) Copy all rsa authentication into /root/.ssh
-
-      #ssh -i /root/.ssh/linode_lish.id_rsa -tt "${DNS_PROVIDER_USER}@${DNS_PROVIDER_TERMINAL_SERVER}" "${BOX_HOSTNAME_FQDN}" <"${SCRIPT_PATH}/linode/lish_command.sh"
-      #echo "Script executed"
-      # 11) Login into lish and execute script lish_command.sh
-      # exit 1
-      # TODO automated below with remote console (not currently possible)
-      #ssh -i /root/.ssh/linode.id_rsa -t "${DNS_PROVIDER_USER}@${TERMINAL_SERVER}" "${BOX_HOSTNAME_FQDN}"
-      #screen -d -m bash -c "ssh -i /root/.ssh/linode.id_rsa -t ${DNS_PROVIDER_USER}@${DNS_PROVIDER_TERMINAL_SERVER} ${BOX_HOSTNAME_FQDN}; wget http://ftp.debian.org/debian/dists/stable/main/installer-amd64/current/images/netboot/mini.iso; dd if=mini.iso of=/dev/sda"
-      #test=$(ssh -i /root/.ssh/linode_lish.id_rsa -tt "${DNS_PROVIDER_USER}@${DNS_PROVIDER_TERMINAL_SERVER}" "${BOX_HOSTNAME_FQDN}" <"${SCRIPT_PATH}/linode/lish_command.sh" >/dev/null 2>&1 &)
-      # Not able to get return value
-
-      # 11) Login to lish and execute script
-
-      echo "DONE"
-
-      #exit 0
-
-      echo "Allowing 30 seconds finish copying ..."
-      sleep 30
-      # TODO automated below with remote console
-      #echo "[${SCRIPT_NAME}]: Now it's time to copy operating system installer into boot disk"
-      #echo ""
-      #linode_id=$(${LINODE_CLI_BIN} linodes list --json --pretty | ${JQ_BIN} ".[] | select(.label == \"${BOX_HOSTNAME_FQDN}\") | .id")
-      #echo "Goto this URL to enter into linode terminal: https://cloud.linode.com/linodes/${linode_id}/lish/weblish"
-      #echo "Then execute the following command (COPY PASTE) to copy OS installer into boot disk"
-      #echo ""
-      #echo "wget http://ftp.debian.org/debian/dists/stable/main/installer-amd64/current/images/netboot/mini.iso"
-      #echo "dd if=mini.iso of=/dev/sda"
-      #echo "poweroff"
-      #echo ""
-      _confirm "I have finished copying minimal disk installer. Continue next execution? [y/Y]: "
-      # 8) Shutdown linode first
-      #linode_api_admin "shutdown-linode" "${BOX_HOSTNAME_FQDN}"
-      #echo ""
-      #sleep 2
-      # At this point for security reason, don't enable SSH on rescue disk. Manually put operating system there
-      # 9) Boot into OS installer to install OS
-      echo "[${SCRIPT_NAME}]: Booting linode into OS installer ..."
-      linode_api_admin "boot-linode" "${BOX_HOSTNAME_FQDN}" "Boot_Config"
-      echo ""
+      echo "Copying maxisetup script"
+      ssh_transfer "${BOX_HOSTNAME_FQDN}:${SSH_PORT}" "root:${ROOT_USERNAME}" "${SCRIPT_PATH}/maxisetup ${SCRIPT_PATH}/maxisetup.conf" ~/
       sleep 2
-      echo "[${SCRIPT_NAME}]: Goto this URL to enter into linode terminal: https://cloud.linode.com/linodes/${linode_id}/lish/glish"
-      echo "[${SCRIPT_NAME}]: Enter glish tab and install Operating System based on instruction. Once done you can continue"
-      _confirm "I have finished installing operating system. Continue next execution? [y/Y]: "
-      # 10) Shutdown linode again
-      linode_api_admin "shutdown-linode" "${BOX_HOSTNAME_FQDN}"
-      echo ""
-      # 11) Now boot into a live server
-      echo "[${SCRIPT_NAME}]: Booting linode into live server ..."
-      linode_api_admin "boot-linode" "sun.sofibox.com" "OS_Config"
-      sleep 2
-      echo "1) At this point, enter root user and password in linode terminal"
-      echo "2) Type 'ip a' and compare the interface name with /etc/network/interface"
-      echo "If same then skip, else modify the interface based on 'ip a'"
-      echo "3) Enable SSH root login temporarily by modifying PermitRootLogin yes"
-      echo "4) Reload sshd"
-      echo ""
-      _confirm "Continue next execution? [y/Y]: "
-      echo "Now you might be able to use SSH client to login into the server (such as putty)"
-      echo "You can then copy this script and config file, and run with maxisetup --setup"
-      echo ""
-      _confirm "Continue next execution? [y/Y]: "
-      echo "At this point, you can use this running script to access ssh and setup the whole server (TODO)"
-      # To be continued
+      echo "Connecting to ${BOX_HOSTNAME_FQDN}:${SSH_PORT} and installing server ..."
+      echo "Setup will automatically execute remote maxisetup script and start installation of the server ... (it might take some time) ..."
+      ssh_login "${BOX_HOSTNAME_FQDN}:${SSH_PORT}" "root:${ROOT_USERNAME}" "${SCRIPT_PATH}/maxisetup_ssh.sh"
+
+      echo "Done"
     elif
 
       [ "${EXTERNAL_DNS_PROVIDER}" == "digitalocean" ]
@@ -10979,6 +10920,12 @@ ENDSSH
     exit 0
     break
     ;;
+  -ssht | --ssh-transfer)
+    shift
+    ssh_transfer "$@"
+    exit 0
+    break
+    ;;
   # Deprecated, only use this for reboot, restart of linode etc ...
   # lish-login <option>
   -ll | --lish-login | --lish | lish-login)
@@ -11034,7 +10981,9 @@ ENDSSH
     ;;
   -t | --test)
     shift
-    ssh_login "sun.sofibox.com":"893" "rescue:root"
+    ssh_transfer "${BOX_HOSTNAME_FQDN}:${SSH_PORT}" "root:${ROOT_USERNAME}" "maxisetup maxisetup.conf" ~/
+
+    #ssh_login "sun.sofibox.com":"893" "rescue:root"
     #ssh_key_manager "create-key" "admin" "test1" "comment1"
     #ssh_key_manager "get-public-key" "admin" "test1"
     #exit 1

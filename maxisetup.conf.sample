@@ -216,6 +216,7 @@ GIT_TOKEN="*git-token-key*"
 # To reduce server bot attack on SSH, you must change this SSH PORT
 RESCUE_SSH_PORT="823"
 SSH_PORT="928"
+DROP_BEAR_PORT="8221"
 SSH_USERNAME="ssh-uname"
 SSH_USERPASS="*long-secured-password*"
 # This one for SSH Public Key. I generate this from puttygen
@@ -308,3 +309,4 @@ MAXIWALL_AIPDB_API_KEY="strong*63161ec_covid19f****63ex742*x***85xaMaXi32xax41**
 #DNS_PROVIDER_USER="sofibox"
 # Format <provider>:<user>:<api_key>
 DNS_PROVIDER_API_KEY1="*API-KEY"
+DNS_PROVIDER_TERMINAL_SERVER="lish-singapore.linode.com"

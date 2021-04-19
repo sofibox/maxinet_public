@@ -1,0 +1,9 @@
+# A full setup log sample will when setting up a new server with the following option:
+
+./maxisetup --init-server init-all rebuild-iso
+
+START LOG =======================================
+
+[ you will see this later ]
+
+==========================================END LOG

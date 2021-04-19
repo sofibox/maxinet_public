@@ -1,4 +1,22 @@
-Ths is an initial script to harden your new web hosting server.
+Ths is powerful script to manage server installation. 
+This script is currently compatible with linode server (might add digitalocean or amazonaws later)
+
+Fully support Directadmin
+
+For example:
+
+When triggering ./maxisetup --init-server init-all rebuild-iso
+
+1) It will create a linode server from scratch (removing any disks configs)
+....
+   
+more than 100 more features ...
+
+The feature is currently huge to list out. You can see the sample installation log output (maxisetup.log) to see what it can do
+
+============================================================
+
+Without creating a server from scratch (assume server is accessible with root):
 
 Usage:
 
