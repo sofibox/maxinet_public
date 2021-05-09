@@ -28,11 +28,12 @@ ENABLE_CUSTOM_WEB_SETUP="no"
 # This name will be used by fstab, so putting the wrong group name you will be locked out from the system from booting.
 # Specify group of LVM
 LVM_VOLUME_GROUP="vg1"
-# TODO: DISK_ENCRYPTION variable is a temp variable, will deprecated in future,
-# setup will determine if disk is encrypted or not
+# DISK_ENCRYPTION variable is a temp variable, will deprecated in future
+# setup is now able to determine if disk is encrypted or not
 DISK_ENCRYPTION="yes"
 LUKS_PASS="luks*encryption*password"
 # Whether to secure the bootloader with password:
+# If use Debian preseed, don't enable this.
 SECURE_GRUB="yes"
 # Username to set for grub bootloader
 GRUB_UNAME="grub_user"
@@ -219,8 +220,10 @@ SSH_PORT="928"
 DROP_BEAR_PORT="8221"
 SSH_USERNAME="ssh-uname"
 SSH_USERPASS="*long-secured-password*"
+# SSH_PUBLIC_KEY is deprecated
 # This one for SSH Public Key. I generate this from puttygen
 SSH_PUBLIC_KEY="ssh-rsa AAAAB3N***AAAQE***nsAQENik/Al***G/8***Y sofibox-auth-test.sofibox.com-v1"
+SSH_PASSPHRASE="**SSH_PASSPHRASE***"
 # vps | dedicated
 BOX_ISO_OS_TYPE="debian"
 # values: custom, normal, console | do not use console if system support GUI, else you will see blank UI
@@ -275,12 +278,13 @@ NAME_SERVER3="112.33.21.5"
 ENABLE_SETUP_REBOOT="interactive"
 #OSSEC_INS_TYPE="agent" #or local or hybrid
 # ====== CSF SETTING ==========
-# CSF port setting: Remember to begin with comma, and no space. This variable can be empty string (when empty don't put comma)
-# If you want to put other allowed ports like 12345 and 112 use this: ,30000:35999,11211,12345,112
-EXTRA_ALLOW_PORTS=",30000:35999,11211"
+# CSF port setting: Remember, no space. This variable can be empty string
+# Range example-- 30000:44444
+CSF_EXTRA_ALLOW_PORTS="30000:35999,11211,8080,5060"
 #CONNLIMIT="22;5,80;20,443;20"
 #PORTFLOOD="22;tcp;5;300,80;tcp;20;5,443;tcp;20;5"
 CSF_SYSLOG_CHECK="600"
+CSF_DENY_IP_LIMIT="2500"
 #Google Recaptcha useful to setting up messenger v1 for Directadmin
 GOOGLE_RECAPTCHA_SITE_V2="*recaptcha-v2-site-key*"
 GOOGLE_RECAPTCHA_SECRET_V2="*recaptcha-v2-secret-key*"
