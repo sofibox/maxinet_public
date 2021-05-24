@@ -279,6 +279,7 @@ ENABLE_SETUP_REBOOT="interactive"
 #OSSEC_INS_TYPE="agent" #or local or hybrid
 # ====== CSF SETTING ==========
 # CSF port setting: Remember, no space. This variable can be empty string
+# 11211 - required by memcached, 8080 and 5060 required by speedtest.net
 # Range example-- 30000:44444
 CSF_EXTRA_ALLOW_PORTS="30000:35999,11211,8080,5060"
 #CONNLIMIT="22;5,80;20,443;20"
