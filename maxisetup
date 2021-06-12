@@ -3,7 +3,7 @@
 # Author: Arafat Ali | Email: webmaster@sofibox.com
 APP_SPECIFIC_NAME="Maxisetup"
 APP_STATUS="beta"
-APP_VERSION="0.4.3.3-${APP_STATUS}"
+APP_VERSION="0.4.3.4-${APP_STATUS}"
 # This is an initial server hardening script for CentOS and Debian.
 # Compatible 100% with Directadmin. Supported OS: CentOS + Debian (Planned on FreeBSD)
 # You can choose to install as the other stack server such as LEMP, (TODO) Laravel and more defined in config file
@@ -10562,7 +10562,7 @@ while [ "$#" -gt 0 ]; do
       #echo "[${SCRIPT_NAME}]: OK, this operating system [${DISTRO_ID}] is supported!" 2>&1 | tee -a "${REPORT_FILE}"
       :
     else
-      echo "[${SCRIPT_NAME}]: Sorry, this operating system is not supported!" 2>&1 | tee -a "${REPORT_FILE}"
+      echo "[${SCRIPT_NAME}]: Sorry, this operating system [${DISTRO_ID}] is not supported!" 2>&1 | tee -a "${REPORT_FILE}"
       _exit 1
     fi
     if compgen -G "${CONF_PATH}/*_executed" >/dev/null; then
@@ -10600,6 +10600,7 @@ while [ "$#" -gt 0 ]; do
     configure_sysctl_ips "" #OK
     # Upgrade system
     upgrade_os "" #Done
+    #exit 0
     if [ "${INSTALL_TYPE}" == "directadmin" ]; then
       install_da_pre ""
       #exit 1
@@ -10829,6 +10830,8 @@ while [ "$#" -gt 0 ]; do
       _echo 'yellow' "[${SCRIPT_NAME}]: Warning, new ISO will be rebuilt with the config rebuild-iso (RSA key will be replaced)"
       rebuild_iso=1
     fi
+    # Pause for warning message above
+    _pause 10
 
     if [ "${EXTERNAL_DNS_PROVIDER}" == "linode" ]; then
       #echo "${rescue_disk_status}"
@@ -10919,6 +10922,8 @@ while [ "$#" -gt 0 ]; do
 
       if [ "${rebuild_iso}" -eq 1 ]; then
         _echo 'red' "[${SCRIPT_NAME}]: Warning, new ISO will be rebuilt because the option 'rebuild-iso' is set"
+        _pause 10
+        # TODO save old ISO as backup before creating new ISO
         create_os_iso "--hdd"
       else
         _echo 'yellow' "[${SCRIPT_NAME}]: Notice, using existing ISO because no option is passed to rebuild ISO (eg: rebuild-iso)"
@@ -10964,6 +10969,13 @@ while [ "$#" -gt 0 ]; do
       echo "[${SCRIPT_NAME}]: Copying maxisetup script ..."
       ssh_transfer "${BOX_HOSTNAME_FQDN}:${SSH_PORT}" "root:${ROOT_USERNAME}" "${SCRIPT_PATH}/maxisetup ${SCRIPT_PATH}/maxisetup.conf" ~/
       sleep 2
+
+      # START DEBUG
+      # (Debug) No need to setup, do this manually
+      echo "Do install manually for new version of DA! (will remove this later)"
+      exit 0
+      # END OF DEBUG
+
       echo "[${SCRIPT_NAME}]: Connecting to ${BOX_HOSTNAME_FQDN}:${SSH_PORT} and installing server ..."
       echo "[${SCRIPT_NAME}]: Setup will automatically execute remote maxisetup script and start installation of the server ... (it might take some time) ..."
       ssh_login "${BOX_HOSTNAME_FQDN}:${SSH_PORT}" "root:${ROOT_USERNAME}" "${SCRIPT_PATH}/maxisetup_ssh.sh"

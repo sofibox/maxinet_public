@@ -10,9 +10,7 @@
     <select />
   </component>
   <component name="ChangeListManager">
-    <list default="true" id="113c828c-9a32-4b24-ab1e-978ce50c6320" name="Default Changelist" comment="Improved ssh_login code&#10;Added documentation in the terminal to resume remote installation (in the case setup needs to restart remotely). This will display when SSH is terminated.&#10;Improved check_finish_reboot function&#10;Added the ability to detect if OS is encrypted. Hence, the variable DISK_ENCRYPTION used to specify OS encryption status manually is now deprecated.&#10;Renamed variable disk_uuid to local disk_uuid_boot because this uuid is only for boot partition&#10;Extra ports specification config for variable CSF_EXTRA_ALLOW_PORTS now doesn't need to specify comma at the beginning.&#10;Added new variable CSF_DENY_IP_LIMIT to increase DENY_IP_LIMIT from 200 (default) to any values. This one was missing feature.&#10;Added speedtest.net installation in post_setup()&#10;Added the ability to automatically unlock LUKS encryption remotely and run maxisetup automatically.&#10;Other changes ... especially in maxida, maxiwall, websetup .. other extra things">
-      <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-    </list>
+    <list default="true" id="113c828c-9a32-4b24-ab1e-978ce50c6320" name="Default Changelist" comment="Improved ssh_login code&#10;Added documentation in the terminal to resume remote installation (in the case setup needs to restart remotely). This will display when SSH is terminated.&#10;Improved check_finish_reboot function&#10;Added the ability to detect if OS is encrypted. Hence, the variable DISK_ENCRYPTION used to specify OS encryption status manually is now deprecated.&#10;Renamed variable disk_uuid to local disk_uuid_boot because this uuid is only for boot partition&#10;Extra ports specification config for variable CSF_EXTRA_ALLOW_PORTS now doesn't need to specify comma at the beginning.&#10;Added new variable CSF_DENY_IP_LIMIT to increase DENY_IP_LIMIT from 200 (default) to any values. This one was missing feature.&#10;Added speedtest.net installation in post_setup()&#10;Added the ability to automatically unlock LUKS encryption remotely and run maxisetup automatically.&#10;Other changes ... especially in maxida, maxiwall, websetup .. other extra things" />
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
     <option name="HIGHLIGHT_NON_ACTIVE_CHANGELIST" value="false" />
@@ -58,15 +56,13 @@
     </key>
   </component>
   <component name="RunManager">
-    <configuration default="true" type="ArquillianTestNG" factoryName="" nameIsGenerated="true">
+    <configuration default="true" type="ArquillianJUnit" factoryName="" nameIsGenerated="true">
       <option name="arquillianRunConfiguration">
         <value>
           <option name="containerStateName" value="" />
         </value>
       </option>
-      <option name="TEST_OBJECT" value="CLASS" />
-      <properties />
-      <listeners />
+      <option name="TEST_OBJECT" value="class" />
       <method v="2">
         <option name="Make" enabled="true" />
       </method>
@@ -158,14 +154,7 @@
       <workItem from="1619707123070" duration="13000" />
       <workItem from="1620542695164" duration="632000" />
       <workItem from="1620570365186" duration="839000" />
-      <workItem from="1621892586781" duration="302000" />
-    </task>
-    <task id="LOCAL-00027" summary="Added maxicloud installation.">
-      <created>1612595417852</created>
-      <option name="number" value="00027" />
-      <option name="presentableId" value="LOCAL-00027" />
-      <option name="project" value="LOCAL" />
-      <updated>1612595417852</updated>
+      <workItem from="1621892586781" duration="411000" />
     </task>
     <task id="LOCAL-00028" summary="Add the ability to create subdomains for a domain.&#10;&#10;The config file has new variable called: DA_USER_SUBDOMAIN[index]&#10;&#10;Example:&#10;# Format: &lt;subdomain1.subdomain2&gt;+&lt;rootdomain&gt;&#10;# Use plus '+' instead of dot '.'&#10;# because there is no easy way to determine root domain when it has long subdomains due to huge number of TLD&#10;# and those TLD names need to be maintained frequently especially from https://publicsuffix.org/&#10;# you can declare multi subdomains like sub1.sub2.sub3.sub4.sub5+maxibi.com&#10;&#10;DA_USER_SUBDOMAIN1=(&quot;sales+maxibi.com&quot; &quot;login+maxibi.com&quot; &quot;sub1.sub2+maxibi.com&quot; &quot;sub1.sub2+test.com.my&quot;)&#10;&#10;This will create subdomain of sales, login and sub1.sub2 for the domain maxibi.com AND sub1.sub2 for the domain test.com.my">
       <created>1612629917683</created>
@@ -503,7 +492,14 @@
       <option name="project" value="LOCAL" />
       <updated>1620570587655</updated>
     </task>
-    <option name="localTasksCounter" value="76" />
+    <task id="LOCAL-00076" summary="Improved ssh_login code&#10;Added documentation in the terminal to resume remote installation (in the case setup needs to restart remotely). This will display when SSH is terminated.&#10;Improved check_finish_reboot function&#10;Added the ability to detect if OS is encrypted. Hence, the variable DISK_ENCRYPTION used to specify OS encryption status manually is now deprecated.&#10;Renamed variable disk_uuid to local disk_uuid_boot because this uuid is only for boot partition&#10;Extra ports specification config for variable CSF_EXTRA_ALLOW_PORTS now doesn't need to specify comma at the beginning.&#10;Added new variable CSF_DENY_IP_LIMIT to increase DENY_IP_LIMIT from 200 (default) to any values. This one was missing feature.&#10;Added speedtest.net installation in post_setup()&#10;Added the ability to automatically unlock LUKS encryption remotely and run maxisetup automatically.&#10;Other changes ... especially in maxida, maxiwall, websetup .. other extra things">
+      <created>1621892995904</created>
+      <option name="number" value="00076" />
+      <option name="presentableId" value="LOCAL-00076" />
+      <option name="project" value="LOCAL" />
+      <updated>1621892995904</updated>
+    </task>
+    <option name="localTasksCounter" value="77" />
     <servers />
   </component>
   <component name="TypeScriptGeneratedFilesManager">

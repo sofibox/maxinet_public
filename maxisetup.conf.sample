@@ -10,6 +10,8 @@
 # Directadmin cannot contains this character in password, it will not work with API -> '+'
 # =====================================
 
+# Start installation script automatically
+PRE_AUTORUN_SETUP="no"
 HOST_MAX_PROCESSOR="4"
 # yes = only one log file name | no = use multi log file based on unique date
 USE_ONE_LOG_FILE="yes"
@@ -301,7 +303,8 @@ GPG_USE_EXISTING_KEY="yes"
 # =~=~ For maxiwall / suricata =~=~#
 # The URL. Need to modify this if they change this URL like the v2 to v3
 # Select version for suricata. Best is to use version 6+ because version 6 has new different packages need to include:
-SURICATA_SELECT_VERSION="6.0.1"
+# Testing only for 6.0.2 (TODO). Working = 6.0.1
+SURICATA_SELECT_VERSION="6.0.2"
 MAXIWALL_AIPDB_CHECK_URL="https://api.abuseipdb.com/api/v2/check"
 MAXIWALL_AIPDB_REPORT_URL="https://api.abuseipdb.com/api/v2/report"
 # The main abuseAIPDB key
