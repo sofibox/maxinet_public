@@ -3,7 +3,7 @@
 # Author: Arafat Ali | Email: webmaster@sofibox.com
 APP_SPECIFIC_NAME="Maxisetup"
 APP_STATUS="beta"
-APP_VERSION="0.4.3.4-${APP_STATUS}"
+APP_VERSION="0.4.3.5-${APP_STATUS}"
 # This is an initial server hardening script for CentOS and Debian.
 # Compatible 100% with Directadmin. Supported OS: CentOS + Debian (Planned on FreeBSD)
 # You can choose to install as the other stack server such as LEMP, (TODO) Laravel and more defined in config file
@@ -12,7 +12,8 @@ APP_VERSION="0.4.3.4-${APP_STATUS}"
 # You can always re-run this script to resume installation if it's halt due to known error or script has performed reboot
 # URL (public): github.com/sofibox/maxisetup_public | (private) github.com/sofibox/maxisetup (need access token)
 # =~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~="
-# Run with log output: ./maxisetup --setup 2>&1 | tee maxisetup.log
+# Run installation with log output: ./maxisetup --setup 2>&1 | tee maxisetup.log
+# Run initialize installation with log output: ./maxisetup --init-server init-all rebuild-iso 2>&1 | tee maxisetup.log
 # TOP TO DO LIST:
 # TODO: Enable DNSSEC https://help.directadmin.com/item.php?id=651 (also check mail configuration to support new ipv6)
 # TODO: enable --dry-run (that will simulate testing for this script)
@@ -823,6 +824,16 @@ function _reboot() {
   echo "[${SCRIPT_NAME}]: Rebooting system ..." 2>&1 | tee -a "${REPORT_FILE}"
   shutdown -r now
 }
+
+# This function is used to shutdown the system using force shutdown -h now without any arguments
+# syntax _shutdown
+function _shutdown() {
+  # an exit ASCII symbol invented by MaXi32
+  echo "--<]--"
+  echo "[${SCRIPT_NAME}]: Shutting down system ..." 2>&1 | tee -a "${REPORT_FILE}"
+  shutdown -h now
+}
+
 # This function display the current time spent for running this script.
 # It uses the built-in bash SECONDS to get the real execution statement
 function script_time() {
@@ -10970,16 +10981,15 @@ while [ "$#" -gt 0 ]; do
       ssh_transfer "${BOX_HOSTNAME_FQDN}:${SSH_PORT}" "root:${ROOT_USERNAME}" "${SCRIPT_PATH}/maxisetup ${SCRIPT_PATH}/maxisetup.conf" ~/
       sleep 2
 
-      # START DEBUG
-      # (Debug) No need to setup, do this manually
-      echo "Do install manually for new version of DA! (will remove this later)"
-      exit 0
-      # END OF DEBUG
-
       echo "[${SCRIPT_NAME}]: Connecting to ${BOX_HOSTNAME_FQDN}:${SSH_PORT} and installing server ..."
-      echo "[${SCRIPT_NAME}]: Setup will automatically execute remote maxisetup script and start installation of the server ... (it might take some time) ..."
-      ssh_login "${BOX_HOSTNAME_FQDN}:${SSH_PORT}" "root:${ROOT_USERNAME}" "${SCRIPT_PATH}/maxisetup_ssh.sh"
 
+      if [ "${PRE_AUTORUN_SETUP}" == "yes" ]; then
+        echo "[${SCRIPT_NAME}]: Setup will automatically execute remote maxisetup script and start installation of the server ... (it might take some time) ..."
+        ssh_login "${BOX_HOSTNAME_FQDN}:${SSH_PORT}" "root:${ROOT_USERNAME}" "${SCRIPT_PATH}/maxisetup_ssh.sh"
+      else
+        echo "[${SCRIPT_NAME}]: Auto run script is disabled. Turning off server ... "
+        ssh_login "${BOX_HOSTNAME_FQDN}:${SSH_PORT}" "root:${ROOT_USERNAME}" "${SCRIPT_PATH}/reboot_ssh.sh"
+      fi
       # After installation above, the system must restart once, so we execute next script to reopen LUKS
       check_linode_status_until "offline"
       echo "Booting into operating system (make sure to unlock LUKS)"
@@ -11083,6 +11093,12 @@ ENDSSH
   -csp | --check-server-port)
     shift
     check_server_port "$@"
+    exit 0
+    break
+    ;;
+    -rs | --shutdown-server)
+    shift
+    _shutdown "$@"
     exit 0
     break
     ;;

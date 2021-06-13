@@ -10,9 +10,10 @@
 # Directadmin cannot contains this character in password, it will not work with API -> '+'
 # =====================================
 
-# Start installation script automatically
+# Start installation script automatically, yes or no
 PRE_AUTORUN_SETUP="no"
-HOST_MAX_PROCESSOR="4"
+# Set number of processor for parallel processing
+HOST_MAX_PROCESSOR="2"
 # yes = only one log file name | no = use multi log file based on unique date
 USE_ONE_LOG_FILE="yes"
 # This is a temporary allowed IP during setup which won't be blocked by firewall
