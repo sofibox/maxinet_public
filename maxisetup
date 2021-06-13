@@ -3,7 +3,7 @@
 # Author: Arafat Ali | Email: webmaster@sofibox.com
 APP_SPECIFIC_NAME="Maxisetup"
 APP_STATUS="beta"
-APP_VERSION="0.4.3.5-${APP_STATUS}"
+APP_VERSION="0.4.3.7-${APP_STATUS}"
 # This is an initial server hardening script for CentOS and Debian.
 # Compatible 100% with Directadmin. Supported OS: CentOS + Debian (Planned on FreeBSD)
 # You can choose to install as the other stack server such as LEMP, (TODO) Laravel and more defined in config file
@@ -37,11 +37,12 @@ function ssh_luks_unlock() {
   rsa_private_key_remote="/root/.ssh/root_root_${BOX_HOSTNAME_FQDN}.id_rsa"
   cp "${rsa_private_key_local}" /root/.ssh/
   chmod -R 600 /root/.ssh/
-  echo "[${SCRIPT_NAME}]: Unlocking LUKS encryption disk on boot ..."
+  _log default "Unlocking LUKS encryption disk on boot ..."
   if [ -f "${rsa_private_key_remote}" ]; then
+    _log default "Connecting to SSH to unlock LUKS encryption disk on boot ..."
     ssh -o "StrictHostKeyChecking no" -q -p "${port}" -i "${rsa_private_key_remote}" "${BOX_HOSTNAME_FQDN}" "echo -ne \"${pass}\" > /lib/cryptsetup/passfifo"
   else
-    echo 'red' "[${SCRIPT_NAME}]: Warning, remote private key ${rsa_private_key_remote} does not exist!"
+    _log red "Error, remote private key ${rsa_private_key_remote} does not exist!"
     _exit 1
   fi
 }
@@ -80,42 +81,41 @@ function ssh_key_manager() {
   rsa_private_key_ppk="${SCRIPT_PATH}/secure/ssh/${group}_${uname}_${BOX_HOSTNAME_FQDN}.ppk"
 
   if [ "${action}" == "create-key" ]; then
-
     comment="$3"
     if [ $# -eq 3 ]; then
-      echo "Creating SSH key ..."
+      _log default "Creating SSH key ..."
       ssh-keygen -f "${rsa_private_key}" -t rsa -b 4096 -P "" -C "${comment}" <<<y
     else
-      echo "Warning, not enough argument to create key!"
+      _log warning "Warning, not enough argument to create key!"
       return 1
     fi
   elif [ "${action}" == "create-key-with-putty" ]; then
     comment="$3"
     if [ $# -eq 3 ]; then
       install_required "putty-tools"
-      echo "Creating SSH key ..."
+      _log default "Creating SSH key ..."
       ssh-keygen -f "${rsa_private_key}" -t rsa -b 4096 -P "" -C "${comment}" <<<y
-      echo "Creating SSH key for putty ..."
+      _log default "Creating SSH key for putty ..."
       puttygen "${rsa_private_key}" -o "${rsa_private_key_ppk}"
     else
-      echo "Warning, not enough argument to create key!"
+      _log default "Warning, not enough argument to create key!"
       return 1
     fi
   elif [ "${action}" == "get-public-key" ]; then
     if [ -f "${rsa_public_key}" ]; then
       cat "${rsa_public_key}"
     else
-      _echo 'red' "Warning, public key does not exist. Please create it first"
+      _log red "Warning, public key does not exist. Please create it first"
       return 1
     fi
     # Warning this will replace existing key
   elif [ "${action}" == "copy-all-pubkeys" ]; then
-    echo "Resetting known_hosts and copying all public key to /root/.ssh/* ..."
+    _log default "Resetting known_hosts and copying all public key to /root/.ssh/* ..."
     echo >/root/.ssh/known_hosts
     cp "${SCRIPT_PATH}"/secure/ssh/*.id_rsa* /root/.ssh/
     chmod -R 600 /root/.ssh/
   else
-    _echo 'red' "Warning, unknown action argument specified when calling ssh_key_manager function!"
+    _log red "Warning, unknown action argument specified when calling ssh_key_manager function!"
     return 1
   fi
 }
@@ -129,8 +129,8 @@ function ssh_key_manager() {
 function ssh_login() {
   if [ -z "$1" ]; then
     echo ""
-    _echo 'yellow' "Usage: ssh_login sun.sofibox.com:port group:user optional_silent_mode optional_script"
-    _echo 'yellow' "eg: ssh_login sun.sofibox.com:897 root:root silent /path_to_script.sh"
+    _log yellow "Usage: ssh_login sun.sofibox.com:port group:user optional_silent_mode optional_script"
+    _log yellow "eg: ssh_login sun.sofibox.com:897 root:root silent /path_to_script.sh"
     echo ""
     _exit 1
   fi
@@ -793,14 +793,16 @@ function _exit() {
   exit "$1"
 }
 
+# _echo red "Hello World" - red color
+# _echo default "Hello World" - default color
 function _echo() {
   option="$1"
   shift
   if [ "${option}" == "black" ]; then
     echo -e "\033[1;30m${*}\033[0m"
-  elif [ "${option}" == "red" ]; then
+  elif [[ "${option}" == "red" || "${option}" == "error" || "${option}" == "warning" ]]; then
     echo -e "\033[1;31m${*}\033[0m"
-  elif [ "${option}" == "green" ]; then
+  elif [[ "${option}" == "green" || "${option}" == "ok" ]]; then
     echo -e "\033[1;32m${*}\033[0m"
   elif [ "${option}" == "yellow" ]; then
     echo -e "\033[1;33m${*}\033[0m"
@@ -811,26 +813,58 @@ function _echo() {
   elif [ "${option}" == "cyan" ]; then
     echo -e "\033[1;36m${*}\033[0m"
   else
-    # TODO test
+    # If color argument is not specified
     echo -e "${*}"
   fi
+}
+
+#  This function is used to print log file with timestamp
+# syntax: _log <color> <message> <optional_log_file_path>
+# _log red "hello wassup" "${REPORT_FILE}"
+# Without color: _log default "hello there"
+function _log() {
+  local color info log_file
+  color=$1
+  info=$2
+  log_file=$3
+
+  if [[ $# -eq 3 ]]; then
+    if [ -f "${log_file}" ]; then
+      _echo "${color}" "[${SCRIPT_NAME}|$(date +'%d-%m-%Y %H:%M:%S')]: ${info}" | tee "${log_file}"
+    else
+      _echo yellow "[${SCRIPT_NAME}|$(date +'%d-%m-%Y %H:%M:%S')]: Warning log file [${log_file}] does not exist! Creating the log file [${log_file}] for the first time ..."
+      touch "${log_file}"
+      chmod 644 "${log_file}"
+      #_exit 1
+    fi
+  elif [[ $# -eq 2 ]]; then
+    if [ -f "${log_file}" ]; then
+      :
+    else
+      _echo "${color}" "[${SCRIPT_NAME}|$(date +'%d-%m-%Y %H:%M:%S')]: ${info}"
+    fi
+  else
+    _echo "red" "[${SCRIPT_NAME}|$(date +'%d-%m-%Y %H:%M:%S')]: Invalid number of argument in _log() function call"
+    # log_file="${REPORT_FILE}"
+  fi
+  #_echo "${color}" "[${SCRIPT_NAME}|$(date +'%d-%m-%Y %H:%M:%S')]: ${info}" | tee "${log_file}"
 }
 
 # This function is used to reboot the system using force reboot -r now without any arguments
 # syntax _reboot
 function _reboot() {
   # an exit ASCII symbol invented by MaXi32
-  echo "--<]--"
   echo "[${SCRIPT_NAME}]: Rebooting system ..." 2>&1 | tee -a "${REPORT_FILE}"
+  echo "--<]--"
   shutdown -r now
 }
 
 # This function is used to shutdown the system using force shutdown -h now without any arguments
 # syntax _shutdown
 function _shutdown() {
-  # an exit ASCII symbol invented by MaXi32
-  echo "--<]--"
+  # a shutdown ASCII symbol invented by MaXi32
   echo "[${SCRIPT_NAME}]: Shutting down system ..." 2>&1 | tee -a "${REPORT_FILE}"
+  echo "--[]--"
   shutdown -h now
 }
 
@@ -10834,11 +10868,11 @@ while [ "$#" -gt 0 ]; do
     rebuild_iso=0
 
     if [[ "${option1}" == "init-all" || "${option2}" == "init-all" ]]; then
-      _echo 'yellow' "[${SCRIPT_NAME}]: Warning, all disk partitions and configs will be removed with the option init-all"
+       _log yellow "[${SCRIPT_NAME}]: Warning, all disk partitions and configs will be removed with the option init-all"
       init_all=1
     fi
     if [[ "${option1}" == "rebuild-iso" || "${option2}" == "rebuild-iso" ]]; then
-      _echo 'yellow' "[${SCRIPT_NAME}]: Warning, new ISO will be rebuilt with the config rebuild-iso (RSA key will be replaced)"
+       _log yellow "[${SCRIPT_NAME}]: Warning, new ISO will be rebuilt with the config rebuild-iso (RSA key will be replaced)"
       rebuild_iso=1
     fi
     # Pause for warning message above
@@ -10850,7 +10884,7 @@ while [ "$#" -gt 0 ]; do
       box_boot_disk=${BOX_BOOT_DISK_RAW_SIZE}
       #box_rescue_disk=${BOX_RESCUE_DISK_RAW_SIZE}
       ((box_os_disk = box_main_disk - box_boot_disk))
-      echo "[${SCRIPT_NAME}]: Configuring linode server for ${BOX_HOSTNAME_FQDN} ..."
+       _log default "Configuring linode server for ${BOX_HOSTNAME_FQDN} ..."
       echo ""
       # This step is based on my own tutorial documented on gitlab:
       # 1) Turn off the linode if it's running
@@ -10927,33 +10961,33 @@ while [ "$#" -gt 0 ]; do
       #echo ""
       #fi
 
-      echo "Booting linode ${BOX_HOSTNAME_FQDN} into linode-finnix rescue mode ..."
+      _log default "Booting linode ${BOX_HOSTNAME_FQDN} into linode-finnix rescue mode ..."
       # linode_api_admin "rescue-mode" <optional_hostname> <optional_mount_disk1_label> <optional_mount_disk2_label> <optional_mount_diskN_label> ... <optional_mount_disk9>"
       linode_api_admin "boot-rescue" "${BOX_HOSTNAME_FQDN}" "Boot_Disk"
 
       if [ "${rebuild_iso}" -eq 1 ]; then
-        _echo 'red' "[${SCRIPT_NAME}]: Warning, new ISO will be rebuilt because the option 'rebuild-iso' is set"
+        _log red "Warning, new ISO will be rebuilt because the option 'rebuild-iso' is set"
         _pause 10
         # TODO save old ISO as backup before creating new ISO
         create_os_iso "--hdd"
       else
-        _echo 'yellow' "[${SCRIPT_NAME}]: Notice, using existing ISO because no option is passed to rebuild ISO (eg: rebuild-iso)"
+        _log yellow "Notice, using existing ISO because no option is passed to rebuild ISO (eg: rebuild-iso)"
       fi
       #check_linode_status_until "online"
       ssh_key_manager "copy-all-pubkeys"
-      echo "Writing OS into Boot_Disk Partition via SSH background (this will be completed until linode is turned off automatically) ..."
+      _log default "Writing OS into Boot_Disk Partition via SSH background (this will be completed until linode is turned off automatically) ..."
       # This is not a normal SSH (it use Pseudo-TTY)
       ssh -q -o "StrictHostKeyChecking no" -i /root/.ssh/linode_lish.id_rsa -tt "${DNS_PROVIDER_USER}@${DNS_PROVIDER_TERMINAL_SERVER}" "${BOX_HOSTNAME_FQDN}" <"${SCRIPT_PATH}/linode/os_write.sh" >/dev/null 2>&1 &
       check_linode_status_until "offline"
       # After system shutdown, then we can execute the following
       linode_api_admin "boot-linode" "${BOX_HOSTNAME_FQDN}" "Boot_Config"
-      echo "[${SCRIPT_NAME}]: Installing operating system on OS_Disk via preseed file ... (approx 5 minutes. It will finish when linode is turned off automatically): "
+      _log default "Installing operating system on OS_Disk via preseed file ... (approx 5 minutes. It will finish when linode is turned off automatically): "
       check_linode_status_until "offline"
-      echo "Booting into operating system (make sure to unlock LUKS)"
+      _log default "Booting into operating system (make sure to unlock LUKS)"
       linode_api_admin "boot-linode" "${BOX_HOSTNAME_FQDN}" "OS_Config"
 
       # check server and port if available auto unlock it
-      echo "Checking whether hostname ${BOX_HOSTNAME_FQDN} with port ${DROP_BEAR_PORT} are available ..."
+      _log default "Checking whether hostname ${BOX_HOSTNAME_FQDN} with port ${DROP_BEAR_PORT} are available ..."
       count=0
       while :; do
         drop_bear_port=$(check_server_port "${BOX_HOSTNAME_FQDN}" "${DROP_BEAR_PORT}")
@@ -10967,7 +11001,7 @@ while [ "$#" -gt 0 ]; do
           break
         fi
         if [ "${count}" -gt 60 ]; then
-          _echo 'red' "[${SCRIPT_NAME}]: It seems like DROP_BEAR_PORT is closed. Something is wrong"
+          _log red "[${SCRIPT_NAME}]: It seems like DROP_BEAR_PORT is closed. Something is wrong"
           _exit 1
         fi
       done
@@ -10977,25 +11011,26 @@ while [ "$#" -gt 0 ]; do
       # Now you can SSH with :
       # maxisetup --ssh-login sun.sofibox.com
       sleep 5
-      echo "[${SCRIPT_NAME}]: Copying maxisetup script ..."
+      _log default "Copying maxisetup script ..."
       ssh_transfer "${BOX_HOSTNAME_FQDN}:${SSH_PORT}" "root:${ROOT_USERNAME}" "${SCRIPT_PATH}/maxisetup ${SCRIPT_PATH}/maxisetup.conf" ~/
       sleep 2
 
-      echo "[${SCRIPT_NAME}]: Connecting to ${BOX_HOSTNAME_FQDN}:${SSH_PORT} and installing server ..."
+      _log default "Connecting to ${BOX_HOSTNAME_FQDN}:${SSH_PORT} and installing server ..."
 
       if [ "${PRE_AUTORUN_SETUP}" == "yes" ]; then
-        echo "[${SCRIPT_NAME}]: Setup will automatically execute remote maxisetup script and start installation of the server ... (it might take some time) ..."
+        _log default "Setup will automatically execute remote maxisetup script and start installation of the server ... (it might take some time) ..."
         ssh_login "${BOX_HOSTNAME_FQDN}:${SSH_PORT}" "root:${ROOT_USERNAME}" "${SCRIPT_PATH}/maxisetup_ssh.sh"
+        # After installation above, the system must restart once, so we execute next script to reopen LUKS
+        check_linode_status_until "offline"
       else
-        echo "[${SCRIPT_NAME}]: Auto run script is disabled. Turning off server ... "
+        _log default "Auto run script is disabled. Turning off server ... "
         ssh_login "${BOX_HOSTNAME_FQDN}:${SSH_PORT}" "root:${ROOT_USERNAME}" "${SCRIPT_PATH}/reboot_ssh.sh"
       fi
-      # After installation above, the system must restart once, so we execute next script to reopen LUKS
-      check_linode_status_until "offline"
-      echo "Booting into operating system (make sure to unlock LUKS)"
+
+      _log default "Booting into operating system (make sure to unlock LUKS)"
       linode_api_admin "boot-linode" "${BOX_HOSTNAME_FQDN}" "OS_Config"
       # check server and port if available auto unlock it
-      echo "Checking whether hostname ${BOX_HOSTNAME_FQDN} with port ${DROP_BEAR_PORT} are available ..."
+      _log default "Checking whether hostname ${BOX_HOSTNAME_FQDN} with port ${DROP_BEAR_PORT} are available ..."
       count=0
       while :; do
         drop_bear_port=$(check_server_port "${BOX_HOSTNAME_FQDN}" "${DROP_BEAR_PORT}")
@@ -11009,15 +11044,17 @@ while [ "$#" -gt 0 ]; do
           break
         fi
         if [ "${count}" -gt 60 ]; then
-          _echo 'red' "[${SCRIPT_NAME}]: It seems like DROP_BEAR_PORT is closed. Something is wrong"
+          _log red "Warning, it seems like DROP_BEAR_PORT is closed. Something is wrong"
           _exit 1
         fi
       done
 
-      echo "Resume installation ..."
-      ssh_login "${BOX_HOSTNAME_FQDN}:${SSH_PORT}" "root:${ROOT_USERNAME}" "${SCRIPT_PATH}/maxisetup_ssh.sh"
-
-      echo "Done"
+      if [ "${PRE_AUTORUN_SETUP}" == "yes" ]; then
+        _log default "Resuming installation ..."
+        ssh_login "${BOX_HOSTNAME_FQDN}:${SSH_PORT}" "root:${ROOT_USERNAME}" "${SCRIPT_PATH}/maxisetup_ssh.sh"
+      else
+        _log default "Done"
+      fi
     elif [ "${EXTERNAL_DNS_PROVIDER}" == "digitalocean" ]; then
       :
     elif [ "${EXTERNAL_DNS_PROVIDER}" == "local" ]; then
@@ -11096,7 +11133,7 @@ ENDSSH
     exit 0
     break
     ;;
-    -rs | --shutdown-server)
+  -rs | --shutdown-server)
     shift
     _shutdown "$@"
     exit 0
@@ -11155,6 +11192,8 @@ ENDSSH
     break
     ;;
   -t | --test)
+    _log default "hello wassup dsad dsad asd asd adas dasdsad" file
+    exit 0
     shift
     # ssh_transfer "${BOX_HOSTNAME_FQDN}:${SSH_PORT}" "root:${ROOT_USERNAME}" "maxisetup maxisetup.conf" ~/
     ssh_login "${BOX_HOSTNAME_FQDN}:${SSH_PORT}" "root:${ROOT_USERNAME}" "${SCRIPT_PATH}/maxisetup_ssh.sh"
