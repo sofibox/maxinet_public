@@ -9,7 +9,8 @@
 # Warning Directadmin user password only accept the maximum of 64 characters. More than this will have problem with API
 # Directadmin cannot contains this character in password, it will not work with API -> '+'
 # =====================================
-
+# Enable log timestamp
+LOG_TIMESTAMP="yes"
 # Start installation script automatically, yes or no
 PRE_AUTORUN_SETUP="no"
 # Set number of processor for parallel processing
