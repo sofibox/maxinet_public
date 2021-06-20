@@ -3,11 +3,11 @@
 # Author: Arafat Ali | Email: webmaster@sofibox.com
 APP_SPECIFIC_NAME="Maxisetup"
 APP_STATUS="beta"
-APP_VERSION="0.4.3.8-${APP_STATUS}"
-# This is an initial server hardening script for CentOS and Debian.
+APP_VERSION="0.4.4.2-${APP_STATUS}"
+# This is a powerful script that initialize server installation with hardening script for CentOS and Debian.
 # Compatible 100% with Directadmin. Supported OS: CentOS + Debian (Planned on FreeBSD)
-# You can choose to install as the other stack server such as LEMP, (TODO) Laravel and more defined in config file
-# In Directadmin, it will setup Directadmin from scratch, secure its installation with many security best practices
+# You can choose to install as the other stack server such as LEMP, Laravel, Magento, Prestashop and more
+# As this script supports 100% Directadmin installation, it will setup Directadmin from scratch, secure its installation with many security best practices
 # At the end of installation, you will get a secured Directadmin control panel without needed to tweak more
 # You can always re-run this script to resume installation if it's halt due to known error or script has performed reboot
 # URL (public): github.com/sofibox/maxisetup_public | (private) github.com/sofibox/maxisetup (need access token)
@@ -15,8 +15,7 @@ APP_VERSION="0.4.3.8-${APP_STATUS}"
 # Run installation with log output: ./maxisetup --setup 2>&1 | tee maxisetup.log
 # Run initialize installation with log output: ./maxisetup --init-server init-all rebuild-iso 2>&1 | tee maxisetup.log
 # TOP TO DO LIST:
-# TODO: Enable DNSSEC https://help.directadmin.com/item.php?id=651 (also check mail configuration to support new ipv6)
-# TODO: enable --dry-run (that will simulate testing for this script)
+# TODO: (OPTIONAL) Enable DNSSEC https://help.directadmin.com/item.php?id=651 (also check mail configuration to support new ipv6) - linode does not support DNSSEC so make this optional if dns management is linode then don't enable
 # TODO: provide an optional option to automatically create google domain verification TXT record through API (need Google business account at console) - Google site verification
 # TODO: create hostname and setup dkim, dmarc, at linode spf at linode (use common subdomain, ftp, mail, www, smtp, pop) - normally it should be created first before installing DA but dkim need to be updated.
 
@@ -32,17 +31,29 @@ function ssh_luks_unlock() {
   local port pass rsa_private_key
   port="$1"
   pass="$2"
+  # Clear known_hosts (reset)
   echo >/root/.ssh/known_hosts
+  # This key is in the local machine
   rsa_private_key_local="${SCRIPT_PATH}/secure/ssh/root_root_${BOX_HOSTNAME_FQDN}.id_rsa"
+  # This key is in the remote machine
   rsa_private_key_remote="/root/.ssh/root_root_${BOX_HOSTNAME_FQDN}.id_rsa"
+  # Copy the RSA private local key to remote key in /root/.ssh
   cp "${rsa_private_key_local}" /root/.ssh/
+  # Make sure the .ssh folder is secured
   chmod -R 600 /root/.ssh/
-  _echo def "Unlocking LUKS encryption disk on boot ..."
+  _echo def "Unlocking LUKS encrypted disk on boot using port ${port} and password ${pass} ..."
   if [ -f "${rsa_private_key_remote}" ]; then
-    _echo def "Connecting to SSH to unlock LUKS encryption disk on boot ..."
-    ssh -o "StrictHostKeyChecking no" -q -p "${port}" -i "${rsa_private_key_remote}" "${BOX_HOSTNAME_FQDN}" "echo -ne \"${pass}\" > /lib/cryptsetup/passfifo"
+    _echo def "Connecting to ssh with port ${port} to unlock LUKS encrypted disk on boot ..."
+    # Do not use -q, need verbose for this connection to debug error
+    ssh -o "StrictHostKeyChecking no" -p "${port}" -i "${rsa_private_key_remote}" "${BOX_HOSTNAME_FQDN}" "echo -ne \"${pass}\" > /lib/cryptsetup/passfifo" 2> >(grep -v 'Permanently added' 1>&2)
+    retval=$?
+    if [ ${retval} -eq 0 ]; then
+      _echo success "Success, LUKS unlocked return ok status"
+    else
+      _echo warning "Warning, LUKS unlocked return with code ${retval}"
+    fi
   else
-    _echo red "Error, remote private key ${rsa_private_key_remote} does not exist!"
+    _echo error "Error, remote private key ${rsa_private_key_remote} does not exist!"
     _exit 1
   fi
 }
@@ -52,12 +63,14 @@ function ssh_luks_unlock() {
 # eg: check_server_port test.sofibox.com 22
 # It will return 0 (if available), and other return codes (if listening state for the port is not available)
 function check_server_port() {
+  exec_time start "${FUNCNAME[0]}"
   local server port result
   server="$1"
   port="$2"
   nc -z -v -w5 "${server}" "${port}" >/dev/null
   result=$?
   echo "${result}"
+  exec_time end "${FUNCNAME[0]}"
 }
 # This function is used to manage SSH key (create, get, copy)
 # Usage: ssh_key_manager create-key|create-key-with-putty <group_name> <user> <comment>
@@ -127,6 +140,7 @@ function ssh_key_manager() {
 # eg3: ssh_login test.sofibox.com:897 root:root
 # eg4: ssh_login test.sofibox.com:897 root:root "noisy"
 function ssh_login() {
+  exec_time start "${FUNCNAME[0]}"
   if [ -z "$1" ]; then
     _echo def ""
     _echo yellow "Usage: ssh_login sun.sofibox.com:port group:user optional_silent_mode optional_script"
@@ -179,6 +193,7 @@ function ssh_login() {
     #echo "Script not given and no quite mod"
     ssh -o "StrictHostKeyChecking no" -p "${host_port}" -i "/root/.ssh/${ssh_group}_${ssh_user}_${BOX_HOSTNAME_FQDN}.id_rsa" "${ssh_user_append}${IPV4_ADD0}"
   fi
+  exec_time end "${FUNCNAME[0]}"
 }
 # This function is use to transfer file over SSH using scp
 # Usage: ssh_transfer <hostname_fqdn>:<port> <group>:<user> <local_path> <remote_path>
@@ -228,8 +243,8 @@ function check_linode_status_until() {
       linode_status=$(linode_api_admin "get-linode-status" "${BOX_HOSTNAME_FQDN}" | tail -n 1)
       if [ "${linode_status}" == "online" ]; then
         spinner start "Linode is online, waiting for offline status"
-        # Re-execute reboot command
-        ssh -o "StrictHostKeyChecking no" -i /root/.ssh/linode_lish.id_rsa -tt "${DNS_PROVIDER_USER}@${DNS_PROVIDER_TERMINAL_SERVER}" "${BOX_HOSTNAME_FQDN}" /dev/null <"${SCRIPT_PATH}/linode/reboot_command.sh" 2>&1 &
+        # Re-execute shutdown command to shutdown
+        ssh -o "StrictHostKeyChecking no" -i /root/.ssh/linode_lish.id_rsa -tt "${DNS_PROVIDER_USER}@${DNS_PROVIDER_TERMINAL_SERVER}" "${BOX_HOSTNAME_FQDN}" /dev/null <"${SCRIPT_PATH}/linode/shutdown_command.sh" 2>&1 &
       elif [ "${linode_status}" == "offline" ]; then
         spinner stop "Success, Linode is offline"
         break
@@ -645,9 +660,10 @@ function _trap_cleanup() {
     fi
     echo ""
     echo "-------------------------------END-----------------------------------------"
-    echo "Remember you can always resume installation with:"
+    echo "Remember you can resume installation script with:"
     echo "For local installation: ${SCRIPT_NAME} --setup"
     echo "For remote installation: ${SCRIPT_NAME} --ssh-login \"${BOX_HOSTNAME_FQDN}:${SSH_PORT}\" \"root:${ROOT_USERNAME}\" \"${SCRIPT_PATH}/maxisetup_ssh.sh\""
+    script_time
   fi
   # clean exit
   exit 1
@@ -820,7 +836,7 @@ function _echo() {
       #echo "option path specified but empty report path"
       report_path="${REPORT_FILE}"
     # else use the valid path specified
-    elif [ ! -f  "${report_path}" ]; then
+    elif [ ! -f "${report_path}" ]; then
       #echo "Report path ${report_path} does not exist"
       touch "${report_path}"
       retval=$?
@@ -845,11 +861,11 @@ function _echo() {
   fi
   if [ "${color}" == "black" ]; then
     echo -e "\033[1;30m${msg}\033[0m" | tee -a ${report_path}
-  elif [[ "${color}" == "red" || "${color}" == "error" || "${color}" == "warning" ]]; then
+  elif [[ "${color}" == "red" || "${color}" == "error" ]]; then
     echo -e "\033[1;31m${msg}\033[0m" | tee -a ${report_path}
   elif [[ "${color}" == "green" || "${color}" == "ok" || "${color}" == "success" ]]; then
     echo -e "\033[1;32m${msg}\033[0m" | tee -a ${report_path}
-  elif [ "${color}" == "yellow" ]; then
+  elif [[ "${color}" == "yellow" || "${color}" == "warning" ]]; then
     echo -e "\033[1;33m${msg}\033[0m" | tee -a ${report_path}
   elif [ "${color}" == "blue" ]; then
     echo -e "\033[1;34m${msg}\033[0m" | tee -a ${report_path}
@@ -925,6 +941,50 @@ function script_time() {
   mins=$(((spent_secs - hrs * 3600) / 60))
   secs=$((spent_secs - hrs * 3600 - mins * 60))
   printf "[${SCRIPT_NAME}]: Time spent: %02d H:%02d M :%02d S\n" ${hrs} ${mins} ${secs} 2>&1 | tee -a "${REPORT_FILE}"
+}
+# This function display the execution time for a script individually
+# Syntax exec_time <start/total> <optional_title>
+# To start tracking use: exec_time start "DA installation"
+# To get the current total runtime from the start: exec_time total
+# To reset total running time, run again exec_time start
+# Note: When this script run for the first time, EXEC_START is calculated as current timestamp. So, no need to call exec_time start for the first time
+function exec_time() {
+  local option runtime days hours minutes seconds title
+  install_required "bc"
+  option=$1
+  title=$2
+  if [ "${option}" == "start" ]; then
+    # Reset starting execution time as the current date
+    EXEC_START=$(date +%s.%N)
+    if [ -n "${title}" ]; then
+      _echo blue "Tracking execution time for [${title}] ..."
+    else
+      _echo blue "Tracking execution time ..."
+    fi
+  elif [[ "${option}" == "total" || "${option}" == "end" ]]; then
+    runtime=$(echo "$(date +%s.%N) - ${EXEC_START}" | bc -l)
+    # Test runtime
+    #runtime=$(date --date='Sun Jun 20 17:07:39 2021' +"%s")
+    #end=$(date +%s.%N)
+    #runtime=$(echo "$end - $start" | bc)
+    days=$(echo "${runtime}/86400" | bc)
+    #rt2=$(echo "${runtime}-86400*${days}" | bc)
+    hours=$(echo "$(echo "${runtime}-86400*${days}" | bc)/3600" | bc)
+    #rt3=$(echo "$(echo "${runtime}-86400*${days}" | bc)-3600*$hours" | bc)
+    minutes=$(echo "$(echo "$(echo "${runtime}-86400*${days}" | bc)-3600*${hours}" | bc)/60" | bc)
+    seconds=$(echo "$(echo "$(echo "${runtime}-86400*${days}" | bc)-3600*${hours}" | bc)-60*${minutes}" | bc)
+    #_echo blue "Total execution time: ${runtime} seconds"
+    if [ -n "${title}" ]; then
+      #_echo blue "Total runtime executed for ${title} was: "
+      _echo blue "$(printf "Total runtime executed for [%s] was: %dd:%02dh:%02dm:%02.4fs\n" "${title}" "${days}" "${hours}" "${minutes}" "${seconds}")"
+    else
+      #_echo blue "Total runtime executed was: "
+      _echo blue "$(printf "Total runtime executed was: %dd:%02dh:%02dm:%02.4fs\n" "${days}" "${hours}" "${minutes}" "${seconds}")"
+    fi
+    #_echo blue "$(printf "Total runtime executed for %s was: %dd:%02dh:%02dm:%02.4fs\n" "${title}" "${days}" "${hours}" "${minutes}" "${seconds}")"
+  else
+    _echo warning "Invalid option specified for exec_time() function!"
+  fi
 }
 # This function will shift the current directory into another directory specified in argument
 # it will terminate with return error code 1 if the specified path in argument given is not valid
@@ -1487,9 +1547,22 @@ function create_os_iso() {
   DEBIAN_NAME="debian"
   DEBIAN_RELEASE="buster"
   DEBIAN_SELECT_VERSION="10.9.0"
+  DEBIAN_LATEST_VERSION=$(curl 'http://cdimage.debian.org/cdimage/release/current/amd64/iso-cd/' | grep -oP 'href="debian-\K[0-9]+\.[0-9]+\.[0-9]+' | sort -t. -rn -k1,1 -k2,2 -k3,3 | head -1)
   DEBIAN_SELECT_PLATFORM="amd64"
   DEBIAN_IMAGE_TYPE="iso-cd"
   DEBIAN_ISO_INSTALLATION_TYPE="netinst"
+  if [ "${USE_LATEST_ISO}" == "yes" ]; then
+    _echo ok "USE_LATEST_ISO is set to yes. Setup will use the latest version of Debian regardless of the selected version!"
+    _pause 5
+    DEBIAN_SELECT_VERSION="${DEBIAN_LATEST_VERSION}"
+  else
+    if [ "${DEBIAN_SELECT_VERSION}" == "${DEBIAN_LATEST_VERSION}" ]; then
+      _echo ok "The Latest version of Debian is up-to-date with the selected version of Debian: v${DEBIAN_SELECT_VERSION}!"
+    else
+      _echo warning "Warning, the Latest version of Debian detected as ${DEBIAN_LATEST_VERSION} but the selected version is ${DEBIAN_SELECT_VERSION}!"
+      _pause 10
+    fi
+  fi
 
   ISO_URL="http://cdimage.debian.org/cdimage/release/current/${DEBIAN_SELECT_PLATFORM}/${DEBIAN_IMAGE_TYPE}/${DEBIAN_NAME}-${DEBIAN_SELECT_VERSION}-${DEBIAN_SELECT_PLATFORM}-${DEBIAN_ISO_INSTALLATION_TYPE}.iso"
   #http://cdimage.debian.org/cdimage/release/current/amd64/iso-cd/debian-10.9.0-amd64-netinst.iso
@@ -1644,7 +1717,7 @@ function create_os_iso() {
     echo "Changing permission of ${ISODIR_WRITE}/preseed.cfg to own by root:root ..."
     chown root:root ${ISODIR_WRITE}/preseed.cfg
     echo ""
-    echo "Lower the files permission from ${ISODIR_WRITE}/install.amd to +w ..."
+    echo "Lower the files permission for ${ISODIR_WRITE}/install.amd to +w ..."
     chmod +w -R "${ISODIR_WRITE}/install.amd"
     echo ""
     echo "Unzipping initrd.gz"
@@ -1797,6 +1870,11 @@ function create_os_iso() {
     echo ""
     echo "Lower the files permission from ${ISODIR_WRITE_TMP}/install.amd to +w ..."
     chmod +w -R "${ISODIR_WRITE_TMP}/install.amd"
+    retval=$?
+    if [ ${retval} -ne 0 ]; then
+      _echo warning "Something is wrong when trying to lower the file permission for ${ISODIR_WRITE}/install.amd to +w"
+      _exit 1
+    fi
     echo ""
     echo "Unzipping initrd.gz"
     gunzip "${ISODIR_WRITE_TMP}/install.amd/initrd.gz"
@@ -5255,6 +5333,7 @@ configure_csf() {
 }
 
 function install_da_pre() {
+  exec_time start "${FUNCNAME[0]}"
   local option executed_function
   option="$1"
   executed_function="${CONF_PATH}/${FUNCNAME[0]}_executed"
@@ -5321,9 +5400,12 @@ function install_da_pre() {
   if [[ "${option}" == "--force-exit" ]]; then
     exit 0
   fi
+  exec_time end "${FUNCNAME[0]}"
 }
 
 function install_da() {
+  exec_time start "${FUNCNAME[0]}"
+  # After da is installed, we still need to open the port for default firewall. To achieve this, we can run install_da_post() function
   local option executed_function
   option="$1"
   executed_function="${CONF_PATH}/${FUNCNAME[0]}_executed"
@@ -5352,12 +5434,12 @@ function install_da() {
       # This will not ask question and everything will be installed as default including CSF
       bash <(curl -Ss https://www.directadmin.com/setup.sh) auto
     fi
-    script_time
     check_finish_reboot "${FUNCNAME[0]}"
   else
     echo "[${SCRIPT_NAME}]: [Skipped]: ${FUNCNAME[0]} has ran before" 2>&1 | tee -a "${REPORT_FILE}"
     echo "=~=~=~=~=~=~=~=~=~" 2>&1 | tee -a "${REPORT_FILE}"
   fi
+  exec_time end "${FUNCNAME[0]}"
 }
 
 add_da_ipv6_ip() {
@@ -5501,6 +5583,7 @@ function link_da_ipv6() {
   fi
 }
 function rebuild_da_package() {
+  exec_time start "${FUNCNAME[0]}"
   local option executed_function
   option="$1"
   executed_function="${CONF_PATH}/${FUNCNAME[0]}_executed"
@@ -5522,7 +5605,7 @@ function rebuild_da_package() {
     ./build update
     # ClamAV and exim rebuild
     echo "[${SCRIPT_NAME}]: Rebuilding ClamAV and exim ..." 2>&1 | tee -a "${REPORT_FILE}"
-    sleep 2
+    #sleep 2
     ./build set clamav yes 2>&1 | tee -a "${REPORT_FILE}"
     ./build set clamav_exim yes 2>&1 | tee -a "${REPORT_FILE}"
     ./build set exim yes 2>&1 | tee -a "${REPORT_FILE}"
@@ -5533,14 +5616,14 @@ function rebuild_da_package() {
     ./build exim_conf 2>&1 | tee -a "${REPORT_FILE}"
     # Mod security rebuild
     echo "[${SCRIPT_NAME}]: Rebuilding modsecurity + ${DA_MODSECURITY_RULESET} ..." 2>&1 | tee -a "${REPORT_FILE}"
-    sleep 2
+    #sleep 2
     ./build set modsecurity yes 2>&1 | tee -a "${REPORT_FILE}"
     ./build set modsecurity_ruleset "${DA_MODSECURITY_RULESET}" 2>&1 | tee -a "${REPORT_FILE}"
     ./build modsecurity 2>&1 | tee -a "${REPORT_FILE}"
     ./build modsecurity_rules 2>&1 | tee -a "${REPORT_FILE}"
     # Web server setting rebuild
     echo "[${SCRIPT_NAME}]: Rebuilding ${CB_WEB_SERVER_SOFTWARE} web server ..." 2>&1 | tee -a "${REPORT_FILE}"
-    sleep 2
+    #sleep 2
     ./build set webserver "${CB_WEB_SERVER_SOFTWARE}" 2>&1 | tee -a "${REPORT_FILE}"
     ./build "${CB_WEB_SERVER_SOFTWARE}" 2>&1 | tee -a "${REPORT_FILE}"
     ./build rewrite_confs 2>&1 | tee -a "${REPORT_FILE}"
@@ -5549,8 +5632,7 @@ function rebuild_da_package() {
     da_sql_version=$(echo "${CB_MYSQL_INS}" | awk -F'-' '{ print $2 }')
 
     echo "[${SCRIPT_NAME}]: Rebuilding ${da_sql_type} web server to version ${da_sql_version} ..." 2>&1 | tee -a "${REPORT_FILE}"
-    sleep 2
-
+    #sleep 2
     ./build set "${da_sql_type}" "${da_sql_version}"
     ./build set mysql_inst "${da_sql_type}"
     ./build set mysql_backup yes
@@ -5565,6 +5647,7 @@ function rebuild_da_package() {
   if [[ "${option}" == "--force-exit" ]]; then
     exit 0
   fi
+  exec_time end "${FUNCNAME[0]}"
 }
 function install_da_post() {
   local option executed_function
@@ -5606,6 +5689,11 @@ function install_da_post() {
     fi
     echo "[${SCRIPT_NAME}]: Now directadmin can be login using a new port ${DA_PORT}" 2>&1 | tee -a "${REPORT_FILE}"
     sleep 2
+    # TODO TEST THIS FOR INSTALLING DNSSEC, LINODE or most VPS DOES NOT SUPPORT THIS
+    #if [ "${ENABLE_DNSSEC}" == "yes" ]; then
+    # /usr/local/directadmin/scripts/dnssec.sh install
+    #fi
+
     restart_da
     echo "[${SCRIPT_NAME}]: DA post installation has completed!" 2>&1 | tee -a "${REPORT_FILE}"
     check_finish_reboot "${FUNCNAME[0]}"
@@ -6861,6 +6949,7 @@ EOF
   fi
 }
 
+# TODO this contain a temporary bug
 # maxida is used to manage directadmin functionalities including APIs.
 function configure_maxida() {
   local option executed_function
@@ -6994,8 +7083,18 @@ function configure_maxiaide() {
   fi
 }
 
+# TODO this one contains bug from the installer. Disable at the moment using return 0
+# Need to source oncde in order to use rustrc  source "$HOME/.cargo/env"
+# New bug :
+#
+# Some errors have detailed explanations: E0277, E0308.
+#For more information about an error, try `rustc --explain E0277`.
+#error: could not compile `lexical-core`
 function configure_maxiwall() {
-  local option executed_function
+  # TODO new version of rustup has problem with /tmp and error: https://github.com/rust-lang/rustup/issues/686#issuecomment-863021660
+  # TODO temporarily use backport version (backport is not compatible with maxiwall script).. disable maxiwall at the moment.
+  #return 0
+  local option executed_function rustup_install rustup_tmp_init
   option="$1"
   executed_function="${CONF_PATH}/${FUNCNAME[0]}_executed"
   if [[ "${option}" == "--force" || "${option}" == "--force-exit" ]]; then
@@ -7004,12 +7103,12 @@ function configure_maxiwall() {
     option=""
   fi
   if [ ! -f "${CONF_PATH}/${FUNCNAME[0]}_executed" ]; then
-    echo "[${SCRIPT_NAME}]: Executing ${FUNCNAME[0]} ..." 2>&1 | tee -a "${REPORT_FILE}"
+    _echo def "Executing ${FUNCNAME[0]} ..."
     local latest_suricata_version suricata_preferred_version maxiwall_bin maxirbl_bin # suricata_conf suricata_service is_masked
     # suricata_conf="/etc/suricata/suricata.yaml"
     # Instruction: https://forum.suricata.io/t/install-suricata-6-0-1-on-debian-10-from-source/992
     # Install required components for suricata:
-    echo "[${SCRIPT_NAME}]: Installing required components for suricata & maxiwall ..." 2>&1 | tee -a "${REPORT_FILE}"
+    _echo def "Installing required components for suricata & maxiwall ..."
     sleep 1
     # Essential tools:
     apt-get install make autoconf automake libtool
@@ -7026,19 +7125,13 @@ function configure_maxiwall() {
     # workaround step: https://stackoverflow.com/questions/65330382/building-suricata-could-not-compile-der-parser
 
     # Remove built-in package of rustc
-    echo "[${SCRIPT_NAME}]: Removing built-in of existing rustc ..." 2>&1 | tee -a "${REPORT_FILE}"
+    _echo def "Removing built-in of existing rustc ..." 2>&1 | tee -a "${REPORT_FILE}"
     sleep 1
-    sudo apt remove --purge rustc
-    # apt-get -y install rustc cargo (install latest rust)
-    echo "[${SCRIPT_NAME}]: Installing the latest rustc package ..." 2>&1 | tee -a "${REPORT_FILE}"
-    # The last command sh -s -- -y will not prompt question
-    curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
-    echo "[${SCRIPT_NAME}]: Sourcing cargo env file ..." 2>&1 | tee -a "${REPORT_FILE}"
-    sleep 1
-    source "$HOME/.cargo/env"
-    # Removing suricata compiled source:
+    sudo apt -y remove --purge rustc
+    #sudo apt-get -y autoremove
 
-    echo "[${SCRIPT_NAME}]: Removing existing suricata installation and log files ..." 2>&1 | tee -a "${REPORT_FILE}"
+    # Removing suricata compiled source:
+    _echo def "Removing existing suricata installation and log files ..."
     sleep 1
     apt-get remove suricata
     rm -rf /usr/share/suricata
@@ -7051,49 +7144,100 @@ function configure_maxiwall() {
     rm -f /etc/systemd/system/suricata.service
     systemctl daemon-reload
 
+    cd_to_path "${INST_TEMP_DIR}"
     # source configuration
     # Do not use apt to install. Currently Debian package uses old version 4.1.2 but the latest is 6.0.1
     # For CentOS rpm package will install only version 5. So the best is to compile from source using this trick:
-    cd_to_path "${INST_TEMP_DIR}"
+    # Compiling using source is tricky and hard to maintain for every new release because of the rust package compatibility. See my post here: https://forum.suricata.io/t/install-suricata-6-0-1-on-debian-10-from-source/992
+    # Using backport is better. Just put SURICATA_SELECT_VERSION="backport" and it will automatically installed latest stable suricata
+
+    # apt-get -y install rustc cargo (install latest rust)
     latest_suricata_version=$(curl 'https://www.openinfosecfoundation.org/download/' | grep -oP 'href="suricata-\K[0-9]+\.[0-9]+\.[0-9]+' | sort -t. -rn -k1,1 -k2,2 -k3,3 | head -1)
     suricata_preferred_version="${SURICATA_SELECT_VERSION}"
-    # If you think the future version of suricata installation will follow below step then put suricata_select_version="${latest_suricata_version}"
-    if [ "${latest_suricata_version}" != "${suricata_preferred_version}" ]; then
-      echo "[${SCRIPT_NAME}]: Warning, suricata latest version is: ${latest_suricata_version} but selected version in config file is ${SURICATA_SELECT_VERSION}" 2>&1 | tee -a "${REPORT_FILE}"
+    if [[ "${suricata_preferred_version}" == "6.0.1" || "${suricata_preferred_version}" == "6.0.2" ]]; then
+      _echo def "Installing the latest rustc package manually ..."
+      # The last command sh -s -- -y will not prompt question
+      #curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
+      rustup_install=$(curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y 2>&1 | grep 'likely because of mounting /tmp')
+      #rustup_install=$(curl -sSf https://sh.rustup.rs | sh -s -- -y 2>&1 | grep 'likely because of mounting /tmp')
+      # If the error message of 'likely because of mounting /tmp' is shown, then we need to get the location of the mentioned file in tmp
+      if [ -n "${rustup_install}" ]; then
+
+        # sce=$(curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s 2>&1 | grep 'mounting \/tmp' | awk '{ print $3 }') | cp "${sce}" ~/rustup-init
+        #~/./rustup-init -y
+
+        rustup_tmp_init=$(echo "${rustup_install}" | awk '{ print $3 }')
+        _echo def "Resolving error of message of: ${rustup_install} ..."
+        _echo def "The rustup-init file is at this location: ${rustup_tmp_init}"
+
+        cp "${rustup_tmp_init}" "${INST_TEMP_DIR}/rustup-init"
+        #cd_to_path "${INST_TEMP_DIR}"
+        # Execute the rustup-init installation silently. For more info look at rustup-init --help
+        _echo def "Executing rustup-init file ..."
+        "${INST_TEMP_DIR}/rustup-init" -y
+
+        #source "$HOME/.profile"
+        #export PATH="$HOME/.cargo/bin:$PATH"
+
+      else
+        _echo green "Temp is writeable. No complain"
+      fi
+      #apt-get -y install cargo
+      # (This will enable rustc command) # or reload bash try this exec bash
+      _echo def "Sourcing cargo env file ..."
+      sleep 1
+      source "$HOME/.cargo/env"
+
+      # If you think the future version of suricata installation will follow below step then put suricata_select_version="${latest_suricata_version}"
+      if [ "${latest_suricata_version}" != "${suricata_preferred_version}" ]; then
+        _echo def "Warning, suricata latest version is: ${latest_suricata_version} but selected version in config file is ${SURICATA_SELECT_VERSION}"
+      fi
+      # Below is the installation for Suricata 6.0.1. Sometimes new version release and the way how to install Suricata is not the same like previous one
+      # Sometimes new version has extra library so we need to check how to install this.
+      _echo def "Removing suricata downloaded file suricata-${suricata_preferred_version}.tar.gz ..."
+      sleep 1
+      rm -fv "${INST_TEMP_DIR}/suricata-${suricata_preferred_version}.tar.gz"
+      _echo def "Downloading suricata latest version-${suricata_preferred_version} ..."
+      sleep 1
+      wget "https://www.openinfosecfoundation.org/download/suricata-${suricata_preferred_version}.tar.gz"
+      _echo def "Extracting suricata version-${suricata_preferred_version} ..."
+      sleep 1
+      tar xzvf "suricata-${suricata_preferred_version}.tar.gz"
+      cd_to_path "suricata-${suricata_preferred_version}/"
+      _echo def "Configuring script for getting ready to build suricata ... "
+      sleep 1
+      # Dont enable IPS because we will integrate blocking with CSF (using my script called maxicode/maxiwall)
+      ./configure --libdir=/usr/lib64 --prefix=/usr/local --sysconfdir=/etc --localstatedir=/var --datarootdir=/usr/local/share --enable-lua --enable-rust
+      #make
+      #sudo make install
+      _echo def "Installing suricata with make install-full ... "
+      sleep 1
+      sudo make install-full
+
+      # Use this ldconfig to prevent error described here:
+      # https://stackoverflow.com/questions/65330382/building-suricata-could-not-compile-der-parser
+      # sudo ldconfig
+
+      # suricata -V
+      # Backport latest version as for now is 6.0.1
+    elif [[ "${suricata_preferred_version}" == "backport" ]]; then
+      if [ "${DISTRO_ID}" == "debian" ]; then
+        _echo def "Installing suricata backport version on Debian ..."
+        echo "deb http://http.debian.net/debian buster-backports main" >/etc/apt/sources.list.d/backports.list
+        apt-get -y install suricata -t buster-backports
+      else
+        _echo warning "Invalid DISTRO_ID selection. This DISTRO ${DISTRO_ID} is not supported!"
+      fi
+    else
+      _echo warning "Invalid suricata_preferred_version selection"
     fi
-    # Below is the installation for Suricata 6.0.1. Sometimes new version release and the way how to install Suricata is not the same like previous one
-    # Sometimes new version has extra library so we need to check how to install this.
-    echo "[${SCRIPT_NAME}]: Removing suricata downloaded file suricata-${suricata_preferred_version}.tar.gz ..." 2>&1 | tee -a "${REPORT_FILE}"
-    sleep 1
-    rm -fv "${INST_TEMP_DIR}/suricata-${suricata_preferred_version}.tar.gz"
-    echo "[${SCRIPT_NAME}]: Downloading suricata latest version-${suricata_preferred_version} ..." 2>&1 | tee -a "${REPORT_FILE}"
-    sleep 1
-    wget "https://www.openinfosecfoundation.org/download/suricata-${suricata_preferred_version}.tar.gz"
-    echo "[${SCRIPT_NAME}]: Extracting suricata version-${suricata_preferred_version} ..." 2>&1 | tee -a "${REPORT_FILE}"
-    sleep 1
-    tar xzvf "suricata-${suricata_preferred_version}.tar.gz"
-    cd_to_path "suricata-${suricata_preferred_version}/"
-    echo "[${SCRIPT_NAME}]: Configuring script for getting ready to build suricata ... " 2>&1 | tee -a "${REPORT_FILE}"
-    sleep 1
-    # Dont enable IPS because we will integrate blocking with CSF (using my script called maxicode/maxiwall)
-    ./configure --libdir=/usr/lib64 --prefix=/usr/local --sysconfdir=/etc --localstatedir=/var --datarootdir=/usr/local/share --enable-lua --enable-rust
-    #make
-    #sudo make install
-    echo "[${SCRIPT_NAME}]: Installing suricata with make install-full ... " 2>&1 | tee -a "${REPORT_FILE}"
-    sleep 1
-    sudo make install-full
 
-    # Use this ldconfig to prevent error described here:
-    # https://stackoverflow.com/questions/65330382/building-suricata-could-not-compile-der-parser
-    # sudo ldconfig
-
-    # suricata -V
     if command -v suricata &>/dev/null; then
-      echo "[${SCRIPT_NAME}]: Suricata is installed with the following details: " 2>&1 | tee -a "${REPORT_FILE}"
+      _echo success "Suricata is installed with the following details: "
       suricata -V
       sleep 2
     else
-      echo "[${SCRIPT_NAME}]: No suricata binary is found! Please inspect the log file why " 2>&1 | tee -a "${REPORT_FILE}"
+      _echo warning "Warning, no suricata binary is found! Please inspect the log file why"
       _exit 1
     fi
     # Maxiwall --init will do all the commented below (already have this function long time ago).
@@ -10573,6 +10717,9 @@ SPIN_COUNT=0
 # A global variable that temporarily holds seconds value
 HOLD_SECONDS=0
 
+# This global variables hold the current execution time when this script started for the first time
+EXEC_START=$(date +%s.%N)
+
 # A global variable that temporarily holds the current path
 PREPATH="${PWD}"
 
@@ -10724,8 +10871,9 @@ while [ "$#" -gt 0 ]; do
     #exit 1
     configure_maxinis ""
     #exit 1
+    # TODO test until here
     configure_maxigpg ""
-    #exit 1
+    exit 1
     configure_maxida ""
     #exit 1
     configure_maxicron ""
@@ -10733,7 +10881,7 @@ while [ "$#" -gt 0 ]; do
     configure_maxiaide ""
     #exit 1
     configure_maxiwall ""
-    #exit 1
+    exit 1
     configure_maxicloud ""
     #exit 1
     configure_maxipass ""
@@ -11029,13 +11177,13 @@ while [ "$#" -gt 0 ]; do
       check_linode_status_until "offline"
       # After system shutdown, then we can execute the following
       linode_api_admin "boot-linode" "${BOX_HOSTNAME_FQDN}" "Boot_Config"
-       _echo def "Installing operating system on OS_Disk via preseed file ... (approx 5 minutes. It will finish when linode is turned off automatically): "
+      _echo def "Installing operating system on OS_Disk via preseed file ... (approx 5 minutes. It will finish when linode is turned off automatically): "
       check_linode_status_until "offline"
-       _echo def "Booting into operating system (make sure to unlock LUKS)"
+      _echo def "Booting into operating system (make sure to unlock LUKS)"
       linode_api_admin "boot-linode" "${BOX_HOSTNAME_FQDN}" "OS_Config"
 
       # check server and port if available auto unlock it
-       _echo def "Checking whether hostname ${BOX_HOSTNAME_FQDN} with port ${DROP_BEAR_PORT} are available ..."
+      _echo def "Checking whether hostname ${BOX_HOSTNAME_FQDN} with port ${DROP_BEAR_PORT} are available ..."
       count=0
       while :; do
         drop_bear_port=$(check_server_port "${BOX_HOSTNAME_FQDN}" "${DROP_BEAR_PORT}")
@@ -11049,7 +11197,7 @@ while [ "$#" -gt 0 ]; do
           break
         fi
         if [ "${count}" -gt 60 ]; then
-           _echo warning "[${SCRIPT_NAME}]: It seems like DROP_BEAR_PORT is closed. Something is wrong"
+          _echo warning "[${SCRIPT_NAME}]: It seems like DROP_BEAR_PORT is closed. Something is wrong"
           _exit 1
         fi
       done
@@ -11059,26 +11207,29 @@ while [ "$#" -gt 0 ]; do
       # Now you can SSH with :
       # maxisetup --ssh-login sun.sofibox.com
       sleep 5
-       _echo def "Copying maxisetup script ..."
+      _echo def "Copying maxisetup script ..."
       ssh_transfer "${BOX_HOSTNAME_FQDN}:${SSH_PORT}" "root:${ROOT_USERNAME}" "${SCRIPT_PATH}/maxisetup ${SCRIPT_PATH}/maxisetup.conf" ~/
       sleep 2
 
-       _echo def "Connecting to ${BOX_HOSTNAME_FQDN}:${SSH_PORT} and installing server ..."
+      _echo def "Connecting to ${BOX_HOSTNAME_FQDN}:${SSH_PORT} and installing server ..."
 
       if [ "${PRE_AUTORUN_SETUP}" == "yes" ]; then
-         _echo def "Setup will automatically execute remote maxisetup script and start installation of the server ... (it might take some time) ..."
+        _echo def "Setup will automatically execute remote maxisetup script and start installation of the server ... (it might take some time) ..."
         ssh_login "${BOX_HOSTNAME_FQDN}:${SSH_PORT}" "root:${ROOT_USERNAME}" "${SCRIPT_PATH}/maxisetup_ssh.sh"
         # After installation above, the system must restart once, so we execute next script to reopen LUKS
-        check_linode_status_until "offline"
+        #check_linode_status_until "offline"
       else
-         _echo def "Auto run script is disabled. Turning off server ... "
-        ssh_login "${BOX_HOSTNAME_FQDN}:${SSH_PORT}" "root:${ROOT_USERNAME}" "${SCRIPT_PATH}/reboot_ssh.sh"
+        _echo def "Auto run script is disabled. Turning off server ... "
+        #ssh_login "${BOX_HOSTNAME_FQDN}:${SSH_PORT}" "root:${ROOT_USERNAME}" "${SCRIPT_PATH}/reboot_ssh.sh"
+        linode_api_admin "shutdown-linode" "${BOX_HOSTNAME_FQDN}"
+        #check_linode_status_until "offline"
       fi
-
-       _echo def "Booting into operating system (make sure to unlock LUKS)"
+      # After the above script is executed, now we wait for it to shutdown properly before booting
+      check_linode_status_until "offline"
+      _echo def "Booting into operating system (LUKS console might be appeared and unlocked automatically)"
       linode_api_admin "boot-linode" "${BOX_HOSTNAME_FQDN}" "OS_Config"
-      # check server and port if available auto unlock it
-       _echo def "Checking whether hostname ${BOX_HOSTNAME_FQDN} with port ${DROP_BEAR_PORT} are available ..."
+      # check server and port if available in order to auto unlock it
+      _echo def "Checking whether hostname ${BOX_HOSTNAME_FQDN} with port ${DROP_BEAR_PORT} are available ..."
       count=0
       while :; do
         drop_bear_port=$(check_server_port "${BOX_HOSTNAME_FQDN}" "${DROP_BEAR_PORT}")
@@ -11092,17 +11243,19 @@ while [ "$#" -gt 0 ]; do
           break
         fi
         if [ "${count}" -gt 60 ]; then
-           _echo warning "Warning, it seems like DROP_BEAR_PORT is closed. Something is wrong"
+          _echo warning "Warning, it seems like DROP_BEAR_PORT is closed. Something is wrong"
           _exit 1
         fi
       done
 
-      if [ "${PRE_AUTORUN_SETUP}" == "yes" ]; then
-         _echo def "Resuming installation ..."
-        ssh_login "${BOX_HOSTNAME_FQDN}:${SSH_PORT}" "root:${ROOT_USERNAME}" "${SCRIPT_PATH}/maxisetup_ssh.sh"
+      if [ "${PRE_AUTORUN_SETUP}" == "no" ]; then
+        _echo def "It is time to run the installation script manually!"
       else
-         _echo def "Done"
+        _echo def "Resuming installation ..."
+        ssh_login "${BOX_HOSTNAME_FQDN}:${SSH_PORT}" "root:${ROOT_USERNAME}" "${SCRIPT_PATH}/maxisetup_ssh.sh"
       fi
+
+      _echo def "Done"
     elif [ "${EXTERNAL_DNS_PROVIDER}" == "digitalocean" ]; then
       :
     elif [ "${EXTERNAL_DNS_PROVIDER}" == "local" ]; then
@@ -11155,14 +11308,15 @@ ENDSSH
     exit 0
     break
     ;;
-  # ./maxisetup --ssh-login <optional_hostname> <optional_port> <optional_user>
-  # If hostname or port are not provided, they will use the default ones from config file
-  -lu | --luks-unlock)
+
+  -lu | --luks-unlock | --ssh-luks-unlock)
     shift
     ssh_luks_unlock "$@"
     exit 0
     break
     ;;
+    # ./maxisetup --ssh-login <optional_hostname> <optional_port> <optional_user>
+  # If hostname or port are not provided, they will use the default ones from config file
   -sshl | --ssh-login)
     shift
     ssh_login "$@"
@@ -11240,6 +11394,16 @@ ENDSSH
     break
     ;;
   -t | --test)
+    exec_time start "Test"
+    sleep 1
+    exec_time total "Test"
+    sleep 2
+    exec_time total
+    exec_time start
+    sleep 3
+    exec_time total
+    exit 1
+
     _echo red Arey you sure? -- report
     exit 0
     shift

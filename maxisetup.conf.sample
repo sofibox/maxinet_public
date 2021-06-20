@@ -9,6 +9,10 @@
 # Warning Directadmin user password only accept the maximum of 64 characters. More than this will have problem with API
 # Directadmin cannot contains this character in password, it will not work with API -> '+'
 # =====================================
+# Force script to download the latest version of Operating System
+USE_LATEST_ISO="yes"
+# Enable the DNS feature of DNSSEC
+ENABLE_DNSSEC="no"
 # Enable log timestamp
 LOG_TIMESTAMP="yes"
 # Start installation script automatically, yes or no
