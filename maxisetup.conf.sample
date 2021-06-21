@@ -203,6 +203,9 @@ DA_PORT="1192"
 DA_MODSECURITY_RULESET="comodo" # or owasp
 DA_HELP_DOMAIN="help.sofibox.com"
 CB_WEB_SERVER_SOFTWARE="nginx_apache"
+# Server cache configuration
+CB_INSTALL_REDIS="yes"
+CB_INSTALL_MEMCACHED="yes"
 # or mysql-8.0
 # Format <sql_type>-<sql_version>
 CB_MYSQL_INS="mariadb-10.5"

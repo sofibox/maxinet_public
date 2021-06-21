@@ -3,7 +3,7 @@
 # Author: Arafat Ali | Email: webmaster@sofibox.com
 APP_SPECIFIC_NAME="Maxisetup"
 APP_STATUS="beta"
-APP_VERSION="0.4.4.2-${APP_STATUS}"
+APP_VERSION="0.4.4.3-${APP_STATUS}"
 # This is a powerful script that initialize server installation with hardening script for CentOS and Debian.
 # Compatible 100% with Directadmin. Supported OS: CentOS + Debian (Planned on FreeBSD)
 # You can choose to install as the other stack server such as LEMP, Laravel, Magento, Prestashop and more
@@ -15,7 +15,7 @@ APP_VERSION="0.4.4.2-${APP_STATUS}"
 # Run installation with log output: ./maxisetup --setup 2>&1 | tee maxisetup.log
 # Run initialize installation with log output: ./maxisetup --init-server init-all rebuild-iso 2>&1 | tee maxisetup.log
 # TOP TO DO LIST:
-# TODO: (OPTIONAL) Enable DNSSEC https://help.directadmin.com/item.php?id=651 (also check mail configuration to support new ipv6) - linode does not support DNSSEC so make this optional if dns management is linode then don't enable
+# TODO: Enable DNSSEC https://help.directadmin.com/item.php?id=651 (also check mail configuration to support new ipv6) - linode does not support DNSSEC so make this optional if dns management is linode then don't enable
 # TODO: provide an optional option to automatically create google domain verification TXT record through API (need Google business account at console) - Google site verification
 # TODO: create hostname and setup dkim, dmarc, at linode spf at linode (use common subdomain, ftp, mail, www, smtp, pop) - normally it should be created first before installing DA but dkim need to be updated.
 
@@ -27,6 +27,31 @@ APP_VERSION="0.4.4.2-${APP_STATUS}"
 # Note 4: After it has successfully logged into the system via SSH, we write the disk_luks_password using this code and the OS will automatically unlock it: "echo -ne \"${pass}\" > /lib/cryptsetup/passfifo"
 # eg calling within code: ssh_luks_unlock 2222 "1234"
 # eg calling outside code: <script_name> --ssh-luks-unlock 2222 "1234"
+
+function help() {
+  echo "Welcome to help section!"
+  echo "------------------------"
+  echo "To start/resume local installation: "
+  echo "eg:"
+  echo "${SCRIPT_NAME} --setup"
+  echo "OR"
+  echo "${SCRIPT_NAME} --setup 2>&1 | tee maxisetup.log"
+  echo ""
+  echo "To start/resume remote installation:"
+  echo "Syntax: ${SCRIPT_NAME} --ssh-login <fqdn>:<ssh_port> <user_role>:<user_name> <local_script_to_push_for_installation>"
+  echo "eg:"
+  echo "${SCRIPT_NAME} --ssh-login \"${BOX_HOSTNAME_FQDN}:${SSH_PORT}\" \"root:${ROOT_USERNAME}\" \"${SCRIPT_PATH}/maxisetup_ssh.sh\""
+  echo ""
+  echo "To unlock LUKS Disk encryption:"
+  echo "Syntax: ${SCRIPT_NAME} --ssh-luks-unlock <DROP_BEAR_PORT> \"<LUKS_PASS>\""
+  echo "eg:"
+  echo "${SCRIPT_NAME} --ssh-luks-unlock ${DROP_BEAR_PORT} \"${LUKS_PASS}\""
+  echo ""
+  echo "To login as root user: ${SCRIPT_NAME} --ssh-login \"${BOX_HOSTNAME_FQDN}:${SSH_PORT}\" \"user:root\""
+  echo ""
+  echo "To login as SSH user: ${SCRIPT_NAME} --ssh-login \"${BOX_HOSTNAME_FQDN}:${SSH_PORT}\" \"root:SSH_USERNAME\""
+
+}
 function ssh_luks_unlock() {
   local port pass rsa_private_key
   port="$1"
@@ -660,9 +685,12 @@ function _trap_cleanup() {
     fi
     echo ""
     echo "-------------------------------END-----------------------------------------"
-    echo "Remember you can resume installation script with:"
+    echo "Remember you can always resume installation with (--help for more information):"
     echo "For local installation: ${SCRIPT_NAME} --setup"
     echo "For remote installation: ${SCRIPT_NAME} --ssh-login \"${BOX_HOSTNAME_FQDN}:${SSH_PORT}\" \"root:${ROOT_USERNAME}\" \"${SCRIPT_PATH}/maxisetup_ssh.sh\""
+    echo "To login as root user: ${SCRIPT_NAME} --ssh-login \"${BOX_HOSTNAME_FQDN}:${SSH_PORT}\" \"user:root\""
+    echo "To login as SSH user: ${SCRIPT_NAME} --ssh-login \"${BOX_HOSTNAME_FQDN}:${SSH_PORT}\" \"root:SSH_USERNAME\""
+    echo "To unlock LUKS Disk encryption: ${SCRIPT_NAME} --ssh-luks-unlock ${DROP_BEAR_PORT} \"<LUKS_PASS>\""
     script_time
   fi
   # clean exit
@@ -733,11 +761,16 @@ function install_required() {
       if [ "${missing_count}" -eq 1 ]; then
         echo ""
         echo "Running apt-get update for the first missing package ..."
-        apt-get -y update
+        if [ "${DISTRO_ID}" == "debian" ]; then
+          apt-get -y update
+          apt-get -y install "${required_cmd}"
+          retval=$?
+        else
+          _echo warn "Need more check for different Distro ID here!"
+        fi
         echo ""
       fi
-      apt-get -y install "${required_cmd}"
-      retval=$?
+
       if [[ "${retval}" -eq 0 ]]; then
         ((install_success++))
       else
@@ -747,9 +780,9 @@ function install_required() {
   done
   if [ "${missing_count}" -gt 0 ]; then
     echo ""
-    echo "Total missing component: ${missing_count}"
-    echo "Total success installed: ${install_success}"
-    echo "Total failed installed: ${install_failed}"
+    _echo warning "Total missing component: ${missing_count}"
+    _echo success "Total success installed: ${install_success}"
+    _echo error "Total failed installed: ${install_failed}"
     echo ""
   fi
 }
@@ -940,7 +973,7 @@ function script_time() {
   hrs=$((spent_secs / 3600))
   mins=$(((spent_secs - hrs * 3600) / 60))
   secs=$((spent_secs - hrs * 3600 - mins * 60))
-  printf "[${SCRIPT_NAME}]: Time spent: %02d H:%02d M :%02d S\n" ${hrs} ${mins} ${secs} 2>&1 | tee -a "${REPORT_FILE}"
+  printf "[${SCRIPT_NAME}]: Time spent for total script execution: %02d H:%02d M :%02d S\n" ${hrs} ${mins} ${secs} 2>&1 | tee -a "${REPORT_FILE}"
 }
 # This function display the execution time for a script individually
 # Syntax exec_time <start/total> <optional_title>
@@ -4198,6 +4231,7 @@ function pre_setup() {
 # This private repo contains lots of security scripts for Linux (c) by Arafat Ali (aka MaXi32)
 # can re-run this to re-clone (update latest codes)
 get_latest_maxisetup() {
+  exec_time start "${FUNCNAME[0]}"
   #if [ ! -f "${CONF_PATH}/${FUNCNAME[0]}_executed" ]; then
   echo "[${SCRIPT_NAME}]: Executing ${FUNCNAME[0]} ..." 2>&1 | tee -a "${REPORT_FILE}"
   local GIT_ASKPASS
@@ -4241,6 +4275,7 @@ get_latest_maxisetup() {
   if [[ "${option}" == "--force-exit" ]]; then
     exit 0
   fi
+  exec_time end "${FUNCNAME[0]}"
 }
 
 # Basic security hardening for Linux
@@ -5650,7 +5685,8 @@ function rebuild_da_package() {
   exec_time end "${FUNCNAME[0]}"
 }
 function install_da_post() {
-  local option executed_function
+  exec_time start "${FUNCNAME[0]}"
+  local option executed_function gc
   option="$1"
   executed_function="${CONF_PATH}/${FUNCNAME[0]}_executed"
   if [[ "${option}" == "--force" || "${option}" == "--force-exit" ]]; then
@@ -5689,10 +5725,31 @@ function install_da_post() {
     fi
     echo "[${SCRIPT_NAME}]: Now directadmin can be login using a new port ${DA_PORT}" 2>&1 | tee -a "${REPORT_FILE}"
     sleep 2
-    # TODO TEST THIS FOR INSTALLING DNSSEC, LINODE or most VPS DOES NOT SUPPORT THIS
-    #if [ "${ENABLE_DNSSEC}" == "yes" ]; then
-    # /usr/local/directadmin/scripts/dnssec.sh install
-    #fi
+    if [ "${ENABLE_DNSSEC}" == "yes" ]; then
+      local bind_named="/etc/bind/named.conf.options"
+      # Installation is OK, but just need to add name.conf.options
+      cd_to_path "/usr/local/directadmin/scripts"
+      ./dnssec.sh install
+      if [ -f "${bind_named}" ]; then
+        gc=$(grep -ic 'bindkeys-file \"\/etc\/bind\/named.iscdlv.key\";' "${bind_named}")
+        if [ "${gc}" = 0 ]; then
+          sed -i "s|\options {|&\n\tbindkeys-file \"\/etc\/bind\/named.iscdlv.key\";|" "${bind_named}"
+        fi
+        gc=$(grep -ic 'dnssec-lookaside auto;' "${bind_named}")
+        if [ "${gc}" = 0 ]; then
+          sed -i "s|\options {|&\n\tdnssec-lookaside auto;|" "${bind_named}"
+        fi
+        gc=$(grep -ic 'dnssec-enable yes;' "${bind_named}")
+        if [ "${gc}" = 0 ]; then
+          sed -i "s|\options {|&\n\tdnssec-enable yes;|" "${bind_named}"
+        fi
+      else
+        _echo warning "Warning, the file ${bind_named} does not exist!"
+        _exit 1
+      fi
+    else
+      _echo def "Skipped installing DNSSEC (not set in config)"
+    fi
 
     restart_da
     echo "[${SCRIPT_NAME}]: DA post installation has completed!" 2>&1 | tee -a "${REPORT_FILE}"
@@ -5705,6 +5762,7 @@ function install_da_post() {
   if [[ "${option}" == "--force-exit" ]]; then
     exit 0
   fi
+  exec_time end "${FUNCNAME[0]}"
 }
 
 # This is the pre-requirement before getting ssl
@@ -10741,7 +10799,7 @@ fi
 while [ "$#" -gt 0 ]; do
   case "$1" in
   -h | --help)
-    usage
+    help
     exit 0
     ;;
   # Display Program version
@@ -10791,10 +10849,12 @@ while [ "$#" -gt 0 ]; do
     fi
     # ============End of locking===============
     #fi
-    echo "Remember you can always resume installation with:"
+    echo "Remember you can always resume installation with (--help for more information):"
     echo "For local installation: ${SCRIPT_NAME} --setup"
     echo "For remote installation: ${SCRIPT_NAME} --ssh-login \"${BOX_HOSTNAME_FQDN}:${SSH_PORT}\" \"root:${ROOT_USERNAME}\" \"${SCRIPT_PATH}/maxisetup_ssh.sh\""
-    echo ""
+    echo "To login as root user: ${SCRIPT_NAME} --ssh-login \"${BOX_HOSTNAME_FQDN}:${SSH_PORT}\" \"user:root\""
+    echo "To login as SSH user: ${SCRIPT_NAME} --ssh-login \"${BOX_HOSTNAME_FQDN}:${SSH_PORT}\" \"root:SSH_USERNAME\""
+    echo "To unlock LUKS Disk encryption: ${SCRIPT_NAME} --ssh-luks-unlock ${DROP_BEAR_PORT} \"<LUKS_PASS>\""
     _pause 5
     validate_config
 
