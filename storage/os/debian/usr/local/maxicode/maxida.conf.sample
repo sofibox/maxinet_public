@@ -1,0 +1,8 @@
+# Warning, this file shouldn't contain any sensitive information and inserted manually
+# This file should be encrypted
+API_USERNAME=""
+API_USERPASS=""
+BOX_HOSTNAME_FQDN=""
+DA_PORT=""
+SETUP_GIT_URL=""
+GIT_TOKEN=""

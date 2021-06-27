@@ -131,6 +131,7 @@ DA_USER_SYSTEM_EMAIL1="webmaster@maxibi.com"
 # If one mail. eg: DA_USER_MAIL_USER1=("test@test.com")
 DA_USER_MAIL_USER1=("email1@maxibi.com" "email2@maxibi.com")
 # user mail password, where array index must match between mail_account and mail_password:
+# TODO test asterik password
 DA_USER_MAIL_PASSWORD1=("*mailpassword1" "*mailpassword2")
 # user domain, can declare multiple domains here
 DA_USER_DOMAIN1=("maxibi.com")
@@ -233,6 +234,7 @@ SSH_USERNAME="ssh-uname"
 SSH_USERPASS="*long-secured-password*"
 # SSH_PUBLIC_KEY is deprecated
 # This one for SSH Public Key. I generate this from puttygen
+# SSH_PUBLIC_KEY is deprecated leave it for reference
 SSH_PUBLIC_KEY="ssh-rsa AAAAB3N***AAAQE***nsAQENik/Al***G/8***Y sofibox-auth-test.sofibox.com-v1"
 SSH_PASSPHRASE="**SSH_PASSPHRASE***"
 # vps | dedicated
@@ -312,7 +314,7 @@ GPG_USE_EXISTING_KEY="yes"
 # =~=~ For maxiwall / suricata =~=~#
 # The URL. Need to modify this if they change this URL like the v2 to v3
 # Select version for suricata. Best is to use version 6+ because version 6 has new different packages need to include:
-# Testing only for 6.0.2 (TODO). Working = 6.0.1
+# Tested working with 6.0.1 and 6.0.2
 SURICATA_SELECT_VERSION="6.0.2"
 MAXIWALL_AIPDB_CHECK_URL="https://api.abuseipdb.com/api/v2/check"
 MAXIWALL_AIPDB_REPORT_URL="https://api.abuseipdb.com/api/v2/report"
@@ -327,3 +329,6 @@ MAXIWALL_AIPDB_API_KEY="strong*63161ec_covid19f****63ex742*x***85xaMaXi32xax41**
 # Format <provider>:<user>:<api_key>
 DNS_PROVIDER_API_KEY1="*API-KEY"
 DNS_PROVIDER_TERMINAL_SERVER="lish-singapore.linode.com"
+
+# Alternative packages version
+INSTALL_RUSTC_VERSION="1.52.0"

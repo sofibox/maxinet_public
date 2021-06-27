@@ -1,0 +1,600 @@
+#!/bin/bash
+# Alpha version 0.7
+# Usage example to create admin username:
+# maxida --api "create-admin-account" "testadmin" "admin2@sofibox.com" "x12321aa"
+# Put da in debug mode: maxida --debug <optional_string_output>
+# TODO store credential of DA in one place but encrypted with GPG, when GPG is expired delete it.
+_trap_with_args() {
+  local func
+  func="$1"
+  shift
+  for sig; do
+    # shellcheck disable=SC2064
+    trap "${func} ${sig}" "${sig}"
+  done
+}
+
+function _exit() {
+  exit "$1"
+}
+
+function help() {
+  echo "This is help (coming soon)"
+}
+# This function gets the operating system ID and version number
+# syntax: get_linux_os <id|version>
+# eg: get_linux_os id | sample output: centos
+function get_linux_os() {
+  local arg distro_id distro_version
+  arg="$1"
+  # any new Linux distribution must have this (it is a standard file os checking for linux)
+  if [ -e /etc/os-release ]; then
+    # get the distro ID from /etc/os-release and make sure it is in lowercase format without any double quotations
+    distro_id=$(awk -F= '$1 == "ID" {print $2}' /etc/os-release | LC_ALL=C tr '[:upper:]' '[:lower:]' | tr -d "\"")
+    distro_version=$(awk -F= '$1 == "VERSION_ID" {print $2}' /etc/os-release | tr -d "\"")
+  # but just in case (a small case) if it doesn't have this then we can use lsb_release command
+  elif type lsb_release >/dev/null 2>&1; then
+    # get the distro id using lsb_release function.
+    # if the ID has uppercase letter, cover it to lowercase
+    distro_id=$(lsb_release -si | LC_ALL=C tr '[:upper:]' '[:lower:]')
+    distro_version=$(lsb_release -sr)
+  # else if that doesn't exist at all, we can use the standard checking version format: "Linux <version>"
+  else
+    # this will not printout a single distribution ID that we want (it prints out the Generic Linux kernel version)
+    # but using this we should terminate this script because we only need single distribution ID (eg: debian)
+    distro_id=$(uname -s)
+    distro_version=$(uname -r)
+  fi
+  # return values here with echo
+  if [ "${arg}" == "id" ]; then
+    echo "${distro_id}"
+  elif [ "${arg}" == "version" ]; then
+    echo "${distro_version}"
+  fi
+
+}
+
+function cd_to_path() {
+  local to_path="$1"
+  echo "[${SCRIPT_NAME}]: Entering directory ${to_path} ..."
+  cd "${to_path}" || {
+    echo "Failed to enter into directory"
+    _exit 1
+  }
+}
+
+function end_debug() {
+  # echo "Trapped: $1"
+  ((CTRL_C_COUNT++))
+  if [[ $CTRL_C_COUNT == 1 ]]; then
+    echo ""
+    if [ "$1" == "INT" ]; then
+      echo "[${SCRIPT_NAME}]: *** Warning, Directadmin debug mode has been terminated by ${USER}! ***"
+    fi
+    echo "[${SCRIPT_NAME}]: Starting directadmin in normal mode ..."
+    systemctl restart directadmin
+    echo "[${SCRIPT_NAME}]: Directadmin running status is: $(systemctl is-active directadmin)"
+    echo ""
+    echo "                             **END DEBUG**                        "
+    echo "=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~"
+  fi
+  exit 1
+}
+function api() {
+  local command data method query result
+  local action username email password
+  # For reseller domain
+  local domain ip_type
+  local ip netmask da_ssl ssl directadmin_conf
+  # For reseller package
+  local package_name
+  # Debug (use test user in this file first). It's best to supply password in here:
+  #source "/root/maxi.env"
+  directadmin_conf="/usr/local/directadmin/conf/directadmin.conf"
+  da_ssl=$(sed -n 's/^ssl=//p' ${directadmin_conf})
+  # TODO make this auto select whether to use https or http
+  if [[ "${da_ssl}" == "1" ]]; then
+    ssl="https"
+  else
+    ssl="http"
+  fi
+
+  shift
+  action="$1"
+  if [ "${action}" == "create-admin-account" ]; then
+    # I couldn't add admin account if password contains '+'
+    # maxida --api "create-admin-account" "admin2" "admin2@sofibox.com" "12321"
+    shift
+    username="$1"
+    email="$2"
+    password="$3"
+    command="CMD_API_ACCOUNT_ADMIN"
+
+    echo "SSL: ${ssl} | Action: ${action} | username: ${username} | email: ${email} | password: ${password}"
+    #exit 1
+    data="action=create&add=submit&username=${username}&email=${email}&passwd=${password}&passwd2=${password}&notify=yes&json=yes"
+    method="POST"
+    echo "Executing: ${action}"
+  elif [ "${action}" == "create-reseller-account" ]; then
+    # maxida --api "create-reseller-account" "reseller1" "reseller1@sofibox.com" "x1231aax" "sofibox.com" "RESELLER_UNLIMITED" "shared"
+    shift
+    username="$1"
+    email="$2"
+    password="$3"
+    domain="$4"
+    package_name="$5"
+    ip_type="$6"
+    command="CMD_API_ACCOUNT_RESELLER"
+    data="username=${username}&email=${email}&passwd=${password}&passwd2=${password}&domain=${domain}&package=${package_name}&notify=yes&ip=${ip_type}&json=yes&action=create&add=yes"
+    method="POST"
+  elif [ "${action}" == "delete-users" ]; then
+    # maxida --api  "delete-users" "admin2"
+    shift
+    username="$1"
+    command="CMD_API_SELECT_USERS"
+    data="confirmed=Confirm&delete=yes&select0=${username}"
+    method="POST"
+    echo "SSL: ${ssl} | Action: ${action} | username: ${username}"
+    #exit 1
+    echo "Executing: ${action}"
+
+  elif [ "${action}" == "create-user-account" ]; then
+    # da_api_admin "create-user-account" "user3" "user1@maxihash.com" "X1@x1231sdsa())sadaaxxxxxxdf" "maxihash.com" "USER_UNLIMITED"
+    shift
+    username="$1"
+    email="$2"
+    password="$3"
+    domain="$4"
+    package_name="$5"
+    command="CMD_API_ACCOUNT_USER"
+    data="username=${username}&email=${email}&passwd=${password}&passwd2=${password}&domain=${domain}&package=${package_name}&ip=${IPV4_ADD0}&notify=no&add=yes&action=create&json=yes"
+    method="POST"
+  elif [ "${action}" == "add-ip" ]; then
+    # maxida --api "add-ip" "2400:1234:0000:0000:123c:1234:fe05:6cb1" "/64"
+    # maxida --api "add-ip" "12.12.12.12" "255.255.255.0"
+    shift
+    ip="$1"
+    netmask="$2"
+    command="CMD_API_IP_MANAGER"
+    data="action=add&ip=${ip}&netmask=${netmask}&device=yes&add_to_device_aware=yes"
+    method="POST"
+    echo "SSL: ${ssl} | Action: ${action} | IP: ${ip} | netmask: ${netmask}"
+    #exit 1
+    echo "Executing: ${action}"
+    #CMD_API_MANAGE_RESELLER_PACKAGES
+  elif [ "${action}" == "create-reseller-package" ]; then
+    # maxida --api "create-reseller-package" "RESELLER_UNLIMITEDX"
+    shift
+    package_name="$1"
+    command="CMD_API_MANAGE_RESELLER_PACKAGES"
+    # This is unlimited package:
+    data="bandwidth=5000&ubandwidth=yes&quota=1000&uquota=yes&inode=&uinode=yes&vdomains=10&uvdomains=yes \
+    &nsubdomains=10&unsubdomains=yes&nemails=100&unemails=yes&nemailf=100&unemailf=yes&nemailml=10 \
+    &unemailml=yes&nemailr=100&unemailr=yes&mysql=0&umysql=yes&domainptr=0&udomainptr=yes&ftp=10&uftp=yes \
+    &cgi=ON&php=ON&spam=ON&catchall=ON&ssl=ON&oversell=ON&cron=ON&sysinfo=ON&login_keys=ON&dnscontrol=ON \
+    &dns=OFF&serverip=ON&packagename=${package_name}&nusers=&unusers=yes&json=yes&add=yes&ips=0"
+    method="POST"
+  elif [ "${action}" == "show-user-config" ]; then
+    # local da_user
+    shift
+    # da_user="$1"
+    command="CMD_API_SHOW_USER_CONFIG"
+    data="json=yes"
+    method="POST"
+  elif [ "${action}" == "get-dns-zone" ]; then
+    #da_api_admin "get-dns-zone" "maxibi.com" "_domainkey+TXT+o=+.value"
+    local record_name record_type record_contains_val record_out_display
+    shift
+    domain="$1"
+    filter_cmd="$2"
+    command="CMD_API_DNS_CONTROL"
+    # Dont need json format now because we want to easily filter the data
+    data="domain=${domain}&json=yes"
+    method="POST"
+    echo "Now, executing API with action name: ${action}"
+    # Executing API via curl based on command above
+    record_name=$(echo "${filter_cmd}" | awk -F'+' '{ print $1 }')
+    record_type=$(echo "${filter_cmd}" | awk -F'+' '{ print $2 }')
+    record_contains_val=$(echo "${filter_cmd}" | awk -F'+' '{ print $3 }')
+    record_out_display=$(echo "${filter_cmd}" | awk -F'+' '{ print $4 }')
+
+    echo "Value of filter_cmd is: ${filter_cmd}"
+    echo "Value of record_name is: ${record_name}"
+    echo "Value of record_type is: ${record_type}"
+    echo "Value of record_contains_val is: ${record_contains_val}"
+    echo "Value of record_out_display is: ${record_out_display}"
+
+    result=$(curl --silent --request "${method}" --user "${API_USERNAME}":"${API_USERPASS}" --data "${data}" "${ssl}://${BOX_HOSTNAME_FQDN}:${DA_PORT}/${command}" | jq -r ".records[] | select((.name==\"${record_name}\") and (.type==\"${record_type}\") and (.value | contains(\"${record_contains_val}\"))) | ${record_out_display}" | sed -e 's/^"//' -e 's/"$//')
+    retval=$?
+    if [ -n "${result}" ]; then
+      # get out based on return value (prevent next statement from running)
+      echo "${result}"
+      return ${retval}
+    else
+      echo "Warning, the TXT record doesn't exist, it should exist"
+      exit 1
+    fi
+    # da_api_admin "create-user-email" "maxibi.com" "webmaster" "1232123" "0" "200"
+  else
+    echo "[${SCRIPT_NAME}]: The API action '${action}' does not exist. See ${SCRIPT_NAME} --help for more information"
+    exit 1
+  fi
+  # Executing API via curl based on command above
+  curl --silent --request "${method}" --user "${API_USERNAME}":"${API_USERPASS}" --data "${data}" "${ssl}://${BOX_HOSTNAME_FQDN}:${DA_PORT}/${command}"
+
+}
+
+function restart_da() {
+  if [ ! -s /usr/local/directadmin/data/task.queue ]; then
+    echo "[${SCRIPT_NAME}]: Restarting Directadmin ..."
+    echo "action=directadmin&value=restart" >>/usr/local/directadmin/data/task.queue
+    /usr/local/directadmin/dataskq d2000
+    # Better to restart DA with task.queue (this is what most documentation do) because DA needs to respect task.queue process
+  else
+    echo "[${SCRIPT_NAME}]: Warning, Directadmin task.queue still has pending task(s) to be executed. Waiting 5 seconds to finish the pending task(s) ..."
+    sleep 5
+    # Recursive function call again until condition satisfied
+    restart_da
+  fi
+}
+# eg: maxida --build letsencrypt
+function build() {
+  shift
+  local opt
+  opt="$1"
+  if [[ "${opt}" == "edit-conf" || "${opt}" == "--edit-conf" || "${opt}" == "conf" ]]; then
+    nano -c "${CB_CONF}"
+    return 0
+  fi
+  echo "[${SCRIPT_NAME}]: Running custombuild with argument: ${opt} ..."
+  "${CB_BIN}" "${opt}"
+}
+# eg: maxida --da l
+function da() {
+  shift
+  local args
+  args="$*"
+  # Do not quote args because need to split the argument
+  if [ "${1}" == "restart" ]; then
+    restart_da
+    return 0
+  fi
+
+  if [ "${1}" == "debug" ]; then
+    da_debug_mode
+    return 0
+  fi
+
+  if [[ "${1}" == "edit-conf" || "${1}" == "--edit-conf" || "${1}" == "conf" ]]; then
+    nano -c "${DA_CONF}"
+    return 0
+  fi
+
+  if [ "${1}" == "get" ]; then
+    shift
+    local conf res
+    conf="$1"
+    echo "[${SCRIPT_NAME}]: Getting value of ${conf} ..."
+    res=$("${DA_BIN}" "c" | grep ^"${conf}=")
+
+    if [ -n "${res}" ]; then
+      echo "${res}"
+    else
+      echo "No config file for ${conf} is found in directadmin.conf"
+    fi
+  elif [ "${1}" == "set" ]; then
+    shift
+    local conf val
+    conf="$1"
+    val="$2"
+    echo "[${SCRIPT_NAME}]: Setting Directadmin config : ${conf}=${val} ..."
+    # shellcheck disable=SC2086
+    "${DA_BIN}" ${args}
+  else
+    echo "[${SCRIPT_NAME}]: Running directadmin argument with argument: ${args} ..."
+    # shellcheck disable=SC2086
+    "${DA_BIN}" ${args}
+  fi
+
+}
+function update() {
+  :
+}
+function update_da_scripts() {
+  shift
+  local script
+  script="$1"
+
+  if [[ "${script}" == "all" ]]; then
+    shift
+    local GIT_ASKPASS
+    if ! command -v git &>/dev/null; then
+      echo "[${SCRIPT_NAME}]: Downloading git for debian ..."
+      apt-get -y install git
+    fi
+    echo "[${SCRIPT_NAME}]: Setting up temporary git authentication for private repository ..."
+    touch "${HOME}/.git-askpass"
+    echo >"${HOME}/.git-askpass"
+    echo "#!/bin/bash" >>"${HOME}/.git-askpass"
+    echo "echo ${GIT_TOKEN}" >>"${HOME}/.git-askpass"
+    chmod +x "${HOME}/.git-askpass"
+    export GIT_ASKPASS="${HOME}/.git-askpass"
+    cd_to_path "${DATA_PATH}"
+    echo "[${SCRIPT_NAME}]: Removing existing maxisetup repository ..."
+    # remove existing setup
+    rm -rf "${DATA_PATH}/maxisetup"
+    echo "[${SCRIPT_NAME}]: Cloning new maxisetup repository ..."
+    echo "=~=~=~=~=~=~=~"
+    git clone "${SETUP_GIT_URL}"
+    echo "=~=~=~=~=~=~=~"
+    # Delete these files for security
+    echo "[${SCRIPT_NAME}]: Removing git authentication and destroying its config file ..."
+    rm -f "${HOME}/.git-askpass"
+    unset GIT_ASKPASS
+
+    da_custom_script_path="/usr/local/directadmin/scripts/custom/"
+    # For post custom script
+    custom_scripts_post=("${DATA_PATH}/maxisetup/storage/os/${DISTRO_ID}/usr/local/directadmin/scripts/custom/*_post")
+    # If the variable is return with the specified pattern then it's not empty
+    if [ "${custom_scripts_post[*]}" == "${DATA_PATH}/maxisetup/storage/os/${DISTRO_ID}/usr/local/directadmin/scripts/custom/*_post" ]; then
+      for cs in ${custom_scripts_post[*]}; do
+        echo "Copying custom post folder ${cs} script into DA custom script (${da_custom_script_path}/$(basename "${cs}")) ..."
+        rm -rf "${da_custom_script_path:?}/$(basename "${cs}")"
+        cp -r "${cs}" "${da_custom_script_path:?}/$(basename "${cs}")"
+        chown -R diradmin:diradmin "${da_custom_script_path}/$(basename "${cs}")"
+        chmod 755 "${da_custom_script_path:?}/$(basename "${cs}")"
+        # Make all the script inside the hook folder executable
+        find "${da_custom_script_path:?}/$(basename "${cs}")/" -type f -iname "*.sh" -exec chmod +x {} \;
+      done
+    else
+      echo "[${SCRIPT_NAME}]: Notice, no post script folder is found!"
+    fi
+
+    # For pre custom script
+    custom_scripts_pre=("${DATA_PATH}/maxisetup/storage/os/${DISTRO_ID}/usr/local/directadmin/scripts/custom/*_pre")
+    # If the variable is return with the specified pattern then it's not empty
+    if [ "${custom_scripts_pre[*]}" == "${DATA_PATH}/maxisetup/storage/os/${DISTRO_ID}/usr/local/directadmin/scripts/custom/*_pre" ]; then
+      for cs in ${custom_scripts_pre[*]}; do
+        echo "Copying custom pre folder ${cs} script into DA custom script (${da_custom_script_path}/$(basename "${cs}")) ..."
+        rm -rf "${da_custom_script_path:?}/$(basename "${cs}")"
+        cp -r "${cs}" "${da_custom_script_path:?}/$(basename "${cs}")"
+        chown -R diradmin:diradmin "${da_custom_script_path}/$(basename "${cs}")"
+        chmod 755 "${da_custom_script_path:?}/$(basename "${cs}")"
+        # Make all the script inside the hook executable
+        find "${da_custom_script_path:?}/$(basename "${cs}")/" -type f -iname "*.sh" -exec chmod +x {} \;
+      done
+    else
+      echo "[${SCRIPT_NAME}]: Notice, no pre script folder is found!"
+    fi
+
+    # remove setup
+    rm -rf "${DATA_PATH}/maxisetup"
+    # Do not use return 0 here because we want to run both condition like this:
+    # --update && --update-script
+    # return 0
+    # The rest update specific script only
+  elif [[ "${script}" == "all_backups_post" ]]; then
+    :
+  elif [[ "${script}" == "user_backup_post" ]]; then
+    :
+  elif [[ "${script}" == "user_backup_pre" ]]; then
+    :
+  fi
+}
+
+function switch_da() {
+  shift
+  local opt
+  opt="$1"
+  if [ "${opt}" == "beta" ]; then
+    "${DA_SWITCH_BIN}" "beta"
+  elif [ "${opt}" == "stable" ]; then
+    "${DA_SWITCH_BIN}" "stable"
+  else
+    echo "[${SCRIPT_NAME}]: Error, wrong argument passed after --switch-da option. See help for more information"
+    exit
+  fi
+}
+function da_debug_mode() {
+  _trap_with_args end_debug INT
+  shift
+  killall -9 directadmin
+  if [ "$#" -gt 0 ]; then
+    echo "[${SCRIPT_NAME}]: Running directadmin debug mode with output [ $1 ] ..."
+    echo "=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~"
+    echo "                            **START DEBUG**                       "
+    echo ""
+    /usr/local/directadmin/directadmin b2000 | grep "$1"
+  else
+    echo "[${SCRIPT_NAME}]: Running directadmin debug mode with full output ..."
+    echo "=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~"
+    echo "                            **START DEBUG**                       "
+    echo ""
+    /usr/local/directadmin/directadmin b2000
+  fi
+}
+#_trap_with_args cleanup QUIT INT TERM EXIT
+
+ADMIN_EMAIL="webmaster@sofibox.com"
+APP_SPECIFIC_NAME="MaxiDA"
+
+SCRIPT_PATH="$(dirname "$(readlink -f "$0")")"
+SCRIPT_NAME=$(basename -- "$0")
+BOX_HOSTNAME=$(hostname)
+DATE_BIN=$(command -v date)
+MAIL_BIN=$(command -v mail)
+
+LOG_PATH="${SCRIPT_PATH}/log"
+# Configuration path for script
+CONF_PATH="${SCRIPT_PATH}/conf"
+DATA_PATH="${SCRIPT_PATH}/data"
+CODE_PATH="${SCRIPT_PATH}/code"
+TEMP_PATH="${SCRIPT_PATH}/temp"
+
+mkdir -p "${LOG_PATH}"
+mkdir -p "${CONF_PATH}"
+mkdir -p "${DATA_PATH}"
+mkdir -p "${CODE_PATH}"
+mkdir -p "${TEMP_PATH}"
+
+# Generate random string based on date
+RANDSTR="$(${DATE_BIN} '+%d-%m-%Y_%H-%M-%S').${RANDOM}"
+DATE_TIME_NOW="$(date '+%d-%m-%Y_%H-%M-%S')" #31-03-2020--11-56-16
+REPORT_FILE="${LOG_PATH}/${SCRIPT_NAME}-${RANDSTR}-${DATE_TIME_NOW}-report.log"
+touch "${REPORT_FILE}"
+DA_SWITCH_BIN="${CODE_PATH}/switchda"
+chmod +x "${DA_SWITCH_BIN}"
+DA_BIN="/usr/local/directadmin/directadmin"
+DA_CONF="/usr/local/directadmin/conf/directadmin.conf"
+CB_BIN="/usr/local/directadmin/custombuild/build"
+CB_CONF="/usr/local/directadmin/custombuild/options.conf"
+CONFIG_PATH="/usr/local/maxicode/maxipass/cross/maxida"
+CONFIG_FILE="${CONFIG_PATH}/maxida.conf"
+
+mkdir -p "${CONFIG_PATH}"
+if [ -s "${CONFIG_FILE}" ]; then
+  source_errs=$(source "${CONFIG_FILE}" 2>&1 >/dev/null)
+  retval=$?
+  if [ ${retval} = 0 ]; then
+    if [ -n "${source_errs}" ]; then
+      echo "[${SCRIPT_NAME}]: Warning, problem with config file"
+      echo "Error details:"
+      printf "%s\n" "${source_errs}"
+      _exit 1
+    else
+      # echo "[${SCRIPT_NAME}]: OK, config file is valid"
+      #echo "[${SCRIPT_NAME}]: Sourcing environment file from ${CONFIG_FILE} ..."
+      source "${CONFIG_FILE}"
+    fi
+  else
+    echo "[${SCRIPT_NAME}]: [Warning]: The source command returns an error code of ${retval} when sourcing ${CONFIG_FILE}:"
+    echo "Error details:"
+    printf "%s\n" "${source_errs}"
+    _exit 1
+  fi
+else
+  echo "[${SCRIPT_NAME}]: Error, ${CONFIG_FILE} does not exist or empty. Entering new data ..."
+  read -r -p "[${SCRIPT_NAME}]: Enter API username: " apiuser
+  echo
+  read -r -s -p "[${SCRIPT_NAME}]: Enter API password: " apipass
+  echo
+  read -r -p "[${SCRIPT_NAME}]: Enter server hostname: " boxhostname
+  echo
+  read -r -p "[${SCRIPT_NAME}]: Enter IPv4 address: " ipv4add
+  echo
+  read -r -p "[${SCRIPT_NAME}]: Enter DA port: " daport
+  echo
+  read -r -p "[${SCRIPT_NAME}]: Enter GIT URL: " giturl
+  echo
+  read -r -s -p "[${SCRIPT_NAME}]: Enter GIT TOKEN: " gittoken
+  echo
+
+  {
+    echo "API_USERNAME=\"${apiuser}\""
+    echo "API_USERPASS=\"${apipass}\""
+    echo "BOX_HOSTNAME_FQDN=\"${boxhostname}\""
+    echo "IPV4_ADD0=\"${ipv4add}\""
+    echo "DA_PORT=\"${daport}\""
+    echo "SETUP_GIT_URL=\"${giturl}\""
+    echo "GIT_TOKEN=\"${gittoken}\""
+  } >"${CONFIG_FILE}"
+  source "${CONFIG_FILE}"
+fi
+DISTRO_ID=$(get_linux_os "id")
+
+ARGNUM="$#"
+# Handle option arguments
+if [ $ARGNUM -eq 0 ]; then
+  echo "[${SCRIPT_NAME}]: Error, no argument is supplied. Use --help to see the valid options"
+fi
+
+while [ "$#" -gt 0 ]; do
+  case "$1" in
+  # Display help and usage
+  -h | --help)
+    help
+    exit 0
+    ;;
+  -V | --version) # Display Program version
+    echo "v0.2 - ${APP_SPECIFIC_NAME} by MaXi32 (Arafat Ali - sofibox.com)"
+    exit 0
+    break
+    ;;
+  -v | --vebose)
+    echo "Place holder for verbosity"
+    exit 0
+    break
+    ;;
+  -ed | --debug)
+    da_debug_mode "$@"
+    exit 0
+    break
+    ;;
+  -sd | --switch-da)
+    switch_da "$@"
+    exit 0
+    break
+    ;;
+  -r | --restart-da)
+    restart_da
+    exit 0
+    break
+    ;;
+  -b | --cb | --build | --custombuild | --install | --rebuild)
+    build "$@"
+    exit 0
+    break
+    ;;
+  -d | --da | --directadmin)
+    da "$@"
+    exit 0
+    break
+    ;;
+  -us | --update-script)
+    update_da_scripts "$@"
+    exit 0
+    break
+    ;;
+  -u | --update)
+    update "$@"
+    update_da_scripts "$@"
+    exit 0
+    break
+    ;;
+  --edit-daconf)
+    opt="$1"
+    nano -c "${DA_CONF}"
+    exit 0
+    break
+    ;;
+  --edit-cbconf)
+    opt="$1"
+    nano -c "${CB_CONF}"
+    exit 0
+    break
+    ;;
+  # This will edit the main config file of maxida (maxida.conf)
+  --edit-conf | --editconf)
+    opt="$1"
+    nano -c "${CONFIG_FILE}"
+    exit 0
+    break
+    ;;
+  -a | --api)
+    #maxida --api "add-ip" "${ipv6_uncompress_add}" "/64"
+    api "$@"
+    exit 0
+    break
+    ;;
+  --)
+    break
+    ;;
+  -*)
+    echo "Invalid option '${OPT}'. Use --help to see the valid options"
+    exit 1
+    ;;
+  # an option argument, continue
+  *) ;;
+  esac
+  shift
+done
