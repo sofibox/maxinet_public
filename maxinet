@@ -4,7 +4,7 @@
 APP_SPECIFIC_NAME="Maxinet"
 APP_STATUS="alpha"
 # Note some minor versions are not published
-APP_VERSION="0.5.0.1-${APP_STATUS}"
+APP_VERSION="0.5.1.3-${APP_STATUS}"
 COMPANY_ID="${COMPANY_ID}"
 # Hello there, this is a powerful script that able initialize one or more server installation from scratch. From configuring the server disk, until you got the full working server with a live website.
 # It also includes many security and hardening script.
@@ -21,21 +21,6 @@ COMPANY_ID="${COMPANY_ID}"
 # TODO: create hostname and setup dkim, dmarc, at linode spf at linode (use common subdomain, ftp, mail, www, smtp, pop) - normally it should be created first before installing DA but dkim need to be updated.
 
 # FUNCTION BEGIN HERE
-# This function is used to unlock LUKS disk encryption on boot via terminal
-# Usage: ssh_luks_unlock <drop_bear_port> <disk_luks_password>
-# Note 1: The drop_bear_port is setup using dropbear-initramfs (This is set in OS preseed-file and config file)
-# Note 2: The disk_luks_password is the OS LUKS encryption password (This is set in OS preseed-file and config file)
-# Note 3: The unlock method required a port and a password. It will use a normal SSH with certificate (Certificate is set in OS preseed-file)
-# Note 4: After it has successfully logged into the system via SSH, we write the disk_luks_password using this code and the OS will automatically unlock it: "echo -ne \"${pass}\" > /lib/cryptsetup/passfifo"
-# eg calling within code: ssh_luks_unlock 2222 "1234"
-# eg calling outside code: <script_name> --ssh-luks-unlock 2222 "1234"
-
-function valid_sha256() {
-  local retval
-  echo "$1 $2" | sha256sum --check &>/dev/null
-  retval=$?
-  return ${retval}
-}
 
 function script_header() {
   # This is script header
@@ -53,18 +38,18 @@ function script_header() {
 function help() {
   echo "Welcome to help section!"
   echo "------------------------"
-  echo "Run initialize installation with log output: ${SCRIPT_NAME} --init-server init-all rebuild-iso 2>&1 | tee maxisetup.log"
+  echo "Run initialize installation with log output: ${SCRIPT_NAME} --init-server init-all rebuild-iso 2>&1 | tee maxinet.log"
   echo ""
   echo "To start/resume local installation: "
   echo "eg:"
   echo "${SCRIPT_NAME} --setup"
   echo "OR"
-  echo "${SCRIPT_NAME} --setup 2>&1 | tee maxisetup.log"
+  echo "${SCRIPT_NAME} --setup 2>&1 | tee maxinet.log"
   echo ""
   echo "To start/resume remote installation:"
   echo "Syntax: ${SCRIPT_NAME} --ssh-login <fqdn>:<ssh_port> <user_role>:<user_name> <local_script_to_push_for_installation>"
   echo "eg:"
-  echo "${SCRIPT_NAME} --ssh-login \"${BOX_HOSTNAME_FQDN}:${SSH_PORT}\" \"root:${ROOT_USERNAME}\" \"${SCRIPT_PATH}/maxisetup_ssh.sh\""
+  echo "${SCRIPT_NAME} --ssh-login \"${BOX_HOSTNAME_FQDN}:${SSH_PORT}\" \"root:${ROOT_USERNAME}\" \"${SCRIPT_PATH}/maxinet_ssh.sh\""
   echo ""
   echo "To unlock LUKS Disk encryption:"
   echo "Syntax: ${SCRIPT_NAME} --ssh-luks-unlock <DROP_BEAR_PORT> \"<LUKS_PASS>\""
@@ -178,20 +163,81 @@ function manual() {
 }
 
 # Create dynamic variable
-# create_var <variable_name> <optional_variable_value>
-function create_var() {
-  local name value
-  name="$1"
-  value="$2"
-  # Put option -g for global variable
-  if [ -n "${value}" ]; then
+# variable_api <required action> <required VARIABLE --name> <optional --value>
+# variable_api create-variable --name myvariable --value hello | this creates variable name with value hello
+# variable_api create-variable --name testvariable | this creates a variable name testvariable without value
+# variable_api get-variable-value --name testvariable | this will display the variable testvariable value
+function variable_api() {
+  local action argnum options retval name value
+  action="$1"
+  argnum="$#"
+  if [ ${argnum} -eq 0 ]; then
+    echo "Error, no argument is supplied. Use [ ${SCRIPT_NAME} --create-var --help ] to see the valid options"
+    exit 1
+  fi
 
-    declare -g "VAR_${name}"="${value}"
+  options=$(getopt -o '' --long help,name:,value: -n "${FUNCNAME[0]} in ${SCRIPT_NAME}" -- "$@")
+  retval=$?
+  if [ ${retval} != 0 ]; then
+    echo "Error, invalid parse data. Terminating..." >&2
+    exit 1
+  fi
+
+  # Must quote this option variable
+  eval set -- "${options}"
+
+  name=""
+  value=""
+  while true; do
+    case "$1" in
+    --help)
+      manual "${FUNCNAME[0]}"
+      shift
+      exit 0
+      ;;
+    --name)
+      name="$2"
+      shift 2
+      ;;
+    --value)
+      value="$2"
+      shift 2
+      ;;
+    --)
+      shift
+      break
+      ;;
+    *)
+      break
+      ;;
+    esac
+  done
+  if [ "${action}" == "create-variable" ]; then
+    if [ -z "${name}" ]; then
+      echo "Error, the option --name is required!"
+      _exit 1
+    fi
+    # Put option -g for global variable
+    if [ -n "${value}" ]; then
+      declare -g "VAR_${name}"="${value}"
+    else
+      declare -g "VAR_${name}"=""
+    fi
+  elif [ "${action}" == "get-variable-value" ]; then
+    local dv
+    if [ -z "${name}" ]; then
+      echo "Error, the option --name is required!"
+      _exit 1
+    fi
+    dv="VAR_${name}"
+    echo "${!dv}"
   else
-    declare -g "VAR_${name}"=""
+    echo "Error, invalid action for variable_api!"
+    exit 147
   fi
 }
 
+# Deprecated, already combined in variable_api() function
 # get_var_value <variable_name>
 function get_var_value() {
   local name dv
@@ -203,32 +249,37 @@ function get_var_value() {
 # This function validate all data argument. Eg: check if the domain name provided is FQDN or valid
 # is_valid server_record_type <data>
 function is_valid() {
-  local type="$1" data="$2" retval distro_id="${DISTRO_ID}"
+  local type data1 data2 retval distro_id
+  type="$1"
+  data1="$2"
+  data2="$3"
+  distro_id="${DISTRO_ID}"
+
   if [ "${distro_id}" == "debian" ]; then
     install_required "apt:ipcalc" "apt:iproute2"
   #elif ["${distro_id}" == "ubuntu" ]; then
-  #:
+  #: Do more distro check here in the future
   fi
   if [[ "${type}" == "integer" ]]; then
-    if [[ ${data} =~ [0-9] ]]; then
+    if [[ ${data1} =~ [0-9] ]]; then
       return 0
     else
       return 1
     fi
   elif [[ "${type}" == "domain" ]]; then
-    if grep -oP '(?=^.{4,253}$)(^(?:[a-zA-Z0-9](?:(?:[a-zA-Z0-9\-]){0,61}[a-zA-Z0-9])?\.)+([a-zA-Z]{2,}|xn--[a-zA-Z0-9][a-zA-Z0-9\-]*[a-zA-Z0-9])$)' <<<"${data}" >/dev/null 2>&1; then
+    if grep -oP '(?=^.{4,253}$)(^(?:[a-zA-Z0-9](?:(?:[a-zA-Z0-9\-]){0,61}[a-zA-Z0-9])?\.)+([a-zA-Z]{2,}|xn--[a-zA-Z0-9][a-zA-Z0-9\-]*[a-zA-Z0-9])$)' <<<"${data1}" >/dev/null 2>&1; then
       #if grep -oP '^((?!-)[A-Za-z0-9-]{1,63}(?<!-)\.)+[A-Za-z]{2,6}$' <<< "$1" >/dev/null 2>&1;then
       return 0
       # do another check using host if regex above detected as false and return either true or false
     else
-      host "${data}" >/dev/null 2>&1
+      host "${data1}" >/dev/null 2>&1
       retval=$?
       return "${retval}"
     fi
 
   elif [[ "${type}" == "domain_type" ]]; then
     # Convert to capital with ^^ and compare with capital letters
-    if [[ "${data^^}" == +(MASTER|SLAVE) ]]; then
+    if [[ "${data1^^}" == +(MASTER|SLAVE) ]]; then
       return 0
     else
       return 1
@@ -236,46 +287,46 @@ function is_valid() {
     # For linode case ttl
     #  record_ttl="300" # 300(5m), 3600(1h), 7200(2h), 14400(4h), 28800(8h), 57600(16h), 0/86400(1d)-Default, 172800(2d), 345600(4d), 691200(8d), 604800(1w), 1209600(2w), 2419200(4w).
   elif [[ "${type}" == "domain_ttl" ]]; then
-    if [[ ${data} -ge 300 && ${data} -le 2419200 && ${data} =~ ^[0-9]+$ ]]; then
+    if [[ ${data1} -ge 300 && ${data1} -le 2419200 && ${data1} =~ ^[0-9]+$ ]]; then
       return 0
     else
       return 1
     fi
   elif [[ "${type}" == "record_ttl" ]]; then
-    if [[ ${data} -ge 300 && ${data} -le 2419200 && ${data} =~ ^[0-9]+$ ]]; then
+    if [[ ${data1} -ge 300 && ${data1} -le 2419200 && ${data1} =~ ^[0-9]+$ ]]; then
       return 0
     else
       return 1
     fi
   elif [[ "${type}" == "record_type" ]]; then
     # Convert to capital with ^^ and compare with capital letters
-    if [[ "${data^^}" == +(NS|MX|A|AAAA|TXT|CNAME|SRV|CAA) ]]; then
+    if [[ "${data1^^}" == +(NS|MX|A|AAAA|TXT|CNAME|SRV|CAA) ]]; then
       return 0
     else
       return 1
     fi
   elif [[ "${type}" == "record_priority" ]]; then
-    if [[ ${data} -ge 0 && ${data} -le 255 && ${data} =~ ^[0-9]+$ ]]; then
+    if [[ ${data1} -ge 0 && ${data1} -le 255 && ${data1} =~ ^[0-9]+$ ]]; then
       return 0
     else
       return 1
     fi
   elif [[ "${type}" == "email" ]]; then
-    if [[ "${data}" =~ ^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,4}$ ]]; then
+    if [[ "${data1}" =~ ^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,4}$ ]]; then
       return 0
     else
       return 1
     fi
   elif [[ "${type}" == "server_record_valid_character" ]]; then
 
-    if ! [[ ${data} == *['!'@#\$%^\&*()+]* ]]; then
+    if ! [[ ${data1} == *['!'@#\$%^\&*()+]* ]]; then
       return 0
     else
       return 1
     fi
     #Check ipv4
   elif [[ "${type}" == "ipv4" ]]; then
-    local ipv4="${data}" ipv4_pattern='^(([1-9]?[0-9]|1[0-9][0-9]|2([0-4][0-9]|5[0-5]))\.){3}([1-9]?[0-9]|1[0-9][0-9]|2([0-4][0-9]|5[0-5]))$'
+    local ipv4="${data1}" ipv4_pattern='^(([1-9]?[0-9]|1[0-9][0-9]|2([0-4][0-9]|5[0-5]))\.){3}([1-9]?[0-9]|1[0-9][0-9]|2([0-4][0-9]|5[0-5]))$'
 
     if [[ "${ipv4}" =~ ${ipv4_pattern} ]]; then
       #retval=0
@@ -295,7 +346,7 @@ function is_valid() {
     return ${retval}
     # Check ipv6
   elif [[ "${type}" == "ipv6" ]]; then
-    local ipv6="${data}" ipv6_pattern method_bin retval
+    local ipv6="${data1}" ipv6_pattern method_bin retval
     ipv6_pattern='^([0-9a-fA-F]{0,4}:){1,7}[0-9a-fA-F]{0,4}$'
     if [[ ${ipv6} =~ ${ipv6_pattern} ]]; then
       #retval=0
@@ -315,7 +366,7 @@ function is_valid() {
     return ${retval}
     # Check both ipv4 and ipv6
   elif [[ "${type}" == "ipv46" ]]; then
-    local ip="${data}" method_bin retval
+    local ip="${data1}" method_bin retval
 
     if command -v ip &>/dev/null; then
       method_bin=$(command -v ip)
@@ -328,18 +379,24 @@ function is_valid() {
     return ${retval}
 
   elif [[ "${type}" == "not-empty-string" ]]; then
-    if [ -n "${data}" ]; then
+    if [ -n "${data1}" ]; then
       return 0
     else
       return 1
     fi
 
   elif [[ "${type}" == "valid-linode-disk-filetype" ]]; then
-    if [[ "${data^^}" == +(RAW|SWAP|EXT3|EXT4|INITRD) ]]; then
+    if [[ "${data1^^}" == +(RAW|SWAP|EXT3|EXT4|INITRD) ]]; then
       return 0
     else
       return 1
     fi
+    # if is_valid sha256sum data1 data2; then
+  elif [[ "${type}" == "sha256sum" ]]; then
+    local retval
+    echo "${data1}" "${data2}" | sha256sum --check &>/dev/null
+    retval=$?
+    return ${retval}
   fi
 
 }
@@ -347,14 +404,14 @@ function is_valid() {
 # This function initialize or deploy server installation from scratch with few options
 # See <script_name> --init-server --help or look at manual() section under "init_server" for more information
 function init_server() {
-  local options retval
+  local options retval rebuild_iso rebuild_partition rebuild_config rebuild_all backup
   ARGNUM="$#"
   if [ $ARGNUM -eq 0 ]; then
     echo "Error, no argument is supplied. Use [ ${SCRIPT_NAME} --init-server --help ] to see the valid options"
     exit 1
   fi
 
-  options=$(getopt -o '' --long help,rebuild-iso,rebuild-partition,rebuild-config,rebuild-all,backup-ssh-key,backup-iso,backup-all -n "${FUNCNAME[0]} in ${SCRIPT_NAME}" -- "$@")
+  options=$(getopt -o '' --long help,rebuild-iso,rebuild-partition,rebuild-config,rebuild-all,backup -n "${FUNCNAME[0]} in ${SCRIPT_NAME}" -- "$@")
   retval=$?
   if [ ${retval} != 0 ]; then
     echo "Error, invalid parse data. Terminating..." >&2
@@ -368,9 +425,7 @@ function init_server() {
   rebuild_partition=false
   rebuild_config=false
   rebuild_all=false
-  backup_ssh_key=false
-  backup_iso=false
-  backup_all=false
+  backup=false
   while true; do
     case "$1" in
     --help)
@@ -398,18 +453,8 @@ function init_server() {
       shift
       ;;
 
-    --backup-iso)
-      backup_iso=true
-      shift
-      ;;
-    --backup-ssh-key)
-      backup_ssh_key=true
-      shift
-      ;;
-    --backup-all)
-      backup_all=true
-      backup_iso=true
-      backup_ssh_key=true
+    --backup)
+      backup=true
       shift
       ;;
     --)
@@ -427,19 +472,11 @@ function init_server() {
   echo "Disk space: "
   echo "Memory/RAM: "
   echo "Checking IP and domain propagation ..."
-  _pause 2
 
-  if [ ${backup_all} == "true" ]; then
-    _echo "$(msg blue)Notice, the option --backup-all is set. The following options are enabled by default: $(msg end)" --name --plain
-    _echo "$(msg blue)The option --backup-iso is set. Previous iso image will be backed up automatically $(msg end)" --name --plain
-    _echo "$(msg blue)The option --backup-ssh-key is set. Previous RSA SSH key will be backed up automatically $(msg end)" --name --plain
-  else
-    if [ "${backup_iso}" == "true" ]; then
-      _echo "$(msg blue)The option --backup-iso is set. Previous iso image will be backed up automatically $(msg end)" --name --plain
-    fi
-    if [ ${backup_ssh_key} == "true" ]; then
-      _echo "$(msg blue)The option --backup-ssh-key is set. Previous RSA SSH key will be backed up automatically $(msg end)" --name --plain
-    fi
+  if [ ${backup} == "true" ]; then
+    _echo "$(msg blue)Notice, the option --backup-all is set. The following backup will events be triggered automatically: $(msg end)" --name --plain
+    _echo "$(msg blue)1) Previous iso image will be backed up automatically $(msg end)" --name --plain
+    _echo "$(msg blue)2) Previous RSA SSH key will be backed up automatically $(msg end)" --name --plain
   fi
 
   _echo "$(msg newline)" --plain
@@ -461,19 +498,7 @@ function init_server() {
       _echo "$(msg yellow)Warning, --rebuild-config is set. Hence, all configs will be removed $(msg end)" --name --verbose 4
     fi
   fi
-  _pause 1
-
-  if [ ${backup_iso} == "true" ]; then
-    :
-    echo "ISO will be backed up"
-    # TODO backup ISO here
-  fi
-
-  if [ ${backup_ssh_key} == "true" ]; then
-    :
-    # TODO backup SSH key here
-    echo "SSH will be backed up"
-  fi
+  _pause 5
 
   if [ "${DNS_PROVIDER_NAME}" == "linode" ]; then
     box_main_disk=${BOX_MAIN_DISK_RAW_SIZE}
@@ -540,29 +565,41 @@ function init_server() {
     fi
 
     if [ "${rebuild_iso}" == "true" ]; then
-      _echo "$(msg yellow)Warning, new ISO will be rebuilt because the option [rebuild-iso] is set$(msg end)" --name
+      _echo "$(msg yellow)Warning, new ISO will be rebuilt because the option --rebuild-iso is set$(msg end)" --name
       _pause 10
       echo "Creating ISO file"
-       create_os_iso --iso-type hdd-boot --iso-base web --upload-to-dropbox
-    else
-      _echo red "Notice, using existing ISO because no option is passed to rebuild ISO (eg: rebuild-iso)"
-    fi
+      # Create ISO type for Hard disk boot, pull from web, upload to dropbox and write an automation script for installation
+      if [ "${backup}" == "true" ]; then
+        iso_api create-os-iso --iso-type hdd-boot --iso-base web --upload-to-dropbox --write-script --backup
+      else
+        iso_api create-os-iso --iso-type hdd-boot --iso-base web --upload-to-dropbox --write-script
+      fi
 
+    else
+      _echo "Notice, linode will install server operating system using existing automated ISO because the option rebuild-iso is not set" --name
+    fi
 
     _echo "Booting linode ${BOX_HOSTNAME_FQDN} into Finnix rescue mode ..." --name
     linode_api_admin reboot-to-rescue --linode-label "${BOX_HOSTNAME_FQDN}" --label-devsda "disk:Boot_Disk" --label-devsdb "disk:OS_Disk"
 
+    _echo "Copying RSA key public key for login purpose ..." --name
+    ssh_api copy-public-keys --without-prompt
+    _echo "Writing OS into Boot_Disk Partition via SSH background (this will be completed until linode is turned off automatically) ..." --name
 
-    #check_linode_status_until "online"
-    ssh_key_manager "copy-all-pubkeys"
-    _echo "Writing OS into Boot_Disk Partition via SSH background (this will be completed until linode is turned off automatically) ..."
     # This is not a normal SSH (it use Pseudo-TTY)
+    # TODO make this as function inside: ssh_api lish-login --key rsa_key --username maxibi --server member.linode.com --linode-label sun.sofibox.com --script-path /tmp/os.write --silent --push-mode
     ssh -q -o "StrictHostKeyChecking no" -i /root/.ssh/linode_lish.id_rsa -tt "${DNS_PROVIDER_USER}@${DNS_PROVIDER_TERMINAL_SERVER}" "${BOX_HOSTNAME_FQDN}" <"${SCRIPT_PATH}/dns/linode/os_write.sh" >/dev/null 2>&1 &
-    check_linode_status_until "offline"
+
+    #check_linode_status_until "offline"
+
+    #linode_api_admin wait-linode-until --status offline
+    linode_api_admin wait_linode_status --linode-label "${BOX_HOSTNAME_FQDN}" --until-status offline
+    exit 1
     # After system shutdown, then we can execute the following
     linode_api_admin "boot-linode" "${BOX_HOSTNAME_FQDN}" "Boot_Config"
     _echo "Installing operating system on OS_Disk via preseed file ... (approx 5 minutes. It will finish when linode is turned off automatically): "
     check_linode_status_until "offline"
+
     _echo "Booting into operating system (make sure to unlock LUKS)"
     linode_api_admin "boot-linode" "${BOX_HOSTNAME_FQDN}" "OS_Config"
 
@@ -589,17 +626,17 @@ function init_server() {
     # Guide: https://www.arminpech.de/2019/12/23/debian-unlock-luks-root-partition-remotely-by-ssh-using-dropbear/
     # Guide 2: https://www.gandalfk7.it/posts/20200914_02_Debian_9_and_10_boot_luks_unlock/
     # Now you can SSH with :
-    # maxisetup --ssh-login sun.sofibox.com
+    # maxinet --ssh-login sun.sofibox.com
     sleep 5
-    _echo def "Copying maxisetup script ..."
-    ssh_transfer "${BOX_HOSTNAME_FQDN}:${SSH_PORT}" "root:${ROOT_USERNAME}" "${SCRIPT_PATH}/maxisetup ${SCRIPT_PATH}/maxisetup.conf" ~/
+    _echo "Copying maxinet script ..."
+    ssh_transfer "${BOX_HOSTNAME_FQDN}:${SSH_PORT}" "root:${ROOT_USERNAME}" "${SCRIPT_PATH}/maxinet ${SCRIPT_PATH}/maxinet.conf" ~/
     sleep 2
 
     _echo def "Connecting to ${BOX_HOSTNAME_FQDN}:${SSH_PORT} and installing server ..."
 
     if [ "${PRE_AUTORUN_SETUP}" == "yes" ]; then
-      _echo def "Setup will automatically execute remote maxisetup script and start installation of the server ... (it might take some time) ..."
-      ssh_login "${BOX_HOSTNAME_FQDN}:${SSH_PORT}" "root:${ROOT_USERNAME}" "${SCRIPT_PATH}/maxisetup_ssh.sh"
+      _echo def "Setup will automatically execute remote maxinet script and start installation of the server ... (it might take some time) ..."
+      ssh_login "${BOX_HOSTNAME_FQDN}:${SSH_PORT}" "root:${ROOT_USERNAME}" "${SCRIPT_PATH}/maxinet_ssh.sh"
       # After installation above, the system must restart once, so we execute next script to reopen LUKS
       #check_linode_status_until "offline"
     else
@@ -636,7 +673,7 @@ function init_server() {
       _echo "It is time to run the installation script manually!"
     else
       _echo "Resuming installation ..."
-      ssh_login "${BOX_HOSTNAME_FQDN}:${SSH_PORT}" "root:${ROOT_USERNAME}" "${SCRIPT_PATH}/maxisetup_ssh.sh"
+      ssh_login "${BOX_HOSTNAME_FQDN}:${SSH_PORT}" "root:${ROOT_USERNAME}" "${SCRIPT_PATH}/maxinet_ssh.sh"
     fi
 
     _echo "Done"
@@ -648,6 +685,14 @@ function init_server() {
     :
   fi
 }
+# This function is used to unlock LUKS disk encryption on boot via terminal
+# Usage: ssh_luks_unlock <drop_bear_port> <disk_luks_password>
+# Note 1: The drop_bear_port is setup using dropbear-initramfs (This is set in OS preseed-file and config file)
+# Note 2: The disk_luks_password is the OS LUKS encryption password (This is set in OS preseed-file and config file)
+# Note 3: The unlock method required a port and a password. It will use a normal SSH with certificate (Certificate is set in OS preseed-file)
+# Note 4: After it has successfully logged into the system via SSH, we write the disk_luks_password using this code and the OS will automatically unlock it: "echo -ne \"${pass}\" > /lib/cryptsetup/passfifo"
+# eg calling within code: ssh_luks_unlock 2222 "1234"
+# eg calling outside code: <script_name> --ssh-luks-unlock 2222 "1234"
 function ssh_luks_unlock() {
   local port pass rsa_private_key
   port="$1"
@@ -692,63 +737,200 @@ function check_server_port() {
   echo "${result}"
 }
 # This function is used to manage SSH key (create, get, copy)
-# Usage: ssh_key_manager create-key|create-key-with-putty <group_name> <user> <comment>
+# Usage: ssh_api create-key|create-key-with-putty|copy-pubkeys <group_name> <user> <comment>
 # Note 1: create-key will create normal ssh key
 # Note 2: create-key-with-putty will create ssh key with putty format
-# eg: ssh_key_manager "create-key-with-putty" "group" "user" "comment"
-# eg: ssh_key_manager "get-public-key" "group" "user"
-# eg: ssh_key_manager "copy-all-pubkeys"
+# eg: ssh_api create-key-with-putty --group-name admin --username maxi32 --comment "This is a comment"
+# eg: ssh_api get-pubkey --group-name admin --username maxi32
+# eg: ssh_api "copy-all-pubkeys"
+# eg: ssh_api "clear-known-host"
 # group_name = user, admin, root, rescue, backup, os, diradmin ...
-function ssh_key_manager() {
-  local action="$1"
-  shift
-  local group uname rsa_public_key rsa_private_key_ppk comment
-  group="$1"
-  uname="$2"
+function ssh_api() {
 
-  mkdir -p "${SCRIPT_PATH}/secure/ssh"
+  local action argnum options retval key_path groupname username comment servername destination
 
-  rsa_public_key="${SCRIPT_PATH}/secure/ssh/${group}_${uname}_${BOX_HOSTNAME_FQDN}.id_rsa.pub"
-  rsa_private_key="${SCRIPT_PATH}/secure/ssh/${group}_${uname}_${BOX_HOSTNAME_FQDN}.id_rsa"
-  rsa_private_key_ppk="${SCRIPT_PATH}/secure/ssh/${group}_${uname}_${BOX_HOSTNAME_FQDN}.ppk"
+  action="$1"
+
+  argnum="$#"
+  if [ ${argnum} -eq 0 ]; then
+    echo "Error, no argument is supplied. Use [ ${SCRIPT_NAME} --iso --help ] to see the valid options"
+    exit 1
+  fi
+
+  options=$(getopt -o '' --long help,key-path:,groupname:,username:,comment:,servername:,destination:,without-prompt -n "${FUNCNAME[0]} in ${SCRIPT_NAME}" -- "$@")
+  retval=$?
+  if [ ${retval} != 0 ]; then
+    echo "Error, invalid parse data. Terminating..." >&2
+    exit 1
+  fi
+
+  # Must quote this option variable
+  eval set -- "${options}"
+  # Can change using --key-path option but this location is best practice
+  key_path="${SCRIPT_PATH}/secure/ssh"
+  groupname=""
+  username=""
+  comment=""
+  servername="${BOX_HOSTNAME_FQDN}" # If not specified, use the default value from config file
+  destination="/root/.ssh/"         # If not specified, the default location is /root/.ssh/
+  without_prompt=false
+  while true; do
+    case "$1" in
+    --help)
+      manual "${FUNCNAME[0]}"
+      shift
+      exit 0
+      ;;
+    --key-path)
+      key_path="$2"
+      shift 2
+      ;;
+    --groupname)
+      groupname="$2"
+      shift 2
+      ;;
+    --username)
+      username="$2"
+      shift 2
+      ;;
+    --comment)
+      comment="$2"
+      shift 2
+      ;;
+    --servername)
+      servername="$2"
+      shift 2
+      ;;
+    --without-prompt)
+      without_prompt=true
+      shift
+      ;;
+    --)
+      shift
+      break
+      ;;
+    *)
+      break
+      ;;
+    esac
+  done
+
+  mkdir -p "${key_path}"
 
   if [ "${action}" == "create-key" ]; then
-    comment="$3"
-    if [ $# -eq 3 ]; then
-      _echo def "Creating SSH key authentication ..."
-      ssh-keygen -f "${rsa_private_key}" -t rsa -b 4096 -P "" -C "${comment}" <<<y
+    local private_key_name
+    if [[ -z "${groupname}" ]]; then
+      _echo "$(msg red)Error, the option --groupname is required to have value$(msg end)" --name
+      _exit 147
+    elif [[ -z "${username}" ]]; then
+      _echo "$(msg red)Error, the option --username is required to have value$(msg end)" --name
+      _exit 147
+    elif [[ -z "${servername}" ]]; then
+      _echo "$(msg red)Error, the option --serve-name is required to have value$(msg end)" --name
+      _exit 147
     else
-      _echo warning "Warning, not enough argument to create key!"
-      return 1
+      private_key_name="${groupname}_${username}_${servername}.id_rsa"
+
     fi
+    _echo "$(msg cyan)Creating private and public key RSA SSH key authentication at ${key_path}/${private_key_name} ...$(msg end)" --name
+    ssh-keygen -f "${key_path}/${private_key_name}" -t rsa -b 4096 -P "" -C "${comment}" <<<y
   elif [ "${action}" == "create-key-with-putty" ]; then
-    comment="$3"
-    if [ $# -eq 3 ]; then
-      install_required "apt:putty-tools"
-      _echo def "Creating SSH key authentication ..."
-      ssh-keygen -f "${rsa_private_key}" -t rsa -b 4096 -P "" -C "${comment}" <<<y
-      _echo def "Creating SSH key authentication for putty ..."
-      puttygen "${rsa_private_key}" -o "${rsa_private_key_ppk}"
+    local private_key_name private_key_putty_name
+    if [[ -z "${groupname}" ]]; then
+      _echo "$(msg red)Error, the option --groupname is required to have value$(msg end)" --name
+      _exit 147
+    elif [[ -z "${username}" ]]; then
+      _echo "$(msg red)Error, the option --username is required to have value$(msg end)" --name
+      _exit 147
+    elif [[ -z "${servername}" ]]; then
+      _echo "$(msg red)Error, the option --serve-name is required to have value$(msg end)" --name
+      _exit 147
     else
-      _echo warning "Warning, not enough argument to create key!"
-      return 1
+      private_key_name="${groupname}_${username}_${servername}.id_rsa"
+      private_key_putty_name="${groupname}_${username}_${servername}.ppk"
     fi
-  elif [ "${action}" == "get-public-key" ]; then
-    if [ -f "${rsa_public_key}" ]; then
-      cat "${rsa_public_key}"
+    _echo "$(msg cyan)Creating private and public key RSA SSH key authentication at ${key_path}/${private_key_name} ...$(msg end)" --name
+    ssh-keygen -f "${key_path}/${private_key_name}" -t rsa -b 4096 -P "" -C "${comment}" <<<y
+    echo ""
+    _echo "$(msg cyan)Creating RSA SSH key authentication for Putty at ${key_path}/${private_key_putty_name} ...$(msg end)" --name
+    install_required "apt:putty-tools"
+    puttygen "${key_path}/${private_key_name}" -o "${key_path}/${private_key_putty_name}"
+  elif [[ "${action}" == "get-pubkey" || "${action}" == "get-public-key" ]]; then
+    local public_key_name public_key_file
+    if [[ -z "${groupname}" ]]; then
+      _echo "$(msg red)Error, the option --groupname is required to have value$(msg end)" --name
+      _exit 147
+    elif [[ -z "${username}" ]]; then
+      _echo "$(msg red)Error, the option --username is required to have value$(msg end)" --name
+      _exit 147
+    elif [[ -z "${servername}" ]]; then
+      _echo "$(msg red)Error, the option --serve-name is required to have value$(msg end)" --name
+      _exit 147
     else
-      _echo warning "Warning, public key does not exist. Please create it first"
-      return 1
+      public_key_name="${groupname}_${username}_${servername}.id_rsa.pub"
+      public_key_file="${key_path}/${public_key_name}"
     fi
+
+    if [ -f "${public_key_file}" ]; then
+      cat "${public_key_file}"
+      return 0
+    else
+      _echo "$(msg red)Error, RSA public key does not exist in ${public_key_file}. Please create it first$(msg end)" --name --verbose 3
+      return 147
+    fi
+  elif [[ "${action}" == "get-prikey" || "${action}" == "get-private-key" ]]; then
+    local private_key_name private_key_file
+    if [[ -z "${groupname}" ]]; then
+      _echo "$(msg red)Error, the option --groupname is required to have value$(msg end)" --name
+      _exit 147
+    elif [[ -z "${username}" ]]; then
+      _echo "$(msg red)Error, the option --username is required to have value$(msg end)" --name
+      _exit 147
+    elif [[ -z "${servername}" ]]; then
+      _echo "$(msg red)Error, the option --serve-name is required to have value$(msg end)" --name
+      _exit 147
+    else
+      private_key_name="${groupname}_${username}_${servername}.id_rsa"
+      private_key_file="${key_path}/${private_key_name}"
+    fi
+    if [ -f "${private_key_file}" ]; then
+      cat "${private_key_file}"
+      return 0
+    else
+      _echo "$(msg red)Error, RSA private key does not exist in ${private_key_file}. Please create it first$(msg end)" --name --verbose 3
+      return 147
+    fi
+
     # Warning this will replace existing key
-  elif [ "${action}" == "copy-all-pubkeys" ]; then
-    _echo def "Resetting known_hosts and copying all public key to /root/.ssh/* ..."
+
+    # ssh_api copy-public-keys --destination /root/.ssh/
+  elif [[ "${action}" == "copy-pubkeys" || "${action}" == "copy-publickeys" || "${action}" == "copy-public-keys" ]]; then
+    local response retval
+    if [ "${without_prompt}" == "true" ]; then
+      _echo "$(msg cyan)Resetting known_hosts and copying all public key to /root/.ssh/* ...$(msg end)" --name
+      echo >/root/.ssh/known_hosts
+      cp "${key_path}"/*.id_rsa* /root/.ssh/
+      chmod -R 600 /root/.ssh/
+    else
+      read -r -p "This will replace existing public key files (except putty format) from ${key_path} into /root/.ssh/. Are you sure? [Y/n]" response
+      response=$(echo "${response}" | tr '[:upper:]' '[:lower:]')
+      if [[ $response =~ ^(yes|y| ) ]] || [[ -z $response ]]; then
+        _echo "$(msg cyan)Resetting known_hosts and copying all public key to /root/.ssh/* ...$(msg end)" --name
+        echo >/root/.ssh/known_hosts
+        cp "${key_path}"/*.id_rsa* /root/.ssh/
+        chmod -R 600 /root/.ssh/
+      else
+        _echo "$(msg red)Operation aborted by user!$(msg end)" --name
+        _exit 147
+      fi
+    fi
+
+  elif [[ "${action}" == "clear-known-hosts" || "${action}" == "clear-known-host" ]]; then
+    _echo "$(msg cyan)Resetting known_hosts and copying all public key .id_rsa from ${key_path}/ to /root/.ssh/* ...$(msg end)" --name
     echo >/root/.ssh/known_hosts
-    cp "${SCRIPT_PATH}"/secure/ssh/*.id_rsa* /root/.ssh/
-    chmod -R 600 /root/.ssh/
   else
-    _echo warning "Warning, unknown action ${action} argument specified when calling ssh_key_manager function!"
-    return 1
+    _echo "$(msg red)Error, unknown action ${action} argument specified when calling ssh_api function!$(msg end)" --name --verbose 3
+    return 147
   fi
 }
 # This function is used to login into server (SSH login)
@@ -857,7 +1039,7 @@ function ssh_transfer() {
 function check_linode_status_until() {
   option="$1"
   if [[ "${option}" == "offline" ]]; then
-    _echo def "Checking linode status ..."
+    _echo "Checking linode status ..."
     while :; do
       linode_status=$(linode_api_admin "get-linode-status" "${BOX_HOSTNAME_FQDN}" | tail -n 1)
       if [ "${linode_status}" == "online" ]; then
@@ -872,7 +1054,7 @@ function check_linode_status_until() {
       fi
     done
   elif [[ "${option}" == "online" ]]; then
-    _echo def "Checking linode status ..."
+    _echo "Checking linode status ..."
     while :; do
       linode_status=$(linode_api_admin "get-linode-status" "${BOX_HOSTNAME_FQDN}" | tail -n 1)
       if [ "${linode_status}" == "online" ]; then
@@ -885,7 +1067,7 @@ function check_linode_status_until() {
       fi
     done
   else
-    _echo warning "Error, unknown argument passed in ${FUNCNAME[0]}!" "${REPORT_FILE}"
+    _echo "Error, unknown argument passed in ${FUNCNAME[0]}!" "${REPORT_FILE}"
   fi
 }
 
@@ -1282,7 +1464,7 @@ function _trap_cleanup() {
     echo "-------------------------------END-----------------------------------------"
     echo "Remember you can always resume installation with (--help for more information):"
     echo "For local installation: ${SCRIPT_NAME} --setup"
-    echo "For remote installation: ${SCRIPT_NAME} --ssh-login \"${BOX_HOSTNAME_FQDN}:${SSH_PORT}\" \"root:${ROOT_USERNAME}\" \"${SCRIPT_PATH}/maxisetup_ssh.sh\""
+    echo "For remote installation: ${SCRIPT_NAME} --ssh-login \"${BOX_HOSTNAME_FQDN}:${SSH_PORT}\" \"root:${ROOT_USERNAME}\" \"${SCRIPT_PATH}/maxinet_ssh.sh\""
     echo "To login as root user: ${SCRIPT_NAME} --ssh-login \"${BOX_HOSTNAME_FQDN}:${SSH_PORT}\" \"user:root\""
     echo "To login as SSH user: ${SCRIPT_NAME} --ssh-login \"${BOX_HOSTNAME_FQDN}:${SSH_PORT}\" \"root:SSH_USERNAME\""
     echo "To unlock LUKS Disk encryption: ${SCRIPT_NAME} --ssh-luks-unlock ${DROP_BEAR_PORT} \"<LUKS_PASS>\""
@@ -1809,14 +1991,14 @@ function exec_time() {
     if [ -n "${title}" ]; then
       # Use verbose 7 (debug) because this time tracking only useful during debugging
       _echo "Tracking execution time for $(msg red)[${title}]$(msg end) ..." --name --verbose 7
-      create_var "${title}" "$(date +%s.%N)"
+      variable_api create-variable --name "${title}" --value "$(date +%s.%N)"
     else
       EXEC_START=$(date +%s.%N)
       _echo "Tracking global execution time ..." --name --verbose 7
     fi
   elif [[ "${option}" == "total" || "${option}" == "end" ]]; then
     if [ -n "${title}" ]; then
-      runtime=$(echo "$(date +%s.%N) - $(get_var_value "${title}")" | bc -l)
+      runtime=$(echo "$(date +%s.%N) - $(variable_api get-variable-value --name "${title}")" | bc -l)
     else
       runtime=$(echo "$(date +%s.%N) - ${EXEC_START}" | bc -l)
     fi
@@ -2169,238 +2351,104 @@ function create_file() {
     } >"${path}"
   fi
 }
-function create_rescue_iso() {
-  install_required "apt:genisoimage" "apt:wget" "apt:pwgen" "apt:whois" "apt:xorriso" "apt:debconf" "apt:isolinux" "apt:syslinux-utils" "apt:squashfs-tools" "apt:putty-tools"
-  dbx_cli="${SCRIPT_PATH}/storage/os/debian/usr/local/maxicode/maxicloud/dropbox/dbx"
-  if [[ "${HOST_MAX_PROCESSOR}" -lt 2 ]]; then
-    _echo 'red' "Warning, this process will run slower when using compression tool because HOST_MAX_PROCESSOR is set less than 2"
-    echo ""
-  fi
-  echo "Creating a new RSA Key for rescue root login ..."
-  ssh_key_manager "create-key-with-putty" "rescue" "root" "${BOX_HOSTNAME_FQDN}_secure_auth"
-
-  # Good guide : https://www.dotpointer.ga/?section=notes&view=note&id_notes=164
-  # Good guide 2: https://rmprepusb.com/tutorials/011-make-an-image-recovery-usb-drive-using-finnix/
-  local action="$1"
-  local retval=0
-  local method="$1"
-  local option="$2"
-  local root_temp_path isofile isofile_final isomount_location finnix_select_version isodir_write iso_url isofile_final_base_name file_direct_link
-
-  if [ $# -gt 3 ]; then
-    echo "Argument shouldn't be more than 3 for now. See --help for more information"
-    _exit 1
-  fi
-  root_temp_path="/root/tmp_iso/debian"
-  isofile="${root_temp_path}/finnix-122.iso"
-  isofile_final="${root_temp_path}/finnix_mod.iso"
-  isofile_final_base_name="$(basename -- ${isofile_final})"
-  iso_output_path="/mnt/c/Users/Maxibi/IdeaProjects/maxisetup/storage/os/debian/finnixmod.iso"
-  isomount_location="/mnt/mount_riso"
-  isodir_write="${root_temp_path}/riso-rw"
-
-  #https://www.finnix.org/releases/122/finnix-122.iso
-  finnix_select_version="122"
-
-  iso_url="https://www.finnix.org/releases/${finnix_select_version}/finnix-${finnix_select_version}.iso"
-
-  echo "Removing previous file ${isofile_final} ..."
-  rm -rf "${isofile_final}"
-  echo ""
-  echo "Removing previous file ${isodir_write} ..."
-  rm -rf "${isodir_write}"
-
-  mkdir -p "${root_temp_path}"
-  mkdir -p "${isomount_location}"
-  mkdir -p "${isodir_write}"
-  echo ""
-
-  echo "Creating a custom Finnix rescue disk for hard disk booting ..."
-  echo ""
-  if [[ "${option}" == "--update-iso" || -z "${option}" ]]; then
-    if [ -f "${isofile}" ]; then
-      rm -rf "${isofile}"
-      echo "Re-downloading system image ..."
-    else
-      echo "Downloading new system image ..."
-    fi
-
-    wget -nc -O "${isofile}" "${iso_url}" || true
-  elif [[ "${option}" == "--no-update-iso" ]]; then
-    if [ -f "${isofile}" ]; then
-      echo "Using the existing ISO file ..."
-    else
-      echo "Warning, existing ISO file is missing! Use --update-iso option to download new file"
-      _exit 1
-    fi
-    # Do nothing
-  else
-    echo "Invalid option supplied: ${option} on ${FUNCNAME[0]}"
-    echo "${SCRIPT_NAME} ${action} --update-iso , to download the new ISO file where --update-iso is a default command if not specified"
-    echo "${SCRIPT_NAME} ${action} --no-update-iso , to use existing ISO file"
-    _exit 1
-  fi
-  echo ""
-  echo "Copying ISO file content into writeable directory ${isodir_write} ..."
-  xorriso -osirrox on -indev ${isofile} -extract / ${isodir_write}/
-  echo ""
-  echo "Removing initial ISO file ..."
-  rm -rf "${isofile}"
-  echo ""
-  echo "Disabling startup timer menu (straight boot to the default menu) ..."
-  sed -i "s/timeout .*/timeout 1/" ${isodir_write}/isolinux/isolinux.cfg
-  echo ""
-  #echo "Adding noeject and noprompt boot parameter at grub.cfg ..."
-  #{
-  #  echo "source /boot/grub/config.cfg"
-  #  echo "# Live boot"
-  #  echo "menuentry \"Live system\" --hotkey=l {"
-  #  echo "    linux	/live/vmlinuz-5.10.0-3-amd64 quiet"
-  #  echo "    initrd	/live/initrd.img-5.10.0-3-amd64"
-  #  echo "}"
-  #} >${isodir_write}/boot/grub/grub.cfg
-  echo ""
-  echo "Creating startup script on startup ..."
-  #Guide here: https://www.finnix.org/Overlays (Startup shell scripts)
-  mkdir -p "${isodir_write}/finnix/arch/indep/rc"
-  echo "#!/bin/bash" >"${isodir_write}/finnix/arch/indep/rc/initial.sh"
-  echo "#any startup script here" >>"${isodir_write}/finnix/arch/indep/rc/initial.sh"
-  chmod +x "${isodir_write}/finnix/arch/indep/rc/initial.sh"
-  echo ""
-  echo "Creating working directory ${isodir_write}/live/workdir"
-  mkdir -p "${isodir_write}/live/workdir"
-  echo ""
-  echo "Moving ${isodir_write}/live/filesystem.squashfs into ${isodir_write}/live/workdir ..."
-  mv "${isodir_write}/live/filesystem.squashfs" "${isodir_write}/live/workdir"
-  echo ""
-  cd_to_path "${isodir_write}/live/workdir"
-  echo "Extracting squashfs file filesystem.squashfs ..."
-  unsquashfs -processors "${HOST_MAX_PROCESSOR}" filesystem.squashfs
-  echo ""
-  echo "Removing the old filesystem.squashfs file ..."
-  rm -rf filesystem.squashfs
-  echo ""
-  #exit 1
-  # Now we have all file in here: isodir_write/live/workdir/squashfs-root/*
-  echo "Creating .ssh directory in ${isodir_write}/live/workdir/squashfs-root/root/.ssh ..."
-  mkdir -p "${isodir_write}/live/workdir/squashfs-root/root/.ssh"
-  echo ""
-  echo "Copying RSA certificate in ${isodir_write}/live/workdir/squashfs-root/root/.ssh/authorized_keys ..."
-
-  #cp "${SCRIPT_PATH}/secure/rescue_root_${BOX_HOSTNAME_FQDN}.id_rsa.pub" "${isodir_write}/live/workdir/squashfs-root/root/.ssh/authorized_keys"
-  ssh_key_manager "get-public-key" "rescue" "root" >"${isodir_write}/live/workdir/squashfs-root/root/.ssh/authorized_keys"
-
-  echo ""
-  echo "Raising permission of .ssh folder ..."
-  chmod -R go-rwx "${isodir_write}/live/workdir/squashfs-root/root/.ssh"
-  echo ""
-  echo "Disabling SSH root login in sshd_config ..."
-  sed -i 's/^.*PermitRootLogin.*/PermitRootLogin no/g' "${isodir_write}/live/workdir/squashfs-root/etc/ssh/sshd_config"
-  echo ""
-
-  echo "Changing SSH login port to ${RESCUE_SSH_PORT} ..."
-  sed -i "s/#Port 22/Port ${RESCUE_SSH_PORT}/" "${isodir_write}/live/workdir/squashfs-root/etc/ssh/sshd_config"
-  echo ""
-
-  echo "Creating startup script at .profile to restart ssh on startup ..."
-  echo "systemctl restart ssh" >>"${isodir_write}/live/workdir/squashfs-root/root/.profile"
-  #chmod +x "${isodir_write}/live/workdir/squashfs-root/etc/rc.local"
-  echo ""
-
-  echo "Recreating the squashfs	filesystem from filesystem.squashfs ..."
-  mksquashfs squashfs-root filesystem.squashfs -b 1024k -comp xz -Xbcj x86 -e boot -processors "${HOST_MAX_PROCESSOR}"
-  echo ""
-
-  echo "Moving filesystem.squashfs into ${isodir_write}/live/filesystem.squashfs ..."
-  mv filesystem.squashfs ${isodir_write}/live/filesystem.squashfs
-  echo ""
-  echo "Removing working directory ..."
-  rm -rf ${isodir_write}/live/workdir
-  echo ""
-  cd_to_path "${isodir_write}"
-  echo "Creating new sha256sum checksum for sha256sum.txt ..."
-  chmod +w sha256sum.txt
-  find "${isodir_write}" -follow -type f ! -name sha256sum.txt -print0 | xargs -0 sha256sum >sha256sum_tmp.txt
-  mv -f sha256sum_tmp.txt sha256sum.txt
-  chmod -w sha256sum.txt
-  echo ""
-  echo "Creating standalone ISO installation inside ${isofile_final} ..."
-  xorriso -as mkisofs \
-    -isohybrid-mbr /usr/lib/ISOLINUX/isohdpfx.bin \
-    -c isolinux/boot.cat \
-    -b isolinux/isolinux.bin \
-    -no-emul-boot \
-    -boot-load-size 4 \
-    -boot-info-table \
-    -eltorito-alt-boot \
-    -isohybrid-gpt-basdat \
-    -o ${isofile_final} \
-    ${isodir_write}
-
-  # Do not quote the path. If quote it will become redundant path: '/root/tmp_iso/debian/riso-rw/~/tmp_iso/debian/riso-rw'
-  echo ""
-
-  # Copying to shared folder
-  echo "Creating installation disk at ${iso_output_path} ..."
-  cp "${isofile_final}" "${iso_output_path}"
-  echo ""
-  echo "Copying RSA private keys inside ISO output ..."
-  cp "${rsa_private_key}" "$(dirname "${iso_output_path}")/"
-  cp "${rsa_private_key_ppk}" "$(dirname "${iso_output_path}")/"
-  # Uploading to dropbox
-  echo ""
-  echo "Uploading ${isofile_final} into dropbox /files/${isofile_final_base_name} ..."
-  ${dbx_cli} upload "${isofile_final}" "/files"
-
-  echo "Creating download link ..."
-  file_direct_link=$(${dbx_cli} share "/files/${isofile_final_base_name}" | awk '{ print $4}' | sed 's/0$/1/g')
-  echo "File direct link is: ${file_direct_link}"
-  echo ""
-  echo "Creating rescue disk script ..."
-  _echo 'red' "=================================="
-  echo ""
-  echo "wget -O mini.iso \"${file_direct_link}\"" >"$(dirname "${iso_output_path}")/install.txt"
-  echo "dd if=mini.iso of=/dev/sda" >>"$(dirname "${iso_output_path}")/install.txt"
-  _echo 'green' "wget -O mini.iso \"${file_direct_link}\""
-  _echo 'green' "dd if=mini.iso of=/dev/sda"
-  _echo 'green' "mkdir /mnt/iso"
-  _echo 'green' "mount mini.iso /mnt/iso"
-  _echo 'green' "echo \"\""
-  echo ""
-  _echo 'red' "=================================="
-  echo ""
-
-  echo "Copying script into linode script ${SCRIPT_PATH}/dns/linode... "
-  {
-    echo "#!/bin/bash"
-    echo "wget -O mini.iso ${file_direct_link}"
-    echo "dd if=mini.iso of=/dev/sda"
-    # Need this option to reboot when reboot check
-    echo "reboot -f"
-    echo "exit 0"
-  } >"${SCRIPT_PATH}/dns/linode/rescue_write.sh"
-
-  echo "Removing working directory ..."
-  rm -rf "${isodir_write}"
-}
 # This functions create ISO file, and upload into dropbox
 
-function upload_to_dropbox() {
-  :
-  # linode_api_admin create_os_iso --iso-type hdd-boot --iso-base web/local --upload-to-dropbox --write-to-remote
-}
+# --dropbox-api upload --source /mnt/file.txt --destination /files
+# --dropbox-api get-link --destination /files --filename /test/test.txt
+# Note filename will only get the basename as dropbox only require this name /test/test2/test.txt = test.txt
+# Use --scripting option to suppress message (useful for scripting)
+function dropbox_api() {
 
-# linode_api_admin create_os_iso --iso-type hdd-boot --iso-base web/local
-function create_os_iso() {
-
-  local options retval
-  ARGNUM="$#"
-  if [ $ARGNUM -eq 0 ]; then
-    echo "Error, no argument is supplied. Use [ ${SCRIPT_NAME} --create-iso --help ] to see the valid options"
+  local action options retval argnum scripting source destination filename dbx_cli file_direct_link
+  action="$1"
+  # TODO make sure to configure dropbox authentication first before running script. Will make this automatic
+  dbx_cli="${SCRIPT_PATH}/storage/os/debian/usr/local/maxicode/maxicloud/dropbox/dbx"
+  argnum="$#"
+  if [ ${argnum} -eq 0 ]; then
+    echo "Error, no argument is supplied. Use [ ${SCRIPT_NAME} --upload-to-dropbox --help ] to see the valid options"
     exit 1
   fi
 
-  options=$(getopt -o '' --long help,iso-type:,iso-base:,upload-to-dropbox -n "${FUNCNAME[0]} in ${SCRIPT_NAME}" -- "$@")
+  options=$(getopt -o '' --long help,scripting,source:,destination:,filename: -n "${FUNCNAME[0]} in ${SCRIPT_NAME}" -- "$@")
+  retval=$?
+  if [ ${retval} != 0 ]; then
+    echo "Error, invalid parse data. Terminating..." >&2
+    exit 1
+  fi
+
+  # Must quote this option variable
+  eval set -- "${options}"
+
+  scripting=false
+  source=""
+  destination=""
+  filename=""
+  while true; do
+    case "$1" in
+    --help)
+      manual "${FUNCNAME[0]}"
+      shift
+      exit 0
+      ;;
+    --scripting)
+      scripting=true
+      shift
+      ;;
+    --source)
+      source="$2"
+      shift 2
+      ;;
+    --destination)
+      destination="$2"
+      shift 2
+      ;;
+    --filename)
+      filename="$(basename -- "$2")"
+      shift 2
+      ;;
+    --)
+      shift
+      break
+      ;;
+    *)
+      break
+      ;;
+    esac
+  done
+
+  if [[ "${action}" == "upload" ]]; then
+    [[ ${scripting} == "false" ]] && _echo "$(msg cyan)Uploading file ${source} into ${destination} ...$(msg end)" --name
+    # TODO check if source file is exist and destination source is exist before upload
+    if [[ ${scripting} == "false" ]]; then
+      ${dbx_cli} upload "${source}" "${destination}"
+    else
+      ${dbx_cli} -q upload "${source}" "${destination}"
+    fi
+  elif [[ "${action}" == "get-link" ]]; then
+    # TODO check if destination exist
+    [[ ${scripting} == "false" ]] && _echo "$(msg cyan)Generating download link ...$(msg end)" --name
+    file_direct_link=$(${dbx_cli} share "/${destination}/${filename}" | awk '{ print $4}' | sed 's/0$/1/g')
+    [[ ${scripting} == "false" ]] && _echo "$(msg green)File direct link is: $(msg end)"
+    echo "${file_direct_link}"
+  else
+    echo "Unknown action"
+  fi
+
+}
+# iso_api <action> <required --iso-type> <required --iso-base> <optional --upload-to-dropbox> <optional --write-script> <optional --backup>
+# iso_api create-os-iso --iso-type hdd-boot --iso-base local --upload-to-dropbox --write-script --backup
+# Trigger --help for more information
+function iso_api() {
+
+  local action argnum options retval iso_type iso_base upload_to_dropbox write_script backup
+  action="$1"
+  argnum="$#"
+  if [ ${argnum} -eq 0 ]; then
+    echo "Error, no argument is supplied. Use [ ${SCRIPT_NAME} --iso --help ] to see the valid options"
+    exit 1
+  fi
+
+  options=$(getopt -o '' --long help,iso-type:,iso-base:,upload-to-dropbox,write-script,backup -n "${FUNCNAME[0]} in ${SCRIPT_NAME}" -- "$@")
   retval=$?
   if [ ${retval} != 0 ]; then
     echo "Error, invalid parse data. Terminating..." >&2
@@ -2413,7 +2461,8 @@ function create_os_iso() {
   iso_type=""
   iso_base=""
   upload_to_dropbox=false
-
+  write_script=false
+  backup=false
   while true; do
     case "$1" in
     --help)
@@ -2433,6 +2482,14 @@ function create_os_iso() {
       upload_to_dropbox=true
       shift
       ;;
+    --write-script)
+      write_script=true
+      shift
+      ;;
+    --backup)
+      backup=true
+      shift
+      ;;
     --)
       shift
       break
@@ -2443,391 +2500,680 @@ function create_os_iso() {
     esac
   done
 
-  local iso_os year_month_day root_temp_path isofile
+  if [[ "${action}" == "create-os-iso" ]]; then
 
-  iso_os="${BOX_ISO_OS_TYPE}"
-  year_month_day=$(date "+%Y-%m-%d")
-  root_temp_path="/root/tmp_iso/debian"
-  isofile="${root_temp_path}/${iso_os}.iso"
-  isofile_final="${root_temp_path}/${iso_os}-final.iso"
-  isofile_final_base_name="$(basename -- ${isofile_final})"
-  isomount_location="/mnt/mount_iso"
-  isodir_write="${root_temp_path}/iso-rw"
-  isodir_write_tmp="${root_temp_path}/iso-rw-tmp"
-  preseed_file="${root_temp_path}/preseed.txt"
-  source_file="${root_temp_path}/sources.list"
+    local iso_os date_time_random root_temp_path isomount_location isodir_write isodir_write_tmp preseed_file source_file \
+      rsa_private_key rsa_private_key_ppk rsa_public_key
 
-  if [ "${iso_os}" == "debian" ]; then
+    iso_os="${BOX_ISO_OS_TYPE}"
+    date_time_random="$(${DATE_BIN} '+%d_%m_%Y_%H_%M_%S').${RANDOM}"
+    root_temp_path="/root/tmp_iso/${iso_os}"
+    isomount_location="/mnt/mount_iso"
+    isodir_write="${root_temp_path}/iso-rw"
+    isodir_write_tmp="${root_temp_path}/iso-rw-tmp"
+    preseed_file="${root_temp_path}/preseed.txt"
+    source_file="${root_temp_path}/sources.list"
 
-    debian_name="debian"
-    debian_release="buster"
-    debian_select_version="10.9.0"
-    debian_latest_version=$(curl -s 'http://cdimage.debian.org/cdimage/release/current/amd64/iso-cd/' | grep -oP 'href="debian-\K[0-9]+\.[0-9]+\.[0-9]+' | sort -t. -rn -k1,1 -k2,2 -k3,3 | head -1)
-    debian_select_platform="amd64"
-    debian_image_type="iso-cd"
-    debian_iso_installation_type="netinst"
-    #checksum_selection="debian-${debian_select_version}-${debian_select_platform}-${debian_iso_installation_type}.iso"
+    if [ "${iso_os}" == "debian" ]; then
+      local debian_name debian_release debian_select_version debian_latest_version debian_select_platform debian_image_type \
+        debian_iso_installation_type debian_iso_url debian_initrd_gz_url debian_vmlinuz_url debian_isofile debian_isofile_final \
+        debian_isofile_final_base_name
 
-    if [ "${USE_LATEST_ISO}" == "yes" ]; then
-      _echo "The Latest version of Debian detected as ${debian_latest_version} (selected version is ${debian_select_version})"
-      _echo "Setup will use the latest version of Debian ${debian_latest_version}  regardless of the selected version because USE_LATEST_ISO variable is set to yes from config file!" --name
-      _pause 5
-      debian_select_version="${debian_latest_version}"
-    else
-      if [ "${debian_select_version}" == "${debian_latest_version}" ]; then
-        _echo "$(msg green)The Latest version of Debian is up-to-date with the selected version of Debian: v${debian_select_version}! $(msg end)" --name
+      debian_name="debian"
+      debian_release="buster"
+      debian_select_version="10.10.0"
+      debian_latest_version=$(curl -s 'http://cdimage.debian.org/cdimage/release/current/amd64/iso-cd/' | grep -oP 'href="debian-\K[0-9]+\.[0-9]+\.[0-9]+' | sort -t. -rn -k1,1 -k2,2 -k3,3 | head -1)
+      debian_select_platform="amd64"
+      debian_image_type="iso-cd"
+      debian_iso_installation_type="netinst"
+      #checksum_selection="debian-${debian_select_version}-${debian_select_platform}-${debian_iso_installation_type}.iso"
+      if [ "${USE_LATEST_ISO}" == "yes" ]; then
+        debian_select_version="${debian_latest_version}"
       else
-        _echo "$(msg yellow)Warning, the Latest version of Debian detected as ${debian_latest_version} but the selected version is ${debian_select_version}!$(msg end)" --name
-        _pause 10
+        if [ "${debian_select_version}" == "${debian_latest_version}" ]; then
+          _echo "$(msg green)The Latest version of Debian is up-to-date with the selected version of Debian: v${debian_select_version}! $(msg end)" --name
+        else
+          _echo "$(msg yellow)Warning, the Latest version of Debian detected as ${debian_latest_version} but the selected version is ${debian_select_version}!$(msg end)" --name
+          _pause 10
+        fi
       fi
+
+      debian_iso_url="http://cdimage.debian.org/cdimage/release/current/${debian_select_platform}/${debian_image_type}/${debian_name}-${debian_select_version}-${debian_select_platform}-${debian_iso_installation_type}.iso"
+      debian_initrd_gz_url="http://ftp.debian.org/debian/dists/buster/main/installer-amd64/current/images/hd-media/initrd.gz"
+      debian_vmlinuz_url="http://ftp.debian.org/debian/dists/buster/main/installer-amd64/current/images/hd-media/vmlinuz"
+
+      debian_base_iso_256sum_online_value=$(curl -s https://cdimage.debian.org/debian-cd/current/amd64/iso-cd/SHA256SUMS | grep "debian-${debian_select_version}-${debian_select_platform}-${debian_iso_installation_type}.iso" | awk '{ print $1 }')
+
+      debian_isofile="${root_temp_path}/${iso_os}_${debian_select_version}.iso"
+      debian_isofile_final="${root_temp_path}/${iso_os}_${debian_select_version}_final.iso"
+      debian_isofile_final_base_name="$(basename -- "${debian_isofile_final}")"
+      # Modify this to have the output name as different name (This file is just a backup file of debian_isofile_final)
+
+      debian_iso_complete_file="${ISO_PATH}/os/debian/${debian_name}_${debian_select_version}_complete.iso"
+
+      rm -rf "${debian_isofile_final}"
+      rm -rf "${isodir_write}"
+      rm -rf "${isodir_write_tmp}"
+      rm -rf "${preseed_file}"
+      rm -rf "${source_file}"
+
+      mkdir -p "${root_temp_path}"
+      mkdir -p "${isomount_location}"
+      mkdir -p "${isodir_write}"
+      mkdir -p "${isodir_write_tmp}"
+      mkdir -p "$(dirname "${debian_iso_complete_file}")"
+      echo ""
+
+      if [ "${backup}" == "true" ]; then
+        if [ -f "${debian_iso_complete_file}" ]; then
+          _echo "$(msg green)OK, previous ISO file ${debian_iso_complete_file} exist$(msg end)" --name
+          echo ""
+          _echo "$(msg cyan)Checking if the ISO file ${debian_iso_complete_file} is valid (bootable) ..." --name
+          ${ISOINFO_BIN} -d -i "${debian_iso_complete_file}" 2>/dev/null | grep -q "bootable"
+          retval=$?
+          if [ ${retval} -eq 0 ]; then
+            local backup_dir iso_backup_dir ssh_backup_dir
+            _echo "$(msg green)OK, previous ISO file ${debian_iso_complete_file} is valid (bootable). Backing up ISO files and SSH keys ...$(msg end)" --name
+            backup_dir="${ISO_PATH}/backup/iso_backup_${date_time_random}"
+            iso_backup_dir="${backup_dir}/iso"
+            ssh_backup_dir="${backup_dir}/ssh"
+
+            mkdir -p "${iso_backup_dir}"
+            mkdir -p "${ssh_backup_dir}"
+            cp -p "${debian_iso_complete_file}" "${iso_backup_dir}"
+            cp -Rp "${SECURE_PATH}/ssh/" "${ssh_backup_dir}"
+            echo "Backup location is at: ${iso_backup_dir}"
+            echo ""
+          else
+            _echo "$(msg red)Error, the previous ISO file might be corrupted because it does not contain bootable record.$(msg end)" --name --verbose 3
+            _exit 147
+          fi
+        else
+          _echo "$(msg red)Error, backup failed because previous ISO file ${debian_iso_complete_file} was not found. Please inspect the location of the file$(msg end)" --name --verbose 3
+          _echo "$(msg red)If you want to continue without backup, omit the option --backup$(msg end)" --name --verbose 3
+          _exit 147
+        fi
+      fi
+
+      if [ "${iso_base}" == "web" ]; then
+        _echo "The Latest version of Debian detected is ${debian_latest_version} (selected version is ${debian_select_version})" --name
+        _echo "Setup will download the most recent version of Debian regardless of the selected version because USE_LATEST_ISO is set to yes from the config file!" --name
+        _pause 5
+        _echo "$(msg cyan)Downloading ISO file from ${debian_iso_url} ...$(msg end)" --name
+        rm -rf "${debian_isofile}"
+        wget -nc -O "${debian_isofile}" "${debian_iso_url}" || true
+      elif [ "${iso_base}" == "local" ]; then
+        _echo "$(msg cyan)Setup will use the local ISO file downloaded previously! Checking existing ISO file ${debian_isofile} ... $(msg end)" --name
+        # use the local ISO
+        if [ -f "${debian_isofile}" ]; then
+          # echo "ISO file exist"
+          # Check here if ISO is corrupt based on online checksum
+          if is_valid sha256sum "${debian_base_iso_256sum_online_value}" "${debian_isofile}"; then
+            _echo "$(msg green)OK, the base ISO file content is valid sha256sum. Setup will create ISO file using existing ISO file$(msg end)" --name
+          else
+            _echo "$(msg red)Error, the base ISO file content is corrupted (not valid sha256sum). Please download a new one with an option [ --iso-base web ]$(msg end)" --name
+            _exit 147
+          fi
+
+        else
+          _echo "$(msg error) Error, the base ISO file ${debian_isofile} does not exist. You may need to use the option [ --iso-base web ] to automatically download new ISO file from web$(msg end)" --name
+          _exit 147
+        fi
+      else
+        _echo "$(msg red)Error, unknown ISO base type$(msg end)" --name
+        _exit 147
+      fi
+
+      # For hard disk booting
+      if [[ "${iso_type}" == "hdd-iso" || "${iso_type}" == "hdd-boot" || "${iso_type}" == "hdd" || "${iso_type}" == "isolinux" ]]; then
+        install_required "apt:debconf" "apt:isolinux" "apt:syslinux-utils" "apt:xorriso" "apt:wget"
+
+        _echo "$(msg cyan)Creating new RSA Key for root ...$(msg end)" --name
+        # This will create 2 files one is private and another one with the extension .pub
+        # For root
+        ssh_api create-key-with-putty --group root --username "${ROOT_USERNAME}" --comment "${BOX_HOSTNAME_FQDN}_secure_auth"
+        echo ""
+
+        _echo "$(msg cyan)Creating new RSA Key for sudo [user] ...$(msg end)" --name
+        ssh_api create-key-with-putty --group user --username "${SSH_USERNAME}" --comment "${BOX_HOSTNAME_FQDN}_secure_auth"
+
+        echo ""
+
+        _echo "$(msg cyan)Building a custom ${iso_os} image file for server using HDD Booting method ...$(msg end)" --name
+        echo ""
+        # Fixing
+        cd_to_path "${SCRIPT_PATH}"
+
+        _echo "$(msg cyan)Writing new preseed file config ...$(msg end)" --name
+        # Writing new preseed.cfg
+        create_file "debian-preseed" "${preseed_file}"
+        echo ""
+        _echo "$(msg cyan)Checking preseed syntax file ${preseed_file} ...$(msg end)" --name
+        if ! debconf-set-selections -c "${preseed_file}"; then
+          _echo "$(msg red)Error, there there was a syntax error in the preseed.cfg. Check the syntax of the preconfiguration file.$(msg end)" --name
+          _exit 1
+        else
+          _echo "$(msg green)OK, the preseed file ${preseed_file} syntax is ok$(msg end)" --name
+        fi
+        # exit 1
+        echo ""
+        _echo "$(msg cyan)Extracting the ISO file ${debian_isofile}'s contents into a temporary writeable directory at ${isodir_write_tmp} ...$(msg end)" --name
+        xorriso -osirrox on -indev "${debian_isofile}" -extract / ${isodir_write_tmp}/
+        echo ""
+
+        # Do not remove existing ISO file because we want to reuse this without downloading new ISO using the option --iso-base=local
+        #_echo "$(msg cyan)Removing existing ISO file ...$(msg end)" --name
+        #rm -rf "${debian_isofile}"
+
+        #echo "Editing isolinux/isolinux.cfg to disable setup menu (straight to the first menu on startup) ..."
+        #sed -i "s/timeout 0/timeout 1/" ${ISODIR_WRITE_TMP}/isolinux/isolinux.cfg
+        echo ""
+        _echo "$(msg cyan)Copying raw preseed file from ${preseed_file} into ${isodir_write_tmp}/preseed.cfg ...$(msg end)" --name
+        cp "${preseed_file}" "${isodir_write_tmp}/preseed.cfg"
+        #chmod 555 ${ISODIR_WRITE}/preseed.cfg
+        echo ""
+
+        _echo "$(msg cyan)Writing rsa public key (root) file into ${isodir_write_tmp}/root_${ROOT_USERNAME}_${BOX_HOSTNAME_FQDN}.id_rsa.pub ...$(msg end)" --name
+        ssh_api get-public-key --group root --username "${ROOT_USERNAME}" --servername "${BOX_HOSTNAME_FQDN}" >"${isodir_write_tmp}/root_${ROOT_USERNAME}_${BOX_HOSTNAME_FQDN}.id_rsa.pub"
+        echo ""
+        _echo "$(msg cyan)Writing rsa public key (user) file into ${isodir_write_tmp}/user_${SSH_USERNAME}_${BOX_HOSTNAME_FQDN}.id_rsa.pub ...$(msg end)" --name
+        ssh_api get-public-key --group user --username "${SSH_USERNAME}" --servername "${BOX_HOSTNAME_FQDN}" >"${isodir_write_tmp}/user_${SSH_USERNAME}_${BOX_HOSTNAME_FQDN}.id_rsa.pub"
+        echo ""
+
+        _echo "$(msg cyan)Changing permission of ${isodir_write_tmp}/preseed.cfg to own by root:root ...$(msg end)" --name
+        chown root:root "${isodir_write_tmp}/preseed.cfg"
+        echo ""
+        _echo "$(msg cyan)Lowering the files permission from ${isodir_write_tmp}/install.amd to +w ...$(msg end)" --name
+        chmod +w -R "${isodir_write_tmp}/install.amd"
+        retval=$?
+        if [ ${retval} -ne 0 ]; then
+          _echo warning "Something is wrong when trying to lower the file permission for ${isodir_write_tmp}/install.amd to +w"
+          _exit 1
+        fi
+        echo ""
+        _echo "$(msg cyan)Extracting initrd.gz ...$(msg end)" --name
+        gunzip "${isodir_write_tmp}/install.amd/initrd.gz"
+        echo ""
+        _echo "$(msg cyan)Writing preseed.cfg file into initrd ...$(msg end)" --name
+        echo "${isodir_write_tmp}/preseed.cfg" | cpio -H newc -o -A -F "${isodir_write_tmp}/install.amd/initrd"
+        echo ""
+        ##exit 1
+        _echo "$(msg cyan)Compressing initrd as initrd.gz ...$(msg end)" --name
+        gzip "${isodir_write_tmp}/install.amd/initrd"
+        echo ""
+        _echo "$(msg cyan)Changing the folder permission of ${isodir_write_tmp}/install.amd/ to -w ...$(msg end)" --name
+        chmod -w -R "${isodir_write_tmp}/install.amd/"
+        echo ""
+
+        _echo "$(msg cyan)Writing and fixing md5sum checksum in ${isodir_write} ...$(msg end)" --name
+        cd_to_path "${isodir_write_tmp}"
+
+        # Alternative method:
+        #pushd ${ISODIR_WRITE}
+        #  md5sum $(find -type f) > md5sum.txt
+        #popd
+
+        # A warning will be issued because ./debian is a symlink to . :
+        # find: File system loop detected; ‘./debian’ is part of the same file system loop as ‘.’ :
+        chmod +w md5sum.txt
+        #find -follow -type f ! -name md5sum.txt -print0 | xargs -0 md5sum >md5sum.txt
+        find . -follow -type f ! -name md5sum.txt -print0 | xargs -0 md5sum >tmpfile && mv tmpfile md5sum.txt
+        chmod -w md5sum.txt
+        echo ""
+
+        _echo "$(msg cyan)Creating standalone ISO installation inside ${isodir_write}/${debian_isofile_final} ...$(msg end)" --name
+        xorriso -as mkisofs \
+          -isohybrid-mbr /usr/lib/ISOLINUX/isohdpfx.bin \
+          -c isolinux/boot.cat \
+          -b isolinux/isolinux.bin \
+          -no-emul-boot \
+          -boot-load-size 4 \
+          -boot-info-table \
+          -eltorito-alt-boot \
+          -e boot/grub/efi.img \
+          -no-emul-boot \
+          -isohybrid-gpt-basdat \
+          -o "${isodir_write}/${debian_name}-${debian_release}-${debian_iso_installation_type}.iso" \
+          "${isodir_write_tmp}"
+        echo ""
+
+        _echo "$(msg cyan)Copying ${isodir_write_tmp}/boot into ${isodir_write} ...$(msg end)" --name
+        cp -rp "${isodir_write_tmp}/boot" "${isodir_write}"
+        echo ""
+        _echo "$(msg cyan)Creating new boot installation directory at ${isodir_write}/boot/os ...$(msg end)" --name
+        mkdir -p "${isodir_write}/boot/os"
+        echo ""
+        cd_to_path "${isodir_write}/boot/os"
+        echo ""
+        _echo "$(msg cyan)Downloading initrd.gz file into ${isodir_write}/boot/os ...$(msg end)" --name
+        wget -O initrd.gz ${debian_initrd_gz_url}
+        echo ""
+        _echo "$(msg cyan)Downloading vmlinuz file into ${isodir_write}/boot/os ...$(msg end)" --name
+        wget -O vmlinuz ${debian_vmlinuz_url}
+        echo ""
+        _echo "$(msg cyan)Copying ${isodir_write_tmp}/isolinux into ${isodir_write} ...$(msg end)" --name
+        cp -rp "${isodir_write_tmp}/isolinux" "${isodir_write}"
+        echo ""
+
+        _echo "$(msg cyan)Backing up isolinux.cfg file at ${isodir_write}/isolinux/isolinux.cfg as ${isodir_write}/isolinux/original_isolinux.cfg ...$(msg end)" --name
+        mv "${isodir_write}/isolinux/isolinux.cfg" "${isodir_write}/isolinux/original_isolinux.cfg"
+        echo ""
+
+        _echo "$(msg cyan)Modifying isolinux.cfg to create new operating system boot menu ...$(msg end)" --name
+        {
+
+          ## Config reference: https://www.alteeve.com/an-repo/files/isolinux.cfg
+          # Use high-color menu
+          echo "UI vesamenu.c32"
+          # Timeout unit is 1/10s, 100 means 10 seconds
+          echo "TIMEOUT 100"
+          echo "PROMPT 0"
+
+          echo "DEFAULT Debian - Auto Installation"
+          echo "# Console Prompt"
+          echo "say **********************************************************************"
+          echo "say Sofibox Cloud Sdn Bhd."
+          echo "say TOSP, Cyberjaya Malaysia."
+          echo "say sofibox.com, tosp.sofibox.com"
+          echo "say OPERATING SYSTEM INSTALLER"
+          echo "Copyright (C) Arafat Ali"
+          echo "say Automatically booting: Debian - Auto Installation in 10 seconds ..."
+          echo "say **********************************************************************"
+
+          echo "# Allow client to edit the boot parameters"
+          echo "ALLOWOPTIONS 1"
+
+          # If don't set default would be 640x480
+          #MENU RESOLUTION 1024 768
+
+          # The background image
+          #MENU BACKGROUND pxe_splash_1024_768.jpg
+
+          echo "# Menu Title"
+          echo "MENU TITLE Sofibox - Maxinet Rescue Mode"
+
+          echo "MENU AUTOBOOT Will boot the next device as configured in your BIOS in # second{,s}."
+          echo "MENU TABMSG   Press the <tab> key to edit the boot parameters of the highlighted option."
+          echo "MENU NOTABMSG Editing of this option is disabled."
+
+          #The color
+          echo "# Format is: MENU COLOR <Item> <ANSI Seq.> <foreground> <background> <shadow type>"
+          echo "MENU COLOR screen      0  #80ffffff #00000000 std      # background colour not covered by the splash image"
+          echo "MENU COLOR border      0  #ffffffff #ee000000 std      # The wire-frame border"
+          echo "MENU COLOR title       0  #ffff3f7f #ee000000 std      # Menu title text"
+          echo "MENU COLOR sel         0  #ff00dfdf #ee000000 std      # Selected menu option"
+          echo "MENU COLOR hotsel      0  #ff7f7fff #ee000000 std      # The selected hotkey (set with ^ in MENU LABEL)"
+          echo "MENU COLOR unsel       0  #ffffffff #ee000000 std      # Unselected menu options"
+          echo "MENU COLOR hotkey      0  #ff7f7fff #ee000000 std      # Unselected hotkeys (set with ^ in MENU LABEL)"
+          echo "MENU COLOR tabmsg      0  #c07f7fff #00000000 std      # Tab text"
+          echo "MENU COLOR timeout_msg 0  #8000dfdf #00000000 std      # Timout text"
+          echo "MENU COLOR timeout     0  #c0ff3f7f #00000000 std      # Timout counter"
+          echo "MENU COLOR disabled    0  #807f7f7f #ee000000 std      # Disabled menu options, including SEPARATORs"
+          echo "MENU COLOR cmdmark     0  #c000ffff #ee000000 std      # Command line marker - The '> ' on the left when editing an option"
+          echo "MENU COLOR cmdline     0  #c0ffffff #ee000000 std      # Command line - The text being edited"
+          echo "# Options below haven't been tested, descriptions may be lacking."
+          echo "MENU COLOR scrollbar   0  #40000000 #00000000 std      # Scroll bar"
+          echo "MENU COLOR pwdborder   0  #80ffffff #20ffffff std      # Password box wire-frame border"
+          echo "MENU COLOR pwdheader   0  #80ff8080 #20ffffff std      # Password box header"
+          echo "MENU COLOR pwdentry    0  #80ffffff #20ffffff std      # Password entry field"
+          echo "MENU COLOR help        0  #c0ffffff #00000000 std      # Help text, if set via 'TEXT HELP ... ENDTEXT'"
+
+          echo "LABEL Debian - Auto Installation"
+          echo "    MENU LABEL ^1) Auto install Debian"
+          echo "    MENU DEFAULT"
+          echo "    KERNEL /boot/os/vmlinuz"
+          #important, preseed file location need to be cdrom/preseed.cfg"
+          echo "    APPEND initrd=/boot/os/initrd.gz preseed/file=/cdrom/preseed.cfg locale=${BOX_LOCALE} keymap=${BOX_KEYBOARD} language=${BOX_LANGUAGE_CODE} country=${BOX_COUNTRY_CODE} --"
+          echo "    TEXT HELP"
+          echo "    * This is an auto installation"
+          echo "    * WARNING: ALL DATA ON DISKS WILL BE OVERWRITTEN WITHOUT ANY QUESTIONS"
+          echo "    ENDTEXT"
+          echo "LABEL Debian - Manual installation"
+          echo "   MENU LABEL ^2) Manual Debian Installation"
+          echo "   KERNEL  /boot/os/vmlinuz"
+          echo "   APPEND initrd=/boot/os/initrd.gz --"
+          echo "    TEXT HELP"
+          echo "    * This is a manual installation"
+          echo "    * NOTE: USE THIS MENU IF YOU WANT TO INSTALL DEBIAN INTERACTIVELY"
+          echo "    ENDTEXT"
+          # Warning this System Backup menu is beta and will not do anything. Will update in the future for backup function
+          echo "LABEL Debian - System Backup"
+          echo "MENU LABEL ^3) Debian Full System Backup"
+          echo "   KERNEL  /boot/os/vmlinuz"
+          echo "   APPEND initrd=/boot/os/initrd.gz --"
+          echo "    TEXT HELP"
+          echo "    * This is an operating system full backup mode"
+          echo "    * NOTE: USE THIS MENU IF YOU WANT TO MAKE FULL BACKUP (TESTING)"
+          echo "    ENDTEXT"
+
+        } >"${isodir_write}/isolinux/isolinux.cfg"
+
+        _echo "$(msg cyan)Writing and fixing md5sum checksum in ${isodir_write} ...$(msg end)" --name
+        cp -p "${isodir_write_tmp}/md5sum.txt" "${isodir_write}"
+        rm -rf "${isodir_write_tmp}"
+        cd_to_path "${isodir_write}"
+
+        chmod +w md5sum.txt
+        find . -follow -type f ! -name md5sum.txt -print0 | xargs -0 md5sum >tmpfile && mv tmpfile md5sum.txt
+        chmod -w md5sum.txt
+        echo ""
+
+        _echo "$(msg cyan)Creating the final ISO file ...$(msg end)" --name
+        xorriso -as mkisofs \
+          -isohybrid-mbr /usr/lib/ISOLINUX/isohdpfx.bin \
+          -c isolinux/boot.cat \
+          -b isolinux/isolinux.bin \
+          -no-emul-boot \
+          -boot-load-size 4 \
+          -boot-info-table \
+          -eltorito-alt-boot \
+          -e boot/grub/efi.img \
+          -no-emul-boot \
+          -isohybrid-gpt-basdat \
+          -o "${debian_isofile_final}" \
+          "${isodir_write}"
+        echo ""
+
+        # Copying to shared folder
+        _echo "$(msg cyan)Creating a copy of ISO file from ${debian_isofile_final} as ${debian_iso_complete_file} ...$(msg end)" --name
+        cp "${debian_isofile_final}" "${debian_iso_complete_file}"
+
+        if [[ "${upload_to_dropbox}" == "true" ]]; then
+          # Uploading to dropbox and generating link
+          _echo "$(msg cyan)Uploading local file ${debian_isofile_final} into dropbox remote location /files/${debian_isofile_final_base_name} ...$(msg end)" --name
+
+          dropbox_api upload --source "${debian_isofile_final}" --destination "/files"
+          echo ""
+          _echo "$(msg cyan)Generating uploaded file link of ${debian_isofile_final} ...$(msg end)" --name
+          file_direct_link=$(dropbox_api get-link --destination "/files" --filename "${debian_isofile_final}" --scripting)
+          echo "file_direct_link is ${file_direct_link}"
+          _echo "$(msg newline)" --plain
+
+          _echo "$(msg cyan)Creating automation script for installing operating system remotely into ${SCRIPT_PATH}/dns/linode/os_write.sh ...$(msg end)" --name
+          {
+            echo "#!/bin/bash"
+            echo "# ==============================================="
+            echo "# This script file was generated by ${SCRIPT_NAME}"
+            echo "# This script is used to write OS into /dev/sda"
+            echo "# Author: ${ADMIN_NAME} | Email: ${ADMIN_EMAIL} | Web: ${BOX_DOMAIN}"
+            echo "# ==============================================="
+            echo "wget -O mini.iso ${file_direct_link}"
+            echo "dd if=mini.iso of=/dev/sda"
+            # This is needed to force reboot especially for rescue mode.
+            echo "reboot -f"
+            echo "exit 0"
+          } >"${SCRIPT_PATH}/dns/linode/os_write.sh"
+
+          _echo "$(msg cyan)Generating rescue disk command for manual installation ...$(msg end)" --name
+
+          {
+            echo "# ==============================================="
+            echo "# This manual file was generated by ${SCRIPT_NAME}"
+            echo "# Author: ${ADMIN_NAME} | Email: ${ADMIN_EMAIL} | Web: ${BOX_DOMAIN}"
+            echo "# ==============================================="
+            echo "# Download link available at:"
+            echo "wget -O mini.iso \"${file_direct_link}\""
+            echo "# Operating system installation script available at:"
+            echo "${SCRIPT_PATH}/dns/linode/os_write.sh"
+            echo "dd if=mini.iso of=/dev/sda"
+          } >"$(dirname "${debian_iso_complete_file}")/install.txt"
+          echo ""
+          _echo "$(msg cyan)ISO direct link is: ${file_direct_link}$(msg end)" --name
+          if [ ${write_script} == "true" ]; then
+
+            _echo "$(msg red)==================================$(msg end)" --plain
+            _echo "$(msg newline)" --plain
+            _echo "$(msg green)wget -O mini.iso \"${file_direct_link}\"$(msg end)" --plain
+            _echo "$(msg green)dd if=mini.iso of=/dev/sda$(msg end)" --plain
+            _echo "$(msg green)mkdir /mnt/iso$(msg end)" --plain
+            _echo "$(msg green)mount mini.iso /mnt/iso$(msg end)" --plain
+            _echo "$(msg green)echo \"\"$(msg end)" --plain
+            _echo "$(msg newline)" --plain
+            _echo "$(msg red)==================================$(msg end)" --plain
+            _echo "$(msg newline)" --plain
+          fi
+          echo ""
+        fi
+
+        _echo "$(msg cyan)Removing current working directories ...$(msg end)" --name
+        rm -rf "${isodir_write}"
+        echo ""
+        _echo "$(msg cyan)Removing current preseed configuration file ...$(msg end)" --name
+        rm -rf "${preseed_file}"
+
+        # My custom method
+      else
+        _echo "$(msg red)Error, unknown type or method for creating ISO file ${iso_type}!$(msg end)" --name --verbose 3
+        _exit 147
+      fi
+    #elif iso is ubuntu
+
     fi
+  elif [[ "${action}" == "create-rescue-iso" ]]; then
 
-    iso_url="http://cdimage.debian.org/cdimage/release/current/${debian_select_platform}/${debian_image_type}/${debian_name}-${debian_select_version}-${debian_select_platform}-${debian_iso_installation_type}.iso"
-    initrd_gz_url="http://ftp.debian.org/debian/dists/buster/main/installer-amd64/current/images/hd-media/initrd.gz"
-    vmlinuz_url="http://ftp.debian.org/debian/dists/buster/main/installer-amd64/current/images/hd-media/vmlinuz"
-    iso_output_path="/mnt/c/Users/Maxibi/IdeaProjects/maxisetup/storage/os/debian/deb10mod.iso"
+    # TODO this is hardcoded, fix later.
+    :
+    exit 1
 
+    install_required "apt:genisoimage" "apt:wget" "apt:pwgen" "apt:whois" "apt:xorriso" "apt:debconf" "apt:isolinux" "apt:syslinux-utils" "apt:squashfs-tools" "apt:putty-tools"
+    dbx_cli="${SCRIPT_PATH}/storage/os/debian/usr/local/maxicode/maxicloud/dropbox/dbx"
+    if [[ "${HOST_MAX_PROCESSOR}" -lt 2 ]]; then
+      _echo 'red' "Warning, this process will run slower when using compression tool because HOST_MAX_PROCESSOR is set less than 2"
+      echo ""
+    fi
+    echo "Creating a new RSA Key for rescue root login ..."
+    ssh_api "create-key-with-putty" "rescue" "root" "${BOX_HOSTNAME_FQDN}_secure_auth"
+
+    # Good guide : https://www.dotpointer.ga/?section=notes&view=note&id_notes=164
+    # Good guide 2: https://rmprepusb.com/tutorials/011-make-an-image-recovery-usb-drive-using-finnix/
+    local action="$1"
+    local retval=0
+    local method="$1"
+    local option="$2"
+    local root_temp_path isofile isofile_final isomount_location finnix_select_version isodir_write iso_url isofile_final_base_name file_direct_link
+
+    if [ $# -gt 3 ]; then
+      echo "Argument shouldn't be more than 3 for now. See --help for more information"
+      _exit 1
+    fi
+    root_temp_path="/root/tmp_iso/debian"
+    isofile="${root_temp_path}/finnix-122.iso"
+    isofile_final="${root_temp_path}/finnix_mod.iso"
+    isofile_final_base_name="$(basename -- ${isofile_final})"
+    iso_output_path="/mnt/c/Users/Maxibi/IdeaProjects/maxinet/storage/os/debian/finnixmod.iso"
+    isomount_location="/mnt/mount_riso"
+    isodir_write="${root_temp_path}/riso-rw"
+
+    #https://www.finnix.org/releases/122/finnix-122.iso
+    finnix_select_version="122"
+
+    iso_url="https://www.finnix.org/releases/${finnix_select_version}/finnix-${finnix_select_version}.iso"
+
+    # TODO backup first before remove
+    echo "Removing previous file ${isofile_final} ..."
     rm -rf "${isofile_final}"
+
+    echo ""
+    echo "Removing previous file ${isodir_write} ..."
     rm -rf "${isodir_write}"
-    rm -rf "${isodir_write_tmp}"
-    rm -rf "${preseed_file}"
-    rm -rf "${source_file}"
 
     mkdir -p "${root_temp_path}"
     mkdir -p "${isomount_location}"
     mkdir -p "${isodir_write}"
-    mkdir -p "${isodir_write_tmp}"
     echo ""
 
-    if [ "${iso_base}" == "web" ]; then
-      rm -rf "${isofile}"
-      wget -nc -O "${isofile}" "${iso_url}" || true
-    elif [ "${iso_base}" == "local" ]; then
-      :
-      # use the local ISO
+    echo "Creating a custom Finnix rescue disk for hard disk booting ..."
+    echo ""
+    if [[ "${option}" == "--update-iso" || -z "${option}" ]]; then
       if [ -f "${isofile}" ]; then
-        echo "ISO file exist"
+        rm -rf "${isofile}"
+        echo "Re-downloading system image ..."
       else
-        echo "ISO file does not exist. use --iso-base web to download new file"
-        exit 1
-      fi
-      iso_256sum_value=$(curl -s https://cdimage.debian.org/debian-cd/current/amd64/iso-cd/SHA256SUMS | grep "debian-${debian_select_version}-${debian_select_platform}-${debian_iso_installation_type}.iso" | awk '{ print $1 }')
-      # Check here if ISO is corrupt
-      if valid_sha256 "${iso_256sum_value}" "${isofile}"; then
-        echo "OK is valid"
-        echo "Creating ISO with option ${iso_type} using existing ISO file"
-      else
-        echo "ISO file is not valid. Please download new one"
-        exit 1
+        echo "Downloading new system image ..."
       fi
 
+      wget -nc -O "${isofile}" "${iso_url}" || true
+    elif [[ "${option}" == "--no-update-iso" ]]; then
+      if [ -f "${isofile}" ]; then
+        echo "Using the existing ISO file ..."
+      else
+        echo "Warning, existing ISO file is missing! Use --update-iso option to download new file"
+        _exit 1
+      fi
+      # Do nothing
     else
-      echo "Unknown iso base"
+      echo "Invalid option supplied: ${option} on ${FUNCNAME[0]}"
+      echo "${SCRIPT_NAME} ${action} --update-iso , to download the new ISO file where --update-iso is a default command if not specified"
+      echo "${SCRIPT_NAME} ${action} --no-update-iso , to use existing ISO file"
+      _exit 1
     fi
+    echo ""
+    echo "Copying ISO file content into writeable directory ${isodir_write} ..."
+    xorriso -osirrox on -indev ${isofile} -extract / ${isodir_write}/
+    echo ""
+    echo "Removing initial ISO file ..."
+    rm -rf "${isofile}"
+    echo ""
+    echo "Disabling startup timer menu (straight boot to the default menu) ..."
+    sed -i "s/timeout .*/timeout 1/" ${isodir_write}/isolinux/isolinux.cfg
+    echo ""
+    #echo "Adding noeject and noprompt boot parameter at grub.cfg ..."
+    #{
+    #  echo "source /boot/grub/config.cfg"
+    #  echo "# Live boot"
+    #  echo "menuentry \"Live system\" --hotkey=l {"
+    #  echo "    linux	/live/vmlinuz-5.10.0-3-amd64 quiet"
+    #  echo "    initrd	/live/initrd.img-5.10.0-3-amd64"
+    #  echo "}"
+    #} >${isodir_write}/boot/grub/grub.cfg
+    echo ""
+    echo "Creating startup script on startup ..."
+    #Guide here: https://www.finnix.org/Overlays (Startup shell scripts)
+    mkdir -p "${isodir_write}/finnix/arch/indep/rc"
+    echo "#!/bin/bash" >"${isodir_write}/finnix/arch/indep/rc/initial.sh"
+    echo "#any startup script here" >>"${isodir_write}/finnix/arch/indep/rc/initial.sh"
+    chmod +x "${isodir_write}/finnix/arch/indep/rc/initial.sh"
+    echo ""
+    echo "Creating working directory ${isodir_write}/live/workdir"
+    mkdir -p "${isodir_write}/live/workdir"
+    echo ""
+    echo "Moving ${isodir_write}/live/filesystem.squashfs into ${isodir_write}/live/workdir ..."
+    mv "${isodir_write}/live/filesystem.squashfs" "${isodir_write}/live/workdir"
+    echo ""
+    cd_to_path "${isodir_write}/live/workdir"
+    echo "Extracting squashfs file filesystem.squashfs ..."
+    unsquashfs -processors "${HOST_MAX_PROCESSOR}" filesystem.squashfs
+    echo ""
+    echo "Removing the old filesystem.squashfs file ..."
+    rm -rf filesystem.squashfs
+    echo ""
+    #exit 1
+    # Now we have all file in here: isodir_write/live/workdir/squashfs-root/*
+    echo "Creating .ssh directory in ${isodir_write}/live/workdir/squashfs-root/root/.ssh ..."
+    mkdir -p "${isodir_write}/live/workdir/squashfs-root/root/.ssh"
+    echo ""
+    echo "Copying RSA certificate in ${isodir_write}/live/workdir/squashfs-root/root/.ssh/authorized_keys ..."
 
-    # My custom method for server (Like the LILO or GRUB method)
-    if [[ "${iso_type}" == "hdd-iso" || "${iso_type}" == "hdd-boot" || "${iso_type}" == "hdd" || "${iso_type}" == "isolinux" ]]; then
+    #cp "${SCRIPT_PATH}/secure/rescue_root_${BOX_HOSTNAME_FQDN}.id_rsa.pub" "${isodir_write}/live/workdir/squashfs-root/root/.ssh/authorized_keys"
+    ssh_api "get-pubkey" "rescue" "root" >"${isodir_write}/live/workdir/squashfs-root/root/.ssh/authorized_keys"
 
-      # For hard disk booting
-      dbx_cli="${SCRIPT_PATH}/storage/os/debian/usr/local/maxicode/maxicloud/dropbox/dbx"
-      echo "Creating new RSA Key for root login ..."
-      # This will create 2 files one is private and another one with the extension .pub
-      # For root
-      ssh_key_manager "create-key-with-putty" "root" "${ROOT_USERNAME}" "${BOX_HOSTNAME_FQDN}_secure_auth"
-      local rsa_public_key="${SCRIPT_PATH}/secure/ssh/root_${ROOT_USERNAME}_${BOX_HOSTNAME_FQDN}.id_rsa.pub"
-      local rsa_private_key="${SCRIPT_PATH}/secure/ssh/root_${ROOT_USERNAME}_${BOX_HOSTNAME_FQDN}.id_rsa"
-      local rsa_private_key_ppk="${SCRIPT_PATH}/secure/ssh/root_${ROOT_USERNAME}_${BOX_HOSTNAME_FQDN}.ppk"
+    echo ""
+    echo "Raising permission of .ssh folder ..."
+    chmod -R go-rwx "${isodir_write}/live/workdir/squashfs-root/root/.ssh"
+    echo ""
+    echo "Disabling SSH root login in sshd_config ..."
+    sed -i 's/^.*PermitRootLogin.*/PermitRootLogin no/g' "${isodir_write}/live/workdir/squashfs-root/etc/ssh/sshd_config"
+    echo ""
 
-      # For normal user
-      ssh_key_manager "create-key-with-putty" "user" "${SSH_USERNAME}" "${BOX_HOSTNAME_FQDN}_secure_auth"
+    echo "Changing SSH login port to ${RESCUE_SSH_PORT} ..."
+    sed -i "s/#Port 22/Port ${RESCUE_SSH_PORT}/" "${isodir_write}/live/workdir/squashfs-root/etc/ssh/sshd_config"
+    echo ""
 
-      if [ ! -f "${rsa_public_key}" ]; then
-        echo "RSA public key file not found!"
-        _exit 1
-      else
-        echo "Using RSA public key from ${rsa_public_key} ..."
-      fi
-      echo ""
-      echo "Building a custom ${iso_os} image file for server setup in syslinux bootloader (Hardisk Booting) ..."
-      echo ""
-      # Fixing
-      cd_to_path "${SCRIPT_PATH}"
-      install_required "apt:debconf" "apt:isolinux" "apt:syslinux-utils" "apt:xorriso" "apt:wget"
+    echo "Creating startup script at .profile to restart ssh on startup ..."
+    echo "systemctl restart ssh" >>"${isodir_write}/live/workdir/squashfs-root/root/.profile"
+    #chmod +x "${isodir_write}/live/workdir/squashfs-root/etc/rc.local"
+    echo ""
 
-      echo ""
-      echo "Writing new preseed file config ..."
-      # Writing new preseed.cfg
-      create_file "debian-preseed" ${preseed_file}
-      echo ""
-      echo "Checking preseed syntax file ${preseed_file} ..."
-      if ! debconf-set-selections -c "${preseed_file}"; then
-        echo "There is an error in the preseed.cfg. Check the syntax of the preconfiguration file."
-        _exit 1
-      else
-        echo "The preseed file ${preseed_file} syntax is ok"
-      fi
-      # exit 1
-      echo ""
-      echo "Copying ISOFILE content into temporary writeable directory ${isodir_write_tmp} ..."
-      xorriso -osirrox on -indev "${isofile}" -extract / ${isodir_write_tmp}/
-      echo ""
-      echo "Removing initial ISO file ..."
-      rm -rf "${isofile}"
+    echo "Recreating the squashfs	filesystem from filesystem.squashfs ..."
+    mksquashfs squashfs-root filesystem.squashfs -b 1024k -comp xz -Xbcj x86 -e boot -processors "${HOST_MAX_PROCESSOR}"
+    echo ""
 
-      #echo "Editing isolinux/isolinux.cfg to disable setup menu (straight to the first menu on startup) ..."
-      #sed -i "s/timeout 0/timeout 1/" ${ISODIR_WRITE_TMP}/isolinux/isolinux.cfg
-      echo ""
-      echo "Copying raw preseed file into ${isodir_write_tmp}/preseed.cfg ..."
-      cp "${preseed_file}" "${isodir_write_tmp}/preseed.cfg"
-      #chmod 555 ${ISODIR_WRITE}/preseed.cfg
-      echo ""
+    echo "Moving filesystem.squashfs into ${isodir_write}/live/filesystem.squashfs ..."
+    mv filesystem.squashfs ${isodir_write}/live/filesystem.squashfs
+    echo ""
+    echo "Removing working directory ..."
+    rm -rf ${isodir_write}/live/workdir
+    echo ""
+    cd_to_path "${isodir_write}"
+    echo "Creating new sha256sum checksum for sha256sum.txt ..."
+    chmod +w sha256sum.txt
+    find "${isodir_write}" -follow -type f ! -name sha256sum.txt -print0 | xargs -0 sha256sum >sha256sum_tmp.txt
+    mv -f sha256sum_tmp.txt sha256sum.txt
+    chmod -w sha256sum.txt
+    echo ""
+    echo "Creating standalone ISO installation inside ${isofile_final} ..."
+    xorriso -as mkisofs \
+      -isohybrid-mbr /usr/lib/ISOLINUX/isohdpfx.bin \
+      -c isolinux/boot.cat \
+      -b isolinux/isolinux.bin \
+      -no-emul-boot \
+      -boot-load-size 4 \
+      -boot-info-table \
+      -eltorito-alt-boot \
+      -isohybrid-gpt-basdat \
+      -o ${isofile_final} \
+      ${isodir_write}
 
-      echo "Writing rsa public key (root) file into ${isodir_write_tmp}/root_${ROOT_USERNAME}_${BOX_HOSTNAME_FQDN}.id_rsa.pub ..."
-      ssh_key_manager "get-public-key" "root" "${ROOT_USERNAME}" >"${isodir_write_tmp}/root_${ROOT_USERNAME}_${BOX_HOSTNAME_FQDN}.id_rsa.pub"
-      echo ""
-      echo "Writing rsa public key (user) file into ${isodir_write_tmp}/user_${SSH_USERNAME}_${BOX_HOSTNAME_FQDN}.id_rsa.pub ..."
-      ssh_key_manager "get-public-key" "user" "${SSH_USERNAME}" >"${isodir_write_tmp}/user_${SSH_USERNAME}_${BOX_HOSTNAME_FQDN}.id_rsa.pub"
+    # Do not quote the path. If quote it will become redundant path: '/root/tmp_iso/debian/riso-rw/~/tmp_iso/debian/riso-rw'
+    echo ""
 
-      echo ""
+    # Copying to shared folder
+    echo "Creating installation disk at ${iso_output_path} ..."
+    cp "${isofile_final}" "${iso_output_path}"
+    echo ""
+    echo "Copying RSA private (with putty) keys inside ISO output ..."
+    cp "${rsa_private_key}" "$(dirname "${iso_output_path}")/"
+    cp "${rsa_private_key_ppk}" "$(dirname "${iso_output_path}")/"
+    # Uploading to dropbox
+    echo ""
+    echo "Uploading ${isofile_final} into dropbox /files/${isofile_final_base_name} ..."
+    ${dbx_cli} upload "${isofile_final}" "/files"
 
-      echo "Changing permission of ${isodir_write_tmp}/preseed.cfg to own by root:root ..."
-      chown root:root ${isodir_write_tmp}/preseed.cfg
-      echo ""
-      echo "Lower the files permission from ${isodir_write_tmp}/install.amd to +w ..."
-      chmod +w -R "${isodir_write_tmp}/install.amd"
-      retval=$?
-      if [ ${retval} -ne 0 ]; then
-        _echo warning "Something is wrong when trying to lower the file permission for ${isodir_write_tmp}/install.amd to +w"
-        _exit 1
-      fi
-      echo ""
-      echo "Unzipping initrd.gz"
-      gunzip "${isodir_write_tmp}/install.amd/initrd.gz"
-      echo ""
-      echo "Inserting preseed.cfg in initrd ..."
-      echo ${isodir_write_tmp}/preseed.cfg | cpio -H newc -o -A -F "${isodir_write_tmp}/install.amd/initrd"
-      echo ""
-      ##exit 1
-      echo "Zipping initrd as initrd.gz ..."
-      gzip ${isodir_write_tmp}/install.amd/initrd
-      echo ""
-      echo "Change the folder permission of ${isodir_write_tmp}/install.amd/ to -w ..."
-      chmod -w -R ${isodir_write_tmp}/install.amd/
-      echo ""
+    echo "Creating download link ..."
+    file_direct_link=$(${dbx_cli} share "/files/${isofile_final_base_name}" | awk '{ print $4}' | sed 's/0$/1/g')
+    echo "File direct link is: ${file_direct_link}"
+    echo ""
+    echo "Creating rescue disk script ..."
+    _echo 'red' "=================================="
+    echo ""
+    echo "wget -O mini.iso \"${file_direct_link}\"" >"$(dirname "${iso_output_path}")/install.txt"
+    echo "dd if=mini.iso of=/dev/sda" >>"$(dirname "${iso_output_path}")/install.txt"
+    _echo 'green' "wget -O mini.iso \"${file_direct_link}\""
+    _echo 'green' "dd if=mini.iso of=/dev/sda"
+    _echo 'green' "mkdir /mnt/iso"
+    _echo 'green' "mount mini.iso /mnt/iso"
+    _echo 'green' "echo \"\""
+    echo ""
+    _echo 'red' "=================================="
+    echo ""
 
-      echo "Fixing md5sum checksum ..."
-      cd_to_path "${isodir_write_tmp}"
+    echo "Copying script into linode script ${SCRIPT_PATH}/dns/linode... "
+    {
+      echo "#!/bin/bash"
+      echo "wget -O mini.iso ${file_direct_link}"
+      echo "dd if=mini.iso of=/dev/sda"
+      # Need this option to reboot when reboot check
+      echo "reboot -f"
+      echo "exit 0"
+    } >"${SCRIPT_PATH}/dns/linode/rescue_write.sh"
 
-      # Alternative method:
-      #pushd ${ISODIR_WRITE}
-      #  md5sum $(find -type f) > md5sum.txt
-      #popd
+    echo "Removing working directory ..."
+    rm -rf "${isodir_write}"
 
-      # A warning will be issued because ./debian is a symlink to . :
-      # find: File system loop detected; ‘./debian’ is part of the same file system loop as ‘.’ :
-      chmod +w md5sum.txt
-      find -follow -type f ! -name md5sum.txt -print0 | xargs -0 md5sum >md5sum.txt
-      chmod -w md5sum.txt
-      echo ""
+  else
 
-      echo "Creating standalone ISO installation inside ${ISODIR_WRITE}/${isofile_final} ..."
-      xorriso -as mkisofs \
-        -isohybrid-mbr /usr/lib/ISOLINUX/isohdpfx.bin \
-        -c isolinux/boot.cat \
-        -b isolinux/isolinux.bin \
-        -no-emul-boot \
-        -boot-load-size 4 \
-        -boot-info-table \
-        -eltorito-alt-boot \
-        -e boot/grub/efi.img \
-        -no-emul-boot \
-        -isohybrid-gpt-basdat \
-        -o ${isodir_write}/${debian_name}-${debian_release}-${debian_iso_installation_type}.iso \
-        ${isodir_write_tmp}
-      echo ""
-
-      echo "Copying ${isodir_write_tmp}/boot into ${isodir_write} ..."
-      cp -rp ${isodir_write_tmp}/boot ${isodir_write}
-      echo ""
-      echo "Creating new boot installation directory at ${isodir_write}/boot/os ..."
-      mkdir -p ${isodir_write}/boot/os
-      echo ""
-      cd_to_path "${isodir_write}/boot/os"
-      echo "Downloading initrd.gz file into ${isodir_write}/boot/os ..."
-      wget -O initrd.gz ${initrd_gz_url}
-      echo ""
-      echo "Downloading vmlinuz file into ${ISODIR_WRITE}/boot/os ..."
-      wget -O vmlinuz ${vmlinuz_url}
-      echo ""
-      echo "Copying ${isodir_write_tmp}/isolinux into ${isodir_write} ..."
-      cp -rp ${isodir_write_tmp}/isolinux ${isodir_write}
-      echo ""
-
-      echo "Backing up isolinux.cfg file at ${isodir_write}/isolinux/isolinux.cfg ..."
-      mv ${isodir_write}/isolinux/isolinux.cfg ${isodir_write}/isolinux/original_isolinux.cfg
-      echo ""
-
-      echo "Creating new menu for isolinux.cfg ..."
-      {
-
-        ## Reference: https://www.alteeve.com/an-repo/files/isolinux.cfg
-        # Use high-color menu
-        echo "UI vesamenu.c32"
-        # Timeout unit is 1/10s, 100 means 10 seconds
-        echo "TIMEOUT 100"
-        echo "PROMPT 0"
-
-        echo "DEFAULT Debian - Auto Installation"
-        echo "# Console Prompt"
-        echo "say **********************************************************************"
-        echo "say Sofibox Cloud Sdn Bhd."
-        echo "say TOSP, Cyberjaya Malaysia."
-        echo "say sofibox.com, tosp.sofibox.com"
-        echo "say OPERATING SYSTEM INSTALLER"
-        echo "say Automatically booting: Debian - Auto Installation in 5 seconds ..."
-        echo "say **********************************************************************"
-
-        echo "# Allow client to edit the boot parameters"
-        echo "ALLOWOPTIONS 1"
-
-        # If don't set default would be 640x480
-        #MENU RESOLUTION 1024 768
-
-        # The background image
-        #MENU BACKGROUND pxe_splash_1024_768.jpg
-
-        echo "# Menu Title"
-        echo "MENU TITLE Sofibox - Maxisetup Rescue Mode"
-
-        echo "MENU AUTOBOOT Will boot the next device as configured in your BIOS in # second{,s}."
-        echo "MENU TABMSG   Press the <tab> key to edit the boot parameters of the highlighted option."
-        echo "MENU NOTABMSG Editing of this option is disabled."
-
-        #Color
-        echo "# Format is: MENU COLOR <Item> <ANSI Seq.> <foreground> <background> <shadow type>"
-        echo "MENU COLOR screen      0  #80ffffff #00000000 std      # background colour not covered by the splash image"
-        echo "MENU COLOR border      0  #ffffffff #ee000000 std      # The wire-frame border"
-        echo "MENU COLOR title       0  #ffff3f7f #ee000000 std      # Menu title text"
-        echo "MENU COLOR sel         0  #ff00dfdf #ee000000 std      # Selected menu option"
-        echo "MENU COLOR hotsel      0  #ff7f7fff #ee000000 std      # The selected hotkey (set with ^ in MENU LABEL)"
-        echo "MENU COLOR unsel       0  #ffffffff #ee000000 std      # Unselected menu options"
-        echo "MENU COLOR hotkey      0  #ff7f7fff #ee000000 std      # Unselected hotkeys (set with ^ in MENU LABEL)"
-        echo "MENU COLOR tabmsg      0  #c07f7fff #00000000 std      # Tab text"
-        echo "MENU COLOR timeout_msg 0  #8000dfdf #00000000 std      # Timout text"
-        echo "MENU COLOR timeout     0  #c0ff3f7f #00000000 std      # Timout counter"
-        echo "MENU COLOR disabled    0  #807f7f7f #ee000000 std      # Disabled menu options, including SEPARATORs"
-        echo "MENU COLOR cmdmark     0  #c000ffff #ee000000 std      # Command line marker - The '> ' on the left when editing an option"
-        echo "MENU COLOR cmdline     0  #c0ffffff #ee000000 std      # Command line - The text being edited"
-        echo "# Options below haven't been tested, descriptions may be lacking."
-        echo "MENU COLOR scrollbar   0  #40000000 #00000000 std      # Scroll bar"
-        echo "MENU COLOR pwdborder   0  #80ffffff #20ffffff std      # Password box wire-frame border"
-        echo "MENU COLOR pwdheader   0  #80ff8080 #20ffffff std      # Password box header"
-        echo "MENU COLOR pwdentry    0  #80ffffff #20ffffff std      # Password entry field"
-        echo "MENU COLOR help        0  #c0ffffff #00000000 std      # Help text, if set via 'TEXT HELP ... ENDTEXT'"
-
-        echo "LABEL Debian - Auto Installation"
-        echo "    MENU LABEL ^1) Auto install Debian"
-        echo "    MENU DEFAULT"
-        echo "    KERNEL /boot/os/vmlinuz"
-        #echo "important, preseed file location need to be cdrom"
-        echo "    APPEND initrd=/boot/os/initrd.gz preseed/file=/cdrom/preseed.cfg locale=${BOX_LOCALE} keymap=${BOX_KEYBOARD} language=${BOX_LANGUAGE_CODE} country=${BOX_COUNTRY_CODE} --"
-        echo "    TEXT HELP"
-        echo "    * This is an auto installation"
-        echo "    * WARNING: ALL DATA ON DISKS WILL BE OVERWRITTEN WITHOUT ANY QUESTIONS"
-        echo "    ENDTEXT"
-        echo "LABEL Debian - Manual installation"
-        echo "   MENU LABEL ^2) Manual Debian Installation"
-        echo "   KERNEL  /boot/os/vmlinuz"
-        echo "   APPEND initrd=/boot/os/initrd.gz --"
-        echo "    TEXT HELP"
-        echo "    * This is a manual installation"
-        echo "    * NOTE: USE THIS MENU IF YOU WANT TO INSTALL DEBIAN INTERACTIVELY"
-        echo "    ENDTEXT"
-        # TODO: This menu is beta
-        echo "LABEL Debian - System Backup"
-        echo "MENU LABEL ^3) Debian Full System Backup"
-        echo "   KERNEL  /boot/os/vmlinuz"
-        echo "   APPEND initrd=/boot/os/initrd.gz --"
-        echo "    TEXT HELP"
-        echo "    * This is an operating system full backup mode"
-        echo "    * NOTE: USE THIS MENU IF YOU WANT TO MAKE FULL BACKUP (TESTING)"
-        echo "    ENDTEXT"
-
-      } >${isodir_write}/isolinux/isolinux.cfg
-
-      echo "Fixing md5sum checksum in ${isodir_write_tmp} ..."
-      cp -p ${isodir_write_tmp}/md5sum.txt ${isodir_write}
-      rm -rf "${isodir_write_tmp}"
-      cd_to_path "${isodir_write}"
-
-      chmod +w md5sum.txt
-      find -follow -type f ! -name md5sum.txt -print0 | xargs -0 md5sum >md5sum.txt
-      chmod -w md5sum.txt
-      echo ""
-
-      echo "Creating the final ISO file ..."
-      xorriso -as mkisofs \
-        -isohybrid-mbr /usr/lib/ISOLINUX/isohdpfx.bin \
-        -c isolinux/boot.cat \
-        -b isolinux/isolinux.bin \
-        -no-emul-boot \
-        -boot-load-size 4 \
-        -boot-info-table \
-        -eltorito-alt-boot \
-        -e boot/grub/efi.img \
-        -no-emul-boot \
-        -isohybrid-gpt-basdat \
-        -o ${isofile_final} \
-        ${isodir_write}
-      echo ""
-      # Copying to shared folder
-      echo "Creating copy of installation disk at ${iso_output_path} ..."
-      cp "${isofile_final}" "${iso_output_path}"
-
-      # Uploading to dropbox
-      echo "Uploading ${isofile_final} into dropbox /files/${isofile_final_base_name} ..."
-      ${dbx_cli} upload "${isofile_final}" "/files"
-
-      echo "Creating download link ..."
-      file_direct_link=$(${dbx_cli} share "/files/${isofile_final_base_name}" | awk '{ print $4}' | sed 's/0$/1/g')
-      echo "File direct link is: ${file_direct_link}"
-      _echo "$(msg newline)" --plain
-      echo "Creating rescue disk script ..."
-      _echo "$(msg red)==================================$(msg end)" --plain
-      _echo "$(msg newline)" --plain
-      echo "wget -O mini.iso \"${file_direct_link}\"" >"$(dirname "${iso_output_path}")/install.txt"
-      echo "dd if=mini.iso of=/dev/sda" >>"$(dirname "${iso_output_path}")/install.txt"
-      _echo "$(msg green)wget -O mini.iso \"${file_direct_link}\"$(msg end)" --plain
-      _echo "$(msg green)dd if=mini.iso of=/dev/sda$(msg end)" --plain
-      _echo "$(msg green)mkdir /mnt/iso$(msg end)" --plain
-      _echo "$(msg green)mount mini.iso /mnt/iso$(msg end)" --plain
-      _echo "$(msg green)echo \"\"$(msg end)" --plain
-      _echo "$(msg newline)" --plain
-      _echo "$(msg red)==================================$(msg end)" --plain
-      _echo "$(msg newline)" --plain
-
-      echo "Copying script into linode script ${SCRIPT_PATH}/dns/linode... "
-      {
-        echo "#!/bin/bash"
-        echo "wget -O mini.iso ${file_direct_link}"
-        echo "dd if=mini.iso of=/dev/sda"
-        # This is needed to force reboot especially for rescue mode.
-        echo "reboot -f"
-        echo "exit 0"
-      } >"${SCRIPT_PATH}/dns/linode/os_write.sh"
-
-      echo ""
-      echo "Removing working directory ..."
-      rm -rf "${isodir_write}"
-      echo ""
-      echo "Removing preseed file ..."
-      rm -rf "${preseed_file}"
-
-      # My custom method
-    else
-      echo "Uknown method, not yet implement"
-    fi
-
+    _echo "$(msg red)Error, unknown action passed for iso_api ${action}$(msg end)" --name --verbose 3
+    _exit 147
   fi
 
 }
@@ -3596,7 +3942,7 @@ function linode_api_admin() {
       fi
 
     fi
-  #linode_api_admin wait_linode_status --linode-label=test.server.com --until-status running
+  #linode_api_admin wait-linode-status --linode-label test.server.com --until-status running
   elif [[ "${action}" == "wait-linode-status" ]]; then
     local linode_id linode_status
     # Wait 2 seconds for the status to be new
@@ -3611,8 +3957,13 @@ function linode_api_admin() {
       _echo "$(msg cyan)Waiting for linode ${linode_label} to have running status ...$(msg cyan)" --name
       linode_status=$(${LINODE_CLI_BIN} linodes view "${linode_id}" --json --pretty | ${JQ_BIN} -r ".[] | .status")
       if [[ "${linode_status}" == "running" ]]; then
+
+        # TODO here this might have bug,, test uncomment below later
         _echo "$(msg red)Error linode ${linode_label} is already in running mode$(msg cyan)" --name --verbose 3
         _exit 1
+        # or force to shutdown with this if it does not work:
+
+        #ssh -o "StrictHostKeyChecking no" -i /root/.ssh/linode_lish.id_rsa -tt "${DNS_PROVIDER_USER}@${DNS_PROVIDER_TERMINAL_SERVER}" "${BOX_HOSTNAME_FQDN}" /dev/null <"${SCRIPT_PATH}/dns/linode/shutdown_command.sh" 2>&1 &
       else
         while :; do
           linode_status=$(${LINODE_CLI_BIN} linodes view "${linode_id}" --json --pretty | ${JQ_BIN} -r ".[] | .status")
@@ -5339,7 +5690,7 @@ function setup_pre() {
 # Get the latest scripts from private repo (need to have private token defined in config)
 # This private repo contains lots of security scripts for Linux (c) by Arafat Ali (aka MaXi32)
 # can re-run this to re-clone (update latest codes)
-get_latest_maxisetup() {
+get_latest_maxinet() {
   local option executed_function run
   option="$1"
   run="no"
@@ -5382,10 +5733,10 @@ get_latest_maxisetup() {
     chmod +x "${HOME}/.git-askpass"
     export GIT_ASKPASS="${HOME}/.git-askpass"
     cd_to_path "${DATA_PATH}"
-    echo "[${SCRIPT_NAME}]: Removing existing maxisetup repository ..." 2>&1 | tee -a "${REPORT_FILE}"
+    echo "[${SCRIPT_NAME}]: Removing existing ${SCRIPT_NAME} repository ..." 2>&1 | tee -a "${REPORT_FILE}"
     # remove existing setup
-    rm -rf "${DATA_PATH}/maxisetup"
-    echo "[${SCRIPT_NAME}]: Cloning new maxisetup repository ..." 2>&1 | tee -a "${REPORT_FILE}"
+    rm -rf "${DATA_PATH}/maxinet"
+    echo "[${SCRIPT_NAME}]: Cloning new ${SCRIPT_NAME} repository ..." 2>&1 | tee -a "${REPORT_FILE}"
     echo "=~=~=~=~=~=~=~"
     git clone "${SETUP_GIT_URL}" 2>&1 | tee -a "${REPORT_FILE}"
     echo "=~=~=~=~=~=~=~"
@@ -5618,10 +5969,10 @@ function init_local_maxicode() {
     echo "[${SCRIPT_NAME}]: Executing ${FUNCNAME[0]} ..." 2>&1 | tee -a "${REPORT_FILE}"
     echo "[${SCRIPT_NAME}]: Copying maxicode scripts into /usr/local/maxicode ..." 2>&1 | tee -a "${REPORT_FILE}"
     sleep 1
-    cp -r "${DATA_PATH}/maxisetup/storage/os/${DISTRO_ID}/usr/local/maxicode" /usr/local/
+    cp -r "${DATA_PATH}/maxinet/storage/os/${DISTRO_ID}/usr/local/maxicode" /usr/local/
     # TODO add maxicode folder to /usr/local/maxicode
-    # Make sure maxisetup is binary executable (link that on startup)
-    # run maxisetup --init-maxicode in order to get the latest version of binary from maxicode.
+    # Make sure maxinet is binary executable (link that on startup)
+    # run maxinet --init-maxicode in order to get the latest version of binary from maxicode.
     # make sure IDE use this maxicode directly from that private repo, so box will be always up to date
 
     check_finish_reboot "${FUNCNAME[0]}"
@@ -5657,14 +6008,14 @@ function configure_net() {
     echo "[${SCRIPT_NAME}]: Executing ${FUNCNAME[0]} ..." 2>&1 | tee -a "${REPORT_FILE}"
     local current_lan grub_count
     # Download this from git better
-    if [ -d "${DATA_PATH}/maxisetup" ]; then
+    if [ -d "${DATA_PATH}/maxinet" ]; then
       # This is bind or bind setting called named.conf. If we put this first in /etc, when install bind it will use this setting
       # Bind setting is the same config for centos, debian
-      echo "[${SCRIPT_NAME}]: Copying modified named.conf from maxisetup to /etc/named.conf ..." 2>&1 | tee -a "${REPORT_FILE}"
-      cp "${DATA_PATH}/maxisetup/storage/os/${DISTRO_ID}/etc/named.conf" /etc/named.conf
+      echo "[${SCRIPT_NAME}]: Copying modified named.conf from maxinet to /etc/named.conf ..." 2>&1 | tee -a "${REPORT_FILE}"
+      cp "${DATA_PATH}/maxinet/storage/os/${DISTRO_ID}/etc/named.conf" /etc/named.conf
     else
       # This is weird error and should exit
-      echo "[${SCRIPT_NAME}]: Warning no file named.conf found in maxisetup folder. Check maxisetup clone folder." 2>&1 | tee -a "${REPORT_FILE}"
+      echo "[${SCRIPT_NAME}]: Warning no file named.conf found in maxinet folder. Check maxinet clone folder." 2>&1 | tee -a "${REPORT_FILE}"
       _exit 147
     fi
     echo "[${SCRIPT_NAME}]: Configuring DA system email ..." 2>&1 | tee -a "${REPORT_FILE}"
@@ -6055,7 +6406,7 @@ function configure_fstab() {
       } >/etc/fstab
       check_finish_reboot "${FUNCNAME[0]}"
     else
-      echo "[${SCRIPT_NAME}]: [Skipped]: Warning, disk encryption is not set in maxisetup.conf" 2>&1 | tee -a "${REPORT_FILE}"
+      echo "[${SCRIPT_NAME}]: [Skipped]: Warning, disk encryption is not set in maxinet.conf" 2>&1 | tee -a "${REPORT_FILE}"
       echo "=~=~=~=~=~=~=~=~=~" 2>&1 | tee -a "${REPORT_FILE}"
     fi
   else
@@ -6446,7 +6797,7 @@ configure_csf() {
           sleep 2
           #wget http://files.directadmin.com/services/all/csf/csf_install.sh 2>&1 | tee -a "${REPORT_FILE}"
           cd_to_path "${INST_TEMP_DIR}"
-          cp "${DATA_PATH}/maxisetup/storage/os/${DISTRO_ID}/usr/local/directadmin/install_scripts/csf_install.sh" "${INST_TEMP_DIR}/csf_install.sh"
+          cp "${DATA_PATH}/maxinet/storage/os/${DISTRO_ID}/usr/local/directadmin/install_scripts/csf_install.sh" "${INST_TEMP_DIR}/csf_install.sh"
           chmod +x csf_install.sh
           /bin/sh ./csf_install.sh 2>&1 | tee -a "${REPORT_FILE}"
         fi
@@ -6555,7 +6906,7 @@ configure_csf() {
         useradd csf -s /bin/false 2>&1 | tee -a "${REPORT_FILE}"
         echo "[${SCRIPT_NAME}]: Setting up CSF firewall blacklist template ..." 2>&1 | tee -a "${REPORT_FILE}"
         mkdir -p /usr/local/directadmin/data/templates/custom
-        bl_ip_html_source="${DATA_PATH}/maxisetup/storage/os/${DISTRO_ID}/usr/local/directadmin/data/templates/custom/blacklisted_ip.html"
+        bl_ip_html_source="${DATA_PATH}/maxinet/storage/os/${DISTRO_ID}/usr/local/directadmin/data/templates/custom/blacklisted_ip.html"
         bl_ip_html_dest="/usr/local/directadmin/data/templates/custom/blacklisted_ip.html"
         cp -r "${bl_ip_html_source}" "${bl_ip_html_dest}"
         chmod 644 "${bl_ip_html_dest}"
@@ -6565,7 +6916,7 @@ configure_csf() {
         echo "-----------------" 2>&1 | tee -a "${REPORT_FILE}"
         grep ^TCP_IN /etc/csf/csf.conf 2>&1 | tee -a "${REPORT_FILE}"
         echo "" 2>&1 | tee -a "${REPORT_FILE}"
-        echo "If you do NOT see the port listed, press ctrl-c to immediately abort the script (you can add port missing port in maxisetup.conf), then re-run this setup" 2>&1 | tee -a "${REPORT_FILE}"
+        echo "If you do NOT see the port listed, press ctrl-c to immediately abort the script (you can add port missing port in maxinet.conf), then re-run this setup" 2>&1 | tee -a "${REPORT_FILE}"
         echo "If you DO, the port correctly added, press enter to continue" 2>&1 | tee -a "${REPORT_FILE}"
         _pause 60
         if [ "${DISTRO_ID}" == "centos" ]; then
@@ -6670,16 +7021,16 @@ function install_da_pre() {
         echo "[${SCRIPT_NAME}]: Error, unknown value for distribution ID ${DISTRO_ID}" 2>&1 | tee -a "${REPORT_FILE}"
         _exit 147
       fi
-      if [ -d "${DATA_PATH}/maxisetup" ]; then
+      if [ -d "${DATA_PATH}/maxinet" ]; then
         echo "[${SCRIPT_NAME}]: Copying Custombuild options.conf ..." 2>&1 | tee -a "${REPORT_FILE}"
-        cp "${DATA_PATH}/maxisetup/storage/os/${DISTRO_ID}/usr/local/directadmin/custombuild/options.conf" "/usr/local/directadmin/custombuild/options.conf"
+        cp "${DATA_PATH}/maxinet/storage/os/${DISTRO_ID}/usr/local/directadmin/custombuild/options.conf" "/usr/local/directadmin/custombuild/options.conf"
         sed -i "s|^redirect_host=.*|redirect_host=${BOX_HOSTNAME_FQDN}|" /usr/local/directadmin/custombuild/options.conf
         sed -i "s|^email=.*|email=${ADMIN_EMAIL}|" /usr/local/directadmin/custombuild/options.conf
         sed -i "s|^php_timezone=.*|php_timezone=${BOX_TIMEZONE}|" /usr/local/directadmin/custombuild/options.conf
         echo "[${SCRIPT_NAME}]: Copying Custombuild php_extensions.conf..." 2>&1 | tee -a "${REPORT_FILE}"
-        cp "${DATA_PATH}/maxisetup/storage/os/${DISTRO_ID}/usr/local/directadmin/custombuild/php_extensions.conf" /usr/local/directadmin/custombuild/php_extensions.conf
+        cp "${DATA_PATH}/maxinet/storage/os/${DISTRO_ID}/usr/local/directadmin/custombuild/php_extensions.conf" /usr/local/directadmin/custombuild/php_extensions.conf
       else
-        echo "[${SCRIPT_NAME}]: Error, directory not exist. Check maxisetup clone folder." 2>&1 | tee -a "${REPORT_FILE}"
+        echo "[${SCRIPT_NAME}]: Error, directory not exist. Check maxinet clone folder." 2>&1 | tee -a "${REPORT_FILE}"
         _exit 147 #Just exit because this is weird error if this folder is missing
       fi
     elif [ "${DA_INSTALL_TYPE}" == "ori" ]; then
@@ -7489,10 +7840,10 @@ function configure_da_sql() {
     replace_pma_authtype="\$cfg['Servers'][\$i]['auth_type'] = 'cookie';"
     sed -i "s/\$cfg\['Servers'\]\[\$i\]\['auth_type'\] = 'http';/${replace_pma_authtype}/" /var/www/html/phpMyAdmin/config.inc.php
 
-    # For custom phpMyAdmin theme (not using theme yet). Theme we must get it from maxisetup
+    # For custom phpMyAdmin theme (not using theme yet). Theme we must get it from maxinet
     #echo "[${SCRIPT_NAME}]: Setting up phpMyAdmin custom themes ..." 2>&1 | tee -a "${REPORT_FILE}"
     #sleep 1
-    #cp -p "phpMyAdmin_theme_from_maxisetup_called_sofibox" into "/var/www/html/phpMyAdmin/themes/sofibox"
+    #cp -p "phpMyAdmin_theme_from_maxinet_called_sofibox" into "/var/www/html/phpMyAdmin/themes/sofibox"
     # Temporarily no theme yet. In the future put theme here
     # And all the themes must have this permissions:
     #chmod 644 for files, chmod 755 for folders
@@ -7901,7 +8252,7 @@ function configure_web_apps_html() {
   fi
   if [[ ! -f "${CONF_PATH}/${FUNCNAME[0]}_executed" && "${run}" == "yes" ]]; then
     echo "[${SCRIPT_NAME}]: Executing ${FUNCNAME[0]} ..." 2>&1 | tee -a "${REPORT_FILE}"
-    # TODO copy that webapps here (it should from maxisetup)
+    # TODO copy that webapps here (it should from maxinet)
     cat /dev/null >/var/www/html/index.php
     {
       echo "<? php"
@@ -8238,7 +8589,7 @@ function configure_maxicode() {
     fi
 
     # 1) Install aide and copy maxiaide files (make sure it works)
-    # 2) Install rsync and copy maxisetup files (make sure it works)
+    # 2) Install rsync and copy maxinet files (make sure it works)
     # 3) Install suricata and copy maxiwall files (make sure it works)
     # 4) Copy maxicbuild
 
@@ -8420,11 +8771,11 @@ function configure_maxigpg() {
       _exit 147
     fi
     if [ "${GPG_USE_EXISTING_KEY}" == "yes" ]; then
-      gpg_priv_key_encrypted="${DATA_PATH}/maxisetup/storage/os/debian/usr/local/maxisecure/gpg/keys/priv.key.gpg"
-      gpg_priv_key="${DATA_PATH}/maxisetup/storage/os/debian/usr/local/maxisecure/gpg/keys/priv.key"
+      gpg_priv_key_encrypted="${DATA_PATH}/maxinet/storage/os/debian/usr/local/maxisecure/gpg/keys/priv.key.gpg"
+      gpg_priv_key="${DATA_PATH}/maxinet/storage/os/debian/usr/local/maxisecure/gpg/keys/priv.key"
       rm -f "${gpg_priv_key}"
       gpg --pinentry-mode=loopback --passphrase "${GPG_PASSPHRASE}" -d -o "${gpg_priv_key}" "${gpg_priv_key_encrypted}"
-      echo "[${SCRIPT_NAME}]: Importing existing gpg-agent key from maxisetup ..." 2>&1 | tee -a "${REPORT_FILE}"
+      echo "[${SCRIPT_NAME}]: Importing existing gpg-agent key from maxinet ..." 2>&1 | tee -a "${REPORT_FILE}"
       gpg --pinentry-mode=loopback --passphrase "${GPG_PASSPHRASE}" --import "${gpg_priv_key}"
       ret_val=$?
       if [ ${ret_val} = 0 ]; then
@@ -8877,19 +9228,19 @@ function configure_maxiwall() {
 
     #echo "[${SCRIPT_NAME}]: Copying suricata.yaml configuration file template into ${suricata_conf} ..." 2>&1 | tee -a "${REPORT_FILE}"
     #sleep 1
-    #cp "${DATA_PATH}/maxisetup/storage/os/${DISTRO_ID}/usr/local/maxicode/maxiwall/code/etc/suricata/suricata.yaml" "${suricata_conf}"
+    #cp "${DATA_PATH}/maxinet/storage/os/${DISTRO_ID}/usr/local/maxicode/maxiwall/code/etc/suricata/suricata.yaml" "${suricata_conf}"
 
     #echo "[${SCRIPT_NAME}]: Copying maxiwall.lua into /etc/suricata/lua-output ..." 2>&1 | tee -a "${REPORT_FILE}"
     #mkdir -p /etc/suricata/lua-output
     #sleep 1
 
-    #cp "${DATA_PATH}/maxisetup/storage/os/${DISTRO_ID}/usr/local/maxicode/maxiwall/code/etc/suricata/lua-output/maxiwall.lua" "/etc/suricata/lua-output/maxiwall.lua"
+    #cp "${DATA_PATH}/maxinet/storage/os/${DISTRO_ID}/usr/local/maxicode/maxiwall/code/etc/suricata/lua-output/maxiwall.lua" "/etc/suricata/lua-output/maxiwall.lua"
     #chmod +x "/etc/suricata/lua-output/maxiwall.lua"
 
     #echo "[${SCRIPT_NAME}]: Copying maxiwall-http.lua into /etc/suricata/lua-output ..." 2>&1 | tee -a "${REPORT_FILE}"
     #mkdir -p /etc/suricata/lua-output
     #sleep 1
-    #cp "${DATA_PATH}/maxisetup/storage/os/${DISTRO_ID}/usr/local/maxicode/maxiwall/code/etc/suricata/lua-output/maxiwall-http.lua" "/etc/suricata/lua-output/maxiwall-http.lua"
+    #cp "${DATA_PATH}/maxinet/storage/os/${DISTRO_ID}/usr/local/maxicode/maxiwall/code/etc/suricata/lua-output/maxiwall-http.lua" "/etc/suricata/lua-output/maxiwall-http.lua"
     #chmod +x "/etc/suricata/lua-output/maxiwall-http.lua"
 
     #echo "[${SCRIPT_NAME}]: Starting suricata ... " 2>&1 | tee -a "${REPORT_FILE}"
@@ -8928,7 +9279,7 @@ function configure_maxiwall() {
       _exit 147
     fi
 
-    # Writing a new maxiwall.conf file (all sensitive variables should be declared in maxisetup.conf and pass here)
+    # Writing a new maxiwall.conf file (all sensitive variables should be declared in maxinet.conf and pass here)
     echo "[${SCRIPT_NAME}]: Writing new maxiwall.conf file ..." 2>&1 | tee -a "${REPORT_FILE}"
     sleep 1
     {
@@ -9210,7 +9561,7 @@ function configure_da_memcached() {
     echo "[${SCRIPT_NAME}]: Installing memcached for php-extension using Poralix script ..." 2>&1 | tee -a "${REPORT_FILE}"
     sleep 1
     cd_to_path "${INST_TEMP_DIR}"
-    cp "${DATA_PATH}/maxisetup/storage/os/${DISTRO_ID}/usr/local/directadmin/install_scripts/php_extension.sh" "${INST_TEMP_DIR}/php_extension.sh"
+    cp "${DATA_PATH}/maxinet/storage/os/${DISTRO_ID}/usr/local/directadmin/install_scripts/php_extension.sh" "${INST_TEMP_DIR}/php_extension.sh"
     chmod +x php_extension.sh
     # This one just checking not verifying, so whether exist or not we just execute install
     echo "[${SCRIPT_NAME}]: Checking existing php-memcached installation ..." 2>&1 | tee -a "${REPORT_FILE}"
@@ -9259,7 +9610,7 @@ function configure_da_geoip() {
     echo "[${SCRIPT_NAME}]: Installing geoip for php-extension using Poralix script ..." 2>&1 | tee -a "${REPORT_FILE}"
     sleep 1
     cd_to_path "${INST_TEMP_DIR}"
-    cp "${DATA_PATH}/maxisetup/storage/os/${DISTRO_ID}/usr/local/directadmin/install_scripts/php_extension.sh" "${INST_TEMP_DIR}/php_extension.sh"
+    cp "${DATA_PATH}/maxinet/storage/os/${DISTRO_ID}/usr/local/directadmin/install_scripts/php_extension.sh" "${INST_TEMP_DIR}/php_extension.sh"
     chmod +x php_extension.sh
     # This one just checking not verifying, so whether exist or not we just execute install
     echo "[${SCRIPT_NAME}]: Checking existing php-geoip installation ..." 2>&1 | tee -a "${REPORT_FILE}"
@@ -9400,12 +9751,12 @@ function configure_da_owner_skins() {
     # There is no official documentation how to upload a directadmin logo using API.
     # Da needs this home temporary folder to hold upload file
     mkdir -p /home/tmp
-    default_logo_file="${DATA_PATH}/maxisetup/storage/os/${DISTRO_ID}/usr/local/directadmin/logo/default_logo.png"
+    default_logo_file="${DATA_PATH}/maxinet/storage/os/${DISTRO_ID}/usr/local/directadmin/logo/default_logo.png"
     # The upload file need to have random string append to it else it won't work:
     # https://forum.directadmin.com/threads/cmd_api_skins-upload-skin-logo-via-curl-issue.63127/
     # I use random length of 6 because I saw DA always generated length of 6 when append this random string to a file
     default_logo_file_home="/home/tmp/logo.png$(get_rnd_alpha 6)"
-    dark_mode_logo_file="${DATA_PATH}/maxisetup/storage/os/${DISTRO_ID}/usr/local/directadmin/logo/dark_mode_logo.png"
+    dark_mode_logo_file="${DATA_PATH}/maxinet/storage/os/${DISTRO_ID}/usr/local/directadmin/logo/dark_mode_logo.png"
     dark_mode_logo_file_home="/home/tmp/logo2.png$(get_rnd_alpha 6)"
 
     # Copy the logo files from storage data to the temporary home directory
@@ -9478,12 +9829,12 @@ function configure_da_admin_skins() {
     # There is no official documentation how to upload a directadmin logo using API.
     # Da needs this home temporary folder to hold upload file
     mkdir -p /home/tmp
-    default_logo_file="${DATA_PATH}/maxisetup/storage/os/${DISTRO_ID}/usr/local/directadmin/logo/default_logo.png"
+    default_logo_file="${DATA_PATH}/maxinet/storage/os/${DISTRO_ID}/usr/local/directadmin/logo/default_logo.png"
     # The upload file need to have random string append to it else it won't work:
     # https://forum.directadmin.com/threads/cmd_api_skins-upload-skin-logo-via-curl-issue.63127/
     # I use random length of 6 because I saw DA always generated length of 6 when append this random string to a file
     default_logo_file_home="/home/tmp/logo.png$(get_rnd_alpha 6)"
-    dark_mode_logo_file="${DATA_PATH}/maxisetup/storage/os/${DISTRO_ID}/usr/local/directadmin/logo/dark_mode_logo.png"
+    dark_mode_logo_file="${DATA_PATH}/maxinet/storage/os/${DISTRO_ID}/usr/local/directadmin/logo/dark_mode_logo.png"
     dark_mode_logo_file_home="/home/tmp/logo2.png$(get_rnd_alpha 6)"
 
     # Copy the logo files from storage data to the temporary home directory
@@ -9553,12 +9904,12 @@ function configure_da_reseller_skins() {
     # There is no official documentation how to upload a directadmin logo using API.
     # Da needs this home temporary folder to hold upload file
     mkdir -p /home/tmp
-    default_logo_file="${DATA_PATH}/maxisetup/storage/os/${DISTRO_ID}/usr/local/directadmin/logo/default_logo.png"
+    default_logo_file="${DATA_PATH}/maxinet/storage/os/${DISTRO_ID}/usr/local/directadmin/logo/default_logo.png"
     # The upload file need to have random string append to it else it won't work:
     # https://forum.directadmin.com/threads/cmd_api_skins-upload-skin-logo-via-curl-issue.63127/
     # I use random length of 6 because I saw DA always generated length of 6 when append this random string to a file
     default_logo_file_home="/home/tmp/logo.png$(get_rnd_alpha 6)"
-    dark_mode_logo_file="${DATA_PATH}/maxisetup/storage/os/${DISTRO_ID}/usr/local/directadmin/logo/dark_mode_logo.png"
+    dark_mode_logo_file="${DATA_PATH}/maxinet/storage/os/${DISTRO_ID}/usr/local/directadmin/logo/dark_mode_logo.png"
     dark_mode_logo_file_home="/home/tmp/logo2.png$(get_rnd_alpha 6)"
 
     # Copy the logo files from storage data to the temporary home directory
@@ -12427,13 +12778,13 @@ function configure_da_custom_webs() {
     echo "[${SCRIPT_NAME}]: Executing ${FUNCNAME[0]} ..." 2>&1 | tee -a "${REPORT_FILE}"
     if [ "${ENABLE_CUSTOM_WEB_SETUP}" == "yes" ]; then
       local websetup_bin
-      websetup_bin="${DATA_PATH}/maxisetup/storage/webapps/websetup"
+      websetup_bin="${DATA_PATH}/maxinet/storage/webapps/websetup"
       if [ -f "${websetup_bin}" ]; then
         chmod +x "${websetup_bin}"
-        cd_to_path "${DATA_PATH}/maxisetup/storage/webapps"
+        cd_to_path "${DATA_PATH}/maxinet/storage/webapps"
         ./websetup
       else
-        echo "[${SCRIPT_NAME}]: Unable to find websetup script at maxisetup data storage" 2>&1 | tee -a "${REPORT_FILE}"
+        echo "[${SCRIPT_NAME}]: Unable to find websetup script at maxinet data storage" 2>&1 | tee -a "${REPORT_FILE}"
         _exit 147
       fi
     else
@@ -12594,13 +12945,16 @@ test1() {
 # End of function
 
 # -------------- MAIN FUNCTION --------------#
-# Obtain current running script name. eg: maxisetup
+# Obtain current running script name. eg: maxinet
 SCRIPT_NAME=$(basename -- "$0")
 # Obtain current script path location eg: /root/execute/
 SCRIPT_PATH="$(dirname "$(readlink -f "$0")")"
 
 # Define date location to be executed eg: /usr/bin/date
 DATE_BIN=$(command -v date)
+
+# Location of an isoinfo
+ISOINFO_BIN=$(command -v isoinfo)
 
 if [ -z "${DATE_BIN}" ]; then
   # If binary for date is empty (does not exist),
@@ -12614,6 +12968,8 @@ LOG_PATH="${SCRIPT_PATH}/log"
 CONF_PATH="${SCRIPT_PATH}/conf"
 DATA_PATH="${SCRIPT_PATH}/data"
 CODE_PATH="${SCRIPT_PATH}/code"
+ISO_PATH="${SCRIPT_PATH}/iso"
+SECURE_PATH="${SCRIPT_PATH}/secure"
 TEMP_PATH="${SCRIPT_PATH}/temp"
 INST_TEMP_DIR="${TEMP_PATH}/src"
 
@@ -12622,6 +12978,8 @@ mkdir -p "${LOG_PATH}"
 mkdir -p "${CONF_PATH}"
 mkdir -p "${DATA_PATH}"
 mkdir -p "${CODE_PATH}"
+mkdir -p "${ISO_PATH}"
+mkdir -p "${SECURE_PATH}"
 mkdir -p "${TEMP_PATH}"
 mkdir -p "${INST_TEMP_DIR}"
 
@@ -12649,10 +13007,10 @@ DATE_TIME_RANDSTR="$(${DATE_BIN} '+%d-%m-%Y_%H-%M-%S').${RANDOM}"
 DATE_TIME_NOW="$(date '+%d-%m-%Y_%H-%M-%S')"
 
 if [[ "${USE_MULTI_LOG_FILE}" == "yes" ]]; then
-  # set to use multiple log files with different random date. eg: maxisetup-31-03-2020_11-56-16.12345-report.log
+  # set to use multiple log files with different random date. eg: maxinet-31-03-2020_11-56-16.12345-report.log
   REPORT_FILE="${LOG_PATH}/${SCRIPT_NAME}-${DATE_TIME_RANDSTR}-report.log"
 else
-  # set to use one log file with only one name. eg: maxisetup-report.log
+  # set to use one log file with only one name. eg: maxinet-report.log
   REPORT_FILE="${LOG_PATH}/${SCRIPT_NAME}-report.log"
 fi
 
@@ -12755,8 +13113,8 @@ while [ "$#" -gt 0 ]; do
     shift
     break
     ;;
-    #./maxisetup --setup remote - For remote setup
-  #./maxisetup --setup - For local setup
+    #./maxinet --setup remote - For remote setup
+  #./maxinet --setup - For local setup
   -setup | --setup)
     shift
     script_header
@@ -12795,7 +13153,7 @@ while [ "$#" -gt 0 ]; do
     #fi
     echo "Remember you can always resume installation with (--help for more information):"
     echo "For local installation: ${SCRIPT_NAME} --setup"
-    echo "For remote installation: ${SCRIPT_NAME} --ssh-login \"${BOX_HOSTNAME_FQDN}:${SSH_PORT}\" \"root:${ROOT_USERNAME}\" \"${SCRIPT_PATH}/maxisetup_ssh.sh\""
+    echo "For remote installation: ${SCRIPT_NAME} --ssh-login \"${BOX_HOSTNAME_FQDN}:${SSH_PORT}\" \"root:${ROOT_USERNAME}\" \"${SCRIPT_PATH}/maxinet_ssh.sh\""
     echo "To login as root user: ${SCRIPT_NAME} --ssh-login \"${BOX_HOSTNAME_FQDN}:${SSH_PORT}\" \"user:root\""
     echo "To login as SSH user: ${SCRIPT_NAME} --ssh-login \"${BOX_HOSTNAME_FQDN}:${SSH_PORT}\" \"root:SSH_USERNAME\""
     echo "To unlock LUKS Disk encryption: ${SCRIPT_NAME} --ssh-luks-unlock ${DROP_BEAR_PORT} \"<LUKS_PASS>\""
@@ -12823,7 +13181,7 @@ while [ "$#" -gt 0 ]; do
     setup_pre --run
     #exit 147
     # Clone all setup script (recommend to run as --run-force)
-    get_latest_maxisetup --run-force
+    get_latest_maxinet --run-force
     # Get the latest security codes from maxicode (recommend to run as --run-force)
     init_local_maxicode --run-force
     # Hardening server
@@ -12971,13 +13329,13 @@ while [ "$#" -gt 0 ]; do
     ;;
   # This option is the starting point for initializing server.
   # It will setup disk from scratch (eg: from linode), call necessary functions and you will get secured server
-  # maxisetup --init-server <options>
+  # maxinet --init-server <options>
   # Deprecated documentation below (update later):
-  # maxisetup --init-server optional <init-all> optional <rebuild-iso>
+  # maxinet --init-server optional <init-all> optional <rebuild-iso>
   # Note 1: Only use init-all to remove and start re-creating all partitions
-  # Note 2: If you run like this maxisetup --init-server init-all
+  # Note 2: If you run like this maxinet --init-server init-all
   #   :This will remove all existing partitions including rescue disk and profile. No rescue disk and profile is created
-  # Note3: If you run like this (without argument): maxisetup --init-server
+  # Note3: If you run like this (without argument): maxinet --init-server
   #   :This will remove and re-create system related partitions. It will not disturb the rescue option
   -is | --init-server)
     shift
@@ -12987,7 +13345,7 @@ while [ "$#" -gt 0 ]; do
     break
     ;;
   # Test or user linode API here
-  # eg: maxisetup --linode-api "get-linode-id" "sun.sofibox.com"
+  # eg: maxinet --linode-api "get-linode-id" "sun.sofibox.com"
   -la | --linode-api | --linode_api | --linode)
     shift
     linode_api_admin "$@"
@@ -13037,7 +13395,7 @@ ENDSSH
     exit 0
     break
     ;;
-    # ./maxisetup --ssh-login <optional_hostname> <optional_port> <optional_user>
+    # ./maxinet --ssh-login <optional_hostname> <optional_port> <optional_user>
   # If hostname or port are not provided, they will use the default ones from config file
   -sshl | --ssh-login)
     shift
@@ -13081,17 +13439,16 @@ ENDSSH
     exit 0
     break
     ;;
-  -cri | --create-rescue-iso | --build-rescue-iso)
+  --dropbox-api | --dropbox-api-admin | --dropbox)
     shift
-    create_rescue_iso "$@"
+    dropbox_api "$@"
     exit 0
     break
     ;;
-
   # This will generate a modified operating system ISO file that can be used to automatically install OS when booting.
-  -ci | --create-iso | --build-iso | --preseediso)
+  --iso-api | --iso-api-admin)
     shift
-    create_os_iso "$@"
+    iso_api "$@"
     exit 0
     break
     ;;
@@ -13116,6 +13473,12 @@ ENDSSH
     break
     ;;
   -t | --test)
+    ssh_api copy-public-keys --without-prompt
+    exit 1
+    ssh_api get-prikey --groupname test --username onar --servername mars.satu.com
+    exit 1
+    ssh_api create-key --groupname test --username onar --comment oklah --servername mars.satu.com
+    exit 1
     #linode_api_admin "create-config" --linode-label "${BOX_HOSTNAME_FQDN}" \
     #--linode-config-label "Boot_Config" --linode-config-comments "The installer boot configuration" --linode-config-virtual-mode "paravirt" \
     #--linode-config-kernel "linode/direct-disk" --linode-config-runlevel "default" --linode-config-memory-limit "4096" --linode-config-rootdev "/dev/sda" \
@@ -13225,11 +13588,10 @@ ENDSSH
     # _echo "Test with path and no color" --report "/root/testlog.log"
     exit 147
     shift
-    # ssh_transfer "${BOX_HOSTNAME_FQDN}:${SSH_PORT}" "root:${ROOT_USERNAME}" "maxisetup maxisetup.conf" ~/
-    ssh_login "${BOX_HOSTNAME_FQDN}:${SSH_PORT}" "root:${ROOT_USERNAME}" "${SCRIPT_PATH}/maxisetup_ssh.sh"
-    #ssh_login "sun.sofibox.com":"893" "rescue:root"
-    #ssh_key_manager "create-key" "admin" "test1" "comment1"
-    #ssh_key_manager "get-public-key" "admin" "test1"
+    # ssh_transfer "${BOX_HOSTNAME_FQDN}:${SSH_PORT}" "root:${ROOT_USERNAME}" "maxinet maxinet.conf" ~/
+    ssh_login "${BOX_HOSTNAME_FQDN}:${SSH_PORT}" "root:${ROOT_USERNAME}" "${SCRIPT_PATH}/maxinet_ssh.sh"
+    #ssh_api "create-key" "admin" "test1" "comment1"
+    #ssh_api "get-pubkey" "admin" "test1"
     #exit 147
     #ssh_login sun.sofibox.com 899 rescue "${SCRIPT_PATH}/dns/linode/test.sh"
     #echo >/root/.ssh/known_hosts

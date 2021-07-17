@@ -4,7 +4,7 @@
 # For Debian & Ubuntu
 
 SCRIPT_PATH="$(dirname "$(readlink -f "$0")")"
-SETUP_GIT_URL="https://token@github.com/sofibox/maxisetup.git"
+SETUP_GIT_URL="https://token@github.com/sofibox/maxinet.git"
 GIT_TOKEN="YOUR-GIT-TOKEN-KEY"
 GIT_TOKEN_ARG="$1"
 if [[ -n "${GIT_TOKEN_ARG}" ]]; then
@@ -35,17 +35,17 @@ echo "#!/bin/bash" >>"${SCRIPT_PATH}/download/.git-askpass"
 echo "echo ${GIT_TOKEN}" >>"${SCRIPT_PATH}/download/.git-askpass"
 chmod +x "${SCRIPT_PATH}/download/.git-askpass"
 export GIT_ASKPASS="${SCRIPT_PATH}/download/.git-askpass"
-echo "Removing existing maxisetup repository ..."
+echo "Removing existing maxinet repository ..."
 
 
 # remove existing clone
-rm -rf "${SCRIPT_PATH}/download/maxisetup"
-echo "Cloning new maxisetup repository ..."
+rm -rf "${SCRIPT_PATH}/download/maxinet"
+echo "Cloning new maxinet repository ..."
 echo "=~=~=~=~=~=~=~"
 git clone "${SETUP_GIT_URL}" --progress
 echo "=~=~=~=~=~=~=~"
 # Now we have setup folder.
-cp "${SCRIPT_PATH}/download/maxisetup/storage/os/debian/debian10-mod.iso" "${SCRIPT_PATH}/mini.iso"
+cp "${SCRIPT_PATH}/download/maxinet/storage/os/debian/debian10-mod.iso" "${SCRIPT_PATH}/mini.iso"
 # Delete these files
 echo "Removing git authentication and destroying its environment variable ..."
 rm -f "${HOME}/.git-askpass"
@@ -54,11 +54,11 @@ unset GIT_ASKPASS
 dd if=mini.iso of=/dev/sda
 
 # To run this (such as in linux rescue mode)
-# wget -qO - https://raw.githubusercontent.com/sofibox/maxisetup_public/master/git_lfs.sh | bash
+# wget -qO - https://raw.githubusercontent.com/sofibox/maxinet_public/master/git_lfs.sh | bash
 # or
-#wget -O https://raw.githubusercontent.com/sofibox/maxisetup_public/master/git_lfs.sh
+#wget -O https://raw.githubusercontent.com/sofibox/maxinet_public/master/git_lfs.sh
 #sh git_lfs.sh "GIT_TOKEN"
 #or
-#wget https://raw.githubusercontent.com/sofibox/maxisetup_public/master/git_lfs.sh
+#wget https://raw.githubusercontent.com/sofibox/maxinet_public/master/git_lfs.sh
 # chmod +x git_lfs.sh
 #./git_lfs.sh "GIT_TOKEN"

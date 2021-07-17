@@ -1,3 +1,5 @@
+# This readme is deprecated. Will update soon
+
 Ths is powerful script to manage server installation. 
 This script is currently compatible with linode server (might add digitalocean or amazonaws later)
 

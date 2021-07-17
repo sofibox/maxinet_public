@@ -11,13 +11,15 @@
   </component>
   <component name="ChangeListManager">
     <list default="true" id="113c828c-9a32-4b24-ab1e-978ce50c6320" name="Default Changelist" comment="Updated help() function&#10;Added new script call function options, --run, --run-force, --run-force-exit, --skip and --skip-mark&#10;Improved check_fix_service() function, make it compatible with other OSes&#10;Added extra option --exit to exit script if not executed previously (no force execution)&#10;Improved configure_maxicode_pre() function, make the package installer compatible with other OSes&#10;Fixed configure_maxida() installation&#10;Fixed suricata installation in configure_maxiwall() &#10;Other changes">
-      <change afterPath="$PROJECT_DIR$/storage/os/debian/usr/local/maxicode/code/switchda" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/storage/os/debian/usr/local/maxicode/maxida" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/storage/os/debian/usr/local/maxicode/maxida.conf.sample" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/storage/os/debian/usr/local/maxicode/readme.md" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/maxisetup" beforeDir="false" afterPath="$PROJECT_DIR$/maxisetup" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/maxisetup.conf.sample" beforeDir="false" afterPath="$PROJECT_DIR$/maxisetup.conf.sample" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/git_lfs.sh" beforeDir="false" afterPath="$PROJECT_DIR$/git_lfs.sh" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/maxinet" beforeDir="false" afterPath="$PROJECT_DIR$/maxinet" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/maxisetup.conf.sample" beforeDir="false" afterPath="$PROJECT_DIR$/maxinet.conf.sample" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/maxisetup.log" beforeDir="false" afterPath="$PROJECT_DIR$/maxinet.log" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/maxisetup_ssh.sh" beforeDir="false" afterPath="$PROJECT_DIR$/maxinet_ssh.sh" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/readme.md" beforeDir="false" afterPath="$PROJECT_DIR$/readme.md" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/reboot_ssh.sh" beforeDir="false" afterPath="$PROJECT_DIR$/reboot_ssh.sh" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/vps_setup_luks.md" beforeDir="false" afterPath="$PROJECT_DIR$/vps_setup_luks.md" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -34,10 +36,9 @@
     <option name="projectConfigVersion" value="2" />
   </component>
   <component name="HighlightingSettingsPerFile">
-    <setting file="file://$PROJECT_DIR$/maxisetup" root0="FORCE_HIGHLIGHTING" />
-    <setting file="file://$PROJECT_DIR$/maxisetup.log" root0="FORCE_HIGHLIGHTING" />
-    <setting file="file://$PROJECT_DIR$/maxisetup_ssh.sh" root0="FORCE_HIGHLIGHTING" />
-    <setting file="file://$PROJECT_DIR$/maxisetup.conf.sample" root0="FORCE_HIGHLIGHTING" />
+    <setting file="file://$PROJECT_DIR$/maxinet_ssh.sh" root0="FORCE_HIGHLIGHTING" />
+    <setting file="file://$PROJECT_DIR$/maxinet.conf.sample" root0="FORCE_HIGHLIGHTING" />
+    <setting file="file://$PROJECT_DIR$/maxinet.log" root0="FORCE_HIGHLIGHTING" />
   </component>
   <component name="JupyterTrust" id="8557b86d-6a50-45db-ace0-04efaf79add5" />
   <component name="ProjectId" id="1n4BxEHbbfffUetR8AIQOCKdrFr" />
@@ -64,15 +65,13 @@
     </key>
   </component>
   <component name="RunManager">
-    <configuration default="true" type="ArquillianTestNG" factoryName="" nameIsGenerated="true">
+    <configuration default="true" type="ArquillianJUnit" factoryName="" nameIsGenerated="true">
       <option name="arquillianRunConfiguration">
         <value>
           <option name="containerStateName" value="" />
         </value>
       </option>
-      <option name="TEST_OBJECT" value="CLASS" />
-      <properties />
-      <listeners />
+      <option name="TEST_OBJECT" value="class" />
       <method v="2">
         <option name="Make" enabled="true" />
       </method>
@@ -173,6 +172,7 @@
       <workItem from="1624200761253" duration="223000" />
       <workItem from="1624299515287" duration="388000" />
       <workItem from="1624755878260" duration="8041000" />
+      <workItem from="1626535553982" duration="304000" />
     </task>
     <task id="LOCAL-00034" summary="Changed the API authentication syntax from &#10;&#10;start+&lt;user/role&gt;&#10;&#10;to &#10;&#10;signas+&lt;user/role&gt;&#10;&#10;eg:&#10;signas+owner -&gt; This means the first system owner will be signed in to use da_api_admin&#10;&#10;You can even do this (specified username and password)&#10;signas+${username}+${password}&#10;&#10;Improved da_api_admin &quot;set-da-options&quot;&#10;&#10;Added new da_api_admin for &quot;modify-user&quot; where we are able to modify the name, email, nameservers, skin selection of a specified user&#10;&#10;Removed curl --max-time option to prevent timeout because requesting certificate needs more time and decreasing this value will fail the certification request&#10;&#10;Added new separate function to configure owner account called configure_da_owner_accounts()&#10;&#10;Added letsencrypt staging testing to check if domain has no error when requesting real certificate.&#10; &#10;TODO: Skip domain ssl certificate request and resume the certificate request for domains that were not able to request ssl certificate. Resume means, rerun the whole script.&#10; &#10; New variables for maxisetup.conf&#10; &#10; DA_OWNER_NAME[INDEX]&#10; DA_ADMIN_NAME[INDEX]&#10; DA_RESELLER_NAME[INDEX]&#10; DA_USER_NAME[INDEX]">
       <created>1612942632960</created>

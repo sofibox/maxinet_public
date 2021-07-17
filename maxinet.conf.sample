@@ -1,14 +1,28 @@
-# Config file for maxisetup (maxisetup.conf):
+# Config file for <script_name>.conf:
 # Author: Arafat Ali Email: arafat@sofibox.com
 # Fill appropriate variable before running setup. Make sure this file is in the same path with the script.
 # This file contains sensitive information, setup will auto destroy this file after finished installation.
-# So make sure you have the original backup / copy of your modified maxisetup.conf file
-# Default name should be maxisetup.conf. If you want to change this, modify the variable CONFIG_FILE="yourfileenv"
-# Remember password cannot contain # ! ' / \ $ & because u need to escape this if u want to use in bash.
+# So make sure you have the original backup / copy of your modified <script_name>.conf file
+# Default name should be <script_name>.conf. If you want to change this, modify the variable CONFIG_FILE="yourfileenv"
+# Remember password cannot contain # ! ' / \ $ & xecause u need to escape this if u want to use in bash.
 # Do not use this character in mysql or mariadb password: < > and ) because mysqltuner does not support this character
 # Warning Directadmin user password only accept the maximum of 64 characters. More than this will have problem with API
 # Directadmin cannot contains this character in password, it will not work with API -> '+'
-# =====================================
+# ====================================
+#([0]="emerg" [1]="alert" [2]="crit" [3]="err" [4]="warning" [5]="notice" [6]="info" [7]="debug" [8]="expert")
+# Use 7 for development
+# For advanced or expert logging, use LOG_VERBOSITY_LEVEL="8"
+LOG_VERBOSITY_LEVEL="7"
+# Global variable to hold progress spin character. Example #SPIN_PROGRESS=".oO@*"
+SPIN_PROGRESS="/-\|"
+# Use pip to always update before executing. For example use to update pip3 component for linode-cli once when script is running.
+PIP_ALWAYS_UPDATE="yes"
+# COMPANY_ID
+COMPANY_ID="sofibox"
+# USE_MULTI_LOG_FILE
+# yes = set to use multiple log files with different random date. eg: <script_name>-31-03-2020_11-56-16.12345-report.log
+# no = set to use one log file with only one name. eg: <script_name>-report.log
+USE_MULTI_LOG_FILE="yes"
 # Force script to download the latest version of Operating System
 USE_LATEST_ISO="yes"
 # Enable the DNS feature of DNSSEC
@@ -16,13 +30,11 @@ ENABLE_DNSSEC="no"
 # Enable log timestamp
 LOG_TIMESTAMP="yes"
 # Start installation script automatically, yes or no
-PRE_AUTORUN_SETUP="no"
+PRE_AUTORUN_SETUP="yes"
 # Set number of processor for parallel processing
 HOST_MAX_PROCESSOR="2"
-# yes = only one log file name | no = use multi log file based on unique date
-USE_ONE_LOG_FILE="yes"
-# This is a temporary allowed IP during setup which won't be blocked by firewall
-TEMP_ALLOW_IP="84.12.1.123"
+# This is a temporary allowed IP during setup that will be ignored by firewall
+TEMP_ALLOW_IP="42.188.5.142"
 # "directadmin" - Install server directadmin (fully compatible with DA)
 # "general" - Install basic LEMP or LAMP stack (with security hardened)
 # "laravel" - coming soon (with security hardened)
@@ -180,6 +192,9 @@ DA_RESELLER_WILDCARD_DOMAIN2=
 #DA_USER_SECURITY_A2=
 #DA_USER_ROOT_WEB_TYPE2=
 #DA_USER_DB2=
+
+#Add more users here:
+
 # === DA user end ===
 
 DA_MAX_UNAME_LENGTH="30"

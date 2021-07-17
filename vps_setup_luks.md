@@ -1,3 +1,4 @@
+# This documentation is deprecated, new version will be released.
 version: 0.1
 
 # How to setup OS disk encryption using Linode
