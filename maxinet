@@ -4,7 +4,7 @@
 APP_SPECIFIC_NAME="Maxinet"
 APP_STATUS="alpha"
 # Note some minor versions are not published
-APP_VERSION="0.5.1.3-${APP_STATUS}"
+APP_VERSION="0.5.2.1-${APP_STATUS}"
 COMPANY_ID="${COMPANY_ID}"
 # Hello there, this is a powerful script that able initialize one or more server installation from scratch. From configuring the server disk, until you got the full working server with a live website.
 # It also includes many security and hardening script.
@@ -49,7 +49,7 @@ function help() {
   echo "To start/resume remote installation:"
   echo "Syntax: ${SCRIPT_NAME} --ssh-login <fqdn>:<ssh_port> <user_role>:<user_name> <local_script_to_push_for_installation>"
   echo "eg:"
-  echo "${SCRIPT_NAME} --ssh-login \"${BOX_HOSTNAME_FQDN}:${SSH_PORT}\" \"root:${ROOT_USERNAME}\" \"${SCRIPT_PATH}/maxinet_ssh.sh\""
+  echo "${SCRIPT_NAME} --ssh-login \"${BOX_HOSTNAME_FQDN}:${SSH_PORT}\" \"root:${ROOT_USERNAME}\" \"${CODE_PATH}/ssh_scripts/maxinet_setup.sh\""
   echo ""
   echo "To unlock LUKS Disk encryption:"
   echo "Syntax: ${SCRIPT_NAME} --ssh-luks-unlock <DROP_BEAR_PORT> \"<LUKS_PASS>\""
@@ -501,10 +501,10 @@ function init_server() {
   _pause 5
 
   if [ "${DNS_PROVIDER_NAME}" == "linode" ]; then
-    box_main_disk=${BOX_MAIN_DISK_RAW_SIZE}
-    box_boot_disk=${BOX_BOOT_DISK_RAW_SIZE}
+    server_main_disk_raw_size="${BOX_MAIN_DISK_RAW_SIZE}"
+    server_boot_disk_raw_size="${BOX_BOOT_DISK_RAW_SIZE}"
 
-    ((box_os_disk = box_main_disk - box_boot_disk))
+    ((box_os_disk = server_main_disk_raw_size - server_boot_disk_raw_size))
 
     _echo "Configuring ${DNS_PROVIDER_NAME} server for ${BOX_HOSTNAME_FQDN} ..." --name --plain
     _echo "" --plain
@@ -530,9 +530,9 @@ function init_server() {
       # Create Boot Disk that boot the operating system installer with raw format
       _echo "=== Creating linode Boot_Disk ====" --plain --name
 
-      linode_api_admin create-disk --linode-label "${BOX_HOSTNAME_FQDN}" --linode-disk-label "Boot_Disk" --linode-disk-filetype "raw" --linode-disk-size "${box_boot_disk}"
+      linode_api_admin create-disk --linode-label "${BOX_HOSTNAME_FQDN}" --linode-disk-label "Boot_Disk" --linode-disk-filetype "raw" --linode-disk-size "${server_boot_disk_raw_size}"
       # Example to allow duplicate entry as above:
-      #linode_api_admin create-disk --linode-label "${BOX_HOSTNAME_FQDN}" --linode-disk-label "Boot_Disk" --linode-disk-filetype "raw" --linode-disk-size "${box_boot_disk}" --allow-duplicate-entry
+      #linode_api_admin create-disk --linode-label "${BOX_HOSTNAME_FQDN}" --linode-disk-label "Boot_Disk" --linode-disk-filetype "raw" --linode-disk-size "${server_boot_disk_raw_size}" --allow-duplicate-entry
       # Create OS Disk that hold the operating system for the server
       _echo "=== Creating linode OS_Disk ====" --plain --name
       linode_api_admin create-disk --linode-label "${BOX_HOSTNAME_FQDN}" --linode-disk-label "OS_Disk" --linode-disk-filetype "raw" --linode-disk-size "${box_os_disk}"
@@ -580,20 +580,28 @@ function init_server() {
     fi
 
     _echo "Booting linode ${BOX_HOSTNAME_FQDN} into Finnix rescue mode ..." --name
+
     linode_api_admin reboot-to-rescue --linode-label "${BOX_HOSTNAME_FQDN}" --label-devsda "disk:Boot_Disk" --label-devsdb "disk:OS_Disk"
+    echo ""
 
     _echo "Copying RSA key public key for login purpose ..." --name
     ssh_api copy-public-keys --without-prompt
+    echo ""
+
+    # Wait booting. Another method is to ping port 22 via script and return value. Use this at this moment
+    _echo "Giving 12 seconds for ${BOX_HOSTNAME_FQDN} to finish booting into Finnix rescue OS ..." --name
+    sleep 12
+
     _echo "Writing OS into Boot_Disk Partition via SSH background (this will be completed until linode is turned off automatically) ..." --name
+    #ssh -q -o "StrictHostKeyChecking no" -i /root/.ssh/linode_lish.id_rsa -tt "${DNS_PROVIDER_USER}@${DNS_PROVIDER_TERMINAL_SERVER}" "${BOX_HOSTNAME_FQDN}" <"${CODE_PATH}/ssh_scripts/os_write_ag.sh" >/dev/null 2>&1 &
+    # This above lish ssh command is equivalent to below using --push-iso-write-script option and other config will be used the default values from config file:
+    ssh_api lish-push-script --push-iso-write-script
 
-    # This is not a normal SSH (it use Pseudo-TTY)
-    # TODO make this as function inside: ssh_api lish-login --key rsa_key --username maxibi --server member.linode.com --linode-label sun.sofibox.com --script-path /tmp/os.write --silent --push-mode
-    ssh -q -o "StrictHostKeyChecking no" -i /root/.ssh/linode_lish.id_rsa -tt "${DNS_PROVIDER_USER}@${DNS_PROVIDER_TERMINAL_SERVER}" "${BOX_HOSTNAME_FQDN}" <"${SCRIPT_PATH}/dns/linode/os_write.sh" >/dev/null 2>&1 &
-
+    # TODO test more this old vs new code
     #check_linode_status_until "offline"
 
     #linode_api_admin wait-linode-until --status offline
-    linode_api_admin wait_linode_status --linode-label "${BOX_HOSTNAME_FQDN}" --until-status offline
+    linode_api_admin wait-linode-status --linode-label "${BOX_HOSTNAME_FQDN}" --until-status offline
     exit 1
     # After system shutdown, then we can execute the following
     linode_api_admin "boot-linode" "${BOX_HOSTNAME_FQDN}" "Boot_Config"
@@ -636,11 +644,12 @@ function init_server() {
 
     if [ "${PRE_AUTORUN_SETUP}" == "yes" ]; then
       _echo def "Setup will automatically execute remote maxinet script and start installation of the server ... (it might take some time) ..."
-      ssh_login "${BOX_HOSTNAME_FQDN}:${SSH_PORT}" "root:${ROOT_USERNAME}" "${SCRIPT_PATH}/maxinet_ssh.sh"
+      ssh_login "${BOX_HOSTNAME_FQDN}:${SSH_PORT}" "root:${ROOT_USERNAME}" "${CODE_PATH}/ssh_scripts/maxinet_setup.sh"
       # After installation above, the system must restart once, so we execute next script to reopen LUKS
       #check_linode_status_until "offline"
     else
       _echo def "Auto run script is disabled. Turning off server ... "
+      # reboot_ssh.sh is depcrecated removed to /backup folder
       #ssh_login "${BOX_HOSTNAME_FQDN}:${SSH_PORT}" "root:${ROOT_USERNAME}" "${SCRIPT_PATH}/reboot_ssh.sh"
       linode_api_admin "shutdown-linode" "${BOX_HOSTNAME_FQDN}"
       #check_linode_status_until "offline"
@@ -673,7 +682,7 @@ function init_server() {
       _echo "It is time to run the installation script manually!"
     else
       _echo "Resuming installation ..."
-      ssh_login "${BOX_HOSTNAME_FQDN}:${SSH_PORT}" "root:${ROOT_USERNAME}" "${SCRIPT_PATH}/maxinet_ssh.sh"
+      ssh_login "${BOX_HOSTNAME_FQDN}:${SSH_PORT}" "root:${ROOT_USERNAME}" "${CODE_PATH}/ssh_scripts/maxinet_setup.sh"
     fi
 
     _echo "Done"
@@ -747,7 +756,8 @@ function check_server_port() {
 # group_name = user, admin, root, rescue, backup, os, diradmin ...
 function ssh_api() {
 
-  local action argnum options retval key_path groupname username comment servername destination
+  local action argnum options long_opts retval key_path groupname username comment server_label servername destination rsa_key linode_label script_path \
+    push_iso_write_script push_shutdown_script push_reboot_script
 
   action="$1"
 
@@ -756,8 +766,9 @@ function ssh_api() {
     echo "Error, no argument is supplied. Use [ ${SCRIPT_NAME} --iso --help ] to see the valid options"
     exit 1
   fi
-
-  options=$(getopt -o '' --long help,key-path:,groupname:,username:,comment:,servername:,destination:,without-prompt -n "${FUNCNAME[0]} in ${SCRIPT_NAME}" -- "$@")
+  long_opts="help,key-path:,groupname:,username:,comment:,server-label:,servername:,destination:,without-prompt,rsa-key:,linode-label:,script-path:, \
+  push-iso-write-script, push-shutdown-script, push-reboot-script"
+  options=$(getopt -o '' --long "${long_opts}" -n "${FUNCNAME[0]} in ${SCRIPT_NAME}" -- "$@")
   retval=$?
   if [ ${retval} != 0 ]; then
     echo "Error, invalid parse data. Terminating..." >&2
@@ -771,9 +782,16 @@ function ssh_api() {
   groupname=""
   username=""
   comment=""
-  servername="${BOX_HOSTNAME_FQDN}" # If not specified, use the default value from config file
-  destination="/root/.ssh/"         # If not specified, the default location is /root/.ssh/
+  server_label="${BOX_HOSTNAME_FQDN}" # If not specified, use the default value from config file sun.sofibox.com
+  destination="/root/.ssh/"           # If not specified, the default location is /root/.ssh/
   without_prompt=false
+  servername="${DNS_PROVIDER_TERMINAL_SERVER}" #If not specified default to the lish server from config file eg: singapore-lish.linode.com
+  linode_label="${BOX_HOSTNAME_FQDN}"          # If not specified, use the default value from config file sun.sofibox.com
+  rsa_key=""
+  script_path=""
+  push_iso_write_script=false
+  push_shutdown_script=false
+  push_reboot_script=false
   while true; do
     case "$1" in
     --help)
@@ -801,8 +819,48 @@ function ssh_api() {
       servername="$2"
       shift 2
       ;;
+    --server-label)
+      server_label="$2"
+      shift 2
+      ;;
+    --rsa-key)
+      rsa_key="$2"
+      shift 2
+      ;;
+    --linode-label)
+      linode_label="$2"
+      shift 2
+      ;;
+    --script-path)
+      script_path="$2"
+      shift 2
+      ;;
     --without-prompt)
       without_prompt=true
+      shift
+      ;;
+    --push-iso-write-script)
+      push_iso_write_script=true
+      if [[ "${push_shutdown_script}" == "true" || "${push_reboot_script}" == "true" ]]; then
+        _echo "$(msg red)Error, only one push script can be called at one time!$(msg end)" --name --verbose 3
+        _exit 147
+      fi
+      shift
+      ;;
+    --push-shutdown-script)
+      push_shutdown_script=true
+      if [[ "${push_iso_write_script}" == "true" || "${push_reboot_script}" == "true" ]]; then
+        _echo "$(msg red)Error, only one push script can be called at one time!$(msg end)" --name --verbose 3
+        _exit 147
+      fi
+      shift
+      ;;
+    --push-reboot-script)
+      push_reboot_script=true
+      if [[ "${push_iso_write_script}" == "true" || "${push_shutdown_script}" == "true" ]]; then
+        _echo "$(msg red)Error, only one push script can be called at one time!$(msg end)" --name --verbose 3
+        _exit 147
+      fi
       shift
       ;;
     --)
@@ -815,39 +873,100 @@ function ssh_api() {
     esac
   done
 
-  mkdir -p "${key_path}"
+  # For linode LISH login
+  # ssh_api lish-login --key /root/.ssh/linode_lish.id_rsa --username --server lish-singapore.linode.com --linode-label sun.sofibox.com
+  if [ "${action}" == "lish-login" ]; then
+    local ssh_pid
+    # This is not a normal SSH (it uses Pseudo-TTY)
+    # Normal: ssh_api lish-login
+    if [ -z "${rsa_key}" ]; then
+      rsa_key="/root/.ssh/linode_lish.id_rsa"
+    fi
 
-  if [ "${action}" == "create-key" ]; then
+    if [ -z "${username}" ]; then
+      username="${DNS_PROVIDER_USER}"
+    fi
+
+    if [ ! -f "${rsa_key}" ]; then
+      _echo "$(msg red)Error, invalid RSA key file at ${rsa_key}. Please make sure the file exist$(msg end)" --name --verbose 3
+      _exit 147
+    fi
+
+    _echo "$(msg cyan)Logging into lish console ${username}@${servername}... $(msg end)" --name
+    # In Windows WSL linux, there will be error log saying: setsockopt IPV6_TCLASS 16: Operation not permitted: (this message can be ignored)
+    # Note 2 linode lish requires to use -t option to login. -t option means pseudo-tty (some suggested to use double -tt)
+    ssh -o "StrictHostKeyChecking no" -i "${rsa_key}" -tt "${username}@${servername}" "${linode_label}"
+    ssh_pid=$?
+    { kill -9 ${ssh_pid} && wait ${ssh_pid}; } 2>/dev/null
+    # For linode LISH push script
+  elif [ "${action}" == "lish-push-script" ]; then
+    local ssh_pid
+
+    if [ -z "${rsa_key}" ]; then
+      rsa_key="/root/.ssh/linode_lish.id_rsa"
+    fi
+
+    if [ -z "${username}" ]; then
+      username="${DNS_PROVIDER_USER}"
+    fi
+
+    if [ ! -f "${rsa_key}" ]; then
+      _echo "$(msg red)Error, invalid RSA key file at ${rsa_key}. Please make sure the file exist$(msg end)" --name --verbose 3
+      _exit 147
+    fi
+
+    if [ -z "${script_path}" ]; then
+      if [ "${push_iso_write_script}" == "true" ]; then
+        script_path="${CODE_PATH}/ssh_scripts/os_write_ag.sh"
+      elif [ "${push_shutdown_script}" == "true" ]; then
+        script_path="${CODE_PATH}/ssh_scripts/shutdown_command.sh"
+      elif [ "${push_reboot_script}" == "true" ]; then
+        script_path="${CODE_PATH}/ssh_scripts/reboot_command.sh"
+      else
+        _echo "$(msg red)Error. the option --script-path requires to have a valid script path to be pushed into SSH server or use predefined push script option such as --push-shutdown-script$(msg end)" --name --verbose 3
+      fi
+    fi
+
+    _echo "$(msg cyan)Pushing script ${script_path} into lish console ${username}@${servername}... $(msg end)" --name
+    # push script: ssh_api lish-push-script --key rsa_key.id.rsa --username maxibi --servername member.linode.com --linode-label sun.sofibox.com --script-path /tmp/os_write --silent
+    ssh -q -o "StrictHostKeyChecking no" -i ${rsa_key} -tt "${username}@${servername}" "${linode_label}" <"${script_path}" >/dev/null 2>&1 &
+    # if dont specify script_path, i can specify option such as --push-os-write, --push-shutdown, --push-reboot
+    #ssh -q -o "StrictHostKeyChecking no" -i /root/.ssh/linode_lish.id_rsa -tt "${DNS_PROVIDER_USER}@${DNS_PROVIDER_TERMINAL_SERVER}" "${BOX_HOSTNAME_FQDN}" <"${SCRIPT_PATH}/dns/linode/os_write.sh" >/dev/null 2>&1 &
+
+  elif [ "${action}" == "create-key" ]; then
+
     local private_key_name
+    mkdir -p "${key_path}"
     if [[ -z "${groupname}" ]]; then
       _echo "$(msg red)Error, the option --groupname is required to have value$(msg end)" --name
       _exit 147
     elif [[ -z "${username}" ]]; then
       _echo "$(msg red)Error, the option --username is required to have value$(msg end)" --name
       _exit 147
-    elif [[ -z "${servername}" ]]; then
+    elif [[ -z "${server_label}" ]]; then
       _echo "$(msg red)Error, the option --serve-name is required to have value$(msg end)" --name
       _exit 147
     else
-      private_key_name="${groupname}_${username}_${servername}.id_rsa"
+      private_key_name="${groupname}_${username}_${server_label}.id_rsa"
 
     fi
     _echo "$(msg cyan)Creating private and public key RSA SSH key authentication at ${key_path}/${private_key_name} ...$(msg end)" --name
     ssh-keygen -f "${key_path}/${private_key_name}" -t rsa -b 4096 -P "" -C "${comment}" <<<y
   elif [ "${action}" == "create-key-with-putty" ]; then
     local private_key_name private_key_putty_name
+    mkdir -p "${key_path}"
     if [[ -z "${groupname}" ]]; then
       _echo "$(msg red)Error, the option --groupname is required to have value$(msg end)" --name
       _exit 147
     elif [[ -z "${username}" ]]; then
       _echo "$(msg red)Error, the option --username is required to have value$(msg end)" --name
       _exit 147
-    elif [[ -z "${servername}" ]]; then
+    elif [[ -z "${server_label}" ]]; then
       _echo "$(msg red)Error, the option --serve-name is required to have value$(msg end)" --name
       _exit 147
     else
-      private_key_name="${groupname}_${username}_${servername}.id_rsa"
-      private_key_putty_name="${groupname}_${username}_${servername}.ppk"
+      private_key_name="${groupname}_${username}_${server_label}.id_rsa"
+      private_key_putty_name="${groupname}_${username}_${server_label}.ppk"
     fi
     _echo "$(msg cyan)Creating private and public key RSA SSH key authentication at ${key_path}/${private_key_name} ...$(msg end)" --name
     ssh-keygen -f "${key_path}/${private_key_name}" -t rsa -b 4096 -P "" -C "${comment}" <<<y
@@ -863,11 +982,11 @@ function ssh_api() {
     elif [[ -z "${username}" ]]; then
       _echo "$(msg red)Error, the option --username is required to have value$(msg end)" --name
       _exit 147
-    elif [[ -z "${servername}" ]]; then
+    elif [[ -z "${server_label}" ]]; then
       _echo "$(msg red)Error, the option --serve-name is required to have value$(msg end)" --name
       _exit 147
     else
-      public_key_name="${groupname}_${username}_${servername}.id_rsa.pub"
+      public_key_name="${groupname}_${username}_${server_label}.id_rsa.pub"
       public_key_file="${key_path}/${public_key_name}"
     fi
 
@@ -886,11 +1005,11 @@ function ssh_api() {
     elif [[ -z "${username}" ]]; then
       _echo "$(msg red)Error, the option --username is required to have value$(msg end)" --name
       _exit 147
-    elif [[ -z "${servername}" ]]; then
+    elif [[ -z "${server_label}" ]]; then
       _echo "$(msg red)Error, the option --serve-name is required to have value$(msg end)" --name
       _exit 147
     else
-      private_key_name="${groupname}_${username}_${servername}.id_rsa"
+      private_key_name="${groupname}_${username}_${server_label}.id_rsa"
       private_key_file="${key_path}/${private_key_name}"
     fi
     if [ -f "${private_key_file}" ]; then
@@ -1464,7 +1583,7 @@ function _trap_cleanup() {
     echo "-------------------------------END-----------------------------------------"
     echo "Remember you can always resume installation with (--help for more information):"
     echo "For local installation: ${SCRIPT_NAME} --setup"
-    echo "For remote installation: ${SCRIPT_NAME} --ssh-login \"${BOX_HOSTNAME_FQDN}:${SSH_PORT}\" \"root:${ROOT_USERNAME}\" \"${SCRIPT_PATH}/maxinet_ssh.sh\""
+    echo "For remote installation: ${SCRIPT_NAME} --ssh-login \"${BOX_HOSTNAME_FQDN}:${SSH_PORT}\" \"root:${ROOT_USERNAME}\" \"${CODE_PATH}/ssh_scripts/maxinet_setup.sh\""
     echo "To login as root user: ${SCRIPT_NAME} --ssh-login \"${BOX_HOSTNAME_FQDN}:${SSH_PORT}\" \"user:root\""
     echo "To login as SSH user: ${SCRIPT_NAME} --ssh-login \"${BOX_HOSTNAME_FQDN}:${SSH_PORT}\" \"root:SSH_USERNAME\""
     echo "To unlock LUKS Disk encryption: ${SCRIPT_NAME} --ssh-luks-unlock ${DROP_BEAR_PORT} \"<LUKS_PASS>\""
@@ -2047,13 +2166,57 @@ function cd_to_path() {
 }
 
 # Store long file text creation in function to avoid duplication
-# create_file <name> <optional_path>
+# create_file "ssh-push-scripts"
+# create_file <create_action> <optional_path>
 function create_file() {
-  local name path box_main_disk
-  name="$1"
+  local create_action path
+  create_action="$1"
   path="$2"
-  box_main_disk="${BOX_MAIN_DISK}"
-  if [[ ${name} == "debian-preseed" ]]; then
+
+  if [[ ${create_action} == "ssh-push-scripts" ]]; then
+    ssh_scripts_path="${CODE_PATH}/ssh_scripts"
+    mkdir -p "${ssh_scripts_path}"
+    # reboot_command.sh
+    {
+      echo "#!/bin/bash"
+      echo "# ==============================================="
+      echo "# This script file was generated by ${SCRIPT_NAME}"
+      echo "# Author: ${ADMIN_NAME} | Email: ${ADMIN_EMAIL} | Web: ${BOX_DOMAIN}"
+      echo "# ==============================================="
+      echo "# Using --force to ignore any prompts when rebooting. Such as the prompt to eject DISK and waiting for user input"
+      echo "reboot --force"
+      echo "echo \"\""
+    } >"${ssh_scripts_path}/reboot_command.sh"
+
+    # shutdown_command.sh
+    {
+      echo "#!/bin/bash"
+      echo "# ==============================================="
+      echo "# This script file was generated by ${SCRIPT_NAME}"
+      echo "# Author: ${ADMIN_NAME} | Email: ${ADMIN_EMAIL} | Web: ${BOX_DOMAIN}"
+      echo "# ==============================================="
+      echo "# Using --force to ignore any prompts when shutting down. Such as the prompt to eject DISK and waiting for user input"
+      echo "reboot --poweroff --force"
+      echo "echo \"\""
+    } >"${ssh_scripts_path}/shutdown_command.sh"
+
+    #maxinet_setup.sh
+    {
+      echo "#!/bin/bash"
+      echo "# ==============================================="
+      echo "# This script file was generated by ${SCRIPT_NAME}"
+      echo "# Author: ${ADMIN_NAME} | Email: ${ADMIN_EMAIL} | Web: ${BOX_DOMAIN}"
+      echo "# ==============================================="
+      echo "# Using --setup will trigger setup script from ${SCRIPT_NAME}"
+      echo "cd /root || exit 1"
+      echo "chmod +x maxinet"
+      echo "touch maxinet.log"
+      echo "./maxinet --setup 2>&1 | tee maxinet.log"
+      echo "echo \"\""
+    } >"${ssh_scripts_path}/maxinet_setup.sh"
+
+  elif [[ ${create_action} == "debian-preseed" ]]; then
+
     install_required "apt:whois" "apt:pwgen"
     {
       # 1 Good reading: https://serverfault.com/questions/893483/what-means-3-numbers-in-manual-partitioning-of-hdd-in-preseed-for-ubuntu
@@ -2062,6 +2225,7 @@ function create_file() {
       echo "# ==============================================="
       echo "# This configuration file was generated by ${SCRIPT_NAME}"
       echo "# Author: ${ADMIN_NAME} | Email: ${ADMIN_EMAIL} | Web: ${BOX_DOMAIN}"
+      echo "# Warning, this preseed configuration file contains sensitive information about a server. Do not share this file to public"
       echo "# ==============================================="
       echo "#### Preseed preconfiguration file (for Debian buster)"
       echo "### Partman early command"
@@ -2140,6 +2304,7 @@ function create_file() {
       #echo "d-i passwd/root-password password ${ROOT_USERPASS_INITIAL}"
       #echo "d-i passwd/root-password-again password ${ROOT_USERPASS_INITIAL}"
       echo "# or encrypted using a crypt(3)  hash."
+      # Using the secured get_hash_pwd to encrypt root password
       echo "d-i passwd/root-password-crypted password $(get_hash_pwd "${ROOT_USERPASS_INITIAL}")"
       echo ""
       echo "### Clock and time zone setup"
@@ -2151,7 +2316,7 @@ function create_file() {
       echo "d-i clock-setup/ntp boolean true"
       echo ""
       echo "### Partitioning"
-      # TODO make a custom LUKS partition here
+      # This is for normal disk method (not LUKS)
       # Good reading :https://gist.github.com/chuckn246/ca24d26c048b3cc4ffa8188708f5dccf
       # Another good one: https://www.linuxjournal.com/content/preseeding-full-disk-encryption (it has a way to disable wipe disk)
       # Very nice info: https://secopsmonkey.com/custom-partioning-using-preseed.html
@@ -2159,7 +2324,7 @@ function create_file() {
       # Updated very nice: https://gist.github.com/chuckn246/ca24d26c048b3cc4ffa8188708f5dccf
 
       #echo "# Normal method"
-      #echo "d-i partman-auto/disk string ${box_main_disk}"
+      #echo "d-i partman-auto/disk string ${BOX_MAIN_DISK}"
       #echo "d-i partman-auto/method string lvm"
       #echo "d-i partman-auto-lvm/guided_size string max"
       #echo "d-i partman-lvm/device_remove_lvm boolean true"
@@ -2177,6 +2342,7 @@ function create_file() {
       #echo "d-i partman/confirm boolean true"
       #echo "d-i partman/confirm_nooverwrite boolean true"
 
+      # This is the section to create a custom LUKS partition here
       echo "# LVM LUKS method"
 
       #echo "# method to use: regular, lvm or crypto"
@@ -2193,7 +2359,7 @@ function create_file() {
       echo "d-i partman-auto-lvm/guided_size string max"
       echo "d-i partman-auto-lvm/new_vg_name string ${LVM_VOLUME_GROUP}"
       #echo "#select root disk to use"
-      echo "d-i partman-auto/disk string /dev/sda"
+      echo "d-i partman-auto/disk string ${BOX_MAIN_DISK}"
 
       echo "d-i partman-auto/choose_recipe select boot-crypto"
       echo "d-i partman-lvm/confirm_nooverwrite boolean true"
@@ -2279,7 +2445,7 @@ function create_file() {
       echo "# Grub location"
       echo "d-i grub-installer/only_debian boolean true"
       echo "d-i grub-installer/with_other_os boolean true"
-      echo "d-i grub-installer/bootdev string /dev/sda"
+      echo "d-i grub-installer/bootdev string ${BOX_MAIN_DISK}"
       echo ""
       echo "# Grub password"
       echo "#d-i grub-installer/password password r00tme"
@@ -2889,7 +3055,7 @@ function iso_api() {
           echo "file_direct_link is ${file_direct_link}"
           _echo "$(msg newline)" --plain
 
-          _echo "$(msg cyan)Creating automation script for installing operating system remotely into ${SCRIPT_PATH}/dns/linode/os_write.sh ...$(msg end)" --name
+          _echo "$(msg cyan)Creating automation script for installing operating system remotely into ${CODE_PATH}/ssh_scripts/os_write_ag.sh ...$(msg end)" --name
           {
             echo "#!/bin/bash"
             echo "# ==============================================="
@@ -2902,7 +3068,7 @@ function iso_api() {
             # This is needed to force reboot especially for rescue mode.
             echo "reboot -f"
             echo "exit 0"
-          } >"${SCRIPT_PATH}/dns/linode/os_write.sh"
+          } >"${CODE_PATH}/ssh_scripts/os_write_ag.sh"
 
           _echo "$(msg cyan)Generating rescue disk command for manual installation ...$(msg end)" --name
 
@@ -2914,7 +3080,7 @@ function iso_api() {
             echo "# Download link available at:"
             echo "wget -O mini.iso \"${file_direct_link}\""
             echo "# Operating system installation script available at:"
-            echo "${SCRIPT_PATH}/dns/linode/os_write.sh"
+            echo "${CODE_PATH}/ssh_scripts/os_write_ag.sh"
             echo "dd if=mini.iso of=/dev/sda"
           } >"$(dirname "${debian_iso_complete_file}")/install.txt"
           echo ""
@@ -3230,7 +3396,7 @@ function linode_api_admin() {
     until_status linode_config_label linode_disk_label linode_disk_filetype linode_disk_size linode_config_comments \
     linode_config_virtual_mode linode_config_kernel linode_config_runlevel linode_config_memory_limit linode_config_rootdev \
     linode_config_enable_distro_helper linode_config_disable_update_db linode_config_enable_dep_helper linode_config_automount_devtmpfs \
-    linode_config_autoconf_network
+    linode_config_autoconf_network recovery_mode_shutdown
   action="$1"
   argnum="$#"
   # This variable linode_max_page is important, when using linode-cli to obtain data, we need to assign limit for it.
@@ -3247,7 +3413,7 @@ function linode_api_admin() {
   domain-ttl:,record-type:,record-name:,record-value:,record-ttl:,record-priority:,label-devsda:,label-devsdb:,label-devsdc:,label-devsdd:,label-devsde:, \
   label-devsdf:,label-devsdg:,label-devsdh:,until-status:,linode-config-label:,linode-disk-label:,linode-disk-filetype:,linode-disk-size:,linode-config-comments:, \
   linode-config-virtual-mode:,linode-config-kernel:,linode-config-runlevel:,linode-config-memory-limit:,linode-config-rootdev:,linode-config-enable-distro-helper, \
-  linode-config-disable-update-db, linode-config-enable-dep-helper, linode-config-automount-devtmpfs,linode-config-autoconf-network"
+  linode-config-disable-update-db, linode-config-enable-dep-helper, linode-config-automount-devtmpfs,linode-config-autoconf-network,recovery-mode-shutdown"
 
   options=$(getopt -o hvlqsd --long "${long_opts}" -n "${FUNCNAME[0]}@${action} in ${SCRIPT_NAME}" -- "$@")
   retval=$?
@@ -3297,6 +3463,7 @@ function linode_api_admin() {
   linode_config_enable_dep_helper=false      # default value in linode is true but here i should make it false
   linode_config_automount_devtmpfs=false     # default value in linode is true but here i should make it false
   linode_config_autoconf_network=false       # default value in linode is true but here i should make it false
+  recovery_mode_shutdown=false
   while true; do
     case "$1" in
     -h | --help)
@@ -3469,29 +3636,27 @@ function linode_api_admin() {
       shift 2
       ;;
     --linode-config-enable-distro-helper)
-
       linode_config_enable_distro_helper=true
-
       shift
       ;;
     --linode-config-disable-update-db)
       linode_config_disable_update_db=true
-
       shift
       ;;
     --linode-config-enable-dep-helper)
       linode_config_enable_dep_helper=true
-
       shift
       ;;
     --linode-config-automount-devtmpfs)
       linode_config_automount_devtmpfs=true
-
       shift
       ;;
     --linode-config-autoconf-network)
       linode_config_autoconf_network=true
-
+      shift
+      ;;
+    --recovery-mode-shutdown)
+      recovery_mode_shutdown=true
       shift
       ;;
     --)
@@ -3954,15 +4119,14 @@ function linode_api_admin() {
     sleep 2
     if [ "${until_status^^}" == "RUNNING" ]; then
 
-      _echo "$(msg cyan)Waiting for linode ${linode_label} to have running status ...$(msg cyan)" --name
+      _echo "$(msg cyan)Waiting for linode ${linode_label} to have running status ...$(msg end)" --name
       linode_status=$(${LINODE_CLI_BIN} linodes view "${linode_id}" --json --pretty | ${JQ_BIN} -r ".[] | .status")
       if [[ "${linode_status}" == "running" ]]; then
-
-        # TODO here this might have bug,, test uncomment below later
-        _echo "$(msg red)Error linode ${linode_label} is already in running mode$(msg cyan)" --name --verbose 3
+        # test uncomment below later if not working
+        _echo "$(msg red)Error linode ${linode_label} is already in running mode$(msg end)" --name --verbose 3
         _exit 1
         # or force to shutdown with this if it does not work:
-
+        # LABEL LISH (my label because this is duplicated to be used with function)
         #ssh -o "StrictHostKeyChecking no" -i /root/.ssh/linode_lish.id_rsa -tt "${DNS_PROVIDER_USER}@${DNS_PROVIDER_TERMINAL_SERVER}" "${BOX_HOSTNAME_FQDN}" /dev/null <"${SCRIPT_PATH}/dns/linode/shutdown_command.sh" 2>&1 &
       else
         while :; do
@@ -3976,10 +4140,10 @@ function linode_api_admin() {
         done
       fi
     elif [[ "${until_status^^}" == "OFFLINE" ]]; then
-      _echo "$(msg cyan)Waiting for linode ${linode_label} to have offline status ...$(msg cyan)" --name
+      _echo "$(msg cyan)Waiting for linode ${linode_label} to have offline status ...$(msg end)" --name
       linode_status=$(${LINODE_CLI_BIN} linodes view "${linode_id}" --json --pretty | ${JQ_BIN} -r ".[] | .status")
       if [[ "${linode_status}" == "offline" ]]; then
-        _echo "$(msg red)Error linode ${linode_label} is already in offline mode$(msg cyan)" --name --verbose 3
+        _echo "$(msg red)Error linode ${linode_label} is already in offline mode$(msg end)" --name --verbose 3
         _exit 1
       else
         while :; do
@@ -4119,7 +4283,7 @@ function linode_api_admin() {
 
   elif [[ "${action^^}" == +(SHUTDOWN-LINODE|POWEROFF-LINODE|TURNOFF-LINODE) ]]; then
     # This scope is completed v1
-    local linode_id linode_api_exec
+    local linode_id linode_api_exec ssh_pid
     # Required only linode_id
     if is_valid domain "${linode_label}"; then
       [[ ${scripting} == "false" ]] && _echo "$(msg green)OK, the given --linode-label $(msg red)${linode_label}$(msg green) is valid FQDN$(msg end)" --name --verbose 7
@@ -4135,7 +4299,7 @@ function linode_api_admin() {
       [[ ${scripting} == "false" ]] && exec_time total "linode_api_admin"
       return 147
     fi
-    [[ ${scripting} == "false" ]] && _echo "$(msg cyan)Shutting down linode ${linode_label} ...$(msg end)" --name
+
     linode_status=$(${LINODE_CLI_BIN} linodes view "${linode_id}" --json --pretty | ${JQ_BIN} -r ".[] | .status")
 
     if [[ "${linode_status}" == "offline" ]]; then
@@ -4144,8 +4308,18 @@ function linode_api_admin() {
       return 0
     else
       [[ ${scripting} == "false" ]] && _echo "Notice, linode ${linode_label} status is ${linode_status}" --name
-
-      linode_api_exec=$(${LINODE_CLI_BIN} linodes shutdown "${linode_id}" --json --pretty 2> >(grep 'Linode busy'))
+      if [ "${recovery_mode_shutdown}" == "true" ]; then
+        # This solved the workaround here: https://www.linode.com/community/questions/21319/please-remove-the-disk-eject-question-on-finnix-rescue-disk
+        # Force shutting down linode using script (fix delay reboot due to Finnix recovery need to press enter to eject CDROM even no CDROM is present.)
+        # Note when using this method, it will not show the status "shutting_down", only offline or online.
+        [[ ${scripting} == "false" ]] && _echo "$(msg cyan)Shutting down linode ${linode_label} using SSH push script (if server is in recovery mode) ...$(msg end)" --name
+        ssh -o "StrictHostKeyChecking no" -i /root/.ssh/linode_lish.id_rsa -tt "${DNS_PROVIDER_USER}@${DNS_PROVIDER_TERMINAL_SERVER}" "${BOX_HOSTNAME_FQDN}" <"${SCRIPT_PATH}/dns/linode/shutdown_command.sh" >/dev/null 2>&1 &
+        ssh_pid=$!
+        sleep 10
+      else
+        [[ ${scripting} == "false" ]] && _echo "$(msg cyan)Shutting down linode using linode API ${linode_label} ...$(msg end)" --name
+        linode_api_exec=$(${LINODE_CLI_BIN} linodes shutdown "${linode_id}" --json --pretty 2> >(grep 'Linode busy'))
+      fi
       if [ -n "${linode_api_exec}" ]; then
         _echo "$(msg yellow)Warning, Linode is busy. Re-executing linodes shutdown in 10 seconds ...$(msg end)" --name --verbose 4
         sleep 10
@@ -4168,9 +4342,10 @@ function linode_api_admin() {
         linode_status=$(${LINODE_CLI_BIN} linodes view "${linode_id}" --json --pretty | ${JQ_BIN} -r ".[] | .status")
         if [ "${linode_status}" == "running" ]; then
           _echo "$(msg yellow)Notice, linode ${linode_label} is running. Waiting for offline status ...$(msg end)" --start-spin --name
-
         elif [[ "${linode_status}" == "offline" ]]; then
           _echo "$(msg green)Success, linode ${linode_label} is offline.$(msg end)" --stop-spin --name
+          # Linode status is shutting down, so the push script shutdown_command is triggered successfully, we can kill running ssh for safety.
+          { kill -9 ${ssh_pid} && wait ${ssh_pid}; } 2>/dev/null
           [[ ${scripting} == "false" ]] && exec_time total "linode_api_admin"
           return 0
           #break
@@ -13079,6 +13254,9 @@ fi
 # Start logging here after successfully validated config if LOG_VERBOSITY_LEVEL from config file is set to 8
 [[ ${LOG_VERBOSITY_LEVEL} == "8" ]] && set -x
 
+# Configuring or creating extra scripts
+create_file "ssh-push-scripts"
+
 # Obtain DNS provider API information from config variable
 DNS_PROVIDER_NAME=$(echo "${DNS_PROVIDER_API1}" | awk -F':' '{ print $1 }')
 DNS_PROVIDER_USER=$(echo "${DNS_PROVIDER_API1}" | awk -F':' '{ print $2 }')
@@ -13153,7 +13331,7 @@ while [ "$#" -gt 0 ]; do
     #fi
     echo "Remember you can always resume installation with (--help for more information):"
     echo "For local installation: ${SCRIPT_NAME} --setup"
-    echo "For remote installation: ${SCRIPT_NAME} --ssh-login \"${BOX_HOSTNAME_FQDN}:${SSH_PORT}\" \"root:${ROOT_USERNAME}\" \"${SCRIPT_PATH}/maxinet_ssh.sh\""
+    echo "For remote installation: ${SCRIPT_NAME} --ssh-login \"${BOX_HOSTNAME_FQDN}:${SSH_PORT}\" \"root:${ROOT_USERNAME}\" \"${CODE_PATH}/ssh_scripts/maxinet_setup.sh\""
     echo "To login as root user: ${SCRIPT_NAME} --ssh-login \"${BOX_HOSTNAME_FQDN}:${SSH_PORT}\" \"user:root\""
     echo "To login as SSH user: ${SCRIPT_NAME} --ssh-login \"${BOX_HOSTNAME_FQDN}:${SSH_PORT}\" \"root:SSH_USERNAME\""
     echo "To unlock LUKS Disk encryption: ${SCRIPT_NAME} --ssh-luks-unlock ${DROP_BEAR_PORT} \"<LUKS_PASS>\""
@@ -13303,11 +13481,12 @@ while [ "$#" -gt 0 ]; do
     _pause 120
     # Destroy the setup config deeply
     shred -uvz "${CONFIG_FILE}"
-    # Remove all setup information except CONF_PATH because CONF_PATH contains setup step information
+    # Remove all setup information except CONF_PATH because CONF_PATH and CODE_PATH
+    # CONF_PATH contains setup step information whereas CODE_PATH contains autogenerated file/script ending with _ag.extension
     rm -rf "${LOG_PATH}"
     #rm -rf "${CONF_PATH}"
     rm -rf "${DATA_PATH}"
-    rm -rf "${CODE_PATH}"
+    #rm -rf "${CODE_PATH}"
     rm -rf "${TEMP_PATH}"
     rm -rf "${INST_TEMP_DIR}"
     # Clear bash history
@@ -13315,7 +13494,7 @@ while [ "$#" -gt 0 ]; do
     exit 0
     break
     ;;
-  # Clear all paths
+  # Clear all paths (dangerous)
   -cls | --clear)
     rm -rf "${LOG_PATH}"
     rm -rf "${CONF_PATH}"
@@ -13371,6 +13550,7 @@ while [ "$#" -gt 0 ]; do
     ;;
 
   -lui | --linode-upload-iso)
+    # This is a way to upload iso file from local to remote using scp
     shift
     cp "${SCRIPT_PATH}"/secure/ssh/*.id_rsa* /root/.ssh/
     chmod -R 600 /root/.ssh/
@@ -13473,6 +13653,19 @@ ENDSSH
     break
     ;;
   -t | --test)
+
+    exit 1
+    ssh_api lish-push-script --push-iso-write-script
+    exit 1
+    ssh_api lish-login
+    exit 1
+    ## ssh -o "StrictHostKeyChecking no" -i /root/.ssh/linode_lish.id_rsa -tt "${DNS_PROVIDER_USER}@${DNS_PROVIDER_TERMINAL_SERVER}" "${BOX_HOSTNAME_FQDN}" <"${SCRIPT_PATH}/dns/linode/rescue_write.sh" >/dev/null 2>&1 &
+    ssh -o "StrictHostKeyChecking no" -i /root/.ssh/linode_lish.id_rsa -tt "${DNS_PROVIDER_USER}@${DNS_PROVIDER_TERMINAL_SERVER}" "${BOX_HOSTNAME_FQDN}" <"${CODE_PATH}/ssh_scripts/os_write_ag.sh" >/dev/null 2>&1 &
+    ssh_pid=$!
+    echo "Killing SSH PID in 10 seconds ${ssh_pid}"
+    #sleep 30 # instead of sleeping, check the status of linode
+    #kill -9 ${ssh_pid} 2>/dev/null
+    exit 1
     ssh_api copy-public-keys --without-prompt
     exit 1
     ssh_api get-prikey --groupname test --username onar --servername mars.satu.com
@@ -13589,7 +13782,7 @@ ENDSSH
     exit 147
     shift
     # ssh_transfer "${BOX_HOSTNAME_FQDN}:${SSH_PORT}" "root:${ROOT_USERNAME}" "maxinet maxinet.conf" ~/
-    ssh_login "${BOX_HOSTNAME_FQDN}:${SSH_PORT}" "root:${ROOT_USERNAME}" "${SCRIPT_PATH}/maxinet_ssh.sh"
+    ssh_login "${BOX_HOSTNAME_FQDN}:${SSH_PORT}" "root:${ROOT_USERNAME}" "${CODE_PATH}/ssh_scripts/maxinet_setup.sh"
     #ssh_api "create-key" "admin" "test1" "comment1"
     #ssh_api "get-pubkey" "admin" "test1"
     #exit 147
@@ -13613,21 +13806,6 @@ ENDSSH
     #chmod -R 600 /root/.ssh/
     #ssh -i /root/.ssh/linode_lish.id_rsa -tt "${DNS_PROVIDER_USER}@${DNS_PROVIDER_TERMINAL_SERVER}" "${BOX_HOSTNAME_FQDN}" <"${SCRIPT_PATH}/dns/linode/lish_command.sh"
     #ssh -q -i /root/.ssh/linode_lish.id_rsa -tt "${DNS_PROVIDER_USER}@${DNS_PROVIDER_TERMINAL_SERVER}" "${BOX_HOSTNAME_FQDN}" screen -d -m ${SCRIPT_PATH}/dns/linode/lish_command.sh -s 'potato' # <${SCRIPT_PATH}/dns/linode/lish_command.sh 2>&1 &
-
-    #ssh myuser@hostname
-
-    #pkill ssh
-    #echo "Script executed"
-    #count=0
-    #while :; do
-    #  spinner start "panjjdk adjsak jsakdj asdk asdjslka djsajdkl"
-    #  sleep 1
-    #  ((count++))
-    #  if [ "${count}" -eq 5 ]; then
-    #    spinner stop "stoppe dsa d asd adas d"
-    #    break
-    #  fi
-    #done
 
     exit 0
     break
