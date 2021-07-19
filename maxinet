@@ -4,7 +4,7 @@
 APP_SPECIFIC_NAME="Maxinet"
 APP_STATUS="alpha"
 # Note some minor versions are not published
-APP_VERSION="0.5.2.1-${APP_STATUS}"
+APP_VERSION="0.5.2.2-${APP_STATUS}"
 COMPANY_ID="${COMPANY_ID}"
 # Hello there, this is a powerful script that able initialize one or more server installation from scratch. From configuring the server disk, until you got the full working server with a live website.
 # It also includes many security and hardening script.
@@ -237,15 +237,6 @@ function variable_api() {
   fi
 }
 
-# Deprecated, already combined in variable_api() function
-# get_var_value <variable_name>
-function get_var_value() {
-  local name dv
-  name="$1"
-  dv="VAR_${name}"
-  echo "${!dv}"
-}
-
 # This function validate all data argument. Eg: check if the domain name provided is FQDN or valid
 # is_valid server_record_type <data>
 function is_valid() {
@@ -398,7 +389,6 @@ function is_valid() {
     retval=$?
     return ${retval}
   fi
-
 }
 
 # This function initialize or deploy server installation from scratch with few options
@@ -597,20 +587,24 @@ function init_server() {
     # This above lish ssh command is equivalent to below using --push-iso-write-script option and other config will be used the default values from config file:
     ssh_api lish-push-script --push-iso-write-script
 
-    # TODO test more this old vs new code
     #check_linode_status_until "offline"
 
     #linode_api_admin wait-linode-until --status offline
     linode_api_admin wait-linode-status --linode-label "${BOX_HOSTNAME_FQDN}" --until-status offline
-    exit 1
+
     # After system shutdown, then we can execute the following
-    linode_api_admin "boot-linode" "${BOX_HOSTNAME_FQDN}" "Boot_Config"
-    _echo "Installing operating system on OS_Disk via preseed file ... (approx 5 minutes. It will finish when linode is turned off automatically): "
-    check_linode_status_until "offline"
+    # Note I can use reboot-linode or boot-linode (boot-linode is used if the linode status is offline, if it's online you cannot use it)
+    linode_api_admin reboot-linode --linode-label "${BOX_HOSTNAME_FQDN}" --linode-config-label "Boot_Config"
+    _echo "Installing operating system on OS_Disk via preseed file ... (approx 5 minutes. It will finish when linode is turned off automatically): " --name
+    #check_linode_status_until "offline"
+    linode_api_admin wait-linode-status --linode-label "${BOX_HOSTNAME_FQDN}" --until-status offline
+    # Remove the Boot_Config, we do not need this anymore
+    linode_api_admin delete-config --linode-label "${BOX_HOSTNAME_FQDN}" --linode-config-label "Boot_Config"
+    # Boot into the new OS
+    _echo "Booting into operating system (make sure to unlock LUKS)" --name
+    linode_api_admin boot-linode --linode-label "${BOX_HOSTNAME_FQDN}" --linode-config-label "OS_Config"
 
-    _echo "Booting into operating system (make sure to unlock LUKS)"
-    linode_api_admin "boot-linode" "${BOX_HOSTNAME_FQDN}" "OS_Config"
-
+    exit 1
     # check server and port if available auto unlock it
     _echo "Checking whether hostname ${BOX_HOSTNAME_FQDN} with port ${DROP_BEAR_PORT} are available ..."
     count=0
@@ -626,7 +620,7 @@ function init_server() {
         break
       fi
       if [ "${count}" -gt 60 ]; then
-        _echo warning "[${SCRIPT_NAME}]: It seems like DROP_BEAR_PORT is closed. Something is wrong"
+        _echo "[${SCRIPT_NAME}]: It seems like DROP_BEAR_PORT is closed. Something is wrong"
         _exit 1
       fi
     done
@@ -637,29 +631,31 @@ function init_server() {
     # maxinet --ssh-login sun.sofibox.com
     sleep 5
     _echo "Copying maxinet script ..."
+    # TODO ssh_api transfer-files \ file transfer | transfer-file --server ${BOX_HOSTNAME_FQDN} ---port ${SSH_PORT} --group root --user ${ROOT_USERNAME} --local-files "/tmp/file1 /var/file2" --remote-path ~/
     ssh_transfer "${BOX_HOSTNAME_FQDN}:${SSH_PORT}" "root:${ROOT_USERNAME}" "${SCRIPT_PATH}/maxinet ${SCRIPT_PATH}/maxinet.conf" ~/
     sleep 2
 
     _echo def "Connecting to ${BOX_HOSTNAME_FQDN}:${SSH_PORT} and installing server ..."
 
     if [ "${PRE_AUTORUN_SETUP}" == "yes" ]; then
-      _echo def "Setup will automatically execute remote maxinet script and start installation of the server ... (it might take some time) ..."
+      _echo "Setup will automatically execute remote maxinet script and start installation of the server ... (it might take some time) ..."
+      # TODO ssh_api push-script --server ${BOX_HOSTNAME_FQDN} --port ${SSH_PORT} --group root --username ${ROOT_USERNAME} --script-path "${CODE_PATH}/ssh_scripts/maxinet_setup.sh"
       ssh_login "${BOX_HOSTNAME_FQDN}:${SSH_PORT}" "root:${ROOT_USERNAME}" "${CODE_PATH}/ssh_scripts/maxinet_setup.sh"
       # After installation above, the system must restart once, so we execute next script to reopen LUKS
       #check_linode_status_until "offline"
     else
-      _echo def "Auto run script is disabled. Turning off server ... "
-      # reboot_ssh.sh is depcrecated removed to /backup folder
+      _echo "Auto run script is disabled. Turning off server ... "
+      # reboot_ssh.sh is deprecated removed to /backup folder
       #ssh_login "${BOX_HOSTNAME_FQDN}:${SSH_PORT}" "root:${ROOT_USERNAME}" "${SCRIPT_PATH}/reboot_ssh.sh"
-      linode_api_admin "shutdown-linode" "${BOX_HOSTNAME_FQDN}"
+      linode_api_admin shutdown-linode --linode-label "${BOX_HOSTNAME_FQDN}"
       #check_linode_status_until "offline"
     fi
     # After the above script is executed, now we wait for it to shutdown properly before booting
     check_linode_status_until "offline"
-    _echo def "Booting into operating system (LUKS console might be appeared and unlocked automatically)"
+    _echo "Booting into operating system (LUKS console might be appeared and unlocked automatically)"
     linode_api_admin "boot-linode" "${BOX_HOSTNAME_FQDN}" "OS_Config"
     # check server and port if available in order to auto unlock it
-    _echo def "Checking whether hostname ${BOX_HOSTNAME_FQDN} with port ${DROP_BEAR_PORT} are available ..."
+    _echo "Checking whether hostname ${BOX_HOSTNAME_FQDN} with port ${DROP_BEAR_PORT} are available ..."
     count=0
     while :; do
       drop_bear_port=$(check_server_port "${BOX_HOSTNAME_FQDN}" "${DROP_BEAR_PORT}")
@@ -746,7 +742,7 @@ function check_server_port() {
   echo "${result}"
 }
 # This function is used to manage SSH key (create, get, copy)
-# Usage: ssh_api create-key|create-key-with-putty|copy-pubkeys <group_name> <user> <comment>
+# Usage: ssh_api create-key|create-key-with-putty| copy-pubkeys <group_name> <user> <comment>
 # Note 1: create-key will create normal ssh key
 # Note 2: create-key-with-putty will create ssh key with putty format
 # eg: ssh_api create-key-with-putty --group-name admin --username maxi32 --comment "This is a comment"
@@ -756,7 +752,7 @@ function check_server_port() {
 # group_name = user, admin, root, rescue, backup, os, diradmin ...
 function ssh_api() {
 
-  local action argnum options long_opts retval key_path groupname username comment server_label servername destination rsa_key linode_label script_path \
+  local action argnum options long_opts retval key_path group username comment server_label server port destination rsa_key linode_label script_path \
     push_iso_write_script push_shutdown_script push_reboot_script
 
   action="$1"
@@ -766,8 +762,8 @@ function ssh_api() {
     echo "Error, no argument is supplied. Use [ ${SCRIPT_NAME} --iso --help ] to see the valid options"
     exit 1
   fi
-  long_opts="help,key-path:,groupname:,username:,comment:,server-label:,servername:,destination:,without-prompt,rsa-key:,linode-label:,script-path:, \
-  push-iso-write-script, push-shutdown-script, push-reboot-script"
+  long_opts="help,key-path:,group:,username:,comment:,server-label:,server:,port:,destination:,without-prompt,rsa-key:,linode-label:,script-path:, \
+  push-iso-write-script,push-shutdown-script,push-reboot-script,sp:,server-port:,gu:,group-user:"
   options=$(getopt -o '' --long "${long_opts}" -n "${FUNCNAME[0]} in ${SCRIPT_NAME}" -- "$@")
   retval=$?
   if [ ${retval} != 0 ]; then
@@ -779,19 +775,20 @@ function ssh_api() {
   eval set -- "${options}"
   # Can change using --key-path option but this location is best practice
   key_path="${SCRIPT_PATH}/secure/ssh"
-  groupname=""
+  group=""
   username=""
   comment=""
   server_label="${BOX_HOSTNAME_FQDN}" # If not specified, use the default value from config file sun.sofibox.com
   destination="/root/.ssh/"           # If not specified, the default location is /root/.ssh/
   without_prompt=false
-  servername="${DNS_PROVIDER_TERMINAL_SERVER}" #If not specified default to the lish server from config file eg: singapore-lish.linode.com
-  linode_label="${BOX_HOSTNAME_FQDN}"          # If not specified, use the default value from config file sun.sofibox.com
+  server="${DNS_PROVIDER_TERMINAL_SERVER}" #If not specified default to the lish server from config file eg: singapore-lish.linode.com
+  linode_label="${BOX_HOSTNAME_FQDN}"      # If not specified, use the default value from config file sun.sofibox.com
   rsa_key=""
   script_path=""
   push_iso_write_script=false
   push_shutdown_script=false
   push_reboot_script=false
+  port="22" #If not specified the default is port 22
   while true; do
     case "$1" in
     --help)
@@ -803,8 +800,8 @@ function ssh_api() {
       key_path="$2"
       shift 2
       ;;
-    --groupname)
-      groupname="$2"
+    --group)
+      group="$2"
       shift 2
       ;;
     --username)
@@ -815,8 +812,13 @@ function ssh_api() {
       comment="$2"
       shift 2
       ;;
-    --servername)
-      servername="$2"
+    --server)
+      server="$2"
+      # TODO implement check if server is not propagated, we use IP address instead for server
+      shift 2
+      ;;
+    --port)
+      port="$2"
       shift 2
       ;;
     --server-label)
@@ -833,6 +835,20 @@ function ssh_api() {
       ;;
     --script-path)
       script_path="$2"
+      shift 2
+      ;;
+    # This one we can combine server:port
+    --sp | server-port)
+      server_port="$2"
+      server=$(echo "${server_port}" | awk -F':' '{ print $1 }')
+      port=$(echo "${server_port}" | awk -F':' '{ print $2 }')
+      shift 2
+      ;;
+    # This one we can combine group:user
+    --gu | group-user)
+      group_user="$2"
+      group=$(echo "${group_user}" | awk -F':' '{ print $1 }')
+      username=$(echo "${group_user}" | awk -F':' '{ print $2 }')
       shift 2
       ;;
     --without-prompt)
@@ -872,10 +888,68 @@ function ssh_api() {
       ;;
     esac
   done
+  # ssh_api login --server sun.sofibox.com --port 893 --group root --user root
+  # This is equivalent to the above:
+  # ssh_api login -sp sun.sofibox.com:893 --gu root:root
 
+  # Special login short form
+  # ssh_api login root
+  # ssh_api login my_ssh_user
+
+  # ssh_api push-script
+
+  if [ "${action}" == "login" ]; then
+    local user ssh_pid private_key_name private_key_file
+    user="$2"
+    # This is special login based on user from config file (for faster login)
+    if [ "${user}" == "${ROOT_USERNAME}" ]; then
+      private_key_name="root_${ROOT_USERNAME}_${BOX_HOSTNAME_FQDN}.id_rsa"
+      private_key_file="${key_path}/${private_key_name}"
+      rsa_key="${private_key_file}"
+      _echo "$(msg cyan)Logging into SSH server at ${ROOT_USERNAME}@${BOX_HOSTNAME_FQDN}:${SSH_PORT}... $(msg end)" --name
+      ssh -o "StrictHostKeyChecking no" -i "${rsa_key}" -p "${SSH_PORT}" "${ROOT_USERNAME}${BOX_HOSTNAME_FQDN}"
+    elif [ "${user}" == "${SSH_USERNAME}" ]; then
+      private_key_name="user_${SSH_USERNAME}_${BOX_HOSTNAME_FQDN}.id_rsa"
+      private_key_file="${key_path}/${private_key_name}"
+      rsa_key="${private_key_file}"
+      _echo "$(msg cyan)Logging into SSH server at ${SSH_USERNAME}@${BOX_HOSTNAME_FQDN}:${SSH_PORT}... $(msg end)" --name
+      ssh -o "StrictHostKeyChecking no" -i "${rsa_key}" -p "${SSH_PORT}" "${SSH_USERNAME}${BOX_HOSTNAME_FQDN}"
+    else
+      if [[ -z "${group}" ]]; then
+        _echo "$(msg red)Error, the option --group is required to have value$(msg end)" --name
+        _exit 147
+      elif [[ -z "${username}" ]]; then
+        _echo "$(msg red)Error, the option --username is required to have value$(msg end)" --name
+        _exit 147
+      elif [[ -z "${server}" ]]; then
+        _echo "$(msg red)Error, the option --server is required to have value$(msg end)" --name
+        _exit 147
+      elif [[ -z "${port}" ]]; then
+        _echo "$(msg red)Error, the option --port is required to have value$(msg end)" --name
+        _exit 147
+      fi
+
+      if [ -z "${rsa_key}" ]; then
+        private_key_name="${group}_${username}_${server}.id_rsa"
+        private_key_file="${key_path}/${private_key_name}"
+        rsa_key="${private_key_file}"
+      fi
+
+      if [ ! -f "${rsa_key}" ]; then
+        _echo "$(msg red)Error, invalid public RSA key file at ${rsa_key}. Please make sure the file exist$(msg end)" --name --verbose 3
+        _exit 147
+      fi
+
+      _echo "$(msg cyan)Logging into SSH server at ${username}@${server}:${port}... $(msg end)" --name
+
+      #ssh -o "StrictHostKeyChecking no" -i "${rsa_key}" -p "${port}" -tt "${username}@${server}" "${linode_label}"
+      ssh -o "StrictHostKeyChecking no" -i "${rsa_key}" -p "${port}" "${username}${server}"
+      ssh_pid=$?
+      { kill -9 ${ssh_pid} && wait ${ssh_pid}; } 2>/dev/null
+    fi
   # For linode LISH login
-  # ssh_api lish-login --key /root/.ssh/linode_lish.id_rsa --username --server lish-singapore.linode.com --linode-label sun.sofibox.com
-  if [ "${action}" == "lish-login" ]; then
+  # ssh_api lish-login --key /root/.ssh/linode_lish.id_rsa --username maxibi --server lish-singapore.linode.com --port 22 --linode-label sun.sofibox.com
+  elif [ "${action}" == "lish-login" ]; then
     local ssh_pid
     # This is not a normal SSH (it uses Pseudo-TTY)
     # Normal: ssh_api lish-login
@@ -892,12 +966,17 @@ function ssh_api() {
       _exit 147
     fi
 
-    _echo "$(msg cyan)Logging into lish console ${username}@${servername}... $(msg end)" --name
+    _echo "$(msg cyan)Logging into lish console ${username}@${server}... $(msg end)" --name
     # In Windows WSL linux, there will be error log saying: setsockopt IPV6_TCLASS 16: Operation not permitted: (this message can be ignored)
     # Note 2 linode lish requires to use -t option to login. -t option means pseudo-tty (some suggested to use double -tt)
-    ssh -o "StrictHostKeyChecking no" -i "${rsa_key}" -tt "${username}@${servername}" "${linode_label}"
+    ssh -o "StrictHostKeyChecking no" -i "${rsa_key}" -p "${port}" -tt "${username}@${server}" "${linode_label}"
     ssh_pid=$?
     { kill -9 ${ssh_pid} && wait ${ssh_pid}; } 2>/dev/null
+
+  # For SSH push script
+  elif [ "${action}" == "push-script" ]; then
+    # TODO
+    :
     # For linode LISH push script
   elif [ "${action}" == "lish-push-script" ]; then
     local ssh_pid
@@ -927,9 +1006,9 @@ function ssh_api() {
       fi
     fi
 
-    _echo "$(msg cyan)Pushing script ${script_path} into lish console ${username}@${servername}... $(msg end)" --name
-    # push script: ssh_api lish-push-script --key rsa_key.id.rsa --username maxibi --servername member.linode.com --linode-label sun.sofibox.com --script-path /tmp/os_write --silent
-    ssh -q -o "StrictHostKeyChecking no" -i ${rsa_key} -tt "${username}@${servername}" "${linode_label}" <"${script_path}" >/dev/null 2>&1 &
+    _echo "$(msg cyan)Pushing script ${script_path} into lish console ${username}@${server}... $(msg end)" --name
+    # push script: ssh_api lish-push-script --key rsa_key.id.rsa --username maxibi --server member.linode.com --linode-label sun.sofibox.com --script-path /tmp/os_write --silent
+    ssh -q -o "StrictHostKeyChecking no" -i ${rsa_key} -p "${port}" -tt "${username}@${server}" "${linode_label}" <"${script_path}" >/dev/null 2>&1 &
     # if dont specify script_path, i can specify option such as --push-os-write, --push-shutdown, --push-reboot
     #ssh -q -o "StrictHostKeyChecking no" -i /root/.ssh/linode_lish.id_rsa -tt "${DNS_PROVIDER_USER}@${DNS_PROVIDER_TERMINAL_SERVER}" "${BOX_HOSTNAME_FQDN}" <"${SCRIPT_PATH}/dns/linode/os_write.sh" >/dev/null 2>&1 &
 
@@ -937,17 +1016,17 @@ function ssh_api() {
 
     local private_key_name
     mkdir -p "${key_path}"
-    if [[ -z "${groupname}" ]]; then
-      _echo "$(msg red)Error, the option --groupname is required to have value$(msg end)" --name
+    if [[ -z "${group}" ]]; then
+      _echo "$(msg red)Error, the option --group is required to have value$(msg end)" --name
       _exit 147
     elif [[ -z "${username}" ]]; then
       _echo "$(msg red)Error, the option --username is required to have value$(msg end)" --name
       _exit 147
     elif [[ -z "${server_label}" ]]; then
-      _echo "$(msg red)Error, the option --serve-name is required to have value$(msg end)" --name
+      _echo "$(msg red)Error, the option --server-label is required to have value$(msg end)" --name
       _exit 147
     else
-      private_key_name="${groupname}_${username}_${server_label}.id_rsa"
+      private_key_name="${group}_${username}_${server_label}.id_rsa"
 
     fi
     _echo "$(msg cyan)Creating private and public key RSA SSH key authentication at ${key_path}/${private_key_name} ...$(msg end)" --name
@@ -955,18 +1034,18 @@ function ssh_api() {
   elif [ "${action}" == "create-key-with-putty" ]; then
     local private_key_name private_key_putty_name
     mkdir -p "${key_path}"
-    if [[ -z "${groupname}" ]]; then
-      _echo "$(msg red)Error, the option --groupname is required to have value$(msg end)" --name
+    if [[ -z "${group}" ]]; then
+      _echo "$(msg red)Error, the option --group is required to have value$(msg end)" --name
       _exit 147
     elif [[ -z "${username}" ]]; then
       _echo "$(msg red)Error, the option --username is required to have value$(msg end)" --name
       _exit 147
     elif [[ -z "${server_label}" ]]; then
-      _echo "$(msg red)Error, the option --serve-name is required to have value$(msg end)" --name
+      _echo "$(msg red)Error, the option --server-label is required to have value$(msg end)" --name
       _exit 147
     else
-      private_key_name="${groupname}_${username}_${server_label}.id_rsa"
-      private_key_putty_name="${groupname}_${username}_${server_label}.ppk"
+      private_key_name="${group}_${username}_${server_label}.id_rsa"
+      private_key_putty_name="${group}_${username}_${server_label}.ppk"
     fi
     _echo "$(msg cyan)Creating private and public key RSA SSH key authentication at ${key_path}/${private_key_name} ...$(msg end)" --name
     ssh-keygen -f "${key_path}/${private_key_name}" -t rsa -b 4096 -P "" -C "${comment}" <<<y
@@ -976,17 +1055,17 @@ function ssh_api() {
     puttygen "${key_path}/${private_key_name}" -o "${key_path}/${private_key_putty_name}"
   elif [[ "${action}" == "get-pubkey" || "${action}" == "get-public-key" ]]; then
     local public_key_name public_key_file
-    if [[ -z "${groupname}" ]]; then
-      _echo "$(msg red)Error, the option --groupname is required to have value$(msg end)" --name
+    if [[ -z "${group}" ]]; then
+      _echo "$(msg red)Error, the option --group is required to have value$(msg end)" --name
       _exit 147
     elif [[ -z "${username}" ]]; then
       _echo "$(msg red)Error, the option --username is required to have value$(msg end)" --name
       _exit 147
     elif [[ -z "${server_label}" ]]; then
-      _echo "$(msg red)Error, the option --serve-name is required to have value$(msg end)" --name
+      _echo "$(msg red)Error, the option --server-label is required to have value$(msg end)" --name
       _exit 147
     else
-      public_key_name="${groupname}_${username}_${server_label}.id_rsa.pub"
+      public_key_name="${group}_${username}_${server_label}.id_rsa.pub"
       public_key_file="${key_path}/${public_key_name}"
     fi
 
@@ -999,17 +1078,17 @@ function ssh_api() {
     fi
   elif [[ "${action}" == "get-prikey" || "${action}" == "get-private-key" ]]; then
     local private_key_name private_key_file
-    if [[ -z "${groupname}" ]]; then
-      _echo "$(msg red)Error, the option --groupname is required to have value$(msg end)" --name
+    if [[ -z "${group}" ]]; then
+      _echo "$(msg red)Error, the option --group is required to have value$(msg end)" --name
       _exit 147
     elif [[ -z "${username}" ]]; then
       _echo "$(msg red)Error, the option --username is required to have value$(msg end)" --name
       _exit 147
     elif [[ -z "${server_label}" ]]; then
-      _echo "$(msg red)Error, the option --serve-name is required to have value$(msg end)" --name
+      _echo "$(msg red)Error, the option --server-label is required to have value$(msg end)" --name
       _exit 147
     else
-      private_key_name="${groupname}_${username}_${server_label}.id_rsa"
+      private_key_name="${group}_${username}_${server_label}.id_rsa"
       private_key_file="${key_path}/${private_key_name}"
     fi
     if [ -f "${private_key_file}" ]; then
@@ -1052,6 +1131,44 @@ function ssh_api() {
     return 147
   fi
 }
+#maxinet lish-console <options>
+
+#maxinet lish-console kill - kill stuck screen sessions
+#maxinet lish-console exit - exit from lish
+#maxinet lish-console help - this menu
+#maxinet lish-console [return] - connect to console
+#maxinet lish-console boot - boot last used (or the only) config profile
+#maxinet lish-console boot N - boot the specified config profile. Where N is the profile number assigned as: N) Config Name
+#maxinet lish-console reboot - shut down, then boot the last used config profile
+#maxinet lish-console reboot N - shut down, then boot the specified config profile. Where N is the profile number assigned as: N) Config Name
+#maxinet lish-console sysrq X - send SysRq X to your Linode. Where X is the sysrq code that can be found here: https://en.wikipedia.org/wiki/Magic_SysRq_key#Commands
+#maxinet lish-console shutdown - shut down the Linode
+#maxinet lish-console destroy - pulls the plug on a running Linode, no fs sync, no warning
+#maxinet lish-console jobs - view the job queue for your Linode
+#maxinet lish-console version - display running kernel version
+#maxinet lish-console configs - view the configuration profiles for your Linode
+#maxinet lish-console config N - view configuration profile details for profile N
+#maxinet lish-console status - view the status of your Linode
+#maxinet lish-console logview - view contents of console log
+
+function lish_console() {
+  #exec_time start lish_console
+  options="$*"
+  # If we do not give value for option, it means we are using the return signal (means connect to console)
+  if [ -z "${options}" ]; then
+    _echo "$(msg cyan)Executing lish-console command [ RETURN - connect to console] ...$(msg end)" --name
+  else
+    _echo "$(msg cyan)Executing lish-console command [ ${options} ] ...$(msg end)" --name
+  fi
+  # Only run this in local machine
+  # This will list out the number of lish config profile for OS_Config (currently this has bug in linode because it took longer to list out and has duplicated Rescue Mode entry)
+  # Sent question to ticket waiting for answer to speedup this one
+  #maxinet --lish configs 2>&1 | grep 'OS_Config' | awk -F')' '{ print $1 }' | xargs
+  # I use 2>&1 to hide error output
+  ssh -i "${SECURE_PATH}/ssh/linode_lish.id_rsa" -o "StrictHostKeyChecking no" -oAddressFamily=inet -tt "${DNS_PROVIDER_USER}@${DNS_PROVIDER_TERMINAL_SERVER}" "${BOX_HOSTNAME_FQDN}" ${options}
+  #exec_time end lish_console
+}
+# This function is going to be deprecated. It will be combined in ssh_api
 # This function is used to login into server (SSH login)
 # It can be supplied with script and run in silent/noisy mode
 # Usage: ssh_login "<server>:<port>" "<group>:<user>" <silent> optional_script_path>
@@ -1115,6 +1232,8 @@ function ssh_login() {
   fi
   #exec_time end "${FUNCNAME[0]}"
 }
+
+# TODO ssh_api transfer-file
 # This function is use to transfer file over SSH using scp
 # Usage: ssh_transfer <hostname_fqdn>:<port> <group>:<user> <local_path> <remote_path>
 # To transfer multiple files, quote the local_path for example:
@@ -2840,10 +2959,10 @@ function iso_api() {
         echo ""
 
         _echo "$(msg cyan)Writing rsa public key (root) file into ${isodir_write_tmp}/root_${ROOT_USERNAME}_${BOX_HOSTNAME_FQDN}.id_rsa.pub ...$(msg end)" --name
-        ssh_api get-public-key --group root --username "${ROOT_USERNAME}" --servername "${BOX_HOSTNAME_FQDN}" >"${isodir_write_tmp}/root_${ROOT_USERNAME}_${BOX_HOSTNAME_FQDN}.id_rsa.pub"
+        ssh_api get-public-key --group root --username "${ROOT_USERNAME}" --server "${BOX_HOSTNAME_FQDN}" >"${isodir_write_tmp}/root_${ROOT_USERNAME}_${BOX_HOSTNAME_FQDN}.id_rsa.pub"
         echo ""
         _echo "$(msg cyan)Writing rsa public key (user) file into ${isodir_write_tmp}/user_${SSH_USERNAME}_${BOX_HOSTNAME_FQDN}.id_rsa.pub ...$(msg end)" --name
-        ssh_api get-public-key --group user --username "${SSH_USERNAME}" --servername "${BOX_HOSTNAME_FQDN}" >"${isodir_write_tmp}/user_${SSH_USERNAME}_${BOX_HOSTNAME_FQDN}.id_rsa.pub"
+        ssh_api get-public-key --group user --username "${SSH_USERNAME}" --server "${BOX_HOSTNAME_FQDN}" >"${isodir_write_tmp}/user_${SSH_USERNAME}_${BOX_HOSTNAME_FQDN}.id_rsa.pub"
         echo ""
 
         _echo "$(msg cyan)Changing permission of ${isodir_write_tmp}/preseed.cfg to own by root:root ...$(msg end)" --name
@@ -4789,54 +4908,63 @@ function linode_api_admin() {
       _echo "Error, something was wrong when creating linode config profile for  --linode-config-label ${linode_config_label}" --verbose 4
       return 147
     fi
-  ####
-  elif [[ "${action}" == "start-linode" || "${action}" == "boot-linode" || "${action}" == "boot" || "${action}" == "start" ]]; then
-    shift
-    local linode_id hostname_fqdn config_label config_id wait_time
-    hostname_fqdn="$1"
-    local retval
-    host "${hostname_fqdn}" >/dev/null 2>&1
-    retval=$?
-    if [ ${retval} -eq 0 ]; then
-      #echo "[${SCRIPT_NAME}]: Ok, ${hostname_fqdn} is a FQDN"
-      :
+  #Using reboot-linode is similar to this except boot-linode cannot be used if it's not offline mode.
+  elif [[ "${action^^}" == +(BOOT-LINODE|START-LINODE|BOOT|START|TURN-ON|TURNON|POWER-ON|POWERON) ]]; then
+    local linode_id linode_api_exec ssh_pid linode_config_id linode_api_exec
+    # Required only linode_id and config_id
+    if is_valid domain "${linode_label}"; then
+      [[ ${scripting} == "false" ]] && _echo "$(msg green)OK, the given --linode-label $(msg red)${linode_label}$(msg green) is valid FQDN$(msg end)" --name --verbose 7
     else
-      echo "[${SCRIPT_NAME}]: Warning, hostname is not a FQDN: ${hostname_fqdn}"
-      hostname_fqdn=${BOX_HOSTNAME_FQDN}
-      echo "[${SCRIPT_NAME}]: Hostname is now set as: ${hostname_fqdn} from config file"
+      # This text is just a warning about the --linode-label that should be FQDN format (no return or exit). For warning use --verbose=4
+      [[ ${scripting} == "false" ]] && _echo "$(msg yellow)Warning, the given --linode-label $(msg red)${linode_label}$(msg green) is not FQDN. It is recommend to name it as FQDN$(msg end)" --name --verbose 4
     fi
-    shift
-    config_label="$1"
-    #wait_time=10
-    echo "[${SCRIPT_NAME}]: Booting linode ${hostname_fqdn} using config label ${config_label} ..."
-    linode_id=$(${LINODE_CLI_BIN} linodes list --json --pretty | ${JQ_BIN} ".[] | select(.label == \"${hostname_fqdn}\") | .id")
-    config_id=$(${LINODE_CLI_BIN} linodes configs-list "${linode_id}" --json --pretty | ${JQ_BIN} ".[] | select(.label == \"${config_label}\") | .id")
-    if [ -z "${config_id}" ]; then
-      echo "[${SCRIPT_NAME}]: Warning, no config ${config_label} is found!"
+
+    # Validate linode_config_label (this is the only required field for linode config profile)
+    if is_valid not-empty-string "${linode_config_label}"; then
+      [[ ${scripting} == "false" ]] && _echo "$(msg green)OK, the given --linode-config-label $(msg red)${linode_config_label}$(msg green) is valid (not empty string)$(msg end)" --name --verbose 7
+    else
+      [[ ${scripting} == "false" ]] && _echo "$(msg red)Error, the given --linode-config-label $(msg red)${linode_config_label}$(msg green) is not valid (empty string)$(msg end)" --name --verbose 4
+      [[ ${scripting} == "false" ]] && exec_time total "linode_api_admin"
       return 147
     fi
-    linode_status=$(${LINODE_CLI_BIN} linodes view "${linode_id}" --json --pretty | ${JQ_BIN} -r ".[] | .status")
-    ${LINODE_CLI_BIN} linodes shutdown "${linode_id}"
 
-    echo "[${SCRIPT_NAME}]: Booting linode ${hostname_fqdn} ..."
-    ${LINODE_CLI_BIN} linodes boot "${linode_id}" --config_id "${config_id}"
-    echo "[${SCRIPT_NAME}]: Waiting linode to finish booting using config ${config_label} ..."
-    #sleep ${wait_time}
+    [[ ${scripting} == "false" ]] && _echo "Getting required linode ID for --linode-label ${linode_label} ..." --name --verbose 7
+    linode_id=$(${LINODE_CLI_BIN} linodes list --json --pretty | ${JQ_BIN} ".[] | select(.label == \"${linode_label}\") | .id")
+    if [ -z "${linode_id}" ]; then
+      _echo "$(msg red)Error, no linode label ID found for $(msg red)--linode-label ${linode_label}$(msg end)" --name --verbose 3
+      [[ ${scripting} == "false" ]] && exec_time total "linode_api_admin"
+      return 147
+    fi
+
+    [[ ${scripting} == "false" ]] && _echo "Getting required linode config ID for --linode-config-label ${linode_config_label} ..." --name --verbose 7
+    linode_config_id=$(${LINODE_CLI_BIN} linodes configs-list "${linode_id}" --json --pretty | ${JQ_BIN} ".[] | select(.label == \"${linode_config_label}\") | .id")
+    if [ -z "${linode_config_id}" ]; then
+      _echo "$(msg red)Error, no linode label config ID found for $(msg red)--linode-config-label ${linode_config_label}$(msg end)" --name --verbose 3
+      return 147
+      [[ ${scripting} == "false" ]] && exec_time total "linode_api_admin"
+    fi
+
+    _echo "$(msg cyan)Booting linode ${linode_label} using --linode-config-label ${linode_config_label} ...$(msg end)" --name
+    # TODO use this method for other error handling in linode API (this is the best way)
+    linode_api_exec=$(${LINODE_CLI_BIN} linodes boot "${linode_id}" --config_id "${linode_config_id}" --json --pretty 2>&1)
+    request_failed=$(echo "${linode_api_exec}" | grep 'Request failed: 400')
+    # can use this variable for other purpose
+    #reason_failed=$(echo "${linode_api_exec}" | grep 'already booted')
+    if [ -n "${request_failed}" ]; then
+      _echo "$(msg red)Error, request failed. Reason:$(msg end)" --name --verbose 3
+      echo "${linode_api_exec}"
+      _exit 147
+    fi
+
+    # Give a little bit time 2 seconds for the status to change:
+    sleep 2
     while :; do
       linode_status=$(${LINODE_CLI_BIN} linodes view "${linode_id}" --json --pretty | ${JQ_BIN} -r ".[] | .status")
       if [[ "${linode_status}" == "running" ]]; then
-        #echo "[${SCRIPT_NAME}]: Success, linode ${hostname_fqdn} has been successfully booted using config ${config_label}."
-        #echo "[${SCRIPT_NAME}]: Server status is: ${linode_status}"
-        spinner stop "[${SCRIPT_NAME}]: Success, linode ${hostname_fqdn} has been successfully booted using config ${config_label}"
+        _echo "$(msg green)Success, linode ${linode_label} has been successfully booted using config ${linode_config_label}$(msg end)" --stop-spin --name
         break
-        # elif [[ "${linode_status}" == "offline" ]]; then
-        #   ${LINODE_CLI_BIN} linodes boot "${linode_id}" --config_id "${config_id}"
       else
-        #echo "[${SCRIPT_NAME}]: Linode status is: ${linode_status}"
-        #echo "[${SCRIPT_NAME}]: Allowing ${wait_time} seconds to finish booting using config ${config_label}"
-        #sleep ${wait_time}
-        spinner start "[${SCRIPT_NAME}]: Linode status is ${linode_status}. Waiting for running status ..."
-
+        _echo "$(msg cyan)Linode status is ${linode_status}. Waiting for running status ...$(msg end)" --start-spin --name
       fi
     done
   elif [[ "${action}" == "view-linode" || "${action}" == "lookup-linode" ]]; then
@@ -13583,6 +13711,12 @@ ENDSSH
     exit 0
     break
     ;;
+  -ssha | --ssh-api)
+    shift
+    ssh_api "$@"
+    exit 0
+    break
+    ;;
   -ssht | --ssh-transfer)
     shift
     ssh_transfer "$@"
@@ -13601,21 +13735,10 @@ ENDSSH
     exit 0
     break
     ;;
-  # Deprecated, only use this for reboot, restart of linode etc ...
   # lish-login <option>
-  -ll | --lish-login | --lish | lish-login)
+  -ll | --lish-console | --lish)
     shift
-    options="$*"
-    # Only run this in local machine
-    cp "${SCRIPT_PATH}"/secure/ssh/*.id_rsa* /root/.ssh/
-    chmod -R 600 /root/.ssh/
-    #  ssh -i /root/.ssh/linode.id_rsa -tt "${DNS_PROVIDER_USER}@${DNS_PROVIDER_TERMINAL_SERVER}" "${BOX_HOSTNAME_FQDN}" < linode/lish_command.sh >/dev/null &
-    #ssh -i /root/.ssh/linode.id_rsa -tt "${DNS_PROVIDER_USER}@${DNS_PROVIDER_TERMINAL_SERVER}" "${BOX_HOSTNAME_FQDN}" <linode/lish_command.sh &
-    #test=$(ssh -i /root/.ssh/linode.id_rsa -tt "${DNS_PROVIDER_USER}@${DNS_PROVIDER_TERMINAL_SERVER}" "${BOX_HOSTNAME_FQDN}" <linode/lish_command.sh >/dev/null 2>&1 &)
-    #test=$(ssh -i /root/.ssh/linode.id_rsa -tt "${DNS_PROVIDER_USER}@${DNS_PROVIDER_TERMINAL_SERVER}" "${BOX_HOSTNAME_FQDN}" <linode/lish_command.sh)
-    #echo "Allowing 30 seconds finish copying ..."
-    #sleep 30
-    ssh -i /root/.ssh/linode_lish.id_rsa -tt "${DNS_PROVIDER_USER}@${DNS_PROVIDER_TERMINAL_SERVER}" "${BOX_HOSTNAME_FQDN}" ${options}
+    lish_console "$@"
     exit 0
     break
     ;;
@@ -13626,7 +13749,7 @@ ENDSSH
     break
     ;;
   # This will generate a modified operating system ISO file that can be used to automatically install OS when booting.
-  --iso-api | --iso-api-admin)
+  --iso-api | --iso-api-admin | --iso)
     shift
     iso_api "$@"
     exit 0
@@ -13653,160 +13776,9 @@ ENDSSH
     break
     ;;
   -t | --test)
-
-    exit 1
-    ssh_api lish-push-script --push-iso-write-script
-    exit 1
-    ssh_api lish-login
-    exit 1
-    ## ssh -o "StrictHostKeyChecking no" -i /root/.ssh/linode_lish.id_rsa -tt "${DNS_PROVIDER_USER}@${DNS_PROVIDER_TERMINAL_SERVER}" "${BOX_HOSTNAME_FQDN}" <"${SCRIPT_PATH}/dns/linode/rescue_write.sh" >/dev/null 2>&1 &
-    ssh -o "StrictHostKeyChecking no" -i /root/.ssh/linode_lish.id_rsa -tt "${DNS_PROVIDER_USER}@${DNS_PROVIDER_TERMINAL_SERVER}" "${BOX_HOSTNAME_FQDN}" <"${CODE_PATH}/ssh_scripts/os_write_ag.sh" >/dev/null 2>&1 &
-    ssh_pid=$!
-    echo "Killing SSH PID in 10 seconds ${ssh_pid}"
-    #sleep 30 # instead of sleeping, check the status of linode
-    #kill -9 ${ssh_pid} 2>/dev/null
-    exit 1
-    ssh_api copy-public-keys --without-prompt
-    exit 1
-    ssh_api get-prikey --groupname test --username onar --servername mars.satu.com
-    exit 1
-    ssh_api create-key --groupname test --username onar --comment oklah --servername mars.satu.com
-    exit 1
-    #linode_api_admin "create-config" --linode-label "${BOX_HOSTNAME_FQDN}" \
-    #--linode-config-label "Boot_Config" --linode-config-comments "The installer boot configuration" --linode-config-virtual-mode "paravirt" \
-    #--linode-config-kernel "linode/direct-disk" --linode-config-runlevel "default" --linode-config-memory-limit "4096" --linode-config-rootdev "/dev/sda" \
-    #--linode-config-enable-distro-helper --linode-config-disable-update-db --linode-config-enable-dep-helper --linode-config-automount-devtmpfs --linode-config-autoconf-network \
-    #--label-devsda "disk:Boot_Disk" --label-devsdb "disk:OS_Disk" --label-devsdc "volume:Backup_Volume"
-
-    linode_api_admin "create-config" --linode-label "${BOX_HOSTNAME_FQDN}" --linode-config-label "XXX" --linode-config-comments "The installer boot configuration" \
-      --linode-config-virtual-mode "paravirt" --linode-config-kernel "linode/direct-disk" --linode-config-runlevel "default" \
-      --linode-config-rootdev "/dev/sda" --label-devsda "disk:Boot_Disk" --linode-config-enable-distro-helper
-
-    exit 1
-    linode_api_admin "delete-config" --linode-label "${BOX_HOSTNAME_FQDN}" --linode-config-label "Boot_Config"
-    # Delete existing OS_Config profile
-    linode_api_admin "delete-config" --linode-label "${BOX_HOSTNAME_FQDN}" --linode-config-label "OS_Config"
-    exit 1
-    linode_api_admin "delete-configs" --linode-label "${BOX_HOSTNAME_FQDN}"
-    exit 1
-    linode_api_admin "delete-disks" --linode-label sun.sofibox.com
-    exit 1
-    linode_api_admin create-disk --linode-label "${BOX_HOSTNAME_FQDN}" --linode-disk-label "OS_Disk" --linode-disk-filetype "raw" --linode-disk-size 10MB --allow-duplicate-entry
-    exit 1
-    # echo "1000 MB" | cut -d1-2
-
-    echo "MB 1000" | awk '{ print $1 }' | grep -Eo '[0-9]+'
-    echo "1000 MB KB" | awk '{ print $2 }' | grep -Eo '[[:alpha:]]+'
-    exit 1
-
-    wait=0
-    while :; do
-      sleep 1
-
-      if [[ "${wait}" == "10" ]]; then
-        _echo "$(msg green)Success, with wait$(msg end)" --stop-spin --name
-        break
-      else
-        _echo "$(msg cyan)wait is counting. Current wait is ${wait} $(msg end)." --start-spin --name
-        ((wait++))
-      fi
-    done
-
-    exit 1
-
-    linode_api_admin wait-linode-status --linode-label=sun.sofibox.com --until-status online
-    exit 1
-    linode_api_admin create-domain-record --domain arafatx.com --record-type aaaa --record-ttl 300 --record-name "earth" --record-value "2001:db8:3333:4444:CCCC:DDDD:EEEE:FFFF" --scripting
-    exit 1
-    ipv4="1.0.0.444"
-    ipv6="a:db8:3333:4444:CCCC:DDDD:Ex:FFFF"
-    if is_valid "ipv4" "${ipv4}"; then
-      echo "Valid IPv4"
-    else
-      echo "Invalid IPv4"
-    fi
-
-    if is_valid "ipv6" "${ipv6}"; then
-      echo "Valid IPv6"
-    else
-      echo "Invalid IPv6"
-    fi
-    exit 1
-
-    exit 147
-    linode_api_admin create-domain --domain xlksssds.com --domain-type master --domain-email abc@hello.com --domain-ttl 300 --scripting
-    exit 147
-    _echo "abc"
-    exit 147
-    #_echo "This is another level of verbose 5" --name
-    exec_time "start"
-    sleep 3
-    exec_time "start" "new"
-    sleep 2
-    exec_time "start" "what"
-    sleep 1
-    exec_time "end" "new"
-    sleep 2
-    exec_time "total"
-    exec_time "end" "what"
-    exec_time "start" "new"
-    sleep 5
-    exec_time "total" "new"
-
-    exit 147
-    validate "domain" google.com
-    echo $?
-    validate "domain" 1.1
-    echo $?
-    exit 147
-    #_echo "hello $(msg red)this is red $(msg end) and $(msg underline)$(msg -b yellow)$(msg green)this is underline with yellow background and green color $(msg end)" --report --timestamp --name
-    msg newline 2
-    echo "this is separater 1"
-    _echo "$(msg newline 2)"
-    echo "this is separater 2"
-
-    #_echo "dsdsxxxx $(msg -c blue) This is blue colour message$(msg end)" --name --report
-    _echo "dsds $(msg -c red) This idsadsas blue colour message$(msg end)" --name --report
-
-    _echo "This is new tab $(msg newtab 3) ok"
-    msg newtab 3
-    #_echo "Test with no path for report?" --color=red --report=yes --report-path="/root/test.log" --timestamp=yes
-    #echo "$(msg bell)$(msg uline)This is $(msg red)$(msg -b yellow)red with yellow background and it is underlined and has bell sound!$(msg end)"
-    #echo "This is default color but $(msg -c green)this is green$(msg end) and $(msg -m underline)this is underline$(msg end) and $(msg -m focus)this is focus$(msg end)"
-    #echo "$(msg -m uline)Apa khabar underline$(msg -m end) sihat ke $(msg -m focus)warna background $(msg -c green)hijau $(msg -b yellow)$(msg -c red)merah$(msg end) tu ?"
-    #echo "$(c_echo "The red $(b_echo "fox" yellow)" red) jumps $(b_echo "over" green) the $(m_echo "lazy" uline) dog"
-    # _echo default "Test without report"
-    # _echo "Test without specifying color"
-    # _echo "Test without specifying color and add --report with no path" --report
-    # _echo "Test with path and no color" --report "/root/testlog.log"
-    exit 147
-    shift
-    # ssh_transfer "${BOX_HOSTNAME_FQDN}:${SSH_PORT}" "root:${ROOT_USERNAME}" "maxinet maxinet.conf" ~/
-    ssh_login "${BOX_HOSTNAME_FQDN}:${SSH_PORT}" "root:${ROOT_USERNAME}" "${CODE_PATH}/ssh_scripts/maxinet_setup.sh"
-    #ssh_api "create-key" "admin" "test1" "comment1"
-    #ssh_api "get-pubkey" "admin" "test1"
-    #exit 147
-    #ssh_login sun.sofibox.com 899 rescue "${SCRIPT_PATH}/dns/linode/test.sh"
-    #echo >/root/.ssh/known_hosts
-    #cp "${SCRIPT_PATH}"/secure/*.id_rsa* /root/.ssh/
-    #chmod -R 600 /root/.ssh/
-    ## ssh -o "StrictHostKeyChecking no" -i /root/.ssh/linode_lish.id_rsa -tt "${DNS_PROVIDER_USER}@${DNS_PROVIDER_TERMINAL_SERVER}" "${BOX_HOSTNAME_FQDN}" <"${SCRIPT_PATH}/dns/linode/rescue_write.sh" >/dev/null 2>&1 &
-
-    #ssh -o "StrictHostKeyChecking no" -i /root/.ssh/linode_lish.id_rsa -tt "${DNS_PROVIDER_USER}@${DNS_PROVIDER_TERMINAL_SERVER}" "${BOX_HOSTNAME_FQDN}" <"${SCRIPT_PATH}/dns/linode/test.sh"
-
-    # Put any test scripts here
-    # _confirm "Continue script? [y/Y]: "
-    #linode_api_admin "boot-linode" "sun.sofibox.com" "Boot_Config"
-    #ssh -i /root/.ssh/linode_lish.id_rsa -tt "${DNS_PROVIDER_USER}@${DNS_PROVIDER_TERMINAL_SERVER}" "${BOX_HOSTNAME_FQDN}" <${SCRIPT_PATH}/dns/linode/lish_command.sh &
-    #test=$(get_hash_pwd "mypassword")
-    #echo "${test}"
-
-    #create_file "debian-preseed" "${SCRIPT_PATH}/test.txt"
-    #cp "${SCRIPT_PATH}"/secure/*.id_rsa* /root/.ssh/
-    #chmod -R 600 /root/.ssh/
-    #ssh -i /root/.ssh/linode_lish.id_rsa -tt "${DNS_PROVIDER_USER}@${DNS_PROVIDER_TERMINAL_SERVER}" "${BOX_HOSTNAME_FQDN}" <"${SCRIPT_PATH}/dns/linode/lish_command.sh"
-    #ssh -q -i /root/.ssh/linode_lish.id_rsa -tt "${DNS_PROVIDER_USER}@${DNS_PROVIDER_TERMINAL_SERVER}" "${BOX_HOSTNAME_FQDN}" screen -d -m ${SCRIPT_PATH}/dns/linode/lish_command.sh -s 'potato' # <${SCRIPT_PATH}/dns/linode/lish_command.sh 2>&1 &
-
+    exec_time start "linode_reboot_api"
+    linode_api_admin reboot-linode --linode-label "${BOX_HOSTNAME_FQDN}" --linode-config-label OS_Config --log-level 6
+    exec_time end "linode_reboot_api"
     exit 0
     break
     ;;

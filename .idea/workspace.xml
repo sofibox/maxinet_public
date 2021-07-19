@@ -10,24 +10,7 @@
     <select />
   </component>
   <component name="ChangeListManager">
-    <list default="true" id="113c828c-9a32-4b24-ab1e-978ce50c6320" name="Default Changelist" comment="Another huge changes">
-      <change afterPath="$PROJECT_DIR$/.gitignore" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/code/ssh_scripts/maxinet_setup.sh" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/code/ssh_scripts/reboot_command.sh" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/code/ssh_scripts/shutdown_command.sh" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/conf/readme.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/data/readme.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/dns/readme.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/download/readme.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/fonts/readme.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/iso/readme.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/log/readme.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/secure/readme.md" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/git_lfs.sh" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/maxinet_ssh.sh" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/reboot_ssh.sh" beforeDir="false" />
-    </list>
+    <list default="true" id="113c828c-9a32-4b24-ab1e-978ce50c6320" name="Default Changelist" comment="Another change" />
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
     <option name="HIGHLIGHT_NON_ACTIVE_CHANGELIST" value="false" />
@@ -72,15 +55,13 @@
     </key>
   </component>
   <component name="RunManager">
-    <configuration default="true" type="ArquillianTestNG" factoryName="" nameIsGenerated="true">
+    <configuration default="true" type="ArquillianJUnit" factoryName="" nameIsGenerated="true">
       <option name="arquillianRunConfiguration">
         <value>
           <option name="containerStateName" value="" />
         </value>
       </option>
-      <option name="TEST_OBJECT" value="CLASS" />
-      <properties />
-      <listeners />
+      <option name="TEST_OBJECT" value="class" />
       <method v="2">
         <option name="Make" enabled="true" />
       </method>
@@ -182,14 +163,7 @@
       <workItem from="1624299515287" duration="388000" />
       <workItem from="1624755878260" duration="8041000" />
       <workItem from="1626535553982" duration="970000" />
-      <workItem from="1626639764813" duration="2269000" />
-    </task>
-    <task id="LOCAL-00035" summary="Added new API to add custom security questions and answers for all users (owner, admins, resellers and normal users). &#10;&#10;Able to use add multiple security questions (one question with one answer)&#10;&#10;Added function to validate config files. It will complain if variables are not set correctly. For example this variable:&#10;&#10;DA_ADMIN_USERPASS&#10;&#10;The validate config function will not allow username to have more than 64 characters and it must be a minimum of 6 characters. It also cannot contain both character '&amp;' and '+'. Previously this check was done during installation (wasn't good). It should check before script running.&#10;&#10;Added a new function to manage skin config for owner called configure_da_owner_skins()&#10;&#10;Added a new function to manage skin config for reseller called configure_da_reseller_skins()&#10;&#10;TODO: Able to create multiple admin accounts">
-      <created>1613105415377</created>
-      <option name="number" value="00035" />
-      <option name="presentableId" value="LOCAL-00035" />
-      <option name="project" value="LOCAL" />
-      <updated>1613105415377</updated>
+      <workItem from="1626639764813" duration="2357000" />
     </task>
     <task id="LOCAL-00036" summary="Improved config checking for adding multiple admin users&#10;&#10;Removed optional TODO for check_finish_reboot() because it is not good to resume installation without user interaction.&#10;&#10;Moved SSHD config recommended by lynis to secure_box() function&#10;&#10;Added few options to harden DA installation in harden_da() function (more will come in here)&#10;&#10;Added new function for configuring maxinis called configure_maxinis(). This binary will manage lynis binary&#10;&#10;Added an option to disable core dump as suggested by lynis in harden_with_lynis(). Any lynis suggestion will go here (TODO: scan with lynis, get the scan ID and automatically fixed the issue based on common solutions)">
       <created>1613156199137</created>
@@ -527,7 +501,14 @@
       <option name="project" value="LOCAL" />
       <updated>1626535899112</updated>
     </task>
-    <option name="localTasksCounter" value="84" />
+    <task id="LOCAL-00084" summary="Another change">
+      <created>1626644169640</created>
+      <option name="number" value="00084" />
+      <option name="presentableId" value="LOCAL-00084" />
+      <option name="project" value="LOCAL" />
+      <updated>1626644169640</updated>
+    </task>
+    <option name="localTasksCounter" value="85" />
     <servers />
   </component>
   <component name="TypeScriptGeneratedFilesManager">
@@ -546,7 +527,6 @@
     <option name="oldMeFiltersMigrated" value="true" />
   </component>
   <component name="VcsManagerConfiguration">
-    <MESSAGE value="Added script --force argument&#10;Added function to test SSL certificate. It will list out domains or subdomains that have problem when requesting certificate using staging mode" />
     <MESSAGE value="Renamed maxicata package to maxiwall. The name if maxicata is now deprecated.&#10;&#10;From now, INSTALL_TYPE and DA_INSTALL_TYPE will use lowercase value&#10;&#10;Added maxinis binary installation&#10;&#10;Updated configure_da_reseller_domain_ssl_pre (BETA)&#10;&#10;and much more (especially in private repo) ..." />
     <MESSAGE value="Updated _confirm() function&#10;Increased wait time for restart_da()&#10;Improved linode API for shutdown or boot with config profile&#10;Renamed linode API action from disks-delete to delete-disks&#10;Updated grub bootloader to enable serial console&#10;Added new option --sshl / --ssh-login to login into server remotely using option based on maxisetup.conf profile" />
     <MESSAGE value="Fixed script --force option&#10;Updated --ssh-login auto copy rsa key" />
@@ -571,6 +551,7 @@
     <MESSAGE value="Updated help() function&#10;Added new script call function options, --run, --run-force, --run-force-exit, --skip and --skip-mark&#10;Improved check_fix_service() function, make it compatible with other OSes&#10;Added extra option --exit to exit script if not executed previously (no force execution)&#10;Improved configure_maxicode_pre() function, make the package installer compatible with other OSes&#10;Fixed configure_maxida() installation&#10;Fixed suricata installation in configure_maxiwall()" />
     <MESSAGE value="Updated help() function&#10;Added new script call function options, --run, --run-force, --run-force-exit, --skip and --skip-mark&#10;Improved check_fix_service() function, make it compatible with other OSes&#10;Added extra option --exit to exit script if not executed previously (no force execution)&#10;Improved configure_maxicode_pre() function, make the package installer compatible with other OSes&#10;Fixed configure_maxida() installation&#10;Fixed suricata installation in configure_maxiwall() &#10;Other changes" />
     <MESSAGE value="Another huge changes" />
-    <option name="LAST_COMMIT_MESSAGE" value="Another huge changes" />
+    <MESSAGE value="Another change" />
+    <option name="LAST_COMMIT_MESSAGE" value="Another change" />
   </component>
 </project>
