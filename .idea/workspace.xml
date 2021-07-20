@@ -10,7 +10,9 @@
     <select />
   </component>
   <component name="ChangeListManager">
-    <list default="true" id="113c828c-9a32-4b24-ab1e-978ce50c6320" name="Default Changelist" comment="Removed deprecated function get_var_value()&#10;Updated linode_api_admin()&#10;Improved ssh_api()&#10;Added new function linode_console()&#10;Removed test codes&#10;Other changes" />
+    <list default="true" id="113c828c-9a32-4b24-ab1e-978ce50c6320" name="Default Changelist" comment="New changes">
+      <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
+    </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
     <option name="HIGHLIGHT_NON_ACTIVE_CHANGELIST" value="false" />
@@ -55,15 +57,13 @@
     </key>
   </component>
   <component name="RunManager">
-    <configuration default="true" type="ArquillianTestNG" factoryName="" nameIsGenerated="true">
+    <configuration default="true" type="ArquillianJUnit" factoryName="" nameIsGenerated="true">
       <option name="arquillianRunConfiguration">
         <value>
           <option name="containerStateName" value="" />
         </value>
       </option>
-      <option name="TEST_OBJECT" value="CLASS" />
-      <properties />
-      <listeners />
+      <option name="TEST_OBJECT" value="class" />
       <method v="2">
         <option name="Make" enabled="true" />
       </method>
@@ -167,13 +167,8 @@
       <workItem from="1626535553982" duration="970000" />
       <workItem from="1626639764813" duration="2357000" />
       <workItem from="1626708524061" duration="831000" />
-    </task>
-    <task id="LOCAL-00037" summary="Added update and upgrade command to update repo cache&#10;&#10;Added function configure_maxicron() that will be used to manage startup:&#10;&#10;# It will disable startup programs, able to create cronjob easily&#10;# Able to create cronjob with 5 seconds timer which is not available in stock cronjob&#10;# Can enable and disable cronjob easily&#10;# Can list all cronjobs, delete edit remove&#10;&#10;Added extra command to disable core dumps for all users">
-      <created>1613186867188</created>
-      <option name="number" value="00037" />
-      <option name="presentableId" value="LOCAL-00037" />
-      <option name="project" value="LOCAL" />
-      <updated>1613186867188</updated>
+      <workItem from="1626758624218" duration="720000" />
+      <workItem from="1626766759652" duration="70000" />
     </task>
     <task id="LOCAL-00038" summary="Improved config file check for DA_&lt;ROLE&gt;_SUBDOMAIN and DA_&lt;ROLE&gt;_SSL_SUB_NAME">
       <created>1613227315344</created>
@@ -511,7 +506,14 @@
       <option name="project" value="LOCAL" />
       <updated>1626708758951</updated>
     </task>
-    <option name="localTasksCounter" value="86" />
+    <task id="LOCAL-00086" summary="New changes">
+      <created>1626758715852</created>
+      <option name="number" value="00086" />
+      <option name="presentableId" value="LOCAL-00086" />
+      <option name="project" value="LOCAL" />
+      <updated>1626758715852</updated>
+    </task>
+    <option name="localTasksCounter" value="87" />
     <servers />
   </component>
   <component name="TypeScriptGeneratedFilesManager">
@@ -530,7 +532,6 @@
     <option name="oldMeFiltersMigrated" value="true" />
   </component>
   <component name="VcsManagerConfiguration">
-    <MESSAGE value="Updated _confirm() function&#10;Increased wait time for restart_da()&#10;Improved linode API for shutdown or boot with config profile&#10;Renamed linode API action from disks-delete to delete-disks&#10;Updated grub bootloader to enable serial console&#10;Added new option --sshl / --ssh-login to login into server remotely using option based on maxisetup.conf profile" />
     <MESSAGE value="Fixed script --force option&#10;Updated --ssh-login auto copy rsa key" />
     <MESSAGE value="Improved linode API and other small changes" />
     <MESSAGE value="Improved linode API" />
@@ -555,6 +556,7 @@
     <MESSAGE value="Another huge changes" />
     <MESSAGE value="Another change" />
     <MESSAGE value="Removed deprecated function get_var_value()&#10;Updated linode_api_admin()&#10;Improved ssh_api()&#10;Added new function linode_console()&#10;Removed test codes&#10;Other changes" />
-    <option name="LAST_COMMIT_MESSAGE" value="Removed deprecated function get_var_value()&#10;Updated linode_api_admin()&#10;Improved ssh_api()&#10;Added new function linode_console()&#10;Removed test codes&#10;Other changes" />
+    <MESSAGE value="New changes" />
+    <option name="LAST_COMMIT_MESSAGE" value="New changes" />
   </component>
 </project>

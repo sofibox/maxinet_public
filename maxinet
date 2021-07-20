@@ -4,7 +4,7 @@
 APP_SPECIFIC_NAME="Maxinet"
 APP_STATUS="alpha"
 # Note some minor versions are not published
-APP_VERSION="0.5.2.3-${APP_STATUS}"
+APP_VERSION="0.5.2.4-${APP_STATUS}"
 COMPANY_ID="${COMPANY_ID}"
 # Hello there, this is a powerful script that able initialize one or more server installation from scratch. From configuring the server disk, until you got the full working server with a live website.
 # It also includes many security and hardening script.
@@ -645,7 +645,8 @@ function init_server() {
       # After installation above, the system must restart once, so we execute next script to reopen LUKS
       #check_linode_status_until "offline"
     else
-      _echo "Auto run script is disabled. Turning off server ... "
+      _echo "$(msg cyan) Notice, PRE_AUTORUN_SETUP is set to no. Hence, auto installation script is disabled! Please run --setup manually$(msg end)" --name
+
       # reboot_ssh.sh is deprecated removed to /backup folder
       #ssh_login "${BOX_HOSTNAME_FQDN}:${SSH_PORT}" "root:${ROOT_USERNAME}" "${SCRIPT_PATH}/reboot_ssh.sh"
       linode_api_admin shutdown-linode --linode-label "${BOX_HOSTNAME_FQDN}"
@@ -653,18 +654,19 @@ function init_server() {
     fi
     # After the above script is executed, now we wait for it to shutdown properly before booting
     check_linode_status_until "offline"
-    _echo "Booting into operating system (LUKS console might be appeared and unlocked automatically)"
-    linode_api_admin "boot-linode" "${BOX_HOSTNAME_FQDN}" "OS_Config"
+    _echo "Booting into operating system (LUKS console might be appeared and unlocked automatically) ..." --name
+    linode_api_admin "reboot-linode" --linode-label "${BOX_HOSTNAME_FQDN}" --linode-config-label "OS_Config"
     # check server and port if available in order to auto unlock it
-    _echo "Checking whether hostname ${BOX_HOSTNAME_FQDN} with port ${DROP_BEAR_PORT} are available ..."
+    _echo "$(msg cyan)Checking if dropbear port ${DROP_BEAR_PORT} is open from --server ${BOX_HOSTNAME_FQDN} ...$(msg end)" --name
     count=0
     while :; do
-      drop_bear_port=$(check_server_port "${BOX_HOSTNAME_FQDN}" "${DROP_BEAR_PORT}")
+      # TODO change this port_status=$(check_server_port --server "${BOX_HOSTNAME_FQDN}" --port "${DROP_BEAR_PORT}")
+      port_status=$(check_server_port "${BOX_HOSTNAME_FQDN}" "${DROP_BEAR_PORT}")
       sleep 1
       ((count++))
-      spinner start "$(msg yellow) Warning, dropbear port status is ${drop_bear_port}  ...$(msg end)" --start-spin --name
-      if [ "${drop_bear_port}" -eq 0 ]; then
-        _echo "$(msg green)OK, dropbear port ${drop_bear_port} is open. Unlocking encrypted LUKS disk on boot ...$(msg end)" --stop-spin --name
+      _echo "$(msg yellow) Waiting for dropbear port ${DROP_BEAR_PORT} to be available ...$(msg end)" --start-spin --name
+      if [ "${port_status}" -eq 0 ]; then
+        _echo "$(msg green)OK, dropbear port ${DROP_BEAR_PORT} is now available. Unlocking encrypted LUKS disk on boot ...$(msg end)" --stop-spin --name
         # Wait 5 seconds
         sleep 5
         # TODO change this to ssh_api unlock-luks/unlock-disk --port "${DROP_BEAR_PORT}" --password "${LUKS_PASS}"
@@ -672,13 +674,12 @@ function init_server() {
         break
       fi
       if [ "${count}" -gt 60 ]; then
-        _echo "$(msg red)Error, failed to detect drop bear port ${drop_bear_port} because the port is closed. Please inspect this manually (make sure firewall is not blocking this port)!$(msg end)" --name
+        _echo "$(msg red)Error, failed to detect drop bear port ${DROP_BEAR_PORT} because the port is closed. Please inspect this manually (make sure firewall is not blocking this port)!$(msg end)" --name
         _exit 1
       fi
     done
-
     if [ "${PRE_AUTORUN_SETUP}" == "no" ]; then
-      _echo "$(msg cyan) Notice, PRE_AUTORUN_SETUP is set to no. Hence, auto installation script is disabled!$(msg end)" --name
+      _echo "$(msg cyan) Notice, PRE_AUTORUN_SETUP is set to no. Hence, auto installation script is disabled! Please run --setup manually$(msg end)" --name
     else
       _echo "$(msg cyan)Resuming server installation installation by executing ${SCRIPT_NAME} script on remote server...$(msg end)" --name
       # OLD: ssh_login "${BOX_HOSTNAME_FQDN}:${SSH_PORT}" "root:${ROOT_USERNAME}" "${CODE_PATH}/ssh_scripts/maxinet_setup.sh"
@@ -6078,7 +6079,7 @@ function setup_pre() {
     echo "=~=~=~=~=~=~=~=~=~" 2>&1 | tee -a "${REPORT_FILE}"
   fi
 
-  if [[ "${option}" == "--run-force-exit" || "${option}" == "--exit" ]]; then
+  if [[ "${option}" == "--run-force-exit" || "${option}" == "--run-exit" ]]; then
     exit 0
   fi
 }
@@ -6145,7 +6146,7 @@ get_latest_maxinet() {
     echo "[${SCRIPT_NAME}]: [Skipped]: ${FUNCNAME[0]} has ran before" 2>&1 | tee -a "${REPORT_FILE}"
     echo "=~=~=~=~=~=~=~=~=~" 2>&1 | tee -a "${REPORT_FILE}"
   fi
-  if [[ "${option}" == "--run-force-exit" || "${option}" == "--exit" ]]; then
+  if [[ "${option}" == "--run-force-exit" || "${option}" == "--run-exit" ]]; then
     exit 0
   fi
   exec_time end "${FUNCNAME[0]}"
@@ -6336,7 +6337,7 @@ function secure_box() {
     echo "[${SCRIPT_NAME}]: [Skipped]: ${FUNCNAME[0]} has ran before" 2>&1 | tee -a "${REPORT_FILE}"
     echo "=~=~=~=~=~=~=~=~=~" 2>&1 | tee -a "${REPORT_FILE}"
   fi
-  if [[ "${option}" == "--run-force-exit" || "${option}" == "--exit" ]]; then
+  if [[ "${option}" == "--run-force-exit" || "${option}" == "--run-exit" ]]; then
     exit 0
   fi
 }
@@ -6375,7 +6376,7 @@ function init_local_maxicode() {
     echo "[${SCRIPT_NAME}]: [Skipped]: ${FUNCNAME[0]} has ran before" 2>&1 | tee -a "${REPORT_FILE}"
     echo "=~=~=~=~=~=~=~=~=~" 2>&1 | tee -a "${REPORT_FILE}"
   fi
-  if [[ "${option}" == "--run-force-exit" || "${option}" == "--exit" ]]; then
+  if [[ "${option}" == "--run-force-exit" || "${option}" == "--run-exit" ]]; then
     exit 0
   fi
 }
@@ -6563,7 +6564,7 @@ function configure_net() {
     echo "=~=~=~=~=~=~=~=~=~"
   fi
 
-  if [[ "${option}" == "--run-force-exit" || "${option}" == "--exit" ]]; then
+  if [[ "${option}" == "--run-force-exit" || "${option}" == "--run-exit" ]]; then
     exit 0
   fi
 }
@@ -6740,7 +6741,7 @@ function configure_net2() {
     echo "[${SCRIPT_NAME}]: [Skipped]: ${FUNCNAME[0]} has ran before" 2>&1 | tee -a "${REPORT_FILE}"
     echo "=~=~=~=~=~=~=~=~=~" 2>&1 | tee -a "${REPORT_FILE}"
   fi
-  if [[ "${option}" == "--run-force-exit" || "${option}" == "--exit" ]]; then
+  if [[ "${option}" == "--run-force-exit" || "${option}" == "--run-exit" ]]; then
     exit 0
   fi
 }
@@ -6808,7 +6809,7 @@ function configure_fstab() {
     echo "[${SCRIPT_NAME}]: [Skipped]: ${FUNCNAME[0]} has ran before" 2>&1 | tee -a "${REPORT_FILE}"
     echo "=~=~=~=~=~=~=~=~=~" 2>&1 | tee -a "${REPORT_FILE}"
   fi
-  if [[ "${option}" == "--run-force-exit" || "${option}" == "--exit" ]]; then
+  if [[ "${option}" == "--run-force-exit" || "${option}" == "--run-exit" ]]; then
     exit 0
   fi
 }
@@ -6869,7 +6870,7 @@ EOF
     echo "=~=~=~=~=~=~=~=~=~" 2>&1 | tee -a "${REPORT_FILE}"
   fi
 
-  if [[ "${option}" == "--run-force-exit" || "${option}" == "--exit" ]]; then
+  if [[ "${option}" == "--run-force-exit" || "${option}" == "--run-exit" ]]; then
     exit 0
   fi
 }
@@ -6909,7 +6910,7 @@ function configure_sysctl_swap() {
     echo "[${SCRIPT_NAME}]: [Skipped]: ${FUNCNAME[0]} has ran before" 2>&1 | tee -a "${REPORT_FILE}"
     echo "=~=~=~=~=~=~=~=~=~" 2>&1 | tee -a "${REPORT_FILE}"
   fi
-  if [[ "${option}" == "--run-force-exit" || "${option}" == "--exit" ]]; then
+  if [[ "${option}" == "--run-force-exit" || "${option}" == "--run-exit" ]]; then
     exit 0
   fi
 }
@@ -6952,7 +6953,7 @@ function configure_sysctl_kernel_fs() {
     echo "[${SCRIPT_NAME}]: [Skipped]: ${FUNCNAME[0]} has ran before" 2>&1 | tee -a "${REPORT_FILE}"
     echo "=~=~=~=~=~=~=~=~=~" 2>&1 | tee -a "${REPORT_FILE}"
   fi
-  if [[ "${option}" == "--run-force-exit" || "${option}" == "--exit" ]]; then
+  if [[ "${option}" == "--run-force-exit" || "${option}" == "--run-exit" ]]; then
     exit 0
   fi
 }
@@ -7020,7 +7021,7 @@ function configure_sysctl_ips() {
     echo "[${SCRIPT_NAME}]: [Skipped]: ${FUNCNAME[0]} has ran before" 2>&1 | tee -a "${REPORT_FILE}"
     echo "=~=~=~=~=~=~=~=~=~" 2>&1 | tee -a "${REPORT_FILE}"
   fi
-  if [[ "${option}" == "--run-force-exit" || "${option}" == "--exit" ]]; then
+  if [[ "${option}" == "--run-force-exit" || "${option}" == "--run-exit" ]]; then
     exit 0
   fi
 }
@@ -7113,7 +7114,7 @@ function upgrade_os() {
     echo "[${SCRIPT_NAME}]: [Skipped]: ${FUNCNAME[0]} has ran before" 2>&1 | tee -a "${REPORT_FILE}"
     echo "=~=~=~=~=~=~=~=~=~" 2>&1 | tee -a "${REPORT_FILE}"
   fi
-  if [[ "${option}" == "--run-force-exit" || "${option}" == "--exit" ]]; then
+  if [[ "${option}" == "--run-force-exit" || "${option}" == "--run-exit" ]]; then
     exit 0
   fi
 }
@@ -7364,7 +7365,7 @@ configure_csf() {
   fi
   # TIPS. CSF can be removed with this command:
   #sh /etc/csf/uninstall.sh
-  if [[ "${option}" == "--run-force-exit" || "${option}" == "--exit" ]]; then
+  if [[ "${option}" == "--run-force-exit" || "${option}" == "--run-exit" ]]; then
     exit 0
   fi
 }
@@ -7444,7 +7445,7 @@ function install_da_pre() {
     echo "[${SCRIPT_NAME}]: [Skipped]: ${FUNCNAME[0]} has ran before" 2>&1 | tee -a "${REPORT_FILE}"
     echo "=~=~=~=~=~=~=~=~=~" 2>&1 | tee -a "${REPORT_FILE}"
   fi
-  if [[ "${option}" == "--run-force-exit" || "${option}" == "--exit" ]]; then
+  if [[ "${option}" == "--run-force-exit" || "${option}" == "--run-exit" ]]; then
     exit 0
   fi
 
@@ -7497,7 +7498,7 @@ function install_da() {
     echo "[${SCRIPT_NAME}]: [Skipped]: ${FUNCNAME[0]} has ran before" 2>&1 | tee -a "${REPORT_FILE}"
     echo "=~=~=~=~=~=~=~=~=~" 2>&1 | tee -a "${REPORT_FILE}"
   fi
-  if [[ "${option}" == "--run-force-exit" || "${option}" == "--exit" ]]; then
+  if [[ "${option}" == "--run-force-exit" || "${option}" == "--run-exit" ]]; then
     exit 0
   fi
 
@@ -7652,7 +7653,7 @@ function link_da_ipv6() {
     echo "=~=~=~=~=~=~=~=~=~" 2>&1 | tee -a "${REPORT_FILE}"
   fi
 
-  if [[ "${option}" == "--run-force-exit" || "${option}" == "--exit" ]]; then
+  if [[ "${option}" == "--run-force-exit" || "${option}" == "--run-exit" ]]; then
     exit 0
   fi
 }
@@ -7729,7 +7730,7 @@ function rebuild_da_package() {
     echo "=~=~=~=~=~=~=~=~=~" 2>&1 | tee -a "${REPORT_FILE}"
   fi
 
-  if [[ "${option}" == "--run-force-exit" || "${option}" == "--exit" ]]; then
+  if [[ "${option}" == "--run-force-exit" || "${option}" == "--run-exit" ]]; then
     exit 0
   fi
 }
@@ -7819,7 +7820,7 @@ function install_da_post() {
     echo "=~=~=~=~=~=~=~=~=~" 2>&1 | tee -a "${REPORT_FILE}"
   fi
 
-  if [[ "${option}" == "--run-force-exit" || "${option}" == "--exit" ]]; then
+  if [[ "${option}" == "--run-force-exit" || "${option}" == "--run-exit" ]]; then
     exit 0
   fi
 }
@@ -7869,7 +7870,7 @@ function configure_da_ssl_pre() {
     echo "=~=~=~=~=~=~=~=~=~" 2>&1 | tee -a "${REPORT_FILE}"
   fi
 
-  if [[ "${option}" == "--run-force-exit" || "${option}" == "--exit" ]]; then
+  if [[ "${option}" == "--run-force-exit" || "${option}" == "--run-exit" ]]; then
     exit 0
   fi
 }
@@ -7958,7 +7959,7 @@ function configure_da_ssl() {
     echo "=~=~=~=~=~=~=~=~=~" 2>&1 | tee -a "${REPORT_FILE}"
   fi
 
-  if [[ "${option}" == "--run-force-exit" || "${option}" == "--exit" ]]; then
+  if [[ "${option}" == "--run-force-exit" || "${option}" == "--run-exit" ]]; then
     exit 0
   fi
 }
@@ -8021,7 +8022,7 @@ function change_da_auth() {
     echo "=~=~=~=~=~=~=~=~=~" 2>&1 | tee -a "${REPORT_FILE}"
   fi
 
-  if [[ "${option}" == "--run-force-exit" || "${option}" == "--exit" ]]; then
+  if [[ "${option}" == "--run-force-exit" || "${option}" == "--run-exit" ]]; then
     exit 0
   fi
 }
@@ -8274,7 +8275,7 @@ function configure_da_sql() {
   # echo "[${SCRIPT_NAME}]: Changing Directadmin da_admin SQL password using DA custom script ... " 2>&1 | tee -a "${REPORT_FILE}"
   # This script requires that we have root or da_admin password defined in cnf, else it's not working
   # ${da_scripts_path}/reset_da_admin_password.sh --password "${DA_ADMIN_SQLPASS}"
-  if [[ "${option}" == "--run-force-exit" || "${option}" == "--exit" ]]; then
+  if [[ "${option}" == "--run-force-exit" || "${option}" == "--run-exit" ]]; then
     exit 0
   fi
 }
@@ -8440,7 +8441,7 @@ function configure_da_mail() {
     #sleep 1
     echo "=~=~=~=~=~=~=~=~=~" 2>&1 | tee -a "${REPORT_FILE}"
   fi
-  if [[ "${option}" == "--run-force-exit" || "${option}" == "--exit" ]]; then
+  if [[ "${option}" == "--run-force-exit" || "${option}" == "--run-exit" ]]; then
     exit 0
   fi
 }
@@ -8481,7 +8482,7 @@ function configure_da_ftp() {
     echo "[${SCRIPT_NAME}]: [Skipped]: ${FUNCNAME[0]} has ran before" 2>&1 | tee -a "${REPORT_FILE}"
     echo "=~=~=~=~=~=~=~=~=~" 2>&1 | tee -a "${REPORT_FILE}"
   fi
-  if [[ "${option}" == "--run-force-exit" || "${option}" == "--exit" ]]; then
+  if [[ "${option}" == "--run-force-exit" || "${option}" == "--run-exit" ]]; then
     exit 0
   fi
 }
@@ -8620,7 +8621,7 @@ function configure_nginx_apache() {
     echo "[${SCRIPT_NAME}]: [Skipped]: ${FUNCNAME[0]} has ran before" 2>&1 | tee -a "${REPORT_FILE}"
     echo "=~=~=~=~=~=~=~=~=~" 2>&1 | tee -a "${REPORT_FILE}"
   fi
-  if [[ "${option}" == "--run-force-exit" || "${option}" == "--exit" ]]; then
+  if [[ "${option}" == "--run-force-exit" || "${option}" == "--run-exit" ]]; then
     exit 0
   fi
 }
@@ -8661,7 +8662,7 @@ function configure_web_apps_html() {
     echo "[${SCRIPT_NAME}]: [Skipped]: ${FUNCNAME[0]} has ran before" 2>&1 | tee -a "${REPORT_FILE}"
     echo "=~=~=~=~=~=~=~=~=~" 2>&1 | tee -a "${REPORT_FILE}"
   fi
-  if [[ "${option}" == "--run-force-exit" || "${option}" == "--exit" ]]; then
+  if [[ "${option}" == "--run-force-exit" || "${option}" == "--run-exit" ]]; then
     exit 0
   fi
 }
@@ -8760,7 +8761,7 @@ function build_da_custom_conf() {
     echo "[${SCRIPT_NAME}]: [Skipped]: ${FUNCNAME[0]} has ran before" 2>&1 | tee -a "${REPORT_FILE}"
     echo "=~=~=~=~=~=~=~=~=~" 2>&1 | tee -a "${REPORT_FILE}"
   fi
-  if [[ "${option}" == "--run-force-exit" || "${option}" == "--exit" ]]; then
+  if [[ "${option}" == "--run-force-exit" || "${option}" == "--run-exit" ]]; then
     exit 0
   fi
 }
@@ -8831,7 +8832,7 @@ function configure_da() {
     echo "[${SCRIPT_NAME}]: [Skipped]: ${FUNCNAME[0]} has ran before" 2>&1 | tee -a "${REPORT_FILE}"
     echo "=~=~=~=~=~=~=~=~=~" 2>&1 | tee -a "${REPORT_FILE}"
   fi
-  if [[ "${option}" == "--run-force-exit" || "${option}" == "--exit" ]]; then
+  if [[ "${option}" == "--run-force-exit" || "${option}" == "--run-exit" ]]; then
     exit 0
   fi
 }
@@ -8875,7 +8876,7 @@ function add_da_ip() {
     echo "[${SCRIPT_NAME}]: [Skipped]: ${FUNCNAME[0]} has ran before" 2>&1 | tee -a "${REPORT_FILE}"
     echo "=~=~=~=~=~=~=~=~=~" 2>&1 | tee -a "${REPORT_FILE}"
   fi
-  if [[ "${option}" == "--run-force-exit" || "${option}" == "--exit" ]]; then
+  if [[ "${option}" == "--run-force-exit" || "${option}" == "--run-exit" ]]; then
     exit 0
   fi
 }
@@ -8908,7 +8909,7 @@ function configure_maxibox() {
     echo "[${SCRIPT_NAME}]: [Skipped]: ${FUNCNAME[0]} has ran before" 2>&1 | tee -a "${REPORT_FILE}"
     echo "=~=~=~=~=~=~=~=~=~" 2>&1 | tee -a "${REPORT_FILE}"
   fi
-  if [[ "${option}" == "--run-force-exit" || "${option}" == "--exit" ]]; then
+  if [[ "${option}" == "--run-force-exit" || "${option}" == "--run-exit" ]]; then
     exit 0
   fi
 }
@@ -8942,7 +8943,7 @@ function configure_maxicode_pre() {
     echo "[${SCRIPT_NAME}]: [Skipped]: ${FUNCNAME[0]} has ran before" 2>&1 | tee -a "${REPORT_FILE}"
     echo "=~=~=~=~=~=~=~=~=~" 2>&1 | tee -a "${REPORT_FILE}"
   fi
-  if [[ "${option}" == "--run-force-exit" || "${option}" == "--exit" ]]; then
+  if [[ "${option}" == "--run-force-exit" || "${option}" == "--run-exit" ]]; then
     exit 0
   fi
 }
@@ -9018,7 +9019,7 @@ function configure_maxicode() {
     echo "[${SCRIPT_NAME}]: [Skipped]: ${FUNCNAME[0]} has ran before" 2>&1 | tee -a "${REPORT_FILE}"
     echo "=~=~=~=~=~=~=~=~=~" 2>&1 | tee -a "${REPORT_FILE}"
   fi
-  if [[ "${option}" == "--run-force-exit" || "${option}" == "--exit" ]]; then
+  if [[ "${option}" == "--run-force-exit" || "${option}" == "--run-exit" ]]; then
     exit 0
   fi
 }
@@ -9061,7 +9062,7 @@ function configure_maxiperm() {
     echo "[${SCRIPT_NAME}]: [Skipped]: ${FUNCNAME[0]} has ran before" 2>&1 | tee -a "${REPORT_FILE}"
     echo "=~=~=~=~=~=~=~=~=~" 2>&1 | tee -a "${REPORT_FILE}"
   fi
-  if [[ "${option}" == "--run-force-exit" || "${option}" == "--exit" ]]; then
+  if [[ "${option}" == "--run-force-exit" || "${option}" == "--run-exit" ]]; then
     exit 0
   fi
 }
@@ -9125,7 +9126,7 @@ function configure_maxinis() {
     echo "[${SCRIPT_NAME}]: [Skipped]: ${FUNCNAME[0]} has ran before" 2>&1 | tee -a "${REPORT_FILE}"
     echo "=~=~=~=~=~=~=~=~=~" 2>&1 | tee -a "${REPORT_FILE}"
   fi
-  if [[ "${option}" == "--run-force-exit" || "${option}" == "--exit" ]]; then
+  if [[ "${option}" == "--run-force-exit" || "${option}" == "--run-exit" ]]; then
     exit 0
   fi
 }
@@ -9235,7 +9236,7 @@ EOF
     echo "[${SCRIPT_NAME}]: [Skipped]: ${FUNCNAME[0]} has ran before" 2>&1 | tee -a "${REPORT_FILE}"
     echo "=~=~=~=~=~=~=~=~=~" 2>&1 | tee -a "${REPORT_FILE}"
   fi
-  if [[ "${option}" == "--run-force-exit" || "${option}" == "--exit" ]]; then
+  if [[ "${option}" == "--run-force-exit" || "${option}" == "--run-exit" ]]; then
     exit 0
   fi
 }
@@ -9318,7 +9319,7 @@ function configure_maxida() {
     echo "[${SCRIPT_NAME}]: [Skipped]: ${FUNCNAME[0]} has ran before" 2>&1 | tee -a "${REPORT_FILE}"
     echo "=~=~=~=~=~=~=~=~=~" 2>&1 | tee -a "${REPORT_FILE}"
   fi
-  if [[ "${option}" == "--run-force-exit" || "${option}" == "--exit" ]]; then
+  if [[ "${option}" == "--run-force-exit" || "${option}" == "--run-exit" ]]; then
     exit 0
   fi
 }
@@ -9361,7 +9362,7 @@ function configure_maxicron() {
     echo "[${SCRIPT_NAME}]: [Skipped]: ${FUNCNAME[0]} has ran before" 2>&1 | tee -a "${REPORT_FILE}"
     echo "=~=~=~=~=~=~=~=~=~" 2>&1 | tee -a "${REPORT_FILE}"
   fi
-  if [[ "${option}" == "--run-force-exit" || "${option}" == "--exit" ]]; then
+  if [[ "${option}" == "--run-force-exit" || "${option}" == "--run-exit" ]]; then
     exit 0
   fi
 }
@@ -9411,7 +9412,7 @@ function configure_maxiaide() {
     echo "[${SCRIPT_NAME}]: [Skipped]: ${FUNCNAME[0]} has ran before" 2>&1 | tee -a "${REPORT_FILE}"
     echo "=~=~=~=~=~=~=~=~=~" 2>&1 | tee -a "${REPORT_FILE}"
   fi
-  if [[ "${option}" == "--run-force-exit" || "${option}" == "--exit" ]]; then
+  if [[ "${option}" == "--run-force-exit" || "${option}" == "--run-exit" ]]; then
     exit 0
   fi
 }
@@ -9702,7 +9703,7 @@ function configure_maxiwall() {
     echo "[${SCRIPT_NAME}]: [Skipped]: ${FUNCNAME[0]} has ran before" 2>&1 | tee -a "${REPORT_FILE}"
     echo "=~=~=~=~=~=~=~=~=~" 2>&1 | tee -a "${REPORT_FILE}"
   fi
-  if [[ "${option}" == "--run-force-exit" || "${option}" == "--exit" ]]; then
+  if [[ "${option}" == "--run-force-exit" || "${option}" == "--run-exit" ]]; then
     exit 0
   fi
 }
@@ -9758,7 +9759,7 @@ function configure_maxicloud() {
     echo "[${SCRIPT_NAME}]: [Skipped]: ${FUNCNAME[0]} has ran before" 2>&1 | tee -a "${REPORT_FILE}"
     echo "=~=~=~=~=~=~=~=~=~" 2>&1 | tee -a "${REPORT_FILE}"
   fi
-  if [[ "${option}" == "--run-force-exit" || "${option}" == "--exit" ]]; then
+  if [[ "${option}" == "--run-force-exit" || "${option}" == "--run-exit" ]]; then
     exit 0
   fi
 }
@@ -9828,7 +9829,7 @@ function configure_maxipass() {
     echo "[${SCRIPT_NAME}]: [Skipped]: ${FUNCNAME[0]} has ran before" 2>&1 | tee -a "${REPORT_FILE}"
     echo "=~=~=~=~=~=~=~=~=~" 2>&1 | tee -a "${REPORT_FILE}"
   fi
-  if [[ "${option}" == "--run-force-exit" || "${option}" == "--exit" ]]; then
+  if [[ "${option}" == "--run-force-exit" || "${option}" == "--run-exit" ]]; then
     exit 0
   fi
 }
@@ -9872,7 +9873,7 @@ function configure_maxify() {
     echo "=~=~=~=~=~=~=~=~=~" 2>&1 | tee -a "${REPORT_FILE}"
   fi
 
-  if [[ "${option}" == "--run-force-exit" || "${option}" == "--exit" ]]; then
+  if [[ "${option}" == "--run-force-exit" || "${option}" == "--run-exit" ]]; then
     exit 0
   fi
 }
@@ -9905,7 +9906,7 @@ function configure_logs() {
     echo "=~=~=~=~=~=~=~=~=~" 2>&1 | tee -a "${REPORT_FILE}"
   fi
 
-  if [[ "${option}" == "--run-force-exit" || "${option}" == "--exit" ]]; then
+  if [[ "${option}" == "--run-force-exit" || "${option}" == "--run-exit" ]]; then
     exit 0
   fi
 }
@@ -9971,7 +9972,7 @@ function configure_da_memcached() {
     echo "=~=~=~=~=~=~=~=~=~" 2>&1 | tee -a "${REPORT_FILE}"
   fi
 
-  if [[ "${option}" == "--run-force-exit" || "${option}" == "--exit" ]]; then
+  if [[ "${option}" == "--run-force-exit" || "${option}" == "--run-exit" ]]; then
     exit 0
   fi
 
@@ -10021,7 +10022,7 @@ function configure_da_geoip() {
     echo "[${SCRIPT_NAME}]: [Skipped]: ${FUNCNAME[0]} has ran before" 2>&1 | tee -a "${REPORT_FILE}"
     echo "=~=~=~=~=~=~=~=~=~" 2>&1 | tee -a "${REPORT_FILE}"
   fi
-  if [[ "${option}" == "--run-force-exit" || "${option}" == "--exit" ]]; then
+  if [[ "${option}" == "--run-force-exit" || "${option}" == "--run-exit" ]]; then
     exit 0
   fi
 }
@@ -10107,7 +10108,7 @@ configure_da_dns_templates() {
     echo "[${SCRIPT_NAME}]: [Skipped]: ${FUNCNAME[0]} has ran before" 2>&1 | tee -a "${REPORT_FILE}"
     echo "=~=~=~=~=~=~=~=~=~" 2>&1 | tee -a "${REPORT_FILE}"
   fi
-  if [[ "${option}" == "--run-force-exit" || "${option}" == "--exit" ]]; then
+  if [[ "${option}" == "--run-force-exit" || "${option}" == "--run-exit" ]]; then
     exit 0
   fi
 }
@@ -10185,7 +10186,7 @@ function configure_da_owner_skins() {
     echo "[${SCRIPT_NAME}]: [Skipped]: ${FUNCNAME[0]} has ran before" 2>&1 | tee -a "${REPORT_FILE}"
     echo "=~=~=~=~=~=~=~=~=~" 2>&1 | tee -a "${REPORT_FILE}"
   fi
-  if [[ "${option}" == "--run-force-exit" || "${option}" == "--exit" ]]; then
+  if [[ "${option}" == "--run-force-exit" || "${option}" == "--run-exit" ]]; then
     exit 0
   fi
 }
@@ -10263,7 +10264,7 @@ function configure_da_admin_skins() {
     echo "[${SCRIPT_NAME}]: [Skipped]: ${FUNCNAME[0]} has ran before" 2>&1 | tee -a "${REPORT_FILE}"
     echo "=~=~=~=~=~=~=~=~=~" 2>&1 | tee -a "${REPORT_FILE}"
   fi
-  if [[ "${option}" == "--run-force-exit" || "${option}" == "--exit" ]]; then
+  if [[ "${option}" == "--run-force-exit" || "${option}" == "--run-exit" ]]; then
     exit 0
   fi
 }
@@ -10338,7 +10339,7 @@ function configure_da_reseller_skins() {
     echo "[${SCRIPT_NAME}]: [Skipped]: ${FUNCNAME[0]} has ran before" 2>&1 | tee -a "${REPORT_FILE}"
     echo "=~=~=~=~=~=~=~=~=~" 2>&1 | tee -a "${REPORT_FILE}"
   fi
-  if [[ "${option}" == "--run-force-exit" || "${option}" == "--exit" ]]; then
+  if [[ "${option}" == "--run-force-exit" || "${option}" == "--run-exit" ]]; then
     exit 0
   fi
 }
@@ -10369,7 +10370,7 @@ function configure_da_admin_admin_settings() {
     echo "=~=~=~=~=~=~=~=~=~" 2>&1 | tee -a "${REPORT_FILE}"
   fi
   ######
-  if [[ "${option}" == "--run-force-exit" || "${option}" == "--exit" ]]; then
+  if [[ "${option}" == "--run-force-exit" || "${option}" == "--run-exit" ]]; then
     exit 0
   fi
 }
@@ -10405,7 +10406,7 @@ function configure_da_owner_accounts() {
     echo "[${SCRIPT_NAME}]: [Skipped]: ${FUNCNAME[0]} has ran before" 2>&1 | tee -a "${REPORT_FILE}"
     echo "=~=~=~=~=~=~=~=~=~" 2>&1 | tee -a "${REPORT_FILE}"
   fi
-  if [[ "${option}" == "--run-force-exit" || "${option}" == "--exit" ]]; then
+  if [[ "${option}" == "--run-force-exit" || "${option}" == "--run-exit" ]]; then
     exit 0
   fi
 }
@@ -10470,7 +10471,7 @@ function configure_da_admin_accounts() {
     echo "[${SCRIPT_NAME}]: [Skipped]: ${FUNCNAME[0]} has ran before" 2>&1 | tee -a "${REPORT_FILE}"
     echo "=~=~=~=~=~=~=~=~=~" 2>&1 | tee -a "${REPORT_FILE}"
   fi
-  if [[ "${option}" == "--run-force-exit" || "${option}" == "--exit" ]]; then
+  if [[ "${option}" == "--run-force-exit" || "${option}" == "--run-exit" ]]; then
     exit 0
   fi
 }
@@ -10901,7 +10902,7 @@ function configure_da_reseller_accounts() {
     echo "[${SCRIPT_NAME}]: [Skipped]: ${FUNCNAME[0]} has ran before" 2>&1 | tee -a "${REPORT_FILE}"
     echo "=~=~=~=~=~=~=~=~=~" 2>&1 | tee -a "${REPORT_FILE}"
   fi
-  if [[ "${option}" == "--run-force-exit" || "${option}" == "--exit" ]]; then
+  if [[ "${option}" == "--run-force-exit" || "${option}" == "--run-exit" ]]; then
     exit 0
   fi
 }
@@ -11014,7 +11015,7 @@ function configure_da_reseller_root_domains() {
     echo "[${SCRIPT_NAME}]: [Skipped]: ${FUNCNAME[0]} has ran before" 2>&1 | tee -a "${REPORT_FILE}"
     echo "=~=~=~=~=~=~=~=~=~" 2>&1 | tee -a "${REPORT_FILE}"
   fi
-  if [[ "${option}" == "--run-force-exit" || "${option}" == "--exit" ]]; then
+  if [[ "${option}" == "--run-force-exit" || "${option}" == "--run-exit" ]]; then
     exit 0
   fi
 }
@@ -11125,7 +11126,7 @@ function configure_da_reseller_wildcard_domains() {
     echo "[${SCRIPT_NAME}]: [Skipped]: ${FUNCNAME[0]} has ran before" 2>&1 | tee -a "${REPORT_FILE}"
     echo "=~=~=~=~=~=~=~=~=~" 2>&1 | tee -a "${REPORT_FILE}"
   fi
-  if [[ "${option}" == "--run-force-exit" || "${option}" == "--exit" ]]; then
+  if [[ "${option}" == "--run-force-exit" || "${option}" == "--run-exit" ]]; then
     exit 0
   fi
 }
@@ -11479,7 +11480,7 @@ function configure_da_user_accounts() {
     echo "[${SCRIPT_NAME}]: [Skipped]: ${FUNCNAME[0]} has ran before" 2>&1 | tee -a "${REPORT_FILE}"
     echo "=~=~=~=~=~=~=~=~=~" 2>&1 | tee -a "${REPORT_FILE}"
   fi
-  if [[ "${option}" == "--run-force-exit" || "${option}" == "--exit" ]]; then
+  if [[ "${option}" == "--run-force-exit" || "${option}" == "--run-exit" ]]; then
     exit 0
   fi
 }
@@ -11592,7 +11593,7 @@ function configure_da_user_root_domains() {
     echo "[${SCRIPT_NAME}]: [Skipped]: ${FUNCNAME[0]} has ran before" 2>&1 | tee -a "${REPORT_FILE}"
     echo "=~=~=~=~=~=~=~=~=~" 2>&1 | tee -a "${REPORT_FILE}"
   fi
-  if [[ "${option}" == "--run-force-exit" || "${option}" == "--exit" ]]; then
+  if [[ "${option}" == "--run-force-exit" || "${option}" == "--run-exit" ]]; then
     exit 0
   fi
 }
@@ -11704,7 +11705,7 @@ function configure_da_user_wildcard_domains() {
     echo "[${SCRIPT_NAME}]: [Skipped]: ${FUNCNAME[0]} has ran before" 2>&1 | tee -a "${REPORT_FILE}"
     echo "=~=~=~=~=~=~=~=~=~" 2>&1 | tee -a "${REPORT_FILE}"
   fi
-  if [[ "${option}" == "--run-force-exit" || "${option}" == "--exit" ]]; then
+  if [[ "${option}" == "--run-force-exit" || "${option}" == "--run-exit" ]]; then
     exit 0
   fi
 }
@@ -11836,7 +11837,7 @@ function configure_da_reseller_subdomains() {
     echo "[${SCRIPT_NAME}]: [Skipped]: ${FUNCNAME[0]} has ran before" 2>&1 | tee -a "${REPORT_FILE}"
     echo "=~=~=~=~=~=~=~=~=~" 2>&1 | tee -a "${REPORT_FILE}"
   fi
-  if [[ "${option}" == "--run-force-exit" || "${option}" == "--exit" ]]; then
+  if [[ "${option}" == "--run-force-exit" || "${option}" == "--run-exit" ]]; then
     exit 0
   fi
 }
@@ -11954,7 +11955,7 @@ function configure_da_user_subdomains() {
     echo "[${SCRIPT_NAME}]: [Skipped]: ${FUNCNAME[0]} has ran before" 2>&1 | tee -a "${REPORT_FILE}"
     echo "=~=~=~=~=~=~=~=~=~" 2>&1 | tee -a "${REPORT_FILE}"
   fi
-  if [[ "${option}" == "--run-force-exit" || "${option}" == "--exit" ]]; then
+  if [[ "${option}" == "--run-force-exit" || "${option}" == "--run-exit" ]]; then
     exit 0
   fi
 }
@@ -12056,7 +12057,7 @@ function configure_da_reseller_emails() {
     echo "[${SCRIPT_NAME}]: [Skipped]: ${FUNCNAME[0]} has ran before" 2>&1 | tee -a "${REPORT_FILE}"
     echo "=~=~=~=~=~=~=~=~=~" 2>&1 | tee -a "${REPORT_FILE}"
   fi
-  if [[ "${option}" == "--run-force-exit" || "${option}" == "--exit" ]]; then
+  if [[ "${option}" == "--run-force-exit" || "${option}" == "--run-exit" ]]; then
     exit 0
   fi
 }
@@ -12158,7 +12159,7 @@ function configure_da_user_emails() {
     echo "[${SCRIPT_NAME}]: [Skipped]: ${FUNCNAME[0]} has ran before" 2>&1 | tee -a "${REPORT_FILE}"
     echo "=~=~=~=~=~=~=~=~=~" 2>&1 | tee -a "${REPORT_FILE}"
   fi
-  if [[ "${option}" == "--run-force-exit" || "${option}" == "--exit" ]]; then
+  if [[ "${option}" == "--run-force-exit" || "${option}" == "--run-exit" ]]; then
     exit 0
   fi
 }
@@ -12265,7 +12266,7 @@ function configure_da_reseller_domain_ssl_pre() {
     echo "[${SCRIPT_NAME}]: [Skipped]: ${FUNCNAME[0]} has ran before" 2>&1 | tee -a "${REPORT_FILE}"
     echo "=~=~=~=~=~=~=~=~=~" 2>&1 | tee -a "${REPORT_FILE}"
   fi
-  if [[ "${option}" == "--run-force-exit" || "${option}" == "--exit" ]]; then
+  if [[ "${option}" == "--run-force-exit" || "${option}" == "--run-exit" ]]; then
     exit 0
   fi
 }
@@ -12358,7 +12359,7 @@ function configure_da_user_domain_ssl_pre() {
     echo "[${SCRIPT_NAME}]: [Skipped]: ${FUNCNAME[0]} has ran before" 2>&1 | tee -a "${REPORT_FILE}"
     echo "=~=~=~=~=~=~=~=~=~" 2>&1 | tee -a "${REPORT_FILE}"
   fi
-  if [[ "${option}" == "--run-force-exit" || "${option}" == "--exit" ]]; then
+  if [[ "${option}" == "--run-force-exit" || "${option}" == "--run-exit" ]]; then
     exit 0
   fi
 }
@@ -12479,7 +12480,7 @@ function configure_da_reseller_domain_ssl() {
     echo "[${SCRIPT_NAME}]: [Skipped]: ${FUNCNAME[0]} has ran before" 2>&1 | tee -a "${REPORT_FILE}"
     echo "=~=~=~=~=~=~=~=~=~" 2>&1 | tee -a "${REPORT_FILE}"
   fi
-  if [[ "${option}" == "--run-force-exit" || "${option}" == "--exit" ]]; then
+  if [[ "${option}" == "--run-force-exit" || "${option}" == "--run-exit" ]]; then
     exit 0
   fi
 }
@@ -12597,7 +12598,7 @@ function configure_da_user_domain_ssl() {
     echo "[${SCRIPT_NAME}]: [Skipped]: ${FUNCNAME[0]} has ran before" 2>&1 | tee -a "${REPORT_FILE}"
     echo "=~=~=~=~=~=~=~=~=~" 2>&1 | tee -a "${REPORT_FILE}"
   fi
-  if [[ "${option}" == "--run-force-exit" || "${option}" == "--exit" ]]; then
+  if [[ "${option}" == "--run-force-exit" || "${option}" == "--run-exit" ]]; then
     exit 0
   fi
 }
@@ -12682,7 +12683,7 @@ function configure_da_owner_security() {
     echo "[${SCRIPT_NAME}]: [Skipped]: ${FUNCNAME[0]} has ran before" 2>&1 | tee -a "${REPORT_FILE}"
     echo "=~=~=~=~=~=~=~=~=~" 2>&1 | tee -a "${REPORT_FILE}"
   fi
-  if [[ "${option}" == "--run-force-exit" || "${option}" == "--exit" ]]; then
+  if [[ "${option}" == "--run-force-exit" || "${option}" == "--run-exit" ]]; then
     exit 0
   fi
 }
@@ -12767,7 +12768,7 @@ function configure_da_admin_security() {
     echo "[${SCRIPT_NAME}]: [Skipped]: ${FUNCNAME[0]} has ran before" 2>&1 | tee -a "${REPORT_FILE}"
     echo "=~=~=~=~=~=~=~=~=~" 2>&1 | tee -a "${REPORT_FILE}"
   fi
-  if [[ "${option}" == "--run-force-exit" || "${option}" == "--exit" ]]; then
+  if [[ "${option}" == "--run-force-exit" || "${option}" == "--run-exit" ]]; then
     exit 0
   fi
 }
@@ -12852,7 +12853,7 @@ function configure_da_reseller_security() {
     echo "[${SCRIPT_NAME}]: [Skipped]: ${FUNCNAME[0]} has ran before" 2>&1 | tee -a "${REPORT_FILE}"
     echo "=~=~=~=~=~=~=~=~=~" 2>&1 | tee -a "${REPORT_FILE}"
   fi
-  if [[ "${option}" == "--run-force-exit" || "${option}" == "--exit" ]]; then
+  if [[ "${option}" == "--run-force-exit" || "${option}" == "--run-exit" ]]; then
     exit 0
   fi
 }
@@ -12938,7 +12939,7 @@ function configure_da_user_security() {
     echo "[${SCRIPT_NAME}]: [Skipped]: ${FUNCNAME[0]} has ran before" 2>&1 | tee -a "${REPORT_FILE}"
     echo "=~=~=~=~=~=~=~=~=~" 2>&1 | tee -a "${REPORT_FILE}"
   fi
-  if [[ "${option}" == "--run-force-exit" || "${option}" == "--exit" ]]; then
+  if [[ "${option}" == "--run-force-exit" || "${option}" == "--run-exit" ]]; then
     exit 0
   fi
 }
@@ -13041,7 +13042,7 @@ function configure_da_reseller_databases() {
     echo "[${SCRIPT_NAME}]: [Skipped]: ${FUNCNAME[0]} has ran before" 2>&1 | tee -a "${REPORT_FILE}"
     echo "=~=~=~=~=~=~=~=~=~" 2>&1 | tee -a "${REPORT_FILE}"
   fi
-  if [[ "${option}" == "--run-force-exit" || "${option}" == "--exit" ]]; then
+  if [[ "${option}" == "--run-force-exit" || "${option}" == "--run-exit" ]]; then
     exit 0
   fi
 }
@@ -13145,7 +13146,7 @@ function configure_da_user_databases() {
     echo "[${SCRIPT_NAME}]: [Skipped]: ${FUNCNAME[0]} has ran before" 2>&1 | tee -a "${REPORT_FILE}"
     echo "=~=~=~=~=~=~=~=~=~" 2>&1 | tee -a "${REPORT_FILE}"
   fi
-  if [[ "${option}" == "--run-force-exit" || "${option}" == "--exit" ]]; then
+  if [[ "${option}" == "--run-force-exit" || "${option}" == "--run-exit" ]]; then
     exit 0
   fi
 }
@@ -13190,7 +13191,7 @@ function configure_da_custom_webs() {
     echo "[${SCRIPT_NAME}]: [Skipped]: ${FUNCNAME[0]} has ran before" 2>&1 | tee -a "${REPORT_FILE}"
     echo "=~=~=~=~=~=~=~=~=~" 2>&1 | tee -a "${REPORT_FILE}"
   fi
-  if [[ "${option}" == "--run-force-exit" || "${option}" == "--exit" ]]; then
+  if [[ "${option}" == "--run-force-exit" || "${option}" == "--run-exit" ]]; then
     exit 0
   fi
 }
@@ -13241,7 +13242,7 @@ function harden_with_lynis() {
     echo "[${SCRIPT_NAME}]: [Skipped]: ${FUNCNAME[0]} has ran before" 2>&1 | tee -a "${REPORT_FILE}"
     echo "=~=~=~=~=~=~=~=~=~" 2>&1 | tee -a "${REPORT_FILE}"
   fi
-  if [[ "${option}" == "--run-force-exit" || "${option}" == "--exit" ]]; then
+  if [[ "${option}" == "--run-force-exit" || "${option}" == "--run-exit" ]]; then
     exit 0
   fi
 }
@@ -13281,7 +13282,7 @@ function configure_cronjobs() {
     echo "[${SCRIPT_NAME}]: [Skipped]: ${FUNCNAME[0]} has ran before" 2>&1 | tee -a "${REPORT_FILE}"
     echo "=~=~=~=~=~=~=~=~=~" 2>&1 | tee -a "${REPORT_FILE}"
   fi
-  if [[ "${option}" == "--run-force-exit" || "${option}" == "--exit" ]]; then
+  if [[ "${option}" == "--run-force-exit" || "${option}" == "--run-exit" ]]; then
     exit 0
   fi
 }
@@ -13324,11 +13325,229 @@ function setup_post() {
     echo "=~=~=~=~=~=~=~=~=~" 2>&1 | tee -a "${REPORT_FILE}"
   fi
 
-  if [[ "${option}" == "--run-force-exit" || "${option}" == "--exit" ]]; then
+  if [[ "${option}" == "--run-force-exit" || "${option}" == "--run-exit" ]]; then
     exit 0
   fi
 }
+function setup() {
+    script_header
+    option="$1"
+    #if [ "${option}" == "remote" ];  then
+    #  _echo 'yellow' "Notice, remote setup is set"
+    #  :
+    #else
+    # ==== Locking mechanism ====
+    PID=$(pidof -x "${SCRIPT_NAME}")
+    # USE ATOMIC LOCK
+    LOCK_DIR="/var/lock/${SCRIPT_NAME}"
+    LOCK_PID="${LOCK_DIR}/pid"
 
+    # THIS WILL CHECK ONLY ONE INSTANCE OF SCRIPT SHOULD RUN
+    if ! mkdir "${LOCK_DIR}" 2>/dev/null; then
+      PID=$(cat "${LOCK_PID}")
+      if ! kill -0 "${PID}" 2>/dev/null; then
+        echo "[${SCRIPT_NAME}]: Removing stale lock of nonexistent PID ${PID}" 2>&1 | tee -a "${REPORT_FILE}"
+        rm -rf "${LOCK_DIR}"
+        echo "[${SCRIPT_NAME}]: Restarting (${SCRIPT_NAME})" 2>&1 | tee -a "${REPORT_FILE}"
+        exec "$0" "$@"
+      fi
+      echo "[${SCRIPT_NAME}]: Warning, another instance of this script is already running with PID [${PID}]" 2>&1 | tee -a "${REPORT_FILE}"
+      echo "[${SCRIPT_NAME}]: Please wait or clear the current running session to re-run this script" 2>&1 | tee -a "${REPORT_FILE}"
+      exit 147
+    else
+      # LOCK SUCCESS NOW SAVE INFORMATION IN PID
+      echo $$ >"${LOCK_PID}"
+
+      CTRL_C_COUNT=0
+      # IF SCRIPT EXIT UNSUCCESSFULLY, THEN WE CALL cleanup function
+      _traps _trap_cleanup QUIT INT TERM EXIT
+    fi
+    # ============End of locking===============
+    #fi
+    # TODO: this is deprecated will change soon:
+    echo "Remember you can always resume installation with (--help for more information):"
+    echo "For local installation: ${SCRIPT_NAME} --setup"
+    echo "For remote installation: ${SCRIPT_NAME} --ssh-login \"${BOX_HOSTNAME_FQDN}:${SSH_PORT}\" \"root:${ROOT_USERNAME}\" \"${CODE_PATH}/ssh_scripts/maxinet_setup.sh\""
+    echo "To login as root user: ${SCRIPT_NAME} --ssh-login \"${BOX_HOSTNAME_FQDN}:${SSH_PORT}\" \"user:root\""
+    echo "To login as SSH user: ${SCRIPT_NAME} --ssh-login \"${BOX_HOSTNAME_FQDN}:${SSH_PORT}\" \"root:SSH_USERNAME\""
+    echo "To unlock LUKS Disk encryption: ${SCRIPT_NAME} --ssh-luks-unlock ${DROP_BEAR_PORT} \"<LUKS_PASS>\""
+    _pause 5
+    validate_config
+
+    if [[ ${DISTRO_ID} == "centos" || ${DISTRO_ID} == "debian" ]]; then
+      #echo "[${SCRIPT_NAME}]: OK, this operating system [${DISTRO_ID}] is supported!" 2>&1 | tee -a "${REPORT_FILE}"
+      :
+    else
+      echo "[${SCRIPT_NAME}]: Sorry, this operating system [${DISTRO_ID}] is not supported!" 2>&1 | tee -a "${REPORT_FILE}"
+      _exit 147
+    fi
+    if compgen -G "${CONF_PATH}/*_executed" >/dev/null; then
+      _echo "$(msg blue)Resuming from previous installation ...$(msg end)" --name
+      START_OR_RESUME="Resuming"
+      _pause 10
+    else
+      START_OR_RESUME="Starting"
+    fi
+    _echo "$(msg blue)${START_OR_RESUME} Installation for ${BOX_HOSTNAME_FQDN} ...$(msg end)" --name
+    echo ""
+
+    ############ Call function documentation ############
+    # SYNTAX:
+    # function_name +<option>
+    # + means optional
+    # EXAMPLE:
+    # eg: secure_box --run-force
+    # DESCRIPTION:
+    # <option> lists:
+    # --run - normal run, after it has finished executed, it is marked as executed and continue to the next function_name call
+    # --run-exit - normal run, after it has finished executed, it is marked as executed and then exit or halt (no next function_name call)
+    # --run--force - force run (even after being executed previously), after it has finished executed, it is marked as executed and continue to the next function_name call
+    # --run--force-exit - force run (even after being executed previously), after it has finished executed, it is marked as executed and then exit or halt (no next function_name call)
+    # --skip - do not run the current function_name and do not mark it as executed
+    # --skip-mark - do not run the current function_name but mark it as executed
+    # EXTRA INFO:
+    # Without <option> argument it is similar to using --run
+    # eg: configure_net is equivalent to configure_net --run
+    #####################################################
+
+    ############ Function call starts here ############
+    # Note 1: setup_pre can be used to install screen, disable Selinux in CentOS or other necessary pre install components
+    setup_pre --run
+    # Note 1: Clone all setup script from git (recommend to run as --run-force instead of --run so we always get the latest security update)
+    get_latest_maxinet --run-force
+    # Note 1: Get the latest security codes from maxicode (recommend to run as --run-force instead of --run so we always get the latest security update)
+    init_local_maxicode --run-force
+    # Note 1: This call contains security hardening server
+    secure_box --run-exit
+    # Note 1: This will configure grub such as setting up password for grub bootloader
+    # Note 2: Grub bootloader password can also be used in preseed file, but having preseed file during installation is a bad idea.
+    configure_grub --run
+    # TODO continue writing next documentation
+    # Configure basic network 1
+    configure_net --run
+    # Must run configure_net first before running configure_net2 because we need interface to be ${NIC_INTERFACE_NAME} first #OK
+    configure_net2 --run
+    # This is where we can configure mount option for disk
+    configure_fstab --run
+    # Tweaking swap for production server
+    configure_sysctl_swap --run
+    # Tweaking kernel etc ..
+    configure_sysctl_kernel_fs --run
+    # Tweaking IPv4 or Ipv6
+    configure_sysctl_ips --run
+    # Upgrade system
+    upgrade_os --run
+    #exit 0
+    if [ "${INSTALL_TYPE}" == "directadmin" ]; then
+      install_da_pre --run
+      install_da --run
+      # Must run this after install_da and before install_da_post because install_da_post requires valid nginx directive which is fixed at rebuild_da_package
+      rebuild_da_package --run
+      install_da_post --run
+      change_da_auth --run
+      # Linking da ipv6 with ipv4 and vice versa
+      link_da_ipv6 --run
+    fi
+    # FOR BOTH GENERAL AND DIRECTADMIN INSTALLATION TYPE:
+    # Best to execute after install_da because CSF installer will detect if DA exist, it will install CSF in DA way.
+    configure_csf --run
+    configure_maxibox --run
+    configure_maxicode_pre --run
+    configure_maxicode --run
+    configure_maxiperm --run
+    configure_maxinis --run
+    configure_maxigpg --run
+    configure_maxida --run
+    configure_maxicron --run
+    configure_maxiaide --run-force
+    configure_maxiwall --run-force-exit
+    configure_maxicloud --run-exit
+    configure_maxipass --run
+    configure_maxify --skip #-- disable temporarily
+    configure_logs --skip   #-- skip temporarily
+    if [ "${INSTALL_TYPE}" == "directadmin" ]; then
+      configure_da_sql --run
+      configure_da_mail --run
+      configure_da_ftp --run
+      configure_nginx_apache --run
+      configure_web_apps_html --run
+      build_da_custom_conf --run
+      configure_da --run
+      configure_da_memcached --run
+      configure_da_geoip --run
+      # we configure dns template before creating admin, reseller and user accounts so they can use new DNS template
+      configure_da_dns_templates --run
+      configure_da_owner_accounts --run
+      configure_da_admin_accounts --run
+      configure_da_reseller_accounts --run
+      configure_da_reseller_root_domains --run
+      configure_da_reseller_wildcard_domains --run
+      configure_da_reseller_subdomains --run
+      configure_da_reseller_emails --run
+      configure_da_user_accounts --run
+      configure_da_user_root_domains --run
+      configure_da_user_wildcard_domains --run
+      configure_da_user_subdomains --run
+      configure_da_user_emails --run
+      configure_da_owner_skins --run
+      configure_da_admin_skins --run
+      configure_da_reseller_skins ""
+      configure_da_owner_security --run
+      configure_da_admin_security --run
+      configure_da_reseller_security --run
+      configure_da_user_security --run
+      configure_da_reseller_databases --run
+      configure_da_user_databases --run
+      configure_da_custom_webs --run
+
+      # Must run this functions (configure_da_ssl) after running CSF because we need to make sure all appropriate ports are opened to request certs
+      # Warning do not overused configure_da_ssl function because when requesting the same cert for the same domain 7 times for a week, you will get blocked.
+      # This will set the hosting to SSL:
+      configure_da_ssl_pre --run
+      # It's best to call SSL after domain propagation few hours later.
+
+      # Call certificate request at the end because we want to create DNS entry and propagate first
+      # Don't worry if some domains are not able to have SSL because of the propagation problem using external DNS
+      configure_da_ssl --run
+      configure_da_reseller_domain_ssl_pre --run
+      configure_da_reseller_domain_ssl --run
+      configure_da_user_domain_ssl_pre --run
+      configure_da_user_domain_ssl --run
+    fi
+    # Still need to add more based on lynis suggestion
+    harden_with_lynis --run
+    configure_cronjobs --run
+    setup_post --run
+
+    echo "" 2>&1 | tee -a "${REPORT_FILE}"
+    if [ "${INSTALL_TYPE}" == "directadmin" ]; then
+      echo "==============" 2>&1 | tee -a "${REPORT_FILE}"
+      echo "Directadmin now can be accessed through this URL: " 2>&1 | tee -a "${REPORT_FILE}"
+      echo "http://${IPV4_ADD0}:${DA_PORT} or http://${BOX_HOSTNAME_FQDN}:${DA_PORT}" 2>&1 | tee -a "${REPORT_FILE}"
+      echo "Username: DA_OWNER_USERNAME1" 2>&1 | tee -a "${REPORT_FILE}"
+      echo "Password: *******" 2>&1 | tee -a "${REPORT_FILE}"
+      echo "==============" 2>&1 | tee -a "${REPORT_FILE}"
+      echo "" 2>&1 | tee -a "${REPORT_FILE}"
+      echo ""
+    fi
+    script_time
+    echo "========== Installation Completed ==========" 2>&1 | tee -a "${REPORT_FILE}"
+    echo ""
+    echo "[${SCRIPT_NAME}]: Destroying setup information in 120 seconds ..." 2>&1 | tee -a "${REPORT_FILE}"
+    _pause 120
+    # Destroy the setup config deeply
+    shred -uvz "${CONFIG_FILE}"
+    # Remove all setup information except CONF_PATH because CONF_PATH and CODE_PATH
+    # CONF_PATH contains setup step information whereas CODE_PATH contains autogenerated file/script ending with _ag.extension
+    rm -rf "${LOG_PATH}"
+    #rm -rf "${CONF_PATH}"
+    rm -rf "${DATA_PATH}"
+    #rm -rf "${CODE_PATH}"
+    rm -rf "${TEMP_PATH}"
+    rm -rf "${INST_TEMP_DIR}"
+    # Clear bash history
+    history -c
+}
 temp1() {
   :
 }
@@ -13337,7 +13556,7 @@ test1() {
   :
 }
 
-# End of function
+############# End of function #############
 
 # -------------- MAIN FUNCTION --------------#
 # Obtain current running script name. eg: maxinet
@@ -13515,202 +13734,7 @@ while [ "$#" -gt 0 ]; do
   #./maxinet --setup - For local setup
   -setup | --setup)
     shift
-    script_header
-    option="$1"
-    #if [ "${option}" == "remote" ];  then
-    #  _echo 'yellow' "Notice, remote setup is set"
-    #  :
-    #else
-    # ==== Locking mechanism ====
-    PID=$(pidof -x "${SCRIPT_NAME}")
-    # USE ATOMIC LOCK
-    LOCK_DIR="/var/lock/${SCRIPT_NAME}"
-    LOCK_PID="${LOCK_DIR}/pid"
-
-    # THIS WILL CHECK ONLY ONE INSTANCE OF SCRIPT SHOULD RUN
-    if ! mkdir "${LOCK_DIR}" 2>/dev/null; then
-      PID=$(cat "${LOCK_PID}")
-      if ! kill -0 "${PID}" 2>/dev/null; then
-        echo "[${SCRIPT_NAME}]: Removing stale lock of nonexistent PID ${PID}" 2>&1 | tee -a "${REPORT_FILE}"
-        rm -rf "${LOCK_DIR}"
-        echo "[${SCRIPT_NAME}]: Restarting (${SCRIPT_NAME})" 2>&1 | tee -a "${REPORT_FILE}"
-        exec "$0" "$@"
-      fi
-      echo "[${SCRIPT_NAME}]: Warning, another instance of this script is already running with PID [${PID}]" 2>&1 | tee -a "${REPORT_FILE}"
-      echo "[${SCRIPT_NAME}]: Please wait or clear the current running session to re-run this script" 2>&1 | tee -a "${REPORT_FILE}"
-      exit 147
-    else
-      # LOCK SUCCESS NOW SAVE INFORMATION IN PID
-      echo $$ >"${LOCK_PID}"
-
-      CTRL_C_COUNT=0
-      # IF SCRIPT EXIT UNSUCCESSFULLY, THEN WE CALL cleanup function
-      _traps _trap_cleanup QUIT INT TERM EXIT
-    fi
-    # ============End of locking===============
-    #fi
-    echo "Remember you can always resume installation with (--help for more information):"
-    echo "For local installation: ${SCRIPT_NAME} --setup"
-    echo "For remote installation: ${SCRIPT_NAME} --ssh-login \"${BOX_HOSTNAME_FQDN}:${SSH_PORT}\" \"root:${ROOT_USERNAME}\" \"${CODE_PATH}/ssh_scripts/maxinet_setup.sh\""
-    echo "To login as root user: ${SCRIPT_NAME} --ssh-login \"${BOX_HOSTNAME_FQDN}:${SSH_PORT}\" \"user:root\""
-    echo "To login as SSH user: ${SCRIPT_NAME} --ssh-login \"${BOX_HOSTNAME_FQDN}:${SSH_PORT}\" \"root:SSH_USERNAME\""
-    echo "To unlock LUKS Disk encryption: ${SCRIPT_NAME} --ssh-luks-unlock ${DROP_BEAR_PORT} \"<LUKS_PASS>\""
-    _pause 5
-    validate_config
-
-    if [[ ${DISTRO_ID} == "centos" || ${DISTRO_ID} == "debian" ]]; then
-      #echo "[${SCRIPT_NAME}]: OK, this operating system [${DISTRO_ID}] is supported!" 2>&1 | tee -a "${REPORT_FILE}"
-      :
-    else
-      echo "[${SCRIPT_NAME}]: Sorry, this operating system [${DISTRO_ID}] is not supported!" 2>&1 | tee -a "${REPORT_FILE}"
-      _exit 147
-    fi
-    if compgen -G "${CONF_PATH}/*_executed" >/dev/null; then
-      _echo blue "Resuming from previous installation ..."
-      START_OR_RESUME="Resuming"
-      _pause 10
-    else
-      START_OR_RESUME="Starting"
-    fi
-    _echo blue "${START_OR_RESUME} Installation for ${BOX_HOSTNAME_FQDN} ..."
-    echo "" 2>&1 | tee -a "${REPORT_FILE}"
-    # Use this to install screen or disable Selinux in CentOS
-    # This is the starting function call for setup
-    setup_pre --run
-    #exit 147
-    # Clone all setup script (recommend to run as --run-force)
-    get_latest_maxinet --run-force
-    # Get the latest security codes from maxicode (recommend to run as --run-force)
-    init_local_maxicode --run-force
-    # Hardening server
-    secure_box --run
-    #exit 147
-    # Set password for grub bootloader
-    configure_grub --run # -- remember this can also be used in preseed file, but having preseed file during installation is a bad idea.
-    # Configure basic network 1
-    configure_net --run
-    # Must run configure_net first before running configure_net2 because we need interface to be ${NIC_INTERFACE_NAME} first #OK
-    configure_net2 --run
-    # This is where we can configure mount option for disk
-    configure_fstab --run
-    # Tweaking swap for production server
-    configure_sysctl_swap --run
-    # Tweaking kernel etc ..
-    configure_sysctl_kernel_fs --run
-    # Tweaking IPv4 or Ipv6
-    configure_sysctl_ips --run
-    # Upgrade system
-    upgrade_os --run
-    #exit 0
-    if [ "${INSTALL_TYPE}" == "directadmin" ]; then
-      install_da_pre --run
-      install_da --run
-      # Must run this after install_da and before install_da_post because install_da_post requires valid nginx directive which is fixed at rebuild_da_package
-      rebuild_da_package --run
-      install_da_post --run
-      change_da_auth --run
-      # Linking da ipv6 with ipv4 and vice versa
-      link_da_ipv6 --run
-    fi
-    # FOR BOTH GENERAL AND DIRECTADMIN INSTALLATION TYPE:
-    # Best to execute after install_da because CSF installer will detect if DA exist, it will install CSF in DA way.
-    configure_csf --run
-    configure_maxibox --run
-    configure_maxicode_pre --run
-    configure_maxicode --run
-    configure_maxiperm --run
-    configure_maxinis --run
-    configure_maxigpg --run
-    configure_maxida --run
-    configure_maxicron --run
-    configure_maxiaide --run-force
-    configure_maxiwall --run-force-exit
-    configure_maxicloud --exit
-    configure_maxipass --run
-    configure_maxify --skip #-- disable temporarily
-    configure_logs --skip   #-- skip temporarily
-    if [ "${INSTALL_TYPE}" == "directadmin" ]; then
-      configure_da_sql --run
-      configure_da_mail --run
-      configure_da_ftp --run
-      configure_nginx_apache --run
-      configure_web_apps_html --run
-      build_da_custom_conf --run
-      configure_da --run
-      configure_da_memcached --run
-      configure_da_geoip --run
-      # we configure dns template before creating admin, reseller and user accounts so they can use new DNS template
-      configure_da_dns_templates --run
-      configure_da_owner_accounts --run
-      configure_da_admin_accounts --run
-      configure_da_reseller_accounts --run
-      configure_da_reseller_root_domains --run
-      configure_da_reseller_wildcard_domains --run
-      configure_da_reseller_subdomains --run
-      configure_da_reseller_emails --run
-      configure_da_user_accounts --run
-      configure_da_user_root_domains --run
-      configure_da_user_wildcard_domains --run
-      configure_da_user_subdomains --run
-      configure_da_user_emails --run
-      configure_da_owner_skins --run
-      configure_da_admin_skins --run
-      configure_da_reseller_skins ""
-      configure_da_owner_security --run
-      configure_da_admin_security --run
-      configure_da_reseller_security --run
-      configure_da_user_security --run
-      configure_da_reseller_databases --run
-      configure_da_user_databases --run
-      configure_da_custom_webs --run
-
-      # Must run this functions (configure_da_ssl) after running CSF because we need to make sure all appropriate ports are opened to request certs
-      # Warning do not overused configure_da_ssl function because when requesting the same cert for the same domain 7 times for a week, you will get blocked.
-      # This will set the hosting to SSL:
-      configure_da_ssl_pre --run
-      # It's best to call SSL after domain propagation few hours later.
-
-      # Call certificate request at the end because we want to create DNS entry and propagate first
-      # Don't worry if some domains are not able to have SSL because of the propagation problem using external DNS
-      configure_da_ssl --run
-      configure_da_reseller_domain_ssl_pre --run
-      configure_da_reseller_domain_ssl --run
-      configure_da_user_domain_ssl_pre --run
-      configure_da_user_domain_ssl --run
-    fi
-    # Still need to add more based on lynis suggestion
-    harden_with_lynis --run
-    configure_cronjobs --run
-    setup_post --run
-
-    echo "" 2>&1 | tee -a "${REPORT_FILE}"
-    if [ "${INSTALL_TYPE}" == "directadmin" ]; then
-      echo "==============" 2>&1 | tee -a "${REPORT_FILE}"
-      echo "Directadmin now can be accessed through this URL: " 2>&1 | tee -a "${REPORT_FILE}"
-      echo "http://${IPV4_ADD0}:${DA_PORT} or http://${BOX_HOSTNAME_FQDN}:${DA_PORT}" 2>&1 | tee -a "${REPORT_FILE}"
-      echo "Username: DA_OWNER_USERNAME1" 2>&1 | tee -a "${REPORT_FILE}"
-      echo "Password: *******" 2>&1 | tee -a "${REPORT_FILE}"
-      echo "==============" 2>&1 | tee -a "${REPORT_FILE}"
-      echo "" 2>&1 | tee -a "${REPORT_FILE}"
-      echo ""
-    fi
-    script_time
-    echo "========== Installation Completed ==========" 2>&1 | tee -a "${REPORT_FILE}"
-    echo ""
-    echo "[${SCRIPT_NAME}]: Destroying setup information in 120 seconds ..." 2>&1 | tee -a "${REPORT_FILE}"
-    _pause 120
-    # Destroy the setup config deeply
-    shred -uvz "${CONFIG_FILE}"
-    # Remove all setup information except CONF_PATH because CONF_PATH and CODE_PATH
-    # CONF_PATH contains setup step information whereas CODE_PATH contains autogenerated file/script ending with _ag.extension
-    rm -rf "${LOG_PATH}"
-    #rm -rf "${CONF_PATH}"
-    rm -rf "${DATA_PATH}"
-    #rm -rf "${CODE_PATH}"
-    rm -rf "${TEMP_PATH}"
-    rm -rf "${INST_TEMP_DIR}"
-    # Clear bash history
-    history -c
+    setup "$@"
     exit 0
     break
     ;;

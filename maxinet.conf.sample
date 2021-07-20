@@ -239,7 +239,7 @@ ROUNDCUBE_LOGIN_ROUTE="/mailarea51"
 HTTPASSWD_ROUNDCUBE_USERNAME="mailagent007"
 HTTPASSWD_ROUNDCUBE_PASS="*long-secured-password*"
 # This is a private repository URL (PM me for more info because you need TOKEN key access)
-SETUP_GIT_URL="https://token@github.com/sofibox/maxisetup.git"
+SETUP_GIT_URL="https://token@github.com/sofibox/maxinet.git"
 GIT_TOKEN="*git-token-key*"
 # To reduce server bot attack on SSH, you must change this SSH PORT
 RESCUE_SSH_PORT="823"
