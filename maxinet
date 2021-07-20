@@ -4,7 +4,7 @@
 APP_SPECIFIC_NAME="Maxinet"
 APP_STATUS="alpha"
 # Note some minor versions are not published
-APP_VERSION="0.5.2.4-${APP_STATUS}"
+APP_VERSION="0.5.2.5-${APP_STATUS}"
 COMPANY_ID="${COMPANY_ID}"
 # Hello there, this is a powerful script that able initialize one or more server installation from scratch. From configuring the server disk, until you got the full working server with a live website.
 # It also includes many security and hardening script.
@@ -511,45 +511,45 @@ function init_server() {
       # Note this required linode to be turned off
       # ------ Delete and recreate specific disk from linode ------
       # Delete existing Boot Disk that boot the operating system installer
-      #linode_api_admin delete-disk --linode-label "${BOX_HOSTNAME_FQDN}" --linode-disk-label "Boot_Disk"
+      #linode_api_admin delete-disk --linode-label "${BOX_HOSTNAME_FQDN}" --linode-disk-label "${LINODE_BOOT_DISK_LABEL}"
       # Delete existing OS Disk that hold the operating system for the server
-      #linode_api_admin delete-disk --linode-label "${BOX_HOSTNAME_FQDN}" --linode-disk-label "OS_Disk"
+      #linode_api_admin delete-disk --linode-label "${BOX_HOSTNAME_FQDN}" --linode-disk-label "${LINODE_OS_DISK_LABEL}"
       # ------ To delete all disks from linode (plural with s)------
       _echo "=== Deleting all linode disks ====" --plain --name
       linode_api_admin delete-disks --linode-label "${BOX_HOSTNAME_FQDN}"
       # Create Boot Disk that boot the operating system installer with raw format
       _echo "=== Creating linode Boot_Disk ====" --plain --name
 
-      linode_api_admin create-disk --linode-label "${BOX_HOSTNAME_FQDN}" --linode-disk-label "Boot_Disk" --linode-disk-filetype "raw" --linode-disk-size "${server_boot_disk_raw_size}"
+      linode_api_admin create-disk --linode-label "${BOX_HOSTNAME_FQDN}" --linode-disk-label "${LINODE_BOOT_DISK_LABEL}" --linode-disk-filetype "raw" --linode-disk-size "${server_boot_disk_raw_size}"
       # Example to allow duplicate entry as above:
-      #linode_api_admin create-disk --linode-label "${BOX_HOSTNAME_FQDN}" --linode-disk-label "Boot_Disk" --linode-disk-filetype "raw" --linode-disk-size "${server_boot_disk_raw_size}" --allow-duplicate-entry
+      #linode_api_admin create-disk --linode-label "${BOX_HOSTNAME_FQDN}" --linode-disk-label "${LINODE_BOOT_DISK_LABEL}" --linode-disk-filetype "raw" --linode-disk-size "${server_boot_disk_raw_size}" --allow-duplicate-entry
       # Create OS Disk that hold the operating system for the server
       _echo "=== Creating linode OS_Disk ====" --plain --name
-      linode_api_admin create-disk --linode-label "${BOX_HOSTNAME_FQDN}" --linode-disk-label "OS_Disk" --linode-disk-filetype "raw" --linode-disk-size "${box_os_disk}"
+      linode_api_admin create-disk --linode-label "${BOX_HOSTNAME_FQDN}" --linode-disk-label "${LINODE_OS_DISK_LABEL}" --linode-disk-filetype "raw" --linode-disk-size "${box_os_disk}"
 
     fi
 
     if [ ${rebuild_config} == "true" ]; then
       #_echo "=== Delete specific config .... ====" --plain --name
       # Delete existing Boot_Config profile
-      #linode_api_admin "delete-config" --linode-label "${BOX_HOSTNAME_FQDN}" --linode-config-label "Boot_Config"
+      #linode_api_admin "delete-config" --linode-label "${BOX_HOSTNAME_FQDN}" --linode-config-label "${LINODE_BOOT_CONFIG_LABEL}"
       # Delete existing OS_Config profile
-      #linode_api_admin "delete-config" --linode-label "${BOX_HOSTNAME_FQDN}" --linode-config-label "OS_Config"
+      #linode_api_admin "delete-config" --linode-label "${BOX_HOSTNAME_FQDN}" --linode-config-label "${LINODE_OS_CONFIG_LABEL}"
 
       _echo "=== Delete all configs .... ====" --plain --name
       linode_api_admin "delete-configs" --linode-label "${BOX_HOSTNAME_FQDN}"
 
       _echo "=== Creating linode config Boot_Config ====" --plain --name
       linode_api_admin "create-config" --linode-label "${BOX_HOSTNAME_FQDN}" \
-        --linode-config-label "Boot_Config" --linode-config-comments "The installer boot configuration" \
+        --linode-config-label "${LINODE_BOOT_CONFIG_LABEL}" --linode-config-comments "The installer boot configuration" \
         --linode-config-kernel "linode/direct-disk" --linode-config-rootdev "/dev/sdb" \
-        --label-devsda "disk:OS_Disk" --label-devsdb "disk:Boot_Disk"
+        --label-devsda "disk:${LINODE_OS_DISK_LABEL}" --label-devsdb "disk:${LINODE_BOOT_DISK_LABEL}"
 
       _echo "=== Creating linode config OS_Config ====" --plain --name
       linode_api_admin "create-config" --linode-label "${BOX_HOSTNAME_FQDN}" \
-        --linode-config-label "OS_Config" --linode-config-comments "The operating boot configuration" \
+        --linode-config-label "${LINODE_OS_CONFIG_LABEL}" --linode-config-comments "The operating boot configuration" \
         --linode-config-kernel "linode/direct-disk" --linode-config-rootdev "/dev/sda" \
-        --label-devsda "disk:OS_Disk"
+        --label-devsda "disk:${LINODE_OS_DISK_LABEL}"
 
       echo ""
     fi
@@ -571,7 +571,7 @@ function init_server() {
 
     _echo "Booting linode ${BOX_HOSTNAME_FQDN} into Finnix rescue mode ..." --name
 
-    linode_api_admin reboot-to-rescue --linode-label "${BOX_HOSTNAME_FQDN}" --label-devsda "disk:Boot_Disk" --label-devsdb "disk:OS_Disk"
+    linode_api_admin reboot-to-rescue --linode-label "${BOX_HOSTNAME_FQDN}" --label-devsda "disk:${LINODE_BOOT_DISK_LABEL}" --label-devsdb "disk:${LINODE_OS_DISK_LABEL}"
     echo ""
 
     _echo "Copying RSA key public key for login purpose ..." --name
@@ -582,7 +582,7 @@ function init_server() {
     _echo "Giving 12 seconds for ${BOX_HOSTNAME_FQDN} to finish booting into Finnix rescue OS ..." --name
     sleep 12
 
-    _echo "Writing OS into Boot_Disk Partition via SSH background (this will be completed until linode is turned off automatically) ..." --name
+    _echo "Writing OS into ${LINODE_BOOT_DISK_LABEL} Partition via SSH background (this will be completed until linode is turned off automatically) ..." --name
     #ssh -q -o "StrictHostKeyChecking no" -i /root/.ssh/linode_lish.id_rsa -tt "${DNS_PROVIDER_USER}@${DNS_PROVIDER_TERMINAL_SERVER}" "${BOX_HOSTNAME_FQDN}" <"${CODE_PATH}/ssh_scripts/os_write_ag.sh" >/dev/null 2>&1 &
     # This above lish ssh command is equivalent to below using --push-iso-write-script option and other config will be used the default values from config file:
     ssh_api lish-push-script --push-iso-write-script
@@ -594,15 +594,15 @@ function init_server() {
 
     # After system shutdown, then we can execute the following
     # Note I can use reboot-linode or boot-linode (boot-linode is used if the linode status is offline, if it's online you cannot use it)
-    linode_api_admin reboot-linode --linode-label "${BOX_HOSTNAME_FQDN}" --linode-config-label "Boot_Config"
+    linode_api_admin reboot-linode --linode-label "${BOX_HOSTNAME_FQDN}" --linode-config-label "${LINODE_BOOT_CONFIG_LABEL}"
     _echo "Installing operating system on OS_Disk via preseed file ... (approx 5 minutes. It will finish when linode is turned off automatically): " --name
     #check_linode_status_until "offline"
     linode_api_admin wait-linode-status --linode-label "${BOX_HOSTNAME_FQDN}" --until-status offline
     # Remove the Boot_Config, we do not need this anymore
-    linode_api_admin delete-config --linode-label "${BOX_HOSTNAME_FQDN}" --linode-config-label "Boot_Config"
+    linode_api_admin delete-config --linode-label "${BOX_HOSTNAME_FQDN}" --linode-config-label "${LINODE_BOOT_CONFIG_LABEL}"
     # Boot into the new OS
     _echo "Booting into operating system (make sure to unlock LUKS)" --name
-    linode_api_admin boot-linode --linode-label "${BOX_HOSTNAME_FQDN}" --linode-config-label "OS_Config"
+    linode_api_admin boot-linode --linode-label "${BOX_HOSTNAME_FQDN}" --linode-config-label "${LINODE_OS_CONFIG_LABEL}"
 
     _echo "$(msg cyan)Checking if dropbear port ${DROP_BEAR_PORT} is open from --server ${BOX_HOSTNAME_FQDN} ...$(msg end)" --name
     count=0
@@ -616,8 +616,7 @@ function init_server() {
         _echo "$(msg green)OK, dropbear port ${DROP_BEAR_PORT} is now available. Unlocking encrypted LUKS disk on boot ...$(msg end)" --stop-spin --name
         # Wait 5 seconds
         sleep 5
-        # TODO change this to ssh_api unlock-luks/unlock-disk --port "${DROP_BEAR_PORT}" --password "${LUKS_PASS}"
-        ssh_luks_unlock "${DROP_BEAR_PORT}" "${LUKS_PASS}"
+        ssh_api unlock-luks --port "${DROP_BEAR_PORT}" --password "${LUKS_PASS}"
         break
       fi
       if [ "${count}" -gt 60 ]; then
@@ -631,8 +630,8 @@ function init_server() {
     # Now you can SSH with :
     # maxinet --ssh-login sun.sofibox.com
     sleep 5
-    _echo "Copying maxinet script ..."
-    # TODO change to ssh_api transfer-files / file transfer | transfer-file --server ${BOX_HOSTNAME_FQDN} ---port ${SSH_PORT} --group root --user ${ROOT_USERNAME} --local-files "/tmp/file1 /var/file2" --remote-path ~/
+    _echo "Copying maxinet script into remote server ..." --name
+    # TODO change to ssh_api transfer-files/file-transfer/transfer-file --server ${BOX_HOSTNAME_FQDN} ---port ${SSH_PORT} --group root --user ${ROOT_USERNAME} --local-files "/tmp/file1 /var/file2" --remote-path ~/
     ssh_transfer "${BOX_HOSTNAME_FQDN}:${SSH_PORT}" "root:${ROOT_USERNAME}" "${SCRIPT_PATH}/maxinet ${SCRIPT_PATH}/maxinet.conf" ~/
     sleep 2
 
@@ -655,7 +654,7 @@ function init_server() {
     # After the above script is executed, now we wait for it to shutdown properly before booting
     check_linode_status_until "offline"
     _echo "Booting into operating system (LUKS console might be appeared and unlocked automatically) ..." --name
-    linode_api_admin "reboot-linode" --linode-label "${BOX_HOSTNAME_FQDN}" --linode-config-label "OS_Config"
+    linode_api_admin "reboot-linode" --linode-label "${BOX_HOSTNAME_FQDN}" --linode-config-label "${LINODE_OS_CONFIG_LABEL}"
     # check server and port if available in order to auto unlock it
     _echo "$(msg cyan)Checking if dropbear port ${DROP_BEAR_PORT} is open from --server ${BOX_HOSTNAME_FQDN} ...$(msg end)" --name
     count=0
@@ -758,7 +757,7 @@ function check_server_port() {
 function ssh_api() {
 
   local action argnum options long_opts retval key_path group username comment server_label server port destination rsa_key linode_label script_path \
-    push_iso_write_script push_shutdown_script push_reboot_script push_maxinet_setup_script
+    push_iso_write_script push_shutdown_script push_reboot_script push_maxinet_setup_script password
 
   action="$1"
 
@@ -768,7 +767,7 @@ function ssh_api() {
     exit 1
   fi
   long_opts="help,key-path:,group:,username:,comment:,server-label:,server:,port:,destination:,without-prompt,rsa-key:,linode-label:,script-path:, \
-  push-iso-write-script,push-shutdown-script,push-reboot-script,push-maxinet-setup-script,sp:,server-port:,gu:,group-user:"
+  push-iso-write-script,push-shutdown-script,push-reboot-script,push-maxinet-setup-script,sp:,server-port:,gu:,group-user:,password:"
   options=$(getopt -o '' --long "${long_opts}" -n "${FUNCNAME[0]} in ${SCRIPT_NAME}" -- "$@")
   retval=$?
   if [ ${retval} != 0 ]; then
@@ -795,6 +794,7 @@ function ssh_api() {
   push_reboot_script=false
   push_maxinet_setup_script=false
   port="22" #If not specified the default is port 22
+  password=""
   while true; do
     case "$1" in
     --help)
@@ -893,6 +893,10 @@ function ssh_api() {
       fi
       shift
       ;;
+    --password)
+      password="$2"
+      shift 2
+      ;;
     --)
       shift
       break
@@ -909,10 +913,42 @@ function ssh_api() {
   # Special login short form
   # ssh_api login root
   # ssh_api login my_ssh_user
-
   # ssh_api push-script
 
-  if [ "${action}" == "login" ]; then
+  # ssh_api luks-unlock --port 8922 --password 1234
+  # or without argument ssh_api luks-unlock (it will get the default values from config file)
+  if [[ "${action}" == "luks-unlock" || "${action}" == "ssh-luks-unlock" ]]; then
+    option="$2"
+
+    if [ -z "${option}" ]; then
+      linode_label="${BOX_HOSTNAME_FQDN}"
+      port="${DROP_BEAR_PORT}"
+      password="${LUKS_PASS}"
+    fi
+
+    if [ -z "${rsa_key}" ]; then
+      private_key_name="root_${ROOT_USERNAME}_${linode_label}.id_rsa"
+      private_key_file="${key_path}/${private_key_name}"
+      rsa_key="${private_key_file}"
+    fi
+
+    _echo "$(msg cyan)Unlocking LUKS encrypted disk on boot using port ${port} and password ${password} ... $(msg end)" --name
+    if [ -f "${rsa_key}" ]; then
+      _echo "$(msg cyan)Connecting to ssh with port ${port} to unlock LUKS encrypted disk on boot ...$(msg end)" --name
+      # Do not use -q, need verbose for this connection to debug error
+      ssh -o "StrictHostKeyChecking no" -oAddressFamily=inet -p "${port}" -i "${rsa_key}" "${linode_label}" "echo -ne \"${password}\" > /lib/cryptsetup/passfifo" 2> >(grep -v 'Permanently added' 1>&2)
+      retval=$?
+      if [ ${retval} -eq 0 ]; then
+        _echo "$(msg green)Success, LUKS unlocked return ok status$(msg end)" --name
+      else
+        _echo "$(msg yellow)Warning, LUKS unlocked return with code ${retval}$(msg end)" --name
+      fi
+    else
+      _echo "$(msg red)Error, private key ${rsa_key} does not exist!$(msg end)" --name --verbose 3
+      _exit 147
+    fi
+
+  elif [ "${action}" == "login" ]; then
     local user ssh_pid private_key_name private_key_file
     user="$2"
     # This is special login based on user from config file (for faster login)
@@ -3641,7 +3677,7 @@ function linode_api_admin() {
   scripting=false
   default=false
   allow_duplicate_entry=false
-  linode_label=""                            # server.test.com, myserver, mybigserver (recommend to use server domain in fqdn format eg: server.test.com)
+  linode_label=""                            # server.test.com, myserver, mybigserver (recommend to use server domain in fqdn format eg: server.test.com).
   domain=""                                  # test.com
   domain_type=""                             # master, slave
   domain_email=""                            # user@test.com
@@ -3892,7 +3928,7 @@ function linode_api_admin() {
   else
     if [ "${PIP_ALWAYS_UPDATE}" == "yes" ]; then
       # We do this on silent mode
-      [[ ${scripting} == "false" ]] && _echo "Updating linode-cli to use new API version ..." --name
+      [[ ${scripting} == "false" ]] && _echo "Updating linode-cli to use new API version ..." --name --verbose 7
       # This will resolve this common issue: https://www.linode.com/community/questions/18361/linode-cli-version-mismatch
       [[ ${scripting} == "false" ]] && _echo "$(pip3 install linode-cli --upgrade)" --name --verbose 7 #--quiet
       PIP_ALWAYS_UPDATE="no"
@@ -3949,7 +3985,7 @@ function linode_api_admin() {
       return 147
     fi
     [[ ${scripting} == "false" ]] && _echo "$(msg cyan)Getting linode ID for ${linode_label} ...$(msg end)" --name --verbose 7
-    return_label=$(${LINODE_CLI_BIN} linodes list --json --pretty | ${JQ_BIN} ".[] | select(.label == \"${linode_label}\") | .id")
+    return_label=$(${LINODE_CLI_BIN} --pretty --json --suppress-warnings linodes list | ${JQ_BIN} ".[] | select(.label == \"${linode_label}\") | .id")
     if [ -n "${return_label}" ]; then
       echo "${return_label}"
       [[ ${scripting} == "false" ]] && exec_time total "linode_api_admin"
@@ -3981,7 +4017,7 @@ function linode_api_admin() {
       return 147
     fi
     [[ ${scripting} == "false" ]] && _echo "$(msg cyan)Getting linode status for ${linode_label} ...$(msg end)" --name --verbose 7
-    linode_status=$(${LINODE_CLI_BIN} linodes list --json --pretty | ${JQ_BIN} -r ".[] | select(.label == \"${linode_label}\") | .status")
+    linode_status=$(${LINODE_CLI_BIN} --pretty --json --suppress-warnings linodes list | ${JQ_BIN} -r ".[] | select(.label == \"${linode_label}\") | .status")
     if [ -n "${linode_status}" ]; then
       # Here is the result for linode status:
 
@@ -4017,7 +4053,7 @@ function linode_api_admin() {
       [[ ${scripting} == "false" ]] && exec_time total "linode_api_admin"
       return 147
     fi
-    domain_id=$(${LINODE_CLI_BIN} domains list --json --pretty | ${JQ_BIN} ".[] | select(.domain == \"${domain}\") | .id")
+    domain_id=$(${LINODE_CLI_BIN} --pretty --json --suppress-warnings domains list | ${JQ_BIN} ".[] | select(.domain == \"${domain}\") | .id")
     if [ -n "${domain_id}" ]; then
       # Here is the result for domain ID:
       echo "${domain_id}"
@@ -4087,10 +4123,10 @@ function linode_api_admin() {
     fi
     [[ ${scripting} == "false" ]] && _echo "$(msg cyan)Creating domain $(msg red)${domain}$(msg end) $(msg cyan)...$(msg end)" --name
     if [[ ${scripting} == "false" ]]; then
-      ${LINODE_CLI_BIN} domains create --domain "${domain}" --type "${domain_type}" --soa_email "${domain_email}" --ttl_sec "${domain_ttl}" --pretty --json
+      ${LINODE_CLI_BIN} --pretty --json --suppress-warnings domains create --domain "${domain}" --type "${domain_type}" --soa_email "${domain_email}" --ttl_sec "${domain_ttl}"
       retval=$?
     else
-      ${LINODE_CLI_BIN} domains create --domain "${domain}" --type "${domain_type}" --soa_email "${domain_email}" &>/dev/null
+      ${LINODE_CLI_BIN} --pretty --json --suppress-warnings domains create --domain "${domain}" --type "${domain_type}" --soa_email "${domain_email}" &>/dev/null
       retval=$?
     fi
 
@@ -4114,7 +4150,7 @@ function linode_api_admin() {
     # 1) Validate domain name
 
     [[ ${scripting} == "false" ]] && _echo "Getting required domain ID for --domain ${domain} ..." --name --verbose 7
-    domain_id=$(${LINODE_CLI_BIN} domains list --json --pretty | ${JQ_BIN} ".[] | select(.domain == \"${domain}\") | .id")
+    domain_id=$(${LINODE_CLI_BIN} --pretty --json --suppress-warnings domains list | ${JQ_BIN} ".[] | select(.domain == \"${domain}\") | .id")
 
     if [ -z "${domain_id}" ]; then
       _echo "$(msg red)Error, no domain ID found for --domain ${domain}$(msg end)"
@@ -4160,11 +4196,11 @@ function linode_api_admin() {
         [[ ${scripting} == "false" ]] && _echo "$(msg cyan)Creating TXT record name $(msg red)[${record_name}]$(msg end) $(msg cyan)...$(msg end)" --name
 
         if [[ ${scripting} == "false" ]]; then
-          ${LINODE_CLI_BIN} domains records-create "${domain_id}" --pretty --json --type "${record_type}" --name "${record_name}" \
+          ${LINODE_CLI_BIN} --pretty --json --suppress-warnings domains records-create "${domain_id}" --type "${record_type}" --name "${record_name}" \
             --target "${record_value}" --ttl_sec "${record_ttl}"
           retval=$?
         else
-          ${LINODE_CLI_BIN} domains records-create "${domain_id}" --pretty --json --type "${record_type}" --name "${record_name}" \
+          ${LINODE_CLI_BIN} --pretty --json --suppress-warnings domains records-create "${domain_id}" --type "${record_type}" --name "${record_name}" \
             --target "${record_value}" --ttl_sec "${record_ttl}" &>/dev/null
           retval=$?
         fi
@@ -4199,11 +4235,11 @@ function linode_api_admin() {
         [[ ${scripting} == "false" ]] && _echo "$(msg cyan)Creating MX record name $(msg red)[${record_name}]$(msg end) $(msg cyan)...$(msg end)" --name
 
         if [[ ${scripting} == "false" ]]; then
-          ${LINODE_CLI_BIN} domains records-create "${domain_id}" --pretty --json --type "${record_type}" --name "${record_name}" \
+          ${LINODE_CLI_BIN} --pretty --json --suppress-warnings domains records-create "${domain_id}" --type "${record_type}" --name "${record_name}" \
             --target "${record_value}" --priority "${record_priority}" --ttl_sec "${record_ttl}"
           retval=$?
         else
-          ${LINODE_CLI_BIN} domains records-create "${domain_id}" --pretty --json --type "${record_type}" --name "${record_name}" \
+          ${LINODE_CLI_BIN} --pretty --json --suppress-warnings domains records-create "${domain_id}" --type "${record_type}" --name "${record_name}" \
             --target "${record_value}" --priority "${record_priority}" --ttl_sec "${record_ttl}" &>/dev/null
           retval=$?
         fi
@@ -4233,11 +4269,11 @@ function linode_api_admin() {
         [[ ${scripting} == "false" ]] && _echo "$(msg cyan)Creating NS record name $(msg red)[${record_name}]$(msg end) $(msg cyan)...$(msg end)" --name
 
         if [[ ${scripting} == "false" ]]; then
-          ${LINODE_CLI_BIN} domains records-create "${domain_id}" --pretty --json --type "${record_type}" --name "${record_name}" \
+          ${LINODE_CLI_BIN} --pretty --json --suppress-warnings domains records-create "${domain_id}" --type "${record_type}" --name "${record_name}" \
             --target "${record_value}" --ttl_sec "${record_ttl}"
           retval=$?
         else
-          ${LINODE_CLI_BIN} domains records-create "${domain_id}" --pretty --json --type "${record_type}" --name "${record_name}" \
+          ${LINODE_CLI_BIN} --pretty --json --suppress-warnings domains records-create "${domain_id}" --type "${record_type}" --name "${record_name}" \
             --target "${record_value}" --ttl_sec "${record_ttl}" &>/dev/null
           retval=$?
         fi
@@ -4262,11 +4298,11 @@ function linode_api_admin() {
         [[ ${scripting} == "false" ]] && _echo "$(msg cyan)Creating A record name $(msg red)[${record_name}]$(msg end) $(msg cyan)...$(msg end)" --name
 
         if [[ ${scripting} == "false" ]]; then
-          ${LINODE_CLI_BIN} domains records-create "${domain_id}" --pretty --json --type "${record_type}" --name "${record_name}" \
+          ${LINODE_CLI_BIN} --pretty --json --suppress-warnings domains records-create "${domain_id}" --type "${record_type}" --name "${record_name}" \
             --target "${record_value}" --ttl_sec "${record_ttl}"
           retval=$?
         else
-          ${LINODE_CLI_BIN} domains records-create "${domain_id}" --pretty --json --type "${record_type}" --name "${record_name}" \
+          ${LINODE_CLI_BIN} --pretty --json --suppress-warnings domains records-create "${domain_id}" --type "${record_type}" --name "${record_name}" \
             --target "${record_value}" --ttl_sec "${record_ttl}" &>/dev/null
           retval=$?
         fi
@@ -4291,11 +4327,11 @@ function linode_api_admin() {
         [[ ${scripting} == "false" ]] && _echo "$(msg cyan)Creating A record name $(msg red)[${record_name}]$(msg end) $(msg cyan)...$(msg end)" --name
 
         if [[ ${scripting} == "false" ]]; then
-          ${LINODE_CLI_BIN} domains records-create "${domain_id}" --pretty --json --type "${record_type}" --name "${record_name}" \
+          ${LINODE_CLI_BIN} --pretty --json --suppress-warnings domains records-create "${domain_id}" --type "${record_type}" --name "${record_name}" \
             --target "${record_value}" --ttl_sec "${record_ttl}"
           retval=$?
         else
-          ${LINODE_CLI_BIN} domains records-create "${domain_id}" --pretty --json --type "${record_type}" --name "${record_name}" \
+          ${LINODE_CLI_BIN} --pretty --json --suppress-warnings domains records-create "${domain_id}" --type "${record_type}" --name "${record_name}" \
             --target "${record_value}" --ttl_sec "${record_ttl}" &>/dev/null
           retval=$?
         fi
@@ -4323,7 +4359,7 @@ function linode_api_admin() {
   elif [[ "${action}" == "wait-linode-status" ]]; then
     local linode_id linode_status
     # Wait 2 seconds for the status to be new
-    linode_id=$(${LINODE_CLI_BIN} linodes list --json --pretty | ${JQ_BIN} ".[] | select(.label == \"${linode_label}\") | .id")
+    linode_id=$(${LINODE_CLI_BIN} --pretty --json --suppress-warnings linodes list | ${JQ_BIN} ".[] | select(.label == \"${linode_label}\") | .id")
     if [ -z "${linode_id}" ]; then
       echo "Linode ID not found!"
       return 147
@@ -4332,7 +4368,7 @@ function linode_api_admin() {
     if [ "${until_status^^}" == "RUNNING" ]; then
 
       _echo "$(msg cyan)Waiting for linode ${linode_label} to have running status ...$(msg end)" --name
-      linode_status=$(${LINODE_CLI_BIN} linodes view "${linode_id}" --json --pretty | ${JQ_BIN} -r ".[] | .status")
+      linode_status=$(${LINODE_CLI_BIN} --pretty --json --suppress-warnings linodes view "${linode_id}" | ${JQ_BIN} -r ".[] | .status")
       if [[ "${linode_status}" == "running" ]]; then
         # test uncomment below later if not working
         _echo "$(msg red)Error linode ${linode_label} is already in running mode$(msg end)" --name --verbose 3
@@ -4342,7 +4378,7 @@ function linode_api_admin() {
         #ssh -o "StrictHostKeyChecking no" -i /root/.ssh/linode_lish.id_rsa -tt "${DNS_PROVIDER_USER}@${DNS_PROVIDER_TERMINAL_SERVER}" "${BOX_HOSTNAME_FQDN}" /dev/null <"${SCRIPT_PATH}/dns/linode/shutdown_command.sh" 2>&1 &
       else
         while :; do
-          linode_status=$(${LINODE_CLI_BIN} linodes view "${linode_id}" --json --pretty | ${JQ_BIN} -r ".[] | .status")
+          linode_status=$(${LINODE_CLI_BIN} --pretty --json --suppress-warnings linodes view "${linode_id}" | ${JQ_BIN} -r ".[] | .status")
           if [[ "${linode_status}" == "running" ]]; then
             _echo "Success, linode ${linode_label} is online." --stop-spin
             break
@@ -4353,13 +4389,13 @@ function linode_api_admin() {
       fi
     elif [[ "${until_status^^}" == "OFFLINE" ]]; then
       _echo "$(msg cyan)Waiting for linode ${linode_label} to have offline status ...$(msg end)" --name
-      linode_status=$(${LINODE_CLI_BIN} linodes view "${linode_id}" --json --pretty | ${JQ_BIN} -r ".[] | .status")
+      linode_status=$(${LINODE_CLI_BIN} --pretty --json --suppress-warnings linodes view "${linode_id}" | ${JQ_BIN} -r ".[] | .status")
       if [[ "${linode_status}" == "offline" ]]; then
         _echo "$(msg red)Error linode ${linode_label} is already in offline mode$(msg end)" --name --verbose 3
         _exit 1
       else
         while :; do
-          linode_status=$(${LINODE_CLI_BIN} linodes view "${linode_id}" --json --pretty | ${JQ_BIN} -r ".[] | .status")
+          linode_status=$(${LINODE_CLI_BIN} --pretty --json --suppress-warnings linodes view "${linode_id}" | ${JQ_BIN} -r ".[] | .status")
           if [[ "${linode_status}" == "offline" ]]; then
             _echo "Success, linode ${linode_label} is offline." --stop-spin --plain
             break
@@ -4384,7 +4420,7 @@ function linode_api_admin() {
     fi
 
     [[ ${scripting} == "false" ]] && _echo "Getting required linode ID for --linode-label ${linode_label} ..." --name --verbose 7
-    linode_id=$(${LINODE_CLI_BIN} linodes list --json --pretty | ${JQ_BIN} ".[] | select(.label == \"${linode_label}\") | .id")
+    linode_id=$(${LINODE_CLI_BIN} --pretty --json --suppress-warnings linodes list | ${JQ_BIN} ".[] | select(.label == \"${linode_label}\") | .id")
     #echo "Linode ID : ${linode_id}"
     if [ -z "${linode_id}" ]; then
       _echo "$(msg red)Error, no linode label found for $(msg red)--linode-label ${linode_label}$(msg end)" --name --verbose 3
@@ -4400,9 +4436,9 @@ function linode_api_admin() {
         #echo "label_type: ${label_type}"
         #echo "label name: ${label_name}"
         if [ "${label_type}" == "disk" ]; then
-          disk_vol_id=$(${LINODE_CLI_BIN} linodes disks-list "${linode_id}" --json --pretty | ${JQ_BIN} ".[] | select(.label == \"${label_name}\") | .id")
+          disk_vol_id=$(${LINODE_CLI_BIN} --pretty --json --suppress-warnings linodes disks-list "${linode_id}" | ${JQ_BIN} ".[] | select(.label == \"${label_name}\") | .id")
         elif [ "${label_type}" == "volume" ]; then
-          disk_vol_id=$(${LINODE_CLI_BIN} volumes list --json --pretty | ${JQ_BIN} ".[] | select(.label == \"${label_name}\") | .id")
+          disk_vol_id=$(${LINODE_CLI_BIN} --pretty --json --suppress-warnings volumes list | ${JQ_BIN} ".[] | select(.label == \"${label_name}\") | .id")
         else
           continue
         fi
@@ -4422,13 +4458,13 @@ function linode_api_admin() {
         echo ""
       fi
 
-      ${LINODE_CLI_BIN} linodes rescue "${linode_id}" ${config_disk_vol}
+      ${LINODE_CLI_BIN} linodes rescue --suppress-warnings "${linode_id}" ${config_disk_vol}
 
       #wait_until_linode_status_is running
 
       _echo "$(msg cyan)Putting linode ${linode_label} into rescue mode ...$(msg end)" --name
       while :; do
-        linode_status=$(${LINODE_CLI_BIN} linodes view "${linode_id}" --json --pretty | ${JQ_BIN} -r ".[] | .status")
+        linode_status=$(${LINODE_CLI_BIN} --pretty --json --suppress-warnings linodes view "${linode_id}" | ${JQ_BIN} -r ".[] | .status")
         if [[ "${linode_status}" == "running" ]]; then
           _echo "$(msg green)Success, linode ${linode_label} has been successfully booted into rescue mode.$(msg end)" --stop-spin --name
           break
@@ -4440,8 +4476,23 @@ function linode_api_admin() {
     fi
   # linode_api_admin restart-linode --linode-label test.server.com --linode-config-label OS_Config
   elif [[ "${action^^}" == +(RESTART-LINODE|REBOOT-LINODE) ]]; then
+    option="$2"
     local linode_id linode_config_id linode_api_exec
     # Required linode_id and linode_config_id
+
+    # This is for faster server reboot syntax. For example to reboot, we do not need to specify many arguments.
+    # maxinet --linode-api reboot-linode os (this will reboot using OS_Config), also works the same without 'os' argument
+    # maxinet --linode-api reboot-linode boot (this will reboot using Boot_Config)
+    if [[ -z "${option}" || "${option}" == "os" ]]; then
+      linode_label="${BOX_HOSTNAME_FQDN}"
+      linode_config_label="${LINODE_OS_CONFIG_LABEL}"
+    elif [[ "${option}" == "boot" ]]; then
+      linode_label="${BOX_HOSTNAME_FQDN}"
+      linode_config_label="${LINODE_BOOT_CONFIG_LABEL}"
+    elif [[ "${option}" == "rescue" ]]; then
+      linode_label="${BOX_HOSTNAME_FQDN}"
+      linode_config_label="${LINODE_RESCUE_CONFIG_LABEL}"
+    fi
     if is_valid domain "${linode_label}"; then
       [[ ${scripting} == "false" ]] && _echo "$(msg green)OK, the given --linode-label $(msg red)${linode_label}$(msg green) is valid FQDN$(msg end)" --name --verbose 7
     else
@@ -4450,29 +4501,29 @@ function linode_api_admin() {
     fi
 
     [[ ${scripting} == "false" ]] && _echo "Getting required linode ID for --linode-label ${linode_label} ..." --name --verbose 7
-    linode_id=$(${LINODE_CLI_BIN} linodes list --json --pretty | ${JQ_BIN} ".[] | select(.label == \"${linode_label}\") | .id")
+    linode_id=$(${LINODE_CLI_BIN} --json --pretty --suppress-warnings linodes list | ${JQ_BIN} ".[] | select(.label == \"${linode_label}\") | .id")
     if [ -z "${linode_id}" ]; then
       _echo "$(msg red)Error, no linode label ID found for $(msg red)--linode-label ${linode_label}$(msg end)" --name --verbose 3
       return 147
       [[ ${scripting} == "false" ]] && exec_time total "linode_api_admin"
     fi
     [[ ${scripting} == "false" ]] && _echo "Getting required linode config ID for --linode-config-label ${linode_config_label} ..." --name --verbose 7
-    linode_config_id=$(${LINODE_CLI_BIN} linodes configs-list "${linode_id}" --json --pretty | ${JQ_BIN} ".[] | select(.label == \"${linode_config_label}\") | .id")
+    linode_config_id=$(${LINODE_CLI_BIN} --json --pretty --suppress-warnings linodes configs-list "${linode_id}" | ${JQ_BIN} ".[] | select(.label == \"${linode_config_label}\") | .id")
     if [ -z "${linode_config_id}" ]; then
       _echo "$(msg red)Error, no linode label config ID found for $(msg red)--linode-config-label ${linode_config_label}$(msg end)" --name --verbose 3
       return 147
       [[ ${scripting} == "false" ]] && exec_time total "linode_api_admin"
     fi
     [[ ${scripting} == "false" ]] && _echo "$(msg cyan)Rebooting linode ${linode_label} using config ${linode_config_label} ...$(msg end)" --name
-    linode_api_exec=$(${LINODE_CLI_BIN} linodes reboot "${linode_id}" --config_id "${linode_config_id}" --json --pretty 2> >(grep 'Linode busy'))
+    linode_api_exec=$(${LINODE_CLI_BIN} --json --pretty --suppress-warnings linodes reboot "${linode_id}" --config_id "${linode_config_id}" 2> >(grep 'Linode busy'))
     if [ -n "${linode_api_exec}" ]; then
       _echo "$(msg yellow)Warning, Linode is busy. Re-executing linodes reboot in 10 seconds ...$(msg end)" --name --verbose 4
       sleep 10
-      linode_api_exec=$(${LINODE_CLI_BIN} linodes reboot "${linode_id}" --config_id "${linode_config_id}" --json --pretty 2> >(grep 'Linode busy'))
+      linode_api_exec=$(${LINODE_CLI_BIN} --json --pretty --suppress-warnings linodes reboot "${linode_id}" --config_id "${linode_config_id}" 2> >(grep 'Linode busy'))
       if [ -n "${linode_api_exec}" ]; then
         _echo "$(msg yellow)Warning, Linode is busy. Re-executing linodes reboot in 10 seconds ...$(msg end)" --name --verbose 4
         sleep 10
-        linode_api_exec=$(${LINODE_CLI_BIN} linodes reboot "${linode_id}" --config_id "${linode_config_id}" --json --pretty 2> >(grep 'Linode busy'))
+        linode_api_exec=$(${LINODE_CLI_BIN} --json --pretty --suppress-warnings linodes reboot "${linode_id}" --config_id "${linode_config_id}" 2> >(grep 'Linode busy'))
         if [ -n "${linode_api_exec}" ]; then
           _echo "$(msg red)Error, Linode is stuck with busy status for more than 20 seconds. Please inspect why.$(msg end)" --name --verbose 4
           exit 147
@@ -4483,7 +4534,7 @@ function linode_api_admin() {
     fi
 
     while :; do
-      linode_status=$(${LINODE_CLI_BIN} linodes view "${linode_id}" --json --pretty | ${JQ_BIN} -r ".[] | .status")
+      linode_status=$(${LINODE_CLI_BIN} --json --pretty --suppress-warnings linodes view "${linode_id}" | ${JQ_BIN} -r ".[] | .status")
       if [[ "${linode_status}" == "running" ]]; then
         _echo "$(msg green)Success, linode ${linode_label} has been successfully rebooted.$(msg end)" --stop-spin --name
         return 0
@@ -4505,14 +4556,14 @@ function linode_api_admin() {
     fi
 
     [[ ${scripting} == "false" ]] && _echo "Getting required linode ID for --linode-label ${linode_label} ..." --name --verbose 7
-    linode_id=$(${LINODE_CLI_BIN} linodes list --json --pretty | ${JQ_BIN} ".[] | select(.label == \"${linode_label}\") | .id")
+    linode_id=$(${LINODE_CLI_BIN} --json --pretty --suppress-warnings linodes list | ${JQ_BIN} ".[] | select(.label == \"${linode_label}\") | .id")
     if [ -z "${linode_id}" ]; then
       _echo "$(msg red)Error, no linode label ID found for $(msg red)--linode-label ${linode_label}$(msg end)" --name --verbose 3
       [[ ${scripting} == "false" ]] && exec_time total "linode_api_admin"
       return 147
     fi
 
-    linode_status=$(${LINODE_CLI_BIN} linodes view "${linode_id}" --json --pretty | ${JQ_BIN} -r ".[] | .status")
+    linode_status=$(${LINODE_CLI_BIN} --json --pretty --suppress-warnings linodes view "${linode_id}" | ${JQ_BIN} -r ".[] | .status")
 
     if [[ "${linode_status}" == "offline" ]]; then
       _echo "$(msg yellow)Notice, linode ${linode_label} status is already offline!$(msg end)" --name
@@ -4530,16 +4581,16 @@ function linode_api_admin() {
         sleep 10
       else
         [[ ${scripting} == "false" ]] && _echo "$(msg cyan)Shutting down linode using linode API ${linode_label} ...$(msg end)" --name
-        linode_api_exec=$(${LINODE_CLI_BIN} linodes shutdown "${linode_id}" --json --pretty 2> >(grep 'Linode busy'))
+        linode_api_exec=$(${LINODE_CLI_BIN} --json --pretty --suppress-warnings linodes shutdown "${linode_id}" 2> >(grep 'Linode busy'))
       fi
       if [ -n "${linode_api_exec}" ]; then
         _echo "$(msg yellow)Warning, Linode is busy. Re-executing linodes shutdown in 10 seconds ...$(msg end)" --name --verbose 4
         sleep 10
-        linode_api_exec=$(${LINODE_CLI_BIN} linodes shutdown "${linode_id}" --json --pretty 2> >(grep 'Linode busy'))
+        linode_api_exec=$(${LINODE_CLI_BIN} --json --pretty --suppress-warnings linodes shutdown "${linode_id}" 2> >(grep 'Linode busy'))
         if [ -n "${linode_api_exec}" ]; then
           _echo "$(msg yellow)Warning, Linode is busy. Re-executing linodes shutdown in 10 seconds ...$(msg end)" --name --verbose 4
           sleep 10
-          linode_api_exec=$(${LINODE_CLI_BIN} linodes shutdown "${linode_id}" --json --pretty 2> >(grep 'Linode busy'))
+          linode_api_exec=$(${LINODE_CLI_BIN} --json --pretty --suppress-warnings linodes shutdown "${linode_id}" 2> >(grep 'Linode busy'))
           if [ -n "${linode_api_exec}" ]; then
             _echo "$(msg red)Error, Linode is stuck with busy status for more than 20 seconds. Please inspect why.$(msg end)" --name --verbose 4
             [[ ${scripting} == "false" ]] && exec_time total "linode_api_admin"
@@ -4551,7 +4602,7 @@ function linode_api_admin() {
 
       [[ ${scripting} == "false" ]] && _echo "$(msg cyan)Shutting down linode ${linode_label} ...$(msg end)" --name
       while :; do
-        linode_status=$(${LINODE_CLI_BIN} linodes view "${linode_id}" --json --pretty | ${JQ_BIN} -r ".[] | .status")
+        linode_status=$(${LINODE_CLI_BIN} --json --pretty --suppress-warnings linodes view "${linode_id}" | ${JQ_BIN} -r ".[] | .status")
         if [ "${linode_status}" == "running" ]; then
           _echo "$(msg yellow)Notice, linode ${linode_label} is running. Waiting for offline status ...$(msg end)" --start-spin --name
         elif [[ "${linode_status}" == "offline" ]]; then
@@ -4608,7 +4659,7 @@ function linode_api_admin() {
     fi
 
     [[ ${scripting} == "false" ]] && _echo "Getting required linode ID for --linode-label ${linode_label} ..." --name --verbose 7
-    linode_id=$(${LINODE_CLI_BIN} linodes list --json --pretty | ${JQ_BIN} -r ".[] | select(.label == \"${linode_label}\") | .id")
+    linode_id=$(${LINODE_CLI_BIN} --json --pretty --suppress-warnings linodes list | ${JQ_BIN} -r ".[] | select(.label == \"${linode_label}\") | .id")
     if [ -z "${linode_id}" ]; then
       _echo "$(msg red)Error, no linode label ID found for $(msg red)--linode-label ${linode_label}$(msg end)" --name --verbose 3
       [[ ${scripting} == "false" ]] && exec_time total "linode_api_admin"
@@ -4618,7 +4669,7 @@ function linode_api_admin() {
 
     if [[ ${allow_duplicate_entry} == false ]]; then
       [[ ${scripting} == "false" ]] && _echo "Checking existing --linode-disk-label ${linode_disk_label} ..." --name --verbose 7
-      disk_label_created=$(${LINODE_CLI_BIN} linodes disks-list "${linode_id}" --json --pretty | ${JQ_BIN} -r ".[] | select(.label == \"${linode_disk_label}\") | .label" | tail -n 1)
+      disk_label_created=$(${LINODE_CLI_BIN} --json --pretty --suppress-warnings linodes disks-list "${linode_id}" | ${JQ_BIN} -r ".[] | select(.label == \"${linode_disk_label}\") | .label" | tail -n 1)
       if [[ "${disk_label_created}" == "${linode_disk_label}" ]]; then
         _echo "$(msg yellow)Warning, there is already a linode-disk-label ${linode_disk_label} entry for in linode disk. If you want to create duplicate entry then, use option --allow-duplicate-entry$(msg end)" --name --verbose 4
         [[ ${scripting} == "false" ]] && exec_time total "linode_api_admin"
@@ -4629,15 +4680,14 @@ function linode_api_admin() {
     fi
 
     # Need to make sure that the linode status is offline before we can delete the disk.
-    linode_status=$(${LINODE_CLI_BIN} linodes view "${linode_id}" --json --pretty | ${JQ_BIN} -r ".[] | .status")
+    linode_status=$(${LINODE_CLI_BIN} --json --pretty --suppress-warnings linodes view "${linode_id}" | ${JQ_BIN} -r ".[] | .status")
 
     if [[ "${linode_status}" == "offline" ]]; then
       [[ ${scripting} == "false" ]] && _echo "$(msg cyan)Creating a new linode disk from --linode-disk-label ${linode_disk_label} ...$(msg end)" --name
       # For disk space
-      ${LINODE_CLI_BIN} linodes disk-create "${linode_id}" --label "${linode_disk_label}" --filesystem "${linode_disk_filetype}" --size "${linode_disk_size}" --json --pretty
-
+      ${LINODE_CLI_BIN} --json --pretty --suppress-warnings linodes disk-create "${linode_id}" --label "${linode_disk_label}" --filesystem "${linode_disk_filetype}" --size "${linode_disk_size}"
       # Placeholder to check if linode is busy or other conditions that prevented from disk creation such as not enough disk space
-      #linode_api_exec=$(${LINODE_CLI_BIN} linodes disk-create "${linode_id}" --label "${linode_disk_label}" --filesystem "${linode_disk_filetype}" --size "${linode_disk_size}" --json --pretty 2> >(grep 'You do not have enough unallocated storage to create this Disk'))
+      #linode_api_exec=$(${LINODE_CLI_BIN} --json --pretty --suppress-warnings linodes disk-create "${linode_id}" --label "${linode_disk_label}" --filesystem "${linode_disk_filetype}" --size "${linode_disk_size}" 2> >(grep 'You do not have enough unallocated storage to create this Disk'))
       #echo "${linode_api_exec}"
       #exit 1
       #  if [ -n "${linode_api_exec}" ]; then
@@ -4650,7 +4700,7 @@ function linode_api_admin() {
 
       _echo "$(msg cyan)Checking disk status --linode-disk-label ${linode_disk_label} for ready state ... $(msg end)" --name
       while :; do
-        disk_status=$(${LINODE_CLI_BIN} linodes disks-list "${linode_id}" --json --pretty | ${JQ_BIN} -r ".[] | select(.label == \"${linode_disk_label}\") | .status" | tail -n 1)
+        disk_status=$(${LINODE_CLI_BIN} --json --pretty --suppress-warnings linodes disks-list "${linode_id}" | ${JQ_BIN} -r ".[] | select(.label == \"${linode_disk_label}\") | .status" | tail -n 1)
         if [ "${disk_status}" == "ready" ]; then
           _echo "$(msg green)Success, linode disk status for --linode-disk-label ${linode_disk_label} is now ready$(msg end)" --name --stop-spin
           break
@@ -4698,7 +4748,7 @@ function linode_api_admin() {
       [[ ${scripting} == "false" ]] && _echo "$(msg yellow)Warning, the given --linode-label $(msg red)${linode_label}$(msg green) is not FQDN. It is recommend to name it as FQDN$(msg end)" --name --verbose 4
     fi
     [[ ${scripting} == "false" ]] && _echo "Getting required linode ID for --linode-label ${linode_label} ..." --name --verbose 7
-    linode_id=$(${LINODE_CLI_BIN} linodes list --json --pretty | ${JQ_BIN} -r ".[] | select(.label == \"${linode_label}\") | .id")
+    linode_id=$(${LINODE_CLI_BIN} --json --pretty --suppress-warnings linodes list | ${JQ_BIN} -r ".[] | select(.label == \"${linode_label}\") | .id")
     if [ -z "${linode_id}" ]; then
       _echo "$(msg red)Error, no linode label ID found for $(msg red)--linode-label ${linode_label}$(msg end)" --name --verbose 3
       [[ ${scripting} == "false" ]] && exec_time total "linode_api_admin"
@@ -4709,7 +4759,7 @@ function linode_api_admin() {
     # If plurals delete-disks or remove-disks (we delete all)
     if [[ "${action}" == "delete-disks" || "${action}" == "remove-disks" ]]; then
       _echo "$(msg cyan)Deleting all the linode disks from --linode-label ${linode_label} ...$(msg end)" --name
-      disk_labels=$(${LINODE_CLI_BIN} linodes disks-list "${linode_id}" --json --pretty | ${JQ_BIN} -r ".[] | .label")
+      disk_labels=$(${LINODE_CLI_BIN} --json --pretty --suppress-warnings linodes disks-list "${linode_id}" | ${JQ_BIN} -r ".[] | .label")
       if [ -z "${disk_labels}" ]; then
         _echo "$(msg red)Error, no linode disk label found from $(msg red)--linode-label ${linode_label}$(msg end)" --name --verbose 3
         [[ ${scripting} == "false" ]] && exec_time total "linode_api_admin"
@@ -4722,7 +4772,7 @@ function linode_api_admin() {
     else
 
       _echo "$(msg cyan)Deleting linode disk from --linode-disk-label ${linode_disk_label} ...$(msg end)" --name
-      disk_labels=$(${LINODE_CLI_BIN} linodes disks-list "${linode_id}" --json --pretty | ${JQ_BIN} -r ".[] | select(.label == \"${linode_disk_label}\") | .label")
+      disk_labels=$(${LINODE_CLI_BIN} --json --pretty --suppress-warnings linodes disks-list "${linode_id}" | ${JQ_BIN} -r ".[] | select(.label == \"${linode_disk_label}\") | .label")
       if [ -z "${disk_labels}" ]; then
         _echo "$(msg red)Error, no linode disk label found for $(msg red)--linode-disk-label ${linode_disk_label}$(msg end)" --name --verbose 3
         [[ ${scripting} == "false" ]] && exec_time total "linode_api_admin"
@@ -4736,7 +4786,7 @@ function linode_api_admin() {
     disk_count=0
     success_deleted=0
     # Need to make sure that the linode status is offline before we can delete the disk.
-    linode_status=$(${LINODE_CLI_BIN} linodes view "${linode_id}" --json --pretty | ${JQ_BIN} -r ".[] | .status")
+    linode_status=$(${LINODE_CLI_BIN} --json --pretty --suppress-warnings linodes view "${linode_id}" | ${JQ_BIN} -r ".[] | .status")
     #echo "LINODE STATUS: ${linode_status}"
     if [[ "${linode_status}" == "offline" ]]; then
 
@@ -4744,13 +4794,13 @@ function linode_api_admin() {
         ((disk_count++))
 
         # Delete the first result that appear with tail -n 1
-        disk_id=$(${LINODE_CLI_BIN} linodes disks-list "${linode_id}" --json --pretty | ${JQ_BIN} -r ".[] | select(.label == \"${disk_label}\") | .id" | tail -n 1)
+        disk_id=$(${LINODE_CLI_BIN} --json --pretty --suppress-warnings linodes disks-list "${linode_id}" | ${JQ_BIN} -r ".[] | select(.label == \"${disk_label}\") | .id" | tail -n 1)
         _echo "$(msg cyan)Deleting linode disk ${disk_count} / ${disk_labels_count} with disk label ${disk_label} and disk ID ${disk_id} ...$(msg end)" --name
-        ${LINODE_CLI_BIN} linodes disk-delete "${linode_id}" "${disk_id}" --json --pretty
+        ${LINODE_CLI_BIN} --json --pretty --suppress-warnings linodes disk-delete "${linode_id}" "${disk_id}"
 
         while :; do
           # do not quote $disk_id variable
-          disk_status=$(${LINODE_CLI_BIN} linodes disks-list "${linode_id}" --json --pretty | ${JQ_BIN} -r ".[] | select(.id == ${disk_id}) | .status")
+          disk_status=$(${LINODE_CLI_BIN} --json --pretty --suppress-warnings linodes disks-list "${linode_id}" | ${JQ_BIN} -r ".[] | select(.id == ${disk_id}) | .status")
           if [[ -z "${disk_status}" ]]; then
             # If disk_status is empty meaning that it has been deleted!
             _echo "$(msg green)Success, the linode disk label ${disk_label} (${disk_id}) has been deleted!$(msg end)" --name --stop-spin
@@ -4806,7 +4856,7 @@ function linode_api_admin() {
       [[ ${scripting} == "false" ]] && _echo "$(msg yellow)Warning, the given --linode-label $(msg red)${linode_label}$(msg green) is not FQDN. It is recommend to name it as FQDN$(msg end)" --name --verbose 4
     fi
     [[ ${scripting} == "false" ]] && _echo "Getting required linode ID for --linode-label ${linode_label} ..." --name --verbose 7
-    linode_id=$(${LINODE_CLI_BIN} linodes list --json --pretty | ${JQ_BIN} -r ".[] | select(.label == \"${linode_label}\") | .id")
+    linode_id=$(${LINODE_CLI_BIN} --json --pretty --suppress-warnings linodes list | ${JQ_BIN} -r ".[] | select(.label == \"${linode_label}\") | .id")
     if [ -z "${linode_id}" ]; then
       _echo "$(msg red)Error, no linode label ID found for $(msg red)--linode-label ${linode_label}$(msg end)" --name --verbose 3
       [[ ${scripting} == "false" ]] && exec_time total "linode_api_admin"
@@ -4817,7 +4867,7 @@ function linode_api_admin() {
     # If plurals delete-configs or remove-configs (we delete all)
     if [[ "${action}" == "delete-configs" || "${action}" == "remove-configs" ]]; then
       _echo "$(msg cyan)Deleting all the linode configs from --linode-label ${linode_label} ...$(msg end)" --name
-      config_labels=$(${LINODE_CLI_BIN} linodes configs-list "${linode_id}" --json --pretty | ${JQ_BIN} -r ".[] | .label")
+      config_labels=$(${LINODE_CLI_BIN} --json --pretty --suppress-warnings linodes configs-list "${linode_id}" | ${JQ_BIN} -r ".[] | .label")
 
       if [ -z "${config_labels}" ]; then
         _echo "$(msg red)Error, no linode config label found from $(msg red)--linode-label ${linode_label}$(msg end)" --name --verbose 3
@@ -4831,8 +4881,8 @@ function linode_api_admin() {
     else
 
       _echo "$(msg cyan)Deleting linode config from --linode-config-label ${linode_config_label} ...$(msg end)" --name
-      config_labels=$(${LINODE_CLI_BIN} linodes configs-list "${linode_id}" --json --pretty | ${JQ_BIN} -r ".[] | select(.label == \"${linode_config_label}\") | .label")
-      #config_labels=$(${LINODE_CLI_BIN} linodes configs-list "${linode_id}" --json --pretty | ${JQ_BIN} ".[] | select(.label == ${linode_config_label}) | .label")
+      config_labels=$(${LINODE_CLI_BIN} --json --pretty --suppress-warnings linodes configs-list "${linode_id}" | ${JQ_BIN} -r ".[] | select(.label == \"${linode_config_label}\") | .label")
+      #config_labels=$(${LINODE_CLI_BIN} --json --pretty --suppress-warnings linodes configs-list "${linode_id}" | ${JQ_BIN} ".[] | select(.label == ${linode_config_label}) | .label")
       #echo "CONFIG_LABELS: ${config_labels}"
       #exit 1
       if [ -z "${config_labels}" ]; then
@@ -4852,9 +4902,9 @@ function linode_api_admin() {
       ((config_count++))
 
       # Delete the first result that appear with tail -n 1
-      config_id=$(${LINODE_CLI_BIN} linodes configs-list "${linode_id}" --json --pretty | ${JQ_BIN} -r ".[] | select(.label == \"${config_label}\") | .id" | tail -n 1)
+      config_id=$(${LINODE_CLI_BIN} --json --pretty --suppress-warnings linodes configs-list "${linode_id}" | ${JQ_BIN} -r ".[] | select(.label == \"${config_label}\") | .id" | tail -n 1)
       _echo "$(msg cyan)Deleting linode config ${config_count} / ${config_labels_count} with config label ${config_label} and config ID ${config_id} ...$(msg end)" --name
-      ${LINODE_CLI_BIN} linodes config-delete "${linode_id}" "${config_id}" --json --pretty
+      ${LINODE_CLI_BIN} --json --pretty --suppress-warnings linodes config-delete "${linode_id}" "${config_id}"
       retval=$?
       while :; do
         if [[ "${retval}" -eq 0 ]]; then
@@ -4894,7 +4944,7 @@ function linode_api_admin() {
       [[ ${scripting} == "false" ]] && _echo "$(msg yellow)Warning, the given --linode-label $(msg red)${linode_label}$(msg green) is not FQDN. It is recommend to name it as FQDN$(msg end)" --name --verbose 4
     fi
     [[ ${scripting} == "false" ]] && _echo "Getting required linode ID for --linode-label ${linode_label} ..." --name --verbose 7
-    linode_id=$(${LINODE_CLI_BIN} linodes list --json --pretty | ${JQ_BIN} -r ".[] | select(.label == \"${linode_label}\") | .id")
+    linode_id=$(${LINODE_CLI_BIN} --json --pretty --suppress-warnings linodes list | ${JQ_BIN} -r ".[] | select(.label == \"${linode_label}\") | .id")
     if [ -z "${linode_id}" ]; then
       _echo "$(msg red)Error, no linode label ID found for $(msg red)--linode-label ${linode_label}$(msg end)" --name --verbose 3
       [[ ${scripting} == "false" ]] && exec_time total "linode_api_admin"
@@ -4920,9 +4970,9 @@ function linode_api_admin() {
       #echo "label_type: ${label_type}"
       #echo "label name: ${label_name}"
       if [ "${label_type}" == "disk" ]; then
-        disk_vol_id=$(${LINODE_CLI_BIN} linodes disks-list "${linode_id}" --json --pretty | ${JQ_BIN} ".[] | select(.label == \"${label_name}\") | .id")
+        disk_vol_id=$(${LINODE_CLI_BIN} --json --pretty --suppress-warnings linodes disks-list "${linode_id}" | ${JQ_BIN} ".[] | select(.label == \"${label_name}\") | .id")
       elif [ "${label_type}" == "volume" ]; then
-        disk_vol_id=$(${LINODE_CLI_BIN} volumes list --json --pretty | ${JQ_BIN} ".[] | select(.label == \"${label_name}\") | .id")
+        disk_vol_id=$(${LINODE_CLI_BIN} --json --pretty --suppress-warnings volumes list | ${JQ_BIN} ".[] | select(.label == \"${label_name}\") | .id")
       else
         continue
       fi
@@ -4987,7 +5037,7 @@ function linode_api_admin() {
     #  --helpers.network "${linode_config_autoconf_network}" ${config_disk_vol} # Do not double quote this, because we want to split the string for options
     #  retval=$?
     # It is important some variables are not quoted
-    ${LINODE_CLI_BIN} linodes config-create "${linode_id}" --label "${linode_config_label}" --comments "${linode_config_comments}" --virt_mode "${linode_config_virtual_mode}" \
+    ${LINODE_CLI_BIN} --json --pretty --suppress-warnings linodes config-create "${linode_id}" --label "${linode_config_label}" --comments "${linode_config_comments}" --virt_mode "${linode_config_virtual_mode}" \
       --kernel "${linode_config_kernel}" --run_level "${linode_config_runlevel}" ${linode_config_memory_limit} --root_device "${linode_config_rootdev}" \
       ${linode_config_enable_distro_helper} ${linode_config_disable_update_db} ${linode_config_enable_dep_helper} ${linode_config_automount_devtmpfs} ${linode_config_autoconf_network} ${config_disk_vol}
     retval=$?
@@ -5022,7 +5072,7 @@ function linode_api_admin() {
     fi
 
     [[ ${scripting} == "false" ]] && _echo "Getting required linode ID for --linode-label ${linode_label} ..." --name --verbose 7
-    linode_id=$(${LINODE_CLI_BIN} linodes list --json --pretty | ${JQ_BIN} ".[] | select(.label == \"${linode_label}\") | .id")
+    linode_id=$(${LINODE_CLI_BIN} --json --pretty --suppress-warnings linodes list | ${JQ_BIN} ".[] | select(.label == \"${linode_label}\") | .id")
     if [ -z "${linode_id}" ]; then
       _echo "$(msg red)Error, no linode label ID found for $(msg red)--linode-label ${linode_label}$(msg end)" --name --verbose 3
       [[ ${scripting} == "false" ]] && exec_time total "linode_api_admin"
@@ -5030,7 +5080,7 @@ function linode_api_admin() {
     fi
 
     [[ ${scripting} == "false" ]] && _echo "Getting required linode config ID for --linode-config-label ${linode_config_label} ..." --name --verbose 7
-    linode_config_id=$(${LINODE_CLI_BIN} linodes configs-list "${linode_id}" --json --pretty | ${JQ_BIN} ".[] | select(.label == \"${linode_config_label}\") | .id")
+    linode_config_id=$(${LINODE_CLI_BIN} --json --pretty --suppress-warnings linodes configs-list "${linode_id}" | ${JQ_BIN} ".[] | select(.label == \"${linode_config_label}\") | .id")
     if [ -z "${linode_config_id}" ]; then
       _echo "$(msg red)Error, no linode label config ID found for $(msg red)--linode-config-label ${linode_config_label}$(msg end)" --name --verbose 3
       return 147
@@ -5039,7 +5089,7 @@ function linode_api_admin() {
 
     _echo "$(msg cyan)Booting linode ${linode_label} using --linode-config-label ${linode_config_label} ...$(msg end)" --name
     # TODO use this method for other error handling in linode API (this is the best way)
-    linode_api_exec=$(${LINODE_CLI_BIN} linodes boot "${linode_id}" --config_id "${linode_config_id}" --json --pretty 2>&1)
+    linode_api_exec=$(${LINODE_CLI_BIN} --json --pretty --suppress-warnings linodes boot "${linode_id}" --config_id "${linode_config_id}" 2>&1)
     request_failed=$(echo "${linode_api_exec}" | grep 'Request failed: 400')
     # can use this variable for other purpose
     #reason_failed=$(echo "${linode_api_exec}" | grep 'already booted')
@@ -5052,7 +5102,7 @@ function linode_api_admin() {
     # Give a little bit time 2 seconds for the status to change:
     sleep 2
     while :; do
-      linode_status=$(${LINODE_CLI_BIN} linodes view "${linode_id}" --json --pretty | ${JQ_BIN} -r ".[] | .status")
+      linode_status=$(${LINODE_CLI_BIN} --json --pretty --suppress-warnings linodes view "${linode_id}" | ${JQ_BIN} -r ".[] | .status")
       if [[ "${linode_status}" == "running" ]]; then
         _echo "$(msg green)Success, linode ${linode_label} has been successfully booted using config ${linode_config_label}$(msg end)" --stop-spin --name
         break
@@ -5077,8 +5127,8 @@ function linode_api_admin() {
     fi
     shift
     echo "[${SCRIPT_NAME}]: Viewing linode ${hostname_fqdn} ..."
-    linode_id=$(${LINODE_CLI_BIN} linodes list --json --pretty | ${JQ_BIN} ".[] | select(.label == \"${hostname_fqdn}\") | .id")
-    ${LINODE_CLI_BIN} linodes view "${linode_id}"
+    linode_id=$(${LINODE_CLI_BIN} --json --pretty --suppress-warnings linodes list | ${JQ_BIN} ".[] | select(.label == \"${hostname_fqdn}\") | .id")
+    ${LINODE_CLI_BIN} linodes view "${linode_id}" --suppress-warnings
     echo "Status: $?"
     # --linode-api get-disk-id "sun.sofibox.com" "Boot_Disk"
   elif [[ "${action}" == "get-disk-id" ]]; then
@@ -5099,8 +5149,8 @@ function linode_api_admin() {
     shift
     disk_label="$1"
     echo "[${SCRIPT_NAME}]: listing config ${hostname_fqdn} ..."
-    linode_id=$(${LINODE_CLI_BIN} linodes list --json --pretty | ${JQ_BIN} ".[] | select(.label == \"${hostname_fqdn}\") | .id")
-    disk_id=$(${LINODE_CLI_BIN} linodes disks-list "${linode_id}" --json --pretty | ${JQ_BIN} ".[] | select(.label == \"${disk_label}\") | .id")
+    linode_id=$(${LINODE_CLI_BIN} --json --pretty --suppress-warnings linodes list | ${JQ_BIN} ".[] | select(.label == \"${hostname_fqdn}\") | .id")
+    disk_id=$(${LINODE_CLI_BIN} --json --pretty --suppress-warnings linodes disks-list "${linode_id}" | ${JQ_BIN} ".[] | select(.label == \"${disk_label}\") | .id")
     echo "${disk_id}"
   elif [[ "${action}" == "list-disks" || "${action}" == "lookup-disks" ]]; then
     shift
@@ -5119,8 +5169,8 @@ function linode_api_admin() {
     fi
     shift
     echo "[${SCRIPT_NAME}]: listing config ${hostname_fqdn} ..."
-    linode_id=$(${LINODE_CLI_BIN} linodes list --json --pretty | ${JQ_BIN} ".[] | select(.label == \"${hostname_fqdn}\") | .id")
-    ${LINODE_CLI_BIN} linodes disks-list "${linode_id}" --json --pretty
+    linode_id=$(${LINODE_CLI_BIN} --json --pretty --suppress-warnings linodes list | ${JQ_BIN} ".[] | select(.label == \"${hostname_fqdn}\") | .id")
+    ${LINODE_CLI_BIN} --json --pretty --suppress-warnings linodes disks-list "${linode_id}"
     echo $?
     # --linode-api check-disk-status sun.sofibox.com <disk_label>
   elif [[ "${action}" == "check-disk-status" || "${action}" == "disk-status" ]]; then
@@ -5139,9 +5189,9 @@ function linode_api_admin() {
     fi
     shift
     disk_label="$1"
-    linode_id=$(${LINODE_CLI_BIN} linodes list --json --pretty | ${JQ_BIN} ".[] | select(.label == \"${hostname_fqdn}\") | .id")
+    linode_id=$(${LINODE_CLI_BIN} --json --pretty --suppress-warnings linodes list | ${JQ_BIN} ".[] | select(.label == \"${hostname_fqdn}\") | .id")
     echo "[${SCRIPT_NAME}]: Checking disk status ${disk_label} from ${hostname_fqdn} ..."
-    rescue_disk_status=$(${LINODE_CLI_BIN} linodes disks-list "${linode_id}" --json --pretty | ${JQ_BIN} -r ".[] | select(.label == \"${disk_label}\") | .status" | tail -n 1)
+    rescue_disk_status=$(${LINODE_CLI_BIN} --json --pretty --suppress-warnings linodes disks-list "${linode_id}" | ${JQ_BIN} -r ".[] | select(.label == \"${disk_label}\") | .status" | tail -n 1)
     if [ "${rescue_disk_status}" == "ready" ]; then
       #echo "[${SCRIPT_NAME}]: Rescue Disk status is now ready"
       return 0
@@ -5167,8 +5217,8 @@ function linode_api_admin() {
     fi
     shift
     echo "[${SCRIPT_NAME}]: listing config ${hostname_fqdn} ..."
-    linode_id=$(${LINODE_CLI_BIN} linodes list --json --pretty | ${JQ_BIN} ".[] | select(.label == \"${hostname_fqdn}\") | .id")
-    ${LINODE_CLI_BIN} linodes configs-list "${linode_id}" --json --pretty
+    linode_id=$(${LINODE_CLI_BIN} --json --pretty --suppress-warnings linodes list | ${JQ_BIN} ".[] | select(.label == \"${hostname_fqdn}\") | .id")
+    ${LINODE_CLI_BIN} --json --pretty --suppress-warnings linodes configs-list "${linode_id}"
     # --linode-api config-view <hostname_fqdn> <config_label>
   elif [[ "${action}" == "config-view" ]]; then
     shift
@@ -5188,10 +5238,10 @@ function linode_api_admin() {
     shift
     config_label="$1"
     echo "[${SCRIPT_NAME}]: listing config ${hostname_fqdn} ..."
-    linode_id=$(${LINODE_CLI_BIN} linodes list --json --pretty | ${JQ_BIN} ".[] | select(.label == \"${hostname_fqdn}\") | .id")
-    config_id=$(${LINODE_CLI_BIN} linodes configs-list "${linode_id}" --json --pretty | ${JQ_BIN} ".[] | select(.label == \"${config_label}\") | .id")
+    linode_id=$(${LINODE_CLI_BIN} --json --pretty --suppress-warnings linodes list | ${JQ_BIN} ".[] | select(.label == \"${hostname_fqdn}\") | .id")
+    config_id=$(${LINODE_CLI_BIN} --json --pretty --suppress-warnings linodes configs-list "${linode_id}" | ${JQ_BIN} ".[] | select(.label == \"${config_label}\") | .id")
     echo "Viewing config ID ${config_id} from ${hostname_fqdn} ..."
-    ${LINODE_CLI_BIN} linodes config-view "${linode_id}" "${config_id}" --json --pretty
+    ${LINODE_CLI_BIN} --json --pretty --suppress-warnings linodes config-view "${linode_id}" "${config_id}"
 
   elif [[ "${action}" == "help" ]]; then
 
@@ -5231,19 +5281,19 @@ function linode_api_admin() {
 
     if [ $# -ge 3 ]; then
       echo "Checking record for domain ${domain} with record name ${name} and type ${type} ..." 2>&1 | tee -a "${REPORT_FILE}"
-      #domain_id=$(${LINODE_CLI_BIN} --pretty --json domains list --domain "${domain}" | grep -F '"id":' | sed -r 's/[^0-9]//g')
-      domain_id=$(${LINODE_CLI_BIN} domains list --json --pretty | ${JQ_BIN} ".[] | select(.domain == \"${domain}\") | .id")
+      #domain_id=$(${LINODE_CLI_BIN} --pretty --json --suppress-warnings domains list --domain "${domain}" | grep -F '"id":' | sed -r 's/[^0-9]//g')
+      domain_id=$(${LINODE_CLI_BIN} --pretty --json --suppress-warnings domains list | ${JQ_BIN} ".[] | select(.domain == \"${domain}\") | .id")
       if [ -n "${domain_id}" ]; then
-        #${LINODE_CLI_BIN} --pretty --json domains records-list --page 2 "${domain_id}"
+        #${LINODE_CLI_BIN} --pretty --json --suppress-warnings domains records-list --page 2 "${domain_id}"
         # Domain ID is correct now we execute next statement:
         # The record list is huge, use loop to scan based on maximum $linode_max_page
         #count=2
-        #record_ids=$(${LINODE_CLI_BIN} --pretty --json domains records-list --page ${count} "${domain_id}" | ${JQ_BIN} ".[] | select((.name == \"${name}\") and (.type==\"${type}\")) | .id")
-        #record_ids=$(${LINODE_CLI_BIN} --pretty --json domains records-list --page ${count} "${domain_id}" | ${JQ_BIN} ".[] | select((.name == \"${name}\") and (.type==\"${type}\")) | .id | first")
+        #record_ids=$(${LINODE_CLI_BIN} --pretty --json --suppress-warnings domains records-list --page ${count} "${domain_id}" | ${JQ_BIN} ".[] | select((.name == \"${name}\") and (.type==\"${type}\")) | .id")
+        #record_ids=$(${LINODE_CLI_BIN} --pretty --json --suppress-warnings domains records-list --page ${count} "${domain_id}" | ${JQ_BIN} ".[] | select((.name == \"${name}\") and (.type==\"${type}\")) | .id | first")
         #echo "${record_ids}"
         count=1
         while [[ ${count} -le ${linode_max_page} ]]; do
-          record_ids=$(${LINODE_CLI_BIN} --pretty --json domains records-list --page ${count} "${domain_id}" | ${JQ_BIN} ".[] | select((.name == \"${name}\") and (.type==\"${type}\")) | .id")
+          record_ids=$(${LINODE_CLI_BIN} --pretty --json --suppress-warnings domains records-list --page ${count} "${domain_id}" | ${JQ_BIN} ".[] | select((.name == \"${name}\") and (.type==\"${type}\")) | .id")
           #  # Without using jq (traditional way):
           #  #| grep \"name\"": \"${name}\"" -B 1 \
           #  #| sed -r 's/[^0-9]//g' #\
@@ -5267,7 +5317,7 @@ function linode_api_admin() {
           for record_id in ${record_ids}; do
             #Debug:
             echo "[${SCRIPT_NAME}]: Deleting record ID ${record_id} ..." 2>&1 | tee -a "${REPORT_FILE}"
-            ${LINODE_CLI_BIN} --json --pretty domains records-delete "${domain_id}" "${record_id}"
+            ${LINODE_CLI_BIN} --pretty --json --suppress-warnings domains records-delete "${domain_id}" "${record_id}"
             retval=$?
             if [ "${retval}" = 0 ]; then
               echo "=~=~=~=~=~=~=~=~=~=~=" 2>&1 | tee -a "${REPORT_FILE}"
@@ -5329,12 +5379,12 @@ function linode_api_admin() {
 
     if [ $# -ge 5 ]; then
       echo "[${SCRIPT_NAME}]: Checking record for domain ${domain} with record name ${name} and type ${type} ..." 2>&1 | tee -a "${REPORT_FILE}"
-      #domain_id=$(${LINODE_CLI_BIN} --pretty --json domains list --domain "${domain}" | grep -F '"id":' | sed -r 's/[^0-9]//g')
-      domain_id=$(${LINODE_CLI_BIN} --json --pretty domains list | ${JQ_BIN} ".[] | select(.domain == \"${domain}\") | .id")
+      #domain_id=$(${LINODE_CLI_BIN} --pretty --json --suppress-warnings domains list --domain "${domain}" | grep -F '"id":' | sed -r 's/[^0-9]//g')
+      domain_id=$(${LINODE_CLI_BIN} --pretty --json --suppress-warnings domains list | ${JQ_BIN} ".[] | select(.domain == \"${domain}\") | .id")
       if [ -n "${domain_id}" ]; then
         count=1
         while [[ ${count} -le ${linode_max_page} ]]; do
-          record_ids=$(${LINODE_CLI_BIN} --pretty --json domains records-list --page ${count} "${domain_id}" | ${JQ_BIN} ".[] | select((.name == \"${name}\") and (.type==\"${type}\")) | .id")
+          record_ids=$(${LINODE_CLI_BIN} --pretty --json --suppress-warnings domains records-list --page ${count} "${domain_id}" | ${JQ_BIN} ".[] | select((.name == \"${name}\") and (.type==\"${type}\")) | .id")
           # Break if found result for that page
           if [[ -n ${record_ids} ]]; then
             break
@@ -5351,7 +5401,7 @@ function linode_api_admin() {
           for record_id in ${record_ids}; do
             #Debug:
             echo "[${SCRIPT_NAME}]: Updating record ID ${record_id} ..." 2>&1 | tee -a "${REPORT_FILE}"
-            ${LINODE_CLI_BIN} --json --pretty domains records-update "${domain_id}" "${record_id}" --name "${name}" --target "${value}" --ttl_sec "${ttl}"
+            ${LINODE_CLI_BIN} --pretty --json --suppress-warnings domains records-update "${domain_id}" "${record_id}" --name "${name}" --target "${value}" --ttl_sec "${ttl}"
             retval=$?
             if [ "${retval}" = 0 ]; then
               echo "=~=~=~=~=~=~=~=~=~=~=" 2>&1 | tee -a "${REPORT_FILE}"
@@ -13330,223 +13380,223 @@ function setup_post() {
   fi
 }
 function setup() {
-    script_header
-    option="$1"
-    #if [ "${option}" == "remote" ];  then
-    #  _echo 'yellow' "Notice, remote setup is set"
-    #  :
-    #else
-    # ==== Locking mechanism ====
-    PID=$(pidof -x "${SCRIPT_NAME}")
-    # USE ATOMIC LOCK
-    LOCK_DIR="/var/lock/${SCRIPT_NAME}"
-    LOCK_PID="${LOCK_DIR}/pid"
+  script_header
+  option="$1"
+  #if [ "${option}" == "remote" ];  then
+  #  _echo 'yellow' "Notice, remote setup is set"
+  #  :
+  #else
+  # ==== Locking mechanism ====
+  PID=$(pidof -x "${SCRIPT_NAME}")
+  # USE ATOMIC LOCK
+  LOCK_DIR="/var/lock/${SCRIPT_NAME}"
+  LOCK_PID="${LOCK_DIR}/pid"
 
-    # THIS WILL CHECK ONLY ONE INSTANCE OF SCRIPT SHOULD RUN
-    if ! mkdir "${LOCK_DIR}" 2>/dev/null; then
-      PID=$(cat "${LOCK_PID}")
-      if ! kill -0 "${PID}" 2>/dev/null; then
-        echo "[${SCRIPT_NAME}]: Removing stale lock of nonexistent PID ${PID}" 2>&1 | tee -a "${REPORT_FILE}"
-        rm -rf "${LOCK_DIR}"
-        echo "[${SCRIPT_NAME}]: Restarting (${SCRIPT_NAME})" 2>&1 | tee -a "${REPORT_FILE}"
-        exec "$0" "$@"
-      fi
-      echo "[${SCRIPT_NAME}]: Warning, another instance of this script is already running with PID [${PID}]" 2>&1 | tee -a "${REPORT_FILE}"
-      echo "[${SCRIPT_NAME}]: Please wait or clear the current running session to re-run this script" 2>&1 | tee -a "${REPORT_FILE}"
-      exit 147
-    else
-      # LOCK SUCCESS NOW SAVE INFORMATION IN PID
-      echo $$ >"${LOCK_PID}"
-
-      CTRL_C_COUNT=0
-      # IF SCRIPT EXIT UNSUCCESSFULLY, THEN WE CALL cleanup function
-      _traps _trap_cleanup QUIT INT TERM EXIT
+  # THIS WILL CHECK ONLY ONE INSTANCE OF SCRIPT SHOULD RUN
+  if ! mkdir "${LOCK_DIR}" 2>/dev/null; then
+    PID=$(cat "${LOCK_PID}")
+    if ! kill -0 "${PID}" 2>/dev/null; then
+      echo "[${SCRIPT_NAME}]: Removing stale lock of nonexistent PID ${PID}" 2>&1 | tee -a "${REPORT_FILE}"
+      rm -rf "${LOCK_DIR}"
+      echo "[${SCRIPT_NAME}]: Restarting (${SCRIPT_NAME})" 2>&1 | tee -a "${REPORT_FILE}"
+      exec "$0" "$@"
     fi
-    # ============End of locking===============
-    #fi
-    # TODO: this is deprecated will change soon:
-    echo "Remember you can always resume installation with (--help for more information):"
-    echo "For local installation: ${SCRIPT_NAME} --setup"
-    echo "For remote installation: ${SCRIPT_NAME} --ssh-login \"${BOX_HOSTNAME_FQDN}:${SSH_PORT}\" \"root:${ROOT_USERNAME}\" \"${CODE_PATH}/ssh_scripts/maxinet_setup.sh\""
-    echo "To login as root user: ${SCRIPT_NAME} --ssh-login \"${BOX_HOSTNAME_FQDN}:${SSH_PORT}\" \"user:root\""
-    echo "To login as SSH user: ${SCRIPT_NAME} --ssh-login \"${BOX_HOSTNAME_FQDN}:${SSH_PORT}\" \"root:SSH_USERNAME\""
-    echo "To unlock LUKS Disk encryption: ${SCRIPT_NAME} --ssh-luks-unlock ${DROP_BEAR_PORT} \"<LUKS_PASS>\""
-    _pause 5
-    validate_config
+    echo "[${SCRIPT_NAME}]: Warning, another instance of this script is already running with PID [${PID}]" 2>&1 | tee -a "${REPORT_FILE}"
+    echo "[${SCRIPT_NAME}]: Please wait or clear the current running session to re-run this script" 2>&1 | tee -a "${REPORT_FILE}"
+    exit 147
+  else
+    # LOCK SUCCESS NOW SAVE INFORMATION IN PID
+    echo $$ >"${LOCK_PID}"
 
-    if [[ ${DISTRO_ID} == "centos" || ${DISTRO_ID} == "debian" ]]; then
-      #echo "[${SCRIPT_NAME}]: OK, this operating system [${DISTRO_ID}] is supported!" 2>&1 | tee -a "${REPORT_FILE}"
-      :
-    else
-      echo "[${SCRIPT_NAME}]: Sorry, this operating system [${DISTRO_ID}] is not supported!" 2>&1 | tee -a "${REPORT_FILE}"
-      _exit 147
-    fi
-    if compgen -G "${CONF_PATH}/*_executed" >/dev/null; then
-      _echo "$(msg blue)Resuming from previous installation ...$(msg end)" --name
-      START_OR_RESUME="Resuming"
-      _pause 10
-    else
-      START_OR_RESUME="Starting"
-    fi
-    _echo "$(msg blue)${START_OR_RESUME} Installation for ${BOX_HOSTNAME_FQDN} ...$(msg end)" --name
-    echo ""
+    CTRL_C_COUNT=0
+    # IF SCRIPT EXIT UNSUCCESSFULLY, THEN WE CALL cleanup function
+    _traps _trap_cleanup QUIT INT TERM EXIT
+  fi
+  # ============End of locking===============
+  #fi
+  # TODO: this is deprecated will change soon:
+  echo "Remember you can always resume installation with (--help for more information):"
+  echo "For local installation: ${SCRIPT_NAME} --setup"
+  echo "For remote installation: ${SCRIPT_NAME} --ssh-login \"${BOX_HOSTNAME_FQDN}:${SSH_PORT}\" \"root:${ROOT_USERNAME}\" \"${CODE_PATH}/ssh_scripts/maxinet_setup.sh\""
+  echo "To login as root user: ${SCRIPT_NAME} --ssh-login \"${BOX_HOSTNAME_FQDN}:${SSH_PORT}\" \"user:root\""
+  echo "To login as SSH user: ${SCRIPT_NAME} --ssh-login \"${BOX_HOSTNAME_FQDN}:${SSH_PORT}\" \"root:SSH_USERNAME\""
+  echo "To unlock LUKS Disk encryption: ${SCRIPT_NAME} --ssh-luks-unlock ${DROP_BEAR_PORT} \"<LUKS_PASS>\""
+  _pause 5
+  validate_config
 
-    ############ Call function documentation ############
-    # SYNTAX:
-    # function_name +<option>
-    # + means optional
-    # EXAMPLE:
-    # eg: secure_box --run-force
-    # DESCRIPTION:
-    # <option> lists:
-    # --run - normal run, after it has finished executed, it is marked as executed and continue to the next function_name call
-    # --run-exit - normal run, after it has finished executed, it is marked as executed and then exit or halt (no next function_name call)
-    # --run--force - force run (even after being executed previously), after it has finished executed, it is marked as executed and continue to the next function_name call
-    # --run--force-exit - force run (even after being executed previously), after it has finished executed, it is marked as executed and then exit or halt (no next function_name call)
-    # --skip - do not run the current function_name and do not mark it as executed
-    # --skip-mark - do not run the current function_name but mark it as executed
-    # EXTRA INFO:
-    # Without <option> argument it is similar to using --run
-    # eg: configure_net is equivalent to configure_net --run
-    #####################################################
+  if [[ ${DISTRO_ID} == "centos" || ${DISTRO_ID} == "debian" ]]; then
+    #echo "[${SCRIPT_NAME}]: OK, this operating system [${DISTRO_ID}] is supported!" 2>&1 | tee -a "${REPORT_FILE}"
+    :
+  else
+    echo "[${SCRIPT_NAME}]: Sorry, this operating system [${DISTRO_ID}] is not supported!" 2>&1 | tee -a "${REPORT_FILE}"
+    _exit 147
+  fi
+  if compgen -G "${CONF_PATH}/*_executed" >/dev/null; then
+    _echo "$(msg blue)Resuming from previous installation ...$(msg end)" --name
+    START_OR_RESUME="Resuming"
+    _pause 10
+  else
+    START_OR_RESUME="Starting"
+  fi
+  _echo "$(msg blue)${START_OR_RESUME} Installation for ${BOX_HOSTNAME_FQDN} ...$(msg end)" --name
+  echo ""
 
-    ############ Function call starts here ############
-    # Note 1: setup_pre can be used to install screen, disable Selinux in CentOS or other necessary pre install components
-    setup_pre --run
-    # Note 1: Clone all setup script from git (recommend to run as --run-force instead of --run so we always get the latest security update)
-    get_latest_maxinet --run-force
-    # Note 1: Get the latest security codes from maxicode (recommend to run as --run-force instead of --run so we always get the latest security update)
-    init_local_maxicode --run-force
-    # Note 1: This call contains security hardening server
-    secure_box --run-exit
-    # Note 1: This will configure grub such as setting up password for grub bootloader
-    # Note 2: Grub bootloader password can also be used in preseed file, but having preseed file during installation is a bad idea.
-    configure_grub --run
-    # TODO continue writing next documentation
-    # Configure basic network 1
-    configure_net --run
-    # Must run configure_net first before running configure_net2 because we need interface to be ${NIC_INTERFACE_NAME} first #OK
-    configure_net2 --run
-    # This is where we can configure mount option for disk
-    configure_fstab --run
-    # Tweaking swap for production server
-    configure_sysctl_swap --run
-    # Tweaking kernel etc ..
-    configure_sysctl_kernel_fs --run
-    # Tweaking IPv4 or Ipv6
-    configure_sysctl_ips --run
-    # Upgrade system
-    upgrade_os --run
-    #exit 0
-    if [ "${INSTALL_TYPE}" == "directadmin" ]; then
-      install_da_pre --run
-      install_da --run
-      # Must run this after install_da and before install_da_post because install_da_post requires valid nginx directive which is fixed at rebuild_da_package
-      rebuild_da_package --run
-      install_da_post --run
-      change_da_auth --run
-      # Linking da ipv6 with ipv4 and vice versa
-      link_da_ipv6 --run
-    fi
-    # FOR BOTH GENERAL AND DIRECTADMIN INSTALLATION TYPE:
-    # Best to execute after install_da because CSF installer will detect if DA exist, it will install CSF in DA way.
-    configure_csf --run
-    configure_maxibox --run
-    configure_maxicode_pre --run
-    configure_maxicode --run
-    configure_maxiperm --run
-    configure_maxinis --run
-    configure_maxigpg --run
-    configure_maxida --run
-    configure_maxicron --run
-    configure_maxiaide --run-force
-    configure_maxiwall --run-force-exit
-    configure_maxicloud --run-exit
-    configure_maxipass --run
-    configure_maxify --skip #-- disable temporarily
-    configure_logs --skip   #-- skip temporarily
-    if [ "${INSTALL_TYPE}" == "directadmin" ]; then
-      configure_da_sql --run
-      configure_da_mail --run
-      configure_da_ftp --run
-      configure_nginx_apache --run
-      configure_web_apps_html --run
-      build_da_custom_conf --run
-      configure_da --run
-      configure_da_memcached --run
-      configure_da_geoip --run
-      # we configure dns template before creating admin, reseller and user accounts so they can use new DNS template
-      configure_da_dns_templates --run
-      configure_da_owner_accounts --run
-      configure_da_admin_accounts --run
-      configure_da_reseller_accounts --run
-      configure_da_reseller_root_domains --run
-      configure_da_reseller_wildcard_domains --run
-      configure_da_reseller_subdomains --run
-      configure_da_reseller_emails --run
-      configure_da_user_accounts --run
-      configure_da_user_root_domains --run
-      configure_da_user_wildcard_domains --run
-      configure_da_user_subdomains --run
-      configure_da_user_emails --run
-      configure_da_owner_skins --run
-      configure_da_admin_skins --run
-      configure_da_reseller_skins ""
-      configure_da_owner_security --run
-      configure_da_admin_security --run
-      configure_da_reseller_security --run
-      configure_da_user_security --run
-      configure_da_reseller_databases --run
-      configure_da_user_databases --run
-      configure_da_custom_webs --run
+  ############ Call function documentation ############
+  # SYNTAX:
+  # function_name +<option>
+  # + means optional
+  # EXAMPLE:
+  # eg: secure_box --run-force
+  # DESCRIPTION:
+  # <option> lists:
+  # --run - normal run, after it has finished executed, it is marked as executed and continue to the next function_name call
+  # --run-exit - normal run, after it has finished executed, it is marked as executed and then exit or halt (no next function_name call)
+  # --run--force - force run (even after being executed previously), after it has finished executed, it is marked as executed and continue to the next function_name call
+  # --run--force-exit - force run (even after being executed previously), after it has finished executed, it is marked as executed and then exit or halt (no next function_name call)
+  # --skip - do not run the current function_name and do not mark it as executed
+  # --skip-mark - do not run the current function_name but mark it as executed
+  # EXTRA INFO:
+  # Without <option> argument it is similar to using --run
+  # eg: configure_net is equivalent to configure_net --run
+  #####################################################
 
-      # Must run this functions (configure_da_ssl) after running CSF because we need to make sure all appropriate ports are opened to request certs
-      # Warning do not overused configure_da_ssl function because when requesting the same cert for the same domain 7 times for a week, you will get blocked.
-      # This will set the hosting to SSL:
-      configure_da_ssl_pre --run
-      # It's best to call SSL after domain propagation few hours later.
+  ############ Function call starts here ############
+  # Note 1: setup_pre can be used to install screen, disable Selinux in CentOS or other necessary pre install components
+  setup_pre --run
+  # Note 1: Clone all setup script from git (recommend to run as --run-force instead of --run so we always get the latest security update)
+  get_latest_maxinet --run-force
+  # Note 1: Get the latest security codes from maxicode (recommend to run as --run-force instead of --run so we always get the latest security update)
+  init_local_maxicode --run-force
+  # Note 1: This call contains security hardening server
+  secure_box --run-exit
+  # Note 1: This will configure grub such as setting up password for grub bootloader
+  # Note 2: Grub bootloader password can also be used in preseed file, but having preseed file during installation is a bad idea.
+  configure_grub --run
+  # TODO continue writing next documentation
+  # Configure basic network 1
+  configure_net --run
+  # Must run configure_net first before running configure_net2 because we need interface to be ${NIC_INTERFACE_NAME} first #OK
+  configure_net2 --run
+  # This is where we can configure mount option for disk
+  configure_fstab --run
+  # Tweaking swap for production server
+  configure_sysctl_swap --run
+  # Tweaking kernel etc ..
+  configure_sysctl_kernel_fs --run
+  # Tweaking IPv4 or Ipv6
+  configure_sysctl_ips --run
+  # Upgrade system
+  upgrade_os --run
+  #exit 0
+  if [ "${INSTALL_TYPE}" == "directadmin" ]; then
+    install_da_pre --run
+    install_da --run
+    # Must run this after install_da and before install_da_post because install_da_post requires valid nginx directive which is fixed at rebuild_da_package
+    rebuild_da_package --run
+    install_da_post --run
+    change_da_auth --run
+    # Linking da ipv6 with ipv4 and vice versa
+    link_da_ipv6 --run
+  fi
+  # FOR BOTH GENERAL AND DIRECTADMIN INSTALLATION TYPE:
+  # Best to execute after install_da because CSF installer will detect if DA exist, it will install CSF in DA way.
+  configure_csf --run
+  configure_maxibox --run
+  configure_maxicode_pre --run
+  configure_maxicode --run
+  configure_maxiperm --run
+  configure_maxinis --run
+  configure_maxigpg --run
+  configure_maxida --run
+  configure_maxicron --run
+  configure_maxiaide --run-force
+  configure_maxiwall --run-force-exit
+  configure_maxicloud --run-exit
+  configure_maxipass --run
+  configure_maxify --skip #-- disable temporarily
+  configure_logs --skip   #-- skip temporarily
+  if [ "${INSTALL_TYPE}" == "directadmin" ]; then
+    configure_da_sql --run
+    configure_da_mail --run
+    configure_da_ftp --run
+    configure_nginx_apache --run
+    configure_web_apps_html --run
+    build_da_custom_conf --run
+    configure_da --run
+    configure_da_memcached --run
+    configure_da_geoip --run
+    # we configure dns template before creating admin, reseller and user accounts so they can use new DNS template
+    configure_da_dns_templates --run
+    configure_da_owner_accounts --run
+    configure_da_admin_accounts --run
+    configure_da_reseller_accounts --run
+    configure_da_reseller_root_domains --run
+    configure_da_reseller_wildcard_domains --run
+    configure_da_reseller_subdomains --run
+    configure_da_reseller_emails --run
+    configure_da_user_accounts --run
+    configure_da_user_root_domains --run
+    configure_da_user_wildcard_domains --run
+    configure_da_user_subdomains --run
+    configure_da_user_emails --run
+    configure_da_owner_skins --run
+    configure_da_admin_skins --run
+    configure_da_reseller_skins ""
+    configure_da_owner_security --run
+    configure_da_admin_security --run
+    configure_da_reseller_security --run
+    configure_da_user_security --run
+    configure_da_reseller_databases --run
+    configure_da_user_databases --run
+    configure_da_custom_webs --run
 
-      # Call certificate request at the end because we want to create DNS entry and propagate first
-      # Don't worry if some domains are not able to have SSL because of the propagation problem using external DNS
-      configure_da_ssl --run
-      configure_da_reseller_domain_ssl_pre --run
-      configure_da_reseller_domain_ssl --run
-      configure_da_user_domain_ssl_pre --run
-      configure_da_user_domain_ssl --run
-    fi
-    # Still need to add more based on lynis suggestion
-    harden_with_lynis --run
-    configure_cronjobs --run
-    setup_post --run
+    # Must run this functions (configure_da_ssl) after running CSF because we need to make sure all appropriate ports are opened to request certs
+    # Warning do not overused configure_da_ssl function because when requesting the same cert for the same domain 7 times for a week, you will get blocked.
+    # This will set the hosting to SSL:
+    configure_da_ssl_pre --run
+    # It's best to call SSL after domain propagation few hours later.
 
+    # Call certificate request at the end because we want to create DNS entry and propagate first
+    # Don't worry if some domains are not able to have SSL because of the propagation problem using external DNS
+    configure_da_ssl --run
+    configure_da_reseller_domain_ssl_pre --run
+    configure_da_reseller_domain_ssl --run
+    configure_da_user_domain_ssl_pre --run
+    configure_da_user_domain_ssl --run
+  fi
+  # Still need to add more based on lynis suggestion
+  harden_with_lynis --run
+  configure_cronjobs --run
+  setup_post --run
+
+  echo "" 2>&1 | tee -a "${REPORT_FILE}"
+  if [ "${INSTALL_TYPE}" == "directadmin" ]; then
+    echo "==============" 2>&1 | tee -a "${REPORT_FILE}"
+    echo "Directadmin now can be accessed through this URL: " 2>&1 | tee -a "${REPORT_FILE}"
+    echo "http://${IPV4_ADD0}:${DA_PORT} or http://${BOX_HOSTNAME_FQDN}:${DA_PORT}" 2>&1 | tee -a "${REPORT_FILE}"
+    echo "Username: DA_OWNER_USERNAME1" 2>&1 | tee -a "${REPORT_FILE}"
+    echo "Password: *******" 2>&1 | tee -a "${REPORT_FILE}"
+    echo "==============" 2>&1 | tee -a "${REPORT_FILE}"
     echo "" 2>&1 | tee -a "${REPORT_FILE}"
-    if [ "${INSTALL_TYPE}" == "directadmin" ]; then
-      echo "==============" 2>&1 | tee -a "${REPORT_FILE}"
-      echo "Directadmin now can be accessed through this URL: " 2>&1 | tee -a "${REPORT_FILE}"
-      echo "http://${IPV4_ADD0}:${DA_PORT} or http://${BOX_HOSTNAME_FQDN}:${DA_PORT}" 2>&1 | tee -a "${REPORT_FILE}"
-      echo "Username: DA_OWNER_USERNAME1" 2>&1 | tee -a "${REPORT_FILE}"
-      echo "Password: *******" 2>&1 | tee -a "${REPORT_FILE}"
-      echo "==============" 2>&1 | tee -a "${REPORT_FILE}"
-      echo "" 2>&1 | tee -a "${REPORT_FILE}"
-      echo ""
-    fi
-    script_time
-    echo "========== Installation Completed ==========" 2>&1 | tee -a "${REPORT_FILE}"
     echo ""
-    echo "[${SCRIPT_NAME}]: Destroying setup information in 120 seconds ..." 2>&1 | tee -a "${REPORT_FILE}"
-    _pause 120
-    # Destroy the setup config deeply
-    shred -uvz "${CONFIG_FILE}"
-    # Remove all setup information except CONF_PATH because CONF_PATH and CODE_PATH
-    # CONF_PATH contains setup step information whereas CODE_PATH contains autogenerated file/script ending with _ag.extension
-    rm -rf "${LOG_PATH}"
-    #rm -rf "${CONF_PATH}"
-    rm -rf "${DATA_PATH}"
-    #rm -rf "${CODE_PATH}"
-    rm -rf "${TEMP_PATH}"
-    rm -rf "${INST_TEMP_DIR}"
-    # Clear bash history
-    history -c
+  fi
+  script_time
+  echo "========== Installation Completed ==========" 2>&1 | tee -a "${REPORT_FILE}"
+  echo ""
+  echo "[${SCRIPT_NAME}]: Destroying setup information in 120 seconds ..." 2>&1 | tee -a "${REPORT_FILE}"
+  _pause 120
+  # Destroy the setup config deeply
+  shred -uvz "${CONFIG_FILE}"
+  # Remove all setup information except CONF_PATH because CONF_PATH and CODE_PATH
+  # CONF_PATH contains setup step information whereas CODE_PATH contains autogenerated file/script ending with _ag.extension
+  rm -rf "${LOG_PATH}"
+  #rm -rf "${CONF_PATH}"
+  rm -rf "${DATA_PATH}"
+  #rm -rf "${CODE_PATH}"
+  rm -rf "${TEMP_PATH}"
+  rm -rf "${INST_TEMP_DIR}"
+  # Clear bash history
+  history -c
 }
 temp1() {
   :
@@ -13897,7 +13947,7 @@ ENDSSH
     ssh_api push-script --sp sun.sofibox.com:893 --gu root:root --script-path "${CODE_PATH}/ssh_scripts/test_script.sh"
     exit 1
     exec_time start "linode_reboot_api"
-    linode_api_admin reboot-linode --linode-label "${BOX_HOSTNAME_FQDN}" --linode-config-label OS_Config --log-level 6
+    linode_api_admin reboot-linode --linode-label "${BOX_HOSTNAME_FQDN}" --linode-config-label "${LINODE_OS_CONFIG_LABEL}" --log-level 6
     exec_time end "linode_reboot_api"
     exit 0
     break

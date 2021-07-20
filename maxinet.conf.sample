@@ -4,7 +4,7 @@
 # This file contains sensitive information, setup will auto destroy this file after finished installation.
 # So make sure you have the original backup / copy of your modified <script_name>.conf file
 # Default name should be <script_name>.conf. If you want to change this, modify the variable CONFIG_FILE="yourfileenv"
-# Remember password cannot contain # ! ' / \ $ & xecause u need to escape this if u want to use in bash.
+# Remember password cannot contain # ! ' / \ $ & because u need to escape this if u want to use in bash.
 # Do not use this character in mysql or mariadb password: < > and ) because mysqltuner does not support this character
 # Warning Directadmin user password only accept the maximum of 64 characters. More than this will have problem with API
 # Directadmin cannot contains this character in password, it will not work with API -> '+'
@@ -337,13 +337,26 @@ MAXIWALL_AIPDB_REPORT_URL="https://api.abuseipdb.com/api/v2/report"
 MAXIWALL_AIPDB_API_KEY="strong*63161ec_covid19f****63ex742*x***85xaMaXi32xax41*****"
 # =~=~ End maxiwall =~=~#
 
-# External DNS provider
-# Can be linode, digitalocean amazonaws and more, put value 'local' to disable this feature and use internal DNS.
-#EXTERNAL_DNS_PROVIDER="linode"
+# External/Internal DNS provider
+# provider can be linode, digitalocean, amazonaws and more, put value [local] to disable this feature and use internal DNS#EXTERNAL_DNS_PROVIDER="linode"
 #DNS_PROVIDER_USER="sofibox"
-# Format <provider>:<user>:<api_key>
-DNS_PROVIDER_API_KEY1="*API-KEY"
+# Format <provider_name>:<provider_username>:<api_key>
+DNS_PROVIDER_API1="*API-KEY"
 DNS_PROVIDER_TERMINAL_SERVER="lish-singapore.linode.com"
+
+# For linode configuration
+LINODE_OS_CONFIG_LABEL="OS_Config"
+LINODE_BOOT_CONFIG_LABEL="Boot_Config"
+LINODE_RESCUE_CONFIG_LABEL="Rescue_Config"
+LINODE_OS_DISK_LABEL="OS_Disk"
+LINODE_BOOT_DISK_LABEL="Boot_Disk"
+LINODE_RESCUE_DISK_LABEL="Rescue_Disk"
+
+# For amazonaws configuration
+
+# For digitalocean configuration
+
+# For OVH configuration
 
 # Alternative packages version
 INSTALL_RUSTC_VERSION="1.52.0"

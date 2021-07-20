@@ -10,9 +10,7 @@
     <select />
   </component>
   <component name="ChangeListManager">
-    <list default="true" id="113c828c-9a32-4b24-ab1e-978ce50c6320" name="Default Changelist" comment="New changes">
-      <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-    </list>
+    <list default="true" id="113c828c-9a32-4b24-ab1e-978ce50c6320" name="Default Changelist" comment="Updated init_server() function&#10;Updated function_name to exit function from an option --exit to --run-exit&#10;Added new function setup()&#10;Added documentation on the source code how to call function_name with argument. eg:&#10;&#10;secure_box --run-force&#10;&#10;This will force the script to run secure_box even if it was previously ran. This function_name documentation will be included in the --help section.&#10;&#10;Updated SETUP_GIT_URL link" />
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
     <option name="HIGHLIGHT_NON_ACTIVE_CHANGELIST" value="false" />
@@ -57,13 +55,15 @@
     </key>
   </component>
   <component name="RunManager">
-    <configuration default="true" type="ArquillianJUnit" factoryName="" nameIsGenerated="true">
+    <configuration default="true" type="ArquillianTestNG" factoryName="" nameIsGenerated="true">
       <option name="arquillianRunConfiguration">
         <value>
           <option name="containerStateName" value="" />
         </value>
       </option>
-      <option name="TEST_OBJECT" value="class" />
+      <option name="TEST_OBJECT" value="CLASS" />
+      <properties />
+      <listeners />
       <method v="2">
         <option name="Make" enabled="true" />
       </method>
@@ -169,13 +169,7 @@
       <workItem from="1626708524061" duration="831000" />
       <workItem from="1626758624218" duration="720000" />
       <workItem from="1626766759652" duration="70000" />
-    </task>
-    <task id="LOCAL-00038" summary="Improved config file check for DA_&lt;ROLE&gt;_SUBDOMAIN and DA_&lt;ROLE&gt;_SSL_SUB_NAME">
-      <created>1613227315344</created>
-      <option name="number" value="00038" />
-      <option name="presentableId" value="LOCAL-00038" />
-      <option name="project" value="LOCAL" />
-      <updated>1613227315344</updated>
+      <workItem from="1626785432462" duration="603000" />
     </task>
     <task id="LOCAL-00039" summary="Added extra security option for harden_da for issue related to invalid certificate">
       <created>1613229968017</created>
@@ -513,7 +507,14 @@
       <option name="project" value="LOCAL" />
       <updated>1626758715852</updated>
     </task>
-    <option name="localTasksCounter" value="87" />
+    <task id="LOCAL-00087" summary="Updated init_server() function&#10;Updated function_name to exit function from an option --exit to --run-exit&#10;Added new function setup()&#10;Added documentation on the source code how to call function_name with argument. eg:&#10;&#10;secure_box --run-force&#10;&#10;This will force the script to run secure_box even if it was previously ran. This function_name documentation will be included in the --help section.&#10;&#10;Updated SETUP_GIT_URL link">
+      <created>1626785472670</created>
+      <option name="number" value="00087" />
+      <option name="presentableId" value="LOCAL-00087" />
+      <option name="project" value="LOCAL" />
+      <updated>1626785472670</updated>
+    </task>
+    <option name="localTasksCounter" value="88" />
     <servers />
   </component>
   <component name="TypeScriptGeneratedFilesManager">
@@ -532,7 +533,6 @@
     <option name="oldMeFiltersMigrated" value="true" />
   </component>
   <component name="VcsManagerConfiguration">
-    <MESSAGE value="Fixed script --force option&#10;Updated --ssh-login auto copy rsa key" />
     <MESSAGE value="Improved linode API and other small changes" />
     <MESSAGE value="Improved linode API" />
     <MESSAGE value="Added the ability to build an ISO file with preseed config used to customize server installation. This ISO file will automatically install server without any interaction.&#10;Updated cd_to_path function to store previous path&#10;Improved linode API&#10;&#10;New variables:&#10;&#10;IPV4_NETMASK0=&#10;IPV6_NETMASK0=&#10;BOX_COUNTRY_NAME=&quot;Malaysia&quot;&#10;BOX_COUNTRY_CODE=&quot;MY&quot;" />
@@ -557,6 +557,7 @@
     <MESSAGE value="Another change" />
     <MESSAGE value="Removed deprecated function get_var_value()&#10;Updated linode_api_admin()&#10;Improved ssh_api()&#10;Added new function linode_console()&#10;Removed test codes&#10;Other changes" />
     <MESSAGE value="New changes" />
-    <option name="LAST_COMMIT_MESSAGE" value="New changes" />
+    <MESSAGE value="Updated init_server() function&#10;Updated function_name to exit function from an option --exit to --run-exit&#10;Added new function setup()&#10;Added documentation on the source code how to call function_name with argument. eg:&#10;&#10;secure_box --run-force&#10;&#10;This will force the script to run secure_box even if it was previously ran. This function_name documentation will be included in the --help section.&#10;&#10;Updated SETUP_GIT_URL link" />
+    <option name="LAST_COMMIT_MESSAGE" value="Updated init_server() function&#10;Updated function_name to exit function from an option --exit to --run-exit&#10;Added new function setup()&#10;Added documentation on the source code how to call function_name with argument. eg:&#10;&#10;secure_box --run-force&#10;&#10;This will force the script to run secure_box even if it was previously ran. This function_name documentation will be included in the --help section.&#10;&#10;Updated SETUP_GIT_URL link" />
   </component>
 </project>
