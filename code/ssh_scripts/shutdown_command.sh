@@ -5,4 +5,6 @@
 # ===============================================
 # Using --force to ignore any prompts when shutting down. Such as the prompt to eject DISK and waiting for user input
 reboot --poweroff --force
-echo ""
+# Put 2 times exit below to safely exit the script if the first exit is not executed
+exit
+exit

@@ -4,7 +4,7 @@
 APP_SPECIFIC_NAME="Maxinet"
 APP_STATUS="alpha"
 # Note some minor versions are not published
-APP_VERSION="0.5.2.2-${APP_STATUS}"
+APP_VERSION="0.5.2.3-${APP_STATUS}"
 COMPANY_ID="${COMPANY_ID}"
 # Hello there, this is a powerful script that able initialize one or more server installation from scratch. From configuring the server disk, until you got the full working server with a live website.
 # It also includes many security and hardening script.
@@ -604,23 +604,24 @@ function init_server() {
     _echo "Booting into operating system (make sure to unlock LUKS)" --name
     linode_api_admin boot-linode --linode-label "${BOX_HOSTNAME_FQDN}" --linode-config-label "OS_Config"
 
-    exit 1
-    # check server and port if available auto unlock it
-    _echo "Checking whether hostname ${BOX_HOSTNAME_FQDN} with port ${DROP_BEAR_PORT} are available ..."
+    _echo "$(msg cyan)Checking if dropbear port ${DROP_BEAR_PORT} is open from --server ${BOX_HOSTNAME_FQDN} ...$(msg end)" --name
     count=0
     while :; do
-      drop_bear_port=$(check_server_port "${BOX_HOSTNAME_FQDN}" "${DROP_BEAR_PORT}")
+      # TODO change this port_status=$(check_server_port --server "${BOX_HOSTNAME_FQDN}" --port "${DROP_BEAR_PORT}")
+      port_status=$(check_server_port "${BOX_HOSTNAME_FQDN}" "${DROP_BEAR_PORT}")
       sleep 1
       ((count++))
-      spinner start "[${SCRIPT_NAME}]: Dropbear port current status is ${drop_bear_port}  .."
-      if [ "${drop_bear_port}" -eq 0 ]; then
-        spinner stop "[${SCRIPT_NAME}]: Dropbear port is open. Unlocking LUKS encryption ..."
+      _echo "$(msg yellow) Waiting for dropbear port ${DROP_BEAR_PORT} to be available ...$(msg end)" --start-spin --name
+      if [ "${port_status}" -eq 0 ]; then
+        _echo "$(msg green)OK, dropbear port ${DROP_BEAR_PORT} is now available. Unlocking encrypted LUKS disk on boot ...$(msg end)" --stop-spin --name
+        # Wait 5 seconds
         sleep 5
+        # TODO change this to ssh_api unlock-luks/unlock-disk --port "${DROP_BEAR_PORT}" --password "${LUKS_PASS}"
         ssh_luks_unlock "${DROP_BEAR_PORT}" "${LUKS_PASS}"
         break
       fi
       if [ "${count}" -gt 60 ]; then
-        _echo "[${SCRIPT_NAME}]: It seems like DROP_BEAR_PORT is closed. Something is wrong"
+        _echo "$(msg red)Error, failed to detect drop bear port ${DROP_BEAR_PORT} because the port is closed. Please inspect this manually (make sure firewall is not blocking this port)!$(msg end)" --name
         _exit 1
       fi
     done
@@ -631,16 +632,16 @@ function init_server() {
     # maxinet --ssh-login sun.sofibox.com
     sleep 5
     _echo "Copying maxinet script ..."
-    # TODO ssh_api transfer-files \ file transfer | transfer-file --server ${BOX_HOSTNAME_FQDN} ---port ${SSH_PORT} --group root --user ${ROOT_USERNAME} --local-files "/tmp/file1 /var/file2" --remote-path ~/
+    # TODO change to ssh_api transfer-files / file transfer | transfer-file --server ${BOX_HOSTNAME_FQDN} ---port ${SSH_PORT} --group root --user ${ROOT_USERNAME} --local-files "/tmp/file1 /var/file2" --remote-path ~/
     ssh_transfer "${BOX_HOSTNAME_FQDN}:${SSH_PORT}" "root:${ROOT_USERNAME}" "${SCRIPT_PATH}/maxinet ${SCRIPT_PATH}/maxinet.conf" ~/
     sleep 2
 
-    _echo def "Connecting to ${BOX_HOSTNAME_FQDN}:${SSH_PORT} and installing server ..."
+    _echo "Connecting to ${BOX_HOSTNAME_FQDN}:${SSH_PORT} and installing server ..."
 
     if [ "${PRE_AUTORUN_SETUP}" == "yes" ]; then
-      _echo "Setup will automatically execute remote maxinet script and start installation of the server ... (it might take some time) ..."
-      # TODO ssh_api push-script --server ${BOX_HOSTNAME_FQDN} --port ${SSH_PORT} --group root --username ${ROOT_USERNAME} --script-path "${CODE_PATH}/ssh_scripts/maxinet_setup.sh"
-      ssh_login "${BOX_HOSTNAME_FQDN}:${SSH_PORT}" "root:${ROOT_USERNAME}" "${CODE_PATH}/ssh_scripts/maxinet_setup.sh"
+      _echo "$(msg cyan)Setup will automatically execute remote maxinet script and start installation of the server ... (it might take some time) ...$(msg end)" -name
+      # ssh_api push-script --server ${BOX_HOSTNAME_FQDN} --port ${SSH_PORT} --group root --username ${ROOT_USERNAME} --script-path "${CODE_PATH}/ssh_scripts/maxinet_setup.sh"
+      ssh_api push-script --server-port "${BOX_HOSTNAME_FQDN}:${SSH_PORT}" --group-user "root:${ROOT_USERNAME}" --script-path "${CODE_PATH}/ssh_scripts/maxinet_setup.sh"
       # After installation above, the system must restart once, so we execute next script to reopen LUKS
       #check_linode_status_until "offline"
     else
@@ -661,27 +662,30 @@ function init_server() {
       drop_bear_port=$(check_server_port "${BOX_HOSTNAME_FQDN}" "${DROP_BEAR_PORT}")
       sleep 1
       ((count++))
-      spinner start "[${SCRIPT_NAME}]: Dropbear port current status is ${drop_bear_port}  .."
+      spinner start "$(msg yellow) Warning, dropbear port status is ${drop_bear_port}  ...$(msg end)" --start-spin --name
       if [ "${drop_bear_port}" -eq 0 ]; then
-        spinner stop "[${SCRIPT_NAME}]: Dropbear port is open. Unlocking LUKS encryption ..."
+        _echo "$(msg green)OK, dropbear port ${drop_bear_port} is open. Unlocking encrypted LUKS disk on boot ...$(msg end)" --stop-spin --name
+        # Wait 5 seconds
         sleep 5
+        # TODO change this to ssh_api unlock-luks/unlock-disk --port "${DROP_BEAR_PORT}" --password "${LUKS_PASS}"
         ssh_luks_unlock "${DROP_BEAR_PORT}" "${LUKS_PASS}"
         break
       fi
       if [ "${count}" -gt 60 ]; then
-        _echo "Warning, it seems like DROP_BEAR_PORT is closed. Something is wrong"
+        _echo "$(msg red)Error, failed to detect drop bear port ${drop_bear_port} because the port is closed. Please inspect this manually (make sure firewall is not blocking this port)!$(msg end)" --name
         _exit 1
       fi
     done
 
     if [ "${PRE_AUTORUN_SETUP}" == "no" ]; then
-      _echo "It is time to run the installation script manually!"
+      _echo "$(msg cyan) Notice, PRE_AUTORUN_SETUP is set to no. Hence, auto installation script is disabled!$(msg end)" --name
     else
-      _echo "Resuming installation ..."
-      ssh_login "${BOX_HOSTNAME_FQDN}:${SSH_PORT}" "root:${ROOT_USERNAME}" "${CODE_PATH}/ssh_scripts/maxinet_setup.sh"
+      _echo "$(msg cyan)Resuming server installation installation by executing ${SCRIPT_NAME} script on remote server...$(msg end)" --name
+      # OLD: ssh_login "${BOX_HOSTNAME_FQDN}:${SSH_PORT}" "root:${ROOT_USERNAME}" "${CODE_PATH}/ssh_scripts/maxinet_setup.sh"
+      ssh_api push-script --server-port "${BOX_HOSTNAME_FQDN}:${SSH_PORT}" --group-user "root:${ROOT_USERNAME}" --script-path "${CODE_PATH}/ssh_scripts/maxinet_setup.sh"
     fi
-
-    _echo "Done"
+    echo ""
+    _echo "$(msg green)======================== FINISH ========================$(msg end)" --plain
   elif [ "${DNS_PROVIDER_NAME}" == "digitalocean" ]; then
     :
   elif [ "${DNS_PROVIDER_NAME}" == "amazonaws" ]; then
@@ -753,7 +757,7 @@ function check_server_port() {
 function ssh_api() {
 
   local action argnum options long_opts retval key_path group username comment server_label server port destination rsa_key linode_label script_path \
-    push_iso_write_script push_shutdown_script push_reboot_script
+    push_iso_write_script push_shutdown_script push_reboot_script push_maxinet_setup_script
 
   action="$1"
 
@@ -763,7 +767,7 @@ function ssh_api() {
     exit 1
   fi
   long_opts="help,key-path:,group:,username:,comment:,server-label:,server:,port:,destination:,without-prompt,rsa-key:,linode-label:,script-path:, \
-  push-iso-write-script,push-shutdown-script,push-reboot-script,sp:,server-port:,gu:,group-user:"
+  push-iso-write-script,push-shutdown-script,push-reboot-script,push-maxinet-setup-script,sp:,server-port:,gu:,group-user:"
   options=$(getopt -o '' --long "${long_opts}" -n "${FUNCNAME[0]} in ${SCRIPT_NAME}" -- "$@")
   retval=$?
   if [ ${retval} != 0 ]; then
@@ -788,6 +792,7 @@ function ssh_api() {
   push_iso_write_script=false
   push_shutdown_script=false
   push_reboot_script=false
+  push_maxinet_setup_script=false
   port="22" #If not specified the default is port 22
   while true; do
     case "$1" in
@@ -857,7 +862,7 @@ function ssh_api() {
       ;;
     --push-iso-write-script)
       push_iso_write_script=true
-      if [[ "${push_shutdown_script}" == "true" || "${push_reboot_script}" == "true" ]]; then
+      if [[ "${push_shutdown_script}" == "true" || "${push_reboot_script}" == "true" || "${push_maxinet_setup_script}" == "true" ]]; then
         _echo "$(msg red)Error, only one push script can be called at one time!$(msg end)" --name --verbose 3
         _exit 147
       fi
@@ -865,7 +870,7 @@ function ssh_api() {
       ;;
     --push-shutdown-script)
       push_shutdown_script=true
-      if [[ "${push_iso_write_script}" == "true" || "${push_reboot_script}" == "true" ]]; then
+      if [[ "${push_iso_write_script}" == "true" || "${push_reboot_script}" == "true" || "${push_maxinet_setup_script}" == "true" ]]; then
         _echo "$(msg red)Error, only one push script can be called at one time!$(msg end)" --name --verbose 3
         _exit 147
       fi
@@ -873,7 +878,15 @@ function ssh_api() {
       ;;
     --push-reboot-script)
       push_reboot_script=true
-      if [[ "${push_iso_write_script}" == "true" || "${push_shutdown_script}" == "true" ]]; then
+      if [[ "${push_iso_write_script}" == "true" || "${push_shutdown_script}" == "true" || "${push_maxinet_setup_script}" == "true" ]]; then
+        _echo "$(msg red)Error, only one push script can be called at one time!$(msg end)" --name --verbose 3
+        _exit 147
+      fi
+      shift
+      ;;
+    --push-maxinet-setup-script)
+      push_maxinet_setup_script=true
+      if [[ "${push_iso_write_script}" == "true" || "${push_shutdown_script}" == "true" || "${push_reboot_script}" == "true" ]]; then
         _echo "$(msg red)Error, only one push script can be called at one time!$(msg end)" --name --verbose 3
         _exit 147
       fi
@@ -941,11 +954,9 @@ function ssh_api() {
       fi
 
       _echo "$(msg cyan)Logging into SSH server at ${username}@${server}:${port}... $(msg end)" --name
-
-      #ssh -o "StrictHostKeyChecking no" -i "${rsa_key}" -p "${port}" -tt "${username}@${server}" "${linode_label}"
       ssh -o "StrictHostKeyChecking no" -i "${rsa_key}" -p "${port}" "${username}${server}"
-      ssh_pid=$?
-      { kill -9 ${ssh_pid} && wait ${ssh_pid}; } 2>/dev/null
+      #ssh_pid=$?
+      #{ kill -9 ${ssh_pid} && wait ${ssh_pid}; } 2>/dev/null
     fi
   # For linode LISH login
   # ssh_api lish-login --key /root/.ssh/linode_lish.id_rsa --username maxibi --server lish-singapore.linode.com --port 22 --linode-label sun.sofibox.com
@@ -975,14 +986,64 @@ function ssh_api() {
 
   # For SSH push script
   elif [ "${action}" == "push-script" ]; then
-    # TODO
-    :
+    local private_key_name private_key_file ssh_pid
+    # ssh_api push-script --server ${BOX_HOSTNAME_FQDN} --port ${SSH_PORT} --group root --username ${ROOT_USERNAME} --script-path "${CODE_PATH}/ssh_scripts/maxinet_setup.sh"
+    # The above is equivalent to below (shortest form)
+    # ssh_api push-script --server-port sun.sofibox.com:893 --group-user root:root --push-maxinet-setup-script
+
+    if [[ -z "${group}" ]]; then
+      _echo "$(msg red)Error, the option --group is required to have value$(msg end)" --name
+      _exit 147
+    elif [[ -z "${username}" ]]; then
+      _echo "$(msg red)Error, the option --username is required to have value$(msg end)" --name
+      _exit 147
+    elif [[ -z "${server}" ]]; then
+      _echo "$(msg red)Error, the option --server is required to have value$(msg end)" --name
+      _exit 147
+    elif [[ -z "${port}" ]]; then
+      _echo "$(msg red)Error, the option --port is required to have value$(msg end)" --name
+      _exit 147
+    fi
+
+    if [ -z "${rsa_key}" ]; then
+      private_key_name="${group}_${username}_${server}.id_rsa"
+      private_key_file="${key_path}/${private_key_name}"
+      rsa_key="${private_key_file}"
+    fi
+
+    if [ ! -f "${rsa_key}" ]; then
+      _echo "$(msg red)Error, invalid public RSA key file at ${rsa_key}. Please make sure the file exist$(msg end)" --name --verbose 3
+      _exit 147
+    fi
+
+    # Shortest form
+    if [ -z "${script_path}" ]; then
+      if [ "${push_maxinet_setup_script}" == "true" ]; then
+        script_path="${CODE_PATH}/ssh_scripts/maxinet_setup.sh"
+      elif [ "${push_shutdown_script}" == "true" ]; then
+        # This script can be used as normal SSH
+        script_path="${CODE_PATH}/ssh_scripts/shutdown_command.sh"
+      elif [ "${push_reboot_script}" == "true" ]; then
+        # This script can be used as normal SSH
+        script_path="${CODE_PATH}/ssh_scripts/reboot_command.sh"
+      else
+        _echo "$(msg red)Error. the option --script-path requires to have a valid script path to be pushed into SSH server or use predefined push script option such as --push-shutdown-script$(msg end)" --name --verbose 3
+      fi
+    fi
+
+    _echo "$(msg cyan)Pushing script ${script_path} into SSH console ${username}@${server}... $(msg end)" --nam
+    ssh -q -o "StrictHostKeyChecking no" -i "${rsa_key}" -p "${port}" "${username}@${server}" <"${script_path}" >/dev/null 2>&1 &
+    # Test kill after 10 seconds
+    #sleep 10
+    #ssh_pid=$?
+    #{ kill -9 ${ssh_pid} && wait ${ssh_pid}; } 2>/dev/null
     # For linode LISH push script
+    # Note that lish-push-script only can be used on recovery mode because in recovery mode, it doesn't have authentication.
   elif [ "${action}" == "lish-push-script" ]; then
     local ssh_pid
 
     if [ -z "${rsa_key}" ]; then
-      rsa_key="/root/.ssh/linode_lish.id_rsa"
+      rsa_key="${SECURE_PATH}/ssh/linode_lish.id_rsa"
     fi
 
     if [ -z "${username}" ]; then
@@ -994,8 +1055,11 @@ function ssh_api() {
       _exit 147
     fi
 
+    #Shortest form
+    # if dont specify script_path, i can specify option such as --push-os-write, --push-shutdown, --push-reboot
     if [ -z "${script_path}" ]; then
       if [ "${push_iso_write_script}" == "true" ]; then
+        # This is dangerous script that can wipe partition
         script_path="${CODE_PATH}/ssh_scripts/os_write_ag.sh"
       elif [ "${push_shutdown_script}" == "true" ]; then
         script_path="${CODE_PATH}/ssh_scripts/shutdown_command.sh"
@@ -1007,11 +1071,15 @@ function ssh_api() {
     fi
 
     _echo "$(msg cyan)Pushing script ${script_path} into lish console ${username}@${server}... $(msg end)" --name
-    # push script: ssh_api lish-push-script --key rsa_key.id.rsa --username maxibi --server member.linode.com --linode-label sun.sofibox.com --script-path /tmp/os_write --silent
-    ssh -q -o "StrictHostKeyChecking no" -i ${rsa_key} -p "${port}" -tt "${username}@${server}" "${linode_label}" <"${script_path}" >/dev/null 2>&1 &
-    # if dont specify script_path, i can specify option such as --push-os-write, --push-shutdown, --push-reboot
     #ssh -q -o "StrictHostKeyChecking no" -i /root/.ssh/linode_lish.id_rsa -tt "${DNS_PROVIDER_USER}@${DNS_PROVIDER_TERMINAL_SERVER}" "${BOX_HOSTNAME_FQDN}" <"${SCRIPT_PATH}/dns/linode/os_write.sh" >/dev/null 2>&1 &
 
+    # push script: ssh_api lish-push-script --key rsa_key.id.rsa --username maxibi --server member.linode.com --linode-label sun.sofibox.com --script-path /tmp/os_write.sh
+    ssh -o "StrictHostKeyChecking no" -i "${rsa_key}" -p "${port}" -tt "${username}@${server}" "${linode_label}" <"${script_path}" >/dev/null 2>&1 &
+    #ssh_pid=$?
+    # Test kill after 10 seconds
+    #sleep 10
+
+    #{ kill -9 ${ssh_pid} && wait ${ssh_pid}; } 2>/dev/null
   elif [ "${action}" == "create-key" ]; then
 
     local private_key_name
@@ -2292,9 +2360,25 @@ function create_file() {
   create_action="$1"
   path="$2"
 
+  # Remember all push scripts need to have return 0 at the end so that we can terminate the SSH from local call
   if [[ ${create_action} == "ssh-push-scripts" ]]; then
     ssh_scripts_path="${CODE_PATH}/ssh_scripts"
     mkdir -p "${ssh_scripts_path}"
+
+    #test_script.sh
+    {
+      echo "#!/bin/bash"
+      echo "# ==============================================="
+      echo "# This script file was generated by ${SCRIPT_NAME}"
+      echo "# Author: ${ADMIN_NAME} | Email: ${ADMIN_EMAIL} | Web: ${BOX_DOMAIN}"
+      echo "# ==============================================="
+      echo "# This is just a test script"
+      echo "touch test_file"
+      echo "# Put 2 times exit below to safely exit the script if the first exit is not executed"
+      echo "exit"
+      echo "exit"
+    } >"${ssh_scripts_path}/test_script.sh"
+
     # reboot_command.sh
     {
       echo "#!/bin/bash"
@@ -2304,7 +2388,9 @@ function create_file() {
       echo "# ==============================================="
       echo "# Using --force to ignore any prompts when rebooting. Such as the prompt to eject DISK and waiting for user input"
       echo "reboot --force"
-      echo "echo \"\""
+      echo "# Put 2 times exit below to safely exit the script if the first exit is not executed"
+      echo "exit"
+      echo "exit"
     } >"${ssh_scripts_path}/reboot_command.sh"
 
     # shutdown_command.sh
@@ -2316,7 +2402,9 @@ function create_file() {
       echo "# ==============================================="
       echo "# Using --force to ignore any prompts when shutting down. Such as the prompt to eject DISK and waiting for user input"
       echo "reboot --poweroff --force"
-      echo "echo \"\""
+      echo "# Put 2 times exit below to safely exit the script if the first exit is not executed"
+      echo "exit"
+      echo "exit"
     } >"${ssh_scripts_path}/shutdown_command.sh"
 
     #maxinet_setup.sh
@@ -2331,7 +2419,9 @@ function create_file() {
       echo "chmod +x maxinet"
       echo "touch maxinet.log"
       echo "./maxinet --setup 2>&1 | tee maxinet.log"
-      echo "echo \"\""
+      echo "# Put 2 times exit below to safely exit the script if the first exit is not executed"
+      echo "exit"
+      echo "exit"
     } >"${ssh_scripts_path}/maxinet_setup.sh"
 
   elif [[ ${create_action} == "debian-preseed" ]]; then
@@ -3186,7 +3276,9 @@ function iso_api() {
             echo "dd if=mini.iso of=/dev/sda"
             # This is needed to force reboot especially for rescue mode.
             echo "reboot -f"
-            echo "exit 0"
+            echo "# Put 2 times exit below to safely exit the script if the first exit is not executed"
+            echo "exit"
+            echo "exit"
           } >"${CODE_PATH}/ssh_scripts/os_write_ag.sh"
 
           _echo "$(msg cyan)Generating rescue disk command for manual installation ...$(msg end)" --name
@@ -13419,7 +13511,7 @@ while [ "$#" -gt 0 ]; do
     shift
     break
     ;;
-    #./maxinet --setup remote - For remote setup
+  #./maxinet --setup remote - For remote setup
   #./maxinet --setup - For local setup
   -setup | --setup)
     shift
@@ -13776,6 +13868,10 @@ ENDSSH
     break
     ;;
   -t | --test)
+
+    #ssh_api lish-push-script --script-path "${CODE_PATH}/ssh_scripts/test_script.sh"
+    ssh_api push-script --sp sun.sofibox.com:893 --gu root:root --script-path "${CODE_PATH}/ssh_scripts/test_script.sh"
+    exit 1
     exec_time start "linode_reboot_api"
     linode_api_admin reboot-linode --linode-label "${BOX_HOSTNAME_FQDN}" --linode-config-label OS_Config --log-level 6
     exec_time end "linode_reboot_api"
