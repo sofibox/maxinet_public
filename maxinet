@@ -4,7 +4,7 @@
 APP_SPECIFIC_NAME="Maxinet"
 APP_STATUS="alpha"
 # Note some minor versions are not published
-APP_VERSION="0.5.2.5-${APP_STATUS}"
+APP_VERSION="0.5.2.6-${APP_STATUS}"
 COMPANY_ID="${COMPANY_ID}"
 # Hello there, this is a powerful script that able initialize one or more server installation from scratch. From configuring the server disk, until you got the full working server with a live website.
 # It also includes many security and hardening script.
@@ -569,12 +569,12 @@ function init_server() {
       _echo "Notice, linode will install server operating system using existing automated ISO because the option rebuild-iso is not set" --name
     fi
 
-    _echo "Booting linode ${BOX_HOSTNAME_FQDN} into Finnix rescue mode ..." --name
+    _echo "$(msg cyan)Booting linode ${BOX_HOSTNAME_FQDN} into Finnix rescue mode ...$(msg end)" --name
 
     linode_api_admin reboot-to-rescue --linode-label "${BOX_HOSTNAME_FQDN}" --label-devsda "disk:${LINODE_BOOT_DISK_LABEL}" --label-devsdb "disk:${LINODE_OS_DISK_LABEL}"
     echo ""
 
-    _echo "Copying RSA key public key for login purpose ..." --name
+    _echo "$(msg cyan)Copying RSA key public key for login purpose ...$(msg end)" --name
     ssh_api copy-public-keys --without-prompt
     echo ""
 
@@ -586,7 +586,6 @@ function init_server() {
     #ssh -q -o "StrictHostKeyChecking no" -i /root/.ssh/linode_lish.id_rsa -tt "${DNS_PROVIDER_USER}@${DNS_PROVIDER_TERMINAL_SERVER}" "${BOX_HOSTNAME_FQDN}" <"${CODE_PATH}/ssh_scripts/os_write_ag.sh" >/dev/null 2>&1 &
     # This above lish ssh command is equivalent to below using --push-iso-write-script option and other config will be used the default values from config file:
     ssh_api lish-push-script --push-iso-write-script
-
     #check_linode_status_until "offline"
 
     #linode_api_admin wait-linode-until --status offline
@@ -594,7 +593,7 @@ function init_server() {
 
     # After system shutdown, then we can execute the following
     # Note I can use reboot-linode or boot-linode (boot-linode is used if the linode status is offline, if it's online you cannot use it)
-    linode_api_admin reboot-linode --linode-label "${BOX_HOSTNAME_FQDN}" --linode-config-label "${LINODE_BOOT_CONFIG_LABEL}"
+    linode_api_admin boot-linode --linode-label "${BOX_HOSTNAME_FQDN}" --linode-config-label "${LINODE_BOOT_CONFIG_LABEL}"
     _echo "Installing operating system on OS_Disk via preseed file ... (approx 5 minutes. It will finish when linode is turned off automatically): " --name
     #check_linode_status_until "offline"
     linode_api_admin wait-linode-status --linode-label "${BOX_HOSTNAME_FQDN}" --until-status offline
@@ -607,7 +606,6 @@ function init_server() {
     _echo "$(msg cyan)Checking if dropbear port ${DROP_BEAR_PORT} is open from --server ${BOX_HOSTNAME_FQDN} ...$(msg end)" --name
     count=0
     while :; do
-      # TODO change this port_status=$(check_server_port --server "${BOX_HOSTNAME_FQDN}" --port "${DROP_BEAR_PORT}")
       port_status=$(check_server_port "${BOX_HOSTNAME_FQDN}" "${DROP_BEAR_PORT}")
       sleep 1
       ((count++))
@@ -629,37 +627,31 @@ function init_server() {
     # Guide 2: https://www.gandalfk7.it/posts/20200914_02_Debian_9_and_10_boot_luks_unlock/
     # Now you can SSH with :
     # maxinet --ssh-login sun.sofibox.com
-    sleep 5
-    _echo "Copying maxinet script into remote server ..." --name
-    # TODO change to ssh_api transfer-files/file-transfer/transfer-file --server ${BOX_HOSTNAME_FQDN} ---port ${SSH_PORT} --group root --user ${ROOT_USERNAME} --local-files "/tmp/file1 /var/file2" --remote-path ~/
-    ssh_transfer "${BOX_HOSTNAME_FQDN}:${SSH_PORT}" "root:${ROOT_USERNAME}" "${SCRIPT_PATH}/maxinet ${SCRIPT_PATH}/maxinet.conf" ~/
+    _echo "$(msg cyan)Copying maxinet and maxinet.conf script into remote server ... $(msg end)" --name
+    ssh_api transfer-files --server-port "${BOX_HOSTNAME_FQDN}:${SSH_PORT}" --group-user "root:${ROOT_USERNAME}" --local-files "${SCRIPT_PATH}/maxinet ${SCRIPT_PATH}/maxinet.conf" --remote-path ~/
     sleep 2
 
-    _echo "Connecting to ${BOX_HOSTNAME_FQDN}:${SSH_PORT} and installing server ..."
-
-    if [ "${PRE_AUTORUN_SETUP}" == "yes" ]; then
-      _echo "$(msg cyan)Setup will automatically execute remote maxinet script and start installation of the server ... (it might take some time) ...$(msg end)" -name
-      # ssh_api push-script --server ${BOX_HOSTNAME_FQDN} --port ${SSH_PORT} --group root --username ${ROOT_USERNAME} --script-path "${CODE_PATH}/ssh_scripts/maxinet_setup.sh"
-      ssh_api push-script --server-port "${BOX_HOSTNAME_FQDN}:${SSH_PORT}" --group-user "root:${ROOT_USERNAME}" --script-path "${CODE_PATH}/ssh_scripts/maxinet_setup.sh"
-      # After installation above, the system must restart once, so we execute next script to reopen LUKS
-      #check_linode_status_until "offline"
-    else
-      _echo "$(msg cyan) Notice, PRE_AUTORUN_SETUP is set to no. Hence, auto installation script is disabled! Please run --setup manually$(msg end)" --name
-
-      # reboot_ssh.sh is deprecated removed to /backup folder
-      #ssh_login "${BOX_HOSTNAME_FQDN}:${SSH_PORT}" "root:${ROOT_USERNAME}" "${SCRIPT_PATH}/reboot_ssh.sh"
+    if [ "${PRE_AUTORUN_SETUP}" == "no" ]; then
+      _echo "$(msg cyan) Warning, PRE_AUTORUN_SETUP is set to no. Hence, auto installation script is disabled! Please run --setup manually$(msg end)" --name
       linode_api_admin shutdown-linode --linode-label "${BOX_HOSTNAME_FQDN}"
-      #check_linode_status_until "offline"
+      linode_api_admin wait-linode-status --linode-label "${BOX_HOSTNAME_FQDN}" --until-status offline
+      _exit 0
     fi
+
+    _echo "$(msg cyan)Setup will automatically execute remote maxinet script and start installation of the server ... (it might take some time) ...$(msg end)" -name
+    # ssh_api push-script --server ${BOX_HOSTNAME_FQDN} --port ${SSH_PORT} --group root --username ${ROOT_USERNAME} --local-script-path "${CODE_PATH}/ssh_scripts/maxinet_setup.sh"
+    ssh_api push-script --server-port "${BOX_HOSTNAME_FQDN}:${SSH_PORT}" --group-user "root:${ROOT_USERNAME}" --local-script-path "${CODE_PATH}/ssh_scripts/maxinet_setup.sh"
+    # After installation above, the system must restart once, so we execute next script to reopen LUKS
+
     # After the above script is executed, now we wait for it to shutdown properly before booting
-    check_linode_status_until "offline"
-    _echo "Booting into operating system (LUKS console might be appeared and unlocked automatically) ..." --name
+    linode_api_admin wait-linode-status --linode-label "${BOX_HOSTNAME_FQDN}" --until-status offline
+
+    _echo "$(msg cyan)Booting into operating system (LUKS console might be appeared and unlocked automatically) ...$(msg end)" --name
     linode_api_admin "reboot-linode" --linode-label "${BOX_HOSTNAME_FQDN}" --linode-config-label "${LINODE_OS_CONFIG_LABEL}"
     # check server and port if available in order to auto unlock it
     _echo "$(msg cyan)Checking if dropbear port ${DROP_BEAR_PORT} is open from --server ${BOX_HOSTNAME_FQDN} ...$(msg end)" --name
     count=0
     while :; do
-      # TODO change this port_status=$(check_server_port --server "${BOX_HOSTNAME_FQDN}" --port "${DROP_BEAR_PORT}")
       port_status=$(check_server_port "${BOX_HOSTNAME_FQDN}" "${DROP_BEAR_PORT}")
       sleep 1
       ((count++))
@@ -668,8 +660,7 @@ function init_server() {
         _echo "$(msg green)OK, dropbear port ${DROP_BEAR_PORT} is now available. Unlocking encrypted LUKS disk on boot ...$(msg end)" --stop-spin --name
         # Wait 5 seconds
         sleep 5
-        # TODO change this to ssh_api unlock-luks/unlock-disk --port "${DROP_BEAR_PORT}" --password "${LUKS_PASS}"
-        ssh_luks_unlock "${DROP_BEAR_PORT}" "${LUKS_PASS}"
+        ssh_api unlock-luks --port "${DROP_BEAR_PORT}" --password "${LUKS_PASS}"
         break
       fi
       if [ "${count}" -gt 60 ]; then
@@ -682,7 +673,7 @@ function init_server() {
     else
       _echo "$(msg cyan)Resuming server installation installation by executing ${SCRIPT_NAME} script on remote server...$(msg end)" --name
       # OLD: ssh_login "${BOX_HOSTNAME_FQDN}:${SSH_PORT}" "root:${ROOT_USERNAME}" "${CODE_PATH}/ssh_scripts/maxinet_setup.sh"
-      ssh_api push-script --server-port "${BOX_HOSTNAME_FQDN}:${SSH_PORT}" --group-user "root:${ROOT_USERNAME}" --script-path "${CODE_PATH}/ssh_scripts/maxinet_setup.sh"
+      ssh_api push-script --server-port "${BOX_HOSTNAME_FQDN}:${SSH_PORT}" --group-user "root:${ROOT_USERNAME}" --local-script-path "${CODE_PATH}/ssh_scripts/maxinet_setup.sh"
     fi
     echo ""
     _echo "$(msg green)======================== FINISH ========================$(msg end)" --plain
@@ -756,8 +747,9 @@ function check_server_port() {
 # group_name = user, admin, root, rescue, backup, os, diradmin ...
 function ssh_api() {
 
-  local action argnum options long_opts retval key_path group username comment server_label server port destination rsa_key linode_label script_path \
-    push_iso_write_script push_shutdown_script push_reboot_script push_maxinet_setup_script password
+  local action argnum options long_opts retval key_path group user comment server_label server port destination rsa_key \
+    linode_label local_script_path remote_script_path remote_path push_iso_write_script push_shutdown_script push_reboot_script \
+    push_maxinet_setup_script password local_files
 
   action="$1"
 
@@ -766,8 +758,9 @@ function ssh_api() {
     echo "Error, no argument is supplied. Use [ ${SCRIPT_NAME} --iso --help ] to see the valid options"
     exit 1
   fi
-  long_opts="help,key-path:,group:,username:,comment:,server-label:,server:,port:,destination:,without-prompt,rsa-key:,linode-label:,script-path:, \
-  push-iso-write-script,push-shutdown-script,push-reboot-script,push-maxinet-setup-script,sp:,server-port:,gu:,group-user:,password:"
+  long_opts="help,key-path:,group:,user:,comment:,server-label:,server:,port:,destination:,without-prompt,rsa-key:,linode-label:, \
+  local-script-path:,remote-script-path:,remote-path:,local-files:,push-iso-write-script,push-shutdown-script,push-reboot-script,push-maxinet-setup-script, \
+  sp:,server-port:,gu:,group-user:,password:"
   options=$(getopt -o '' --long "${long_opts}" -n "${FUNCNAME[0]} in ${SCRIPT_NAME}" -- "$@")
   retval=$?
   if [ ${retval} != 0 ]; then
@@ -780,7 +773,7 @@ function ssh_api() {
   # Can change using --key-path option but this location is best practice
   key_path="${SCRIPT_PATH}/secure/ssh"
   group=""
-  username=""
+  user=""
   comment=""
   server_label="${BOX_HOSTNAME_FQDN}" # If not specified, use the default value from config file sun.sofibox.com
   destination="/root/.ssh/"           # If not specified, the default location is /root/.ssh/
@@ -788,7 +781,10 @@ function ssh_api() {
   server="${DNS_PROVIDER_TERMINAL_SERVER}" #If not specified default to the lish server from config file eg: singapore-lish.linode.com
   linode_label="${BOX_HOSTNAME_FQDN}"      # If not specified, use the default value from config file sun.sofibox.com
   rsa_key=""
-  script_path=""
+  local_script_path=""
+  remote_script_path=""
+  remote_path=""
+  local_files=""
   push_iso_write_script=false
   push_shutdown_script=false
   push_reboot_script=false
@@ -810,8 +806,8 @@ function ssh_api() {
       group="$2"
       shift 2
       ;;
-    --username)
-      username="$2"
+    --user)
+      user="$2"
       shift 2
       ;;
     --comment)
@@ -839,22 +835,34 @@ function ssh_api() {
       linode_label="$2"
       shift 2
       ;;
-    --script-path)
-      script_path="$2"
+    --local-script-path)
+      local_script_path="$2"
+      shift 2
+      ;;
+    --remote-script-path)
+      remote_script_path="$2"
+      shift 2
+      ;;
+    --remote-path)
+      remote_path="$2"
+      shift 2
+      ;;
+    --local-files)
+      local_files="$2"
       shift 2
       ;;
     # This one we can combine server:port
-    --sp | server-port)
+    --sp | --server-port)
       server_port="$2"
       server=$(echo "${server_port}" | awk -F':' '{ print $1 }')
       port=$(echo "${server_port}" | awk -F':' '{ print $2 }')
       shift 2
       ;;
     # This one we can combine group:user
-    --gu | group-user)
+    --gu | --group-user)
       group_user="$2"
       group=$(echo "${group_user}" | awk -F':' '{ print $1 }')
-      username=$(echo "${group_user}" | awk -F':' '{ print $2 }')
+      user=$(echo "${group_user}" | awk -F':' '{ print $2 }')
       shift 2
       ;;
     --without-prompt)
@@ -915,9 +923,25 @@ function ssh_api() {
   # ssh_api login my_ssh_user
   # ssh_api push-script
 
+  if [[ "${action}" == "transfer-files" || "${action}" == "transfer-file" || "${action}" == "file-transfer" || "${action}" == "files-transfer" ]]; then
+    # ssh_api transfer-files/file-transfer/transfer-file --server-port ${BOX_HOSTNAME_FQDN}:${SSH_PORT} --group-user root:${ROOT_USERNAME} --local-files "/tmp/file1 /var/file2" --remote-path ~/
+    #ssh_api transfer-files/file-transfer/transfer-file --server ${BOX_HOSTNAME_FQDN} ---port ${SSH_PORT} --group root --user ${ROOT_USERNAME} --local-files "/tmp/file1 /var/file2" --remote-path ~/
+    install_required "apt:sshpass"
+    local private_key_name private_key_file
+
+    if [ -z "${rsa_key}" ]; then
+      private_key_name="${group}_${user}_${server}.id_rsa"
+      private_key_file="${key_path}/${private_key_name}"
+      rsa_key="${private_key_file}"
+    fi
+
+    # Do not quote local_path to enable multiple file transfers
+    _echo "$(msg cyan)Transferring file local files(s) [ ${local_files} ] into remote SSH ${remote_path} ...$(msg end)" --name
+    scp -o "StrictHostKeyChecking no" -P "${port}" -i "${rsa_key}" ${local_files} "${user}@${server}:${remote_path}" 2> >(grep -v 'Permanently' 1>&2)
+
   # ssh_api luks-unlock --port 8922 --password 1234
   # or without argument ssh_api luks-unlock (it will get the default values from config file)
-  if [[ "${action}" == "luks-unlock" || "${action}" == "ssh-luks-unlock" ]]; then
+  elif [[ "${action}" == "luks-unlock" || "${action}" == "ssh-luks-unlock" || "${action}" == "unlock-luks" ]]; then
     option="$2"
 
     if [ -z "${option}" ]; then
@@ -968,8 +992,8 @@ function ssh_api() {
       if [[ -z "${group}" ]]; then
         _echo "$(msg red)Error, the option --group is required to have value$(msg end)" --name
         _exit 147
-      elif [[ -z "${username}" ]]; then
-        _echo "$(msg red)Error, the option --username is required to have value$(msg end)" --name
+      elif [[ -z "${user}" ]]; then
+        _echo "$(msg red)Error, the option --user is required to have value$(msg end)" --name
         _exit 147
       elif [[ -z "${server}" ]]; then
         _echo "$(msg red)Error, the option --server is required to have value$(msg end)" --name
@@ -980,7 +1004,7 @@ function ssh_api() {
       fi
 
       if [ -z "${rsa_key}" ]; then
-        private_key_name="${group}_${username}_${server}.id_rsa"
+        private_key_name="${group}_${user}_${server}.id_rsa"
         private_key_file="${key_path}/${private_key_name}"
         rsa_key="${private_key_file}"
       fi
@@ -990,13 +1014,13 @@ function ssh_api() {
         _exit 147
       fi
 
-      _echo "$(msg cyan)Logging into SSH server at ${username}@${server}:${port}... $(msg end)" --name
-      ssh -o "StrictHostKeyChecking no" -i "${rsa_key}" -p "${port}" "${username}${server}"
+      _echo "$(msg cyan)Logging into SSH server at ${user}@${server}:${port}... $(msg end)" --name
+      ssh -o "StrictHostKeyChecking no" -i "${rsa_key}" -p "${port}" "${user}${server}"
       #ssh_pid=$?
       #{ kill -9 ${ssh_pid} && wait ${ssh_pid}; } 2>/dev/null
     fi
   # For linode LISH login
-  # ssh_api lish-login --key /root/.ssh/linode_lish.id_rsa --username maxibi --server lish-singapore.linode.com --port 22 --linode-label sun.sofibox.com
+  # ssh_api lish-login --key /root/.ssh/linode_lish.id_rsa --user maxibi --server lish-singapore.linode.com --port 22 --linode-label sun.sofibox.com
   elif [ "${action}" == "lish-login" ]; then
     local ssh_pid
     # This is not a normal SSH (it uses Pseudo-TTY)
@@ -1005,8 +1029,8 @@ function ssh_api() {
       rsa_key="/root/.ssh/linode_lish.id_rsa"
     fi
 
-    if [ -z "${username}" ]; then
-      username="${DNS_PROVIDER_USER}"
+    if [ -z "${user}" ]; then
+      user="${DNS_PROVIDER_USER}"
     fi
 
     if [ ! -f "${rsa_key}" ]; then
@@ -1014,25 +1038,25 @@ function ssh_api() {
       _exit 147
     fi
 
-    _echo "$(msg cyan)Logging into lish console ${username}@${server}... $(msg end)" --name
+    _echo "$(msg cyan)Logging into lish console ${user}@${server}... $(msg end)" --name
     # In Windows WSL linux, there will be error log saying: setsockopt IPV6_TCLASS 16: Operation not permitted: (this message can be ignored)
     # Note 2 linode lish requires to use -t option to login. -t option means pseudo-tty (some suggested to use double -tt)
-    ssh -o "StrictHostKeyChecking no" -i "${rsa_key}" -p "${port}" -tt "${username}@${server}" "${linode_label}"
+    ssh -o "StrictHostKeyChecking no" -i "${rsa_key}" -p "${port}" -tt "${user}@${server}" "${linode_label}"
     ssh_pid=$?
     { kill -9 ${ssh_pid} && wait ${ssh_pid}; } 2>/dev/null
 
   # For SSH push script
   elif [ "${action}" == "push-script" ]; then
     local private_key_name private_key_file ssh_pid
-    # ssh_api push-script --server ${BOX_HOSTNAME_FQDN} --port ${SSH_PORT} --group root --username ${ROOT_USERNAME} --script-path "${CODE_PATH}/ssh_scripts/maxinet_setup.sh"
+    # ssh_api push-script --server ${BOX_HOSTNAME_FQDN} --port ${SSH_PORT} --group root --user ${ROOT_USERNAME} --local-script-path "${CODE_PATH}/ssh_scripts/maxinet_setup.sh"
     # The above is equivalent to below (shortest form)
     # ssh_api push-script --server-port sun.sofibox.com:893 --group-user root:root --push-maxinet-setup-script
 
     if [[ -z "${group}" ]]; then
       _echo "$(msg red)Error, the option --group is required to have value$(msg end)" --name
       _exit 147
-    elif [[ -z "${username}" ]]; then
-      _echo "$(msg red)Error, the option --username is required to have value$(msg end)" --name
+    elif [[ -z "${user}" ]]; then
+      _echo "$(msg red)Error, the option --user is required to have value$(msg end)" --name
       _exit 147
     elif [[ -z "${server}" ]]; then
       _echo "$(msg red)Error, the option --server is required to have value$(msg end)" --name
@@ -1043,7 +1067,7 @@ function ssh_api() {
     fi
 
     if [ -z "${rsa_key}" ]; then
-      private_key_name="${group}_${username}_${server}.id_rsa"
+      private_key_name="${group}_${user}_${server}.id_rsa"
       private_key_file="${key_path}/${private_key_name}"
       rsa_key="${private_key_file}"
     fi
@@ -1054,22 +1078,22 @@ function ssh_api() {
     fi
 
     # Shortest form
-    if [ -z "${script_path}" ]; then
+    if [ -z "${local_script_path}" ]; then
       if [ "${push_maxinet_setup_script}" == "true" ]; then
-        script_path="${CODE_PATH}/ssh_scripts/maxinet_setup.sh"
+        local_script_path="${CODE_PATH}/ssh_scripts/maxinet_setup.sh"
       elif [ "${push_shutdown_script}" == "true" ]; then
         # This script can be used as normal SSH
-        script_path="${CODE_PATH}/ssh_scripts/shutdown_command.sh"
+        local_script_path="${CODE_PATH}/ssh_scripts/shutdown_command.sh"
       elif [ "${push_reboot_script}" == "true" ]; then
         # This script can be used as normal SSH
-        script_path="${CODE_PATH}/ssh_scripts/reboot_command.sh"
+        local_script_path="${CODE_PATH}/ssh_scripts/reboot_command.sh"
       else
-        _echo "$(msg red)Error. the option --script-path requires to have a valid script path to be pushed into SSH server or use predefined push script option such as --push-shutdown-script$(msg end)" --name --verbose 3
+        _echo "$(msg red)Error. the option --local-script-path requires to have a valid script path to be pushed into SSH server or use predefined push script option such as --push-shutdown-script$(msg end)" --name --verbose 3
       fi
     fi
 
-    _echo "$(msg cyan)Pushing script ${script_path} into SSH console ${username}@${server}... $(msg end)" --nam
-    ssh -q -o "StrictHostKeyChecking no" -i "${rsa_key}" -p "${port}" "${username}@${server}" <"${script_path}" >/dev/null 2>&1 &
+    _echo "$(msg cyan)Pushing script ${local_script_path} into SSH console ${user}@${server}... $(msg end)" --nam
+    ssh -q -o "StrictHostKeyChecking no" -i "${rsa_key}" -p "${port}" "${user}@${server}" <"${local_script_path}" >/dev/null 2>&1 &
     # Test kill after 10 seconds
     #sleep 10
     #ssh_pid=$?
@@ -1083,8 +1107,8 @@ function ssh_api() {
       rsa_key="${SECURE_PATH}/ssh/linode_lish.id_rsa"
     fi
 
-    if [ -z "${username}" ]; then
-      username="${DNS_PROVIDER_USER}"
+    if [ -z "${user}" ]; then
+      user="${DNS_PROVIDER_USER}"
     fi
 
     if [ ! -f "${rsa_key}" ]; then
@@ -1093,25 +1117,25 @@ function ssh_api() {
     fi
 
     #Shortest form
-    # if dont specify script_path, i can specify option such as --push-os-write, --push-shutdown, --push-reboot
-    if [ -z "${script_path}" ]; then
+    # if dont specify local_script_path, i can specify option such as --push-os-write, --push-shutdown, --push-reboot
+    if [ -z "${local_script_path}" ]; then
       if [ "${push_iso_write_script}" == "true" ]; then
         # This is dangerous script that can wipe partition
-        script_path="${CODE_PATH}/ssh_scripts/os_write_ag.sh"
+        local_script_path="${CODE_PATH}/ssh_scripts/os_write_ag.sh"
       elif [ "${push_shutdown_script}" == "true" ]; then
-        script_path="${CODE_PATH}/ssh_scripts/shutdown_command.sh"
+        local_script_path="${CODE_PATH}/ssh_scripts/shutdown_command.sh"
       elif [ "${push_reboot_script}" == "true" ]; then
-        script_path="${CODE_PATH}/ssh_scripts/reboot_command.sh"
+        local_script_path="${CODE_PATH}/ssh_scripts/reboot_command.sh"
       else
-        _echo "$(msg red)Error. the option --script-path requires to have a valid script path to be pushed into SSH server or use predefined push script option such as --push-shutdown-script$(msg end)" --name --verbose 3
+        _echo "$(msg red)Error. the option --local-script-path requires to have a valid script path to be pushed into SSH server or use predefined push script option such as --push-shutdown-script$(msg end)" --name --verbose 3
       fi
     fi
 
-    _echo "$(msg cyan)Pushing script ${script_path} into lish console ${username}@${server}... $(msg end)" --name
+    _echo "$(msg cyan)Pushing script ${local_script_path} into lish console ${user}@${server}... $(msg end)" --name
     #ssh -q -o "StrictHostKeyChecking no" -i /root/.ssh/linode_lish.id_rsa -tt "${DNS_PROVIDER_USER}@${DNS_PROVIDER_TERMINAL_SERVER}" "${BOX_HOSTNAME_FQDN}" <"${SCRIPT_PATH}/dns/linode/os_write.sh" >/dev/null 2>&1 &
 
-    # push script: ssh_api lish-push-script --key rsa_key.id.rsa --username maxibi --server member.linode.com --linode-label sun.sofibox.com --script-path /tmp/os_write.sh
-    ssh -o "StrictHostKeyChecking no" -i "${rsa_key}" -p "${port}" -tt "${username}@${server}" "${linode_label}" <"${script_path}" >/dev/null 2>&1 &
+    # push script: ssh_api lish-push-script --key rsa_key.id.rsa --user maxibi --server member.linode.com --linode-label sun.sofibox.com --local-script-path /tmp/os_write.sh
+    ssh -o "StrictHostKeyChecking no" -i "${rsa_key}" -p "${port}" -tt "${user}@${server}" "${linode_label}" <"${local_script_path}" >/dev/null 2>&1 &
     #ssh_pid=$?
     # Test kill after 10 seconds
     #sleep 10
@@ -1124,14 +1148,14 @@ function ssh_api() {
     if [[ -z "${group}" ]]; then
       _echo "$(msg red)Error, the option --group is required to have value$(msg end)" --name
       _exit 147
-    elif [[ -z "${username}" ]]; then
-      _echo "$(msg red)Error, the option --username is required to have value$(msg end)" --name
+    elif [[ -z "${user}" ]]; then
+      _echo "$(msg red)Error, the option --user is required to have value$(msg end)" --name
       _exit 147
     elif [[ -z "${server_label}" ]]; then
       _echo "$(msg red)Error, the option --server-label is required to have value$(msg end)" --name
       _exit 147
     else
-      private_key_name="${group}_${username}_${server_label}.id_rsa"
+      private_key_name="${group}_${user}_${server_label}.id_rsa"
 
     fi
     _echo "$(msg cyan)Creating private and public key RSA SSH key authentication at ${key_path}/${private_key_name} ...$(msg end)" --name
@@ -1142,15 +1166,15 @@ function ssh_api() {
     if [[ -z "${group}" ]]; then
       _echo "$(msg red)Error, the option --group is required to have value$(msg end)" --name
       _exit 147
-    elif [[ -z "${username}" ]]; then
-      _echo "$(msg red)Error, the option --username is required to have value$(msg end)" --name
+    elif [[ -z "${user}" ]]; then
+      _echo "$(msg red)Error, the option --user is required to have value$(msg end)" --name
       _exit 147
     elif [[ -z "${server_label}" ]]; then
       _echo "$(msg red)Error, the option --server-label is required to have value$(msg end)" --name
       _exit 147
     else
-      private_key_name="${group}_${username}_${server_label}.id_rsa"
-      private_key_putty_name="${group}_${username}_${server_label}.ppk"
+      private_key_name="${group}_${user}_${server_label}.id_rsa"
+      private_key_putty_name="${group}_${user}_${server_label}.ppk"
     fi
     _echo "$(msg cyan)Creating private and public key RSA SSH key authentication at ${key_path}/${private_key_name} ...$(msg end)" --name
     ssh-keygen -f "${key_path}/${private_key_name}" -t rsa -b 4096 -P "" -C "${comment}" <<<y
@@ -1163,14 +1187,14 @@ function ssh_api() {
     if [[ -z "${group}" ]]; then
       _echo "$(msg red)Error, the option --group is required to have value$(msg end)" --name
       _exit 147
-    elif [[ -z "${username}" ]]; then
-      _echo "$(msg red)Error, the option --username is required to have value$(msg end)" --name
+    elif [[ -z "${user}" ]]; then
+      _echo "$(msg red)Error, the option --user is required to have value$(msg end)" --name
       _exit 147
     elif [[ -z "${server_label}" ]]; then
       _echo "$(msg red)Error, the option --server-label is required to have value$(msg end)" --name
       _exit 147
     else
-      public_key_name="${group}_${username}_${server_label}.id_rsa.pub"
+      public_key_name="${group}_${user}_${server_label}.id_rsa.pub"
       public_key_file="${key_path}/${public_key_name}"
     fi
 
@@ -1186,14 +1210,14 @@ function ssh_api() {
     if [[ -z "${group}" ]]; then
       _echo "$(msg red)Error, the option --group is required to have value$(msg end)" --name
       _exit 147
-    elif [[ -z "${username}" ]]; then
-      _echo "$(msg red)Error, the option --username is required to have value$(msg end)" --name
+    elif [[ -z "${user}" ]]; then
+      _echo "$(msg red)Error, the option --user is required to have value$(msg end)" --name
       _exit 147
     elif [[ -z "${server_label}" ]]; then
       _echo "$(msg red)Error, the option --server-label is required to have value$(msg end)" --name
       _exit 147
     else
-      private_key_name="${group}_${username}_${server_label}.id_rsa"
+      private_key_name="${group}_${user}_${server_label}.id_rsa"
       private_key_file="${key_path}/${private_key_name}"
     fi
     if [ -f "${private_key_file}" ]; then
@@ -3043,11 +3067,11 @@ function iso_api() {
         _echo "$(msg cyan)Creating new RSA Key for root ...$(msg end)" --name
         # This will create 2 files one is private and another one with the extension .pub
         # For root
-        ssh_api create-key-with-putty --group root --username "${ROOT_USERNAME}" --comment "${BOX_HOSTNAME_FQDN}_secure_auth"
+        ssh_api create-key-with-putty --group root --user "${ROOT_USERNAME}" --comment "${BOX_HOSTNAME_FQDN}_secure_auth"
         echo ""
 
         _echo "$(msg cyan)Creating new RSA Key for sudo [user] ...$(msg end)" --name
-        ssh_api create-key-with-putty --group user --username "${SSH_USERNAME}" --comment "${BOX_HOSTNAME_FQDN}_secure_auth"
+        ssh_api create-key-with-putty --group user --user "${SSH_USERNAME}" --comment "${BOX_HOSTNAME_FQDN}_secure_auth"
 
         echo ""
 
@@ -3086,10 +3110,10 @@ function iso_api() {
         echo ""
 
         _echo "$(msg cyan)Writing rsa public key (root) file into ${isodir_write_tmp}/root_${ROOT_USERNAME}_${BOX_HOSTNAME_FQDN}.id_rsa.pub ...$(msg end)" --name
-        ssh_api get-public-key --group root --username "${ROOT_USERNAME}" --server "${BOX_HOSTNAME_FQDN}" >"${isodir_write_tmp}/root_${ROOT_USERNAME}_${BOX_HOSTNAME_FQDN}.id_rsa.pub"
+        ssh_api get-public-key --group root --user "${ROOT_USERNAME}" --server "${BOX_HOSTNAME_FQDN}" >"${isodir_write_tmp}/root_${ROOT_USERNAME}_${BOX_HOSTNAME_FQDN}.id_rsa.pub"
         echo ""
         _echo "$(msg cyan)Writing rsa public key (user) file into ${isodir_write_tmp}/user_${SSH_USERNAME}_${BOX_HOSTNAME_FQDN}.id_rsa.pub ...$(msg end)" --name
-        ssh_api get-public-key --group user --username "${SSH_USERNAME}" --server "${BOX_HOSTNAME_FQDN}" >"${isodir_write_tmp}/user_${SSH_USERNAME}_${BOX_HOSTNAME_FQDN}.id_rsa.pub"
+        ssh_api get-public-key --group user --user "${SSH_USERNAME}" --server "${BOX_HOSTNAME_FQDN}" >"${isodir_write_tmp}/user_${SSH_USERNAME}_${BOX_HOSTNAME_FQDN}.id_rsa.pub"
         echo ""
 
         _echo "$(msg cyan)Changing permission of ${isodir_write_tmp}/preseed.cfg to own by root:root ...$(msg end)" --name
@@ -4493,6 +4517,9 @@ function linode_api_admin() {
       linode_label="${BOX_HOSTNAME_FQDN}"
       linode_config_label="${LINODE_RESCUE_CONFIG_LABEL}"
     fi
+    echo "linode_label: ${linode_label}"
+    echo "linode_config_label: ${linode_config_label}"
+
     if is_valid domain "${linode_label}"; then
       [[ ${scripting} == "false" ]] && _echo "$(msg green)OK, the given --linode-label $(msg red)${linode_label}$(msg green) is valid FQDN$(msg end)" --name --verbose 7
     else
@@ -6089,7 +6116,7 @@ function setup_pre() {
   if [[ "${option}" == "--run-force" || "${option}" == "--run-force-exit" ]]; then
     rm -rf "${executed_function}"
     run="yes"
-  elif [[ -z "${option}" || "${option}" == "--run" ]]; then
+  elif [[ -z "${option}" || "${option}" == "--run" || "${option}" == "--run-exit" ]]; then
     run="yes"
   fi
   if [[ ! -f "${CONF_PATH}/${FUNCNAME[0]}_executed" && "${run}" == "yes" ]]; then
@@ -6152,7 +6179,7 @@ get_latest_maxinet() {
   if [[ "${option}" == "--run-force" || "${option}" == "--run-force-exit" ]]; then
     rm -rf "${executed_function}"
     run="yes"
-  elif [[ -z "${option}" || "${option}" == "--run" ]]; then
+  elif [[ -z "${option}" || "${option}" == "--run" || "${option}" == "--run-exit" ]]; then
     run="yes"
   fi
   if [[ ! -f "${CONF_PATH}/${FUNCNAME[0]}_executed" && "${run}" == "yes" ]]; then
@@ -6220,20 +6247,22 @@ function secure_box() {
   if [[ "${option}" == "--run-force" || "${option}" == "--run-force-exit" ]]; then
     rm -rf "${executed_function}"
     run="yes"
-  elif [[ -z "${option}" || "${option}" == "--run" ]]; then
+  elif [[ -z "${option}" || "${option}" == "--run" || "${option}" == "--run-exit" ]]; then
     run="yes"
   fi
   if [[ ! -f "${CONF_PATH}/${FUNCNAME[0]}_executed" && "${run}" == "yes" ]]; then
     echo "[${SCRIPT_NAME}]: Executing ${FUNCNAME[0]} ..." 2>&1 | tee -a "${REPORT_FILE}"
     local find_au rsa_public_key
+    # This file should exist in the root file after OS has finished installation (preseed file put this file)
     rsa_public_key="/root/user_${SSH_USERNAME}_${BOX_HOSTNAME_FQDN}.id_rsa.pub"
     if [ ! -f "${rsa_public_key}" ]; then
-      echo "The RSA public key file ${rsa_public_key} not found!"
-      _exit 147
+      _echo "$(msg yellow)Warning, the RSA public key file ${rsa_public_key} not found inside operating system! Using the key from variable (warning, make sure this key is up to date) ...$(msg end)" --name
+      _pause 15
+      rsa_public_key="${SSH_PUBLIC_KEY}"
     else
       echo "Using RSA public key from ${rsa_public_key} for ${SSH_USERNAME} SSH login ..."
       # Reassign SSH_PUBLIC_KEY to the latest SSH key
-      SSH_PUBLIC_KEY=$(cat "${rsa_public_key}")
+      rsa_public_key=$(cat "${rsa_public_key}")
     fi
     echo "[${SCRIPT_NAME}]: Securing ${BOX_HOSTNAME_FQDN} ..." 2>&1 | tee -a "${REPORT_FILE}"
     sleep 1
@@ -6286,7 +6315,9 @@ function secure_box() {
     sudo -H -u "${SSH_USERNAME}" bash -c "touch ~/.ssh/authorized_keys"
 
     echo "[${SCRIPT_NAME}]: Copying the public key into ~/.ssh/authorized_keys ..."
-    sudo -H -u "${SSH_USERNAME}" bash -c "echo ${SSH_PUBLIC_KEY} >~/.ssh/authorized_keys"
+
+    sudo -H -u "${SSH_USERNAME}" bash -c "echo ${rsa_public_key} >~/.ssh/authorized_keys"
+
     echo "[${SCRIPT_NAME}]: Changing .ssh/authorized_keys permission to chmod 700 ..." 2>&1 | tee -a "${REPORT_FILE}"
     sudo -H -u "${SSH_USERNAME}" bash -c "chmod 700 ~/.ssh/authorized_keys"
 
@@ -6408,7 +6439,7 @@ function init_local_maxicode() {
   if [[ "${option}" == "--run-force" || "${option}" == "--run-force-exit" ]]; then
     rm -rf "${executed_function}"
     run="yes"
-  elif [[ -z "${option}" || "${option}" == "--run" ]]; then
+  elif [[ -z "${option}" || "${option}" == "--run" || "${option}" == "--run-exit" ]]; then
     run="yes"
   fi
   if [[ ! -f "${CONF_PATH}/${FUNCNAME[0]}_executed" && "${run}" == "yes" ]]; then
@@ -6447,7 +6478,7 @@ function configure_net() {
   if [[ "${option}" == "--run-force" || "${option}" == "--run-force-exit" ]]; then
     rm -rf "${executed_function}"
     run="yes"
-  elif [[ -z "${option}" || "${option}" == "--run" ]]; then
+  elif [[ -z "${option}" || "${option}" == "--run" || "${option}" == "--run-exit" ]]; then
     run="yes"
   fi
   if [[ ! -f "${CONF_PATH}/${FUNCNAME[0]}_executed" && "${run}" == "yes" ]]; then
@@ -6637,7 +6668,7 @@ function configure_net2() {
   if [[ "${option}" == "--run-force" || "${option}" == "--run-force-exit" ]]; then
     rm -rf "${executed_function}"
     run="yes"
-  elif [[ -z "${option}" || "${option}" == "--run" ]]; then
+  elif [[ -z "${option}" || "${option}" == "--run" || "${option}" == "--run-exit" ]]; then
     run="yes"
   fi
   if [[ ! -f "${CONF_PATH}/${FUNCNAME[0]}_executed" && "${run}" == "yes" ]]; then
@@ -6812,7 +6843,7 @@ function configure_fstab() {
   if [[ "${option}" == "--run-force" || "${option}" == "--run-force-exit" ]]; then
     rm -rf "${executed_function}"
     run="yes"
-  elif [[ -z "${option}" || "${option}" == "--run" ]]; then
+  elif [[ -z "${option}" || "${option}" == "--run" || "${option}" == "--run-exit" ]]; then
     run="yes"
   fi
   if [[ ! -f "${CONF_PATH}/${FUNCNAME[0]}_executed" && "${run}" == "yes" ]]; then
@@ -6880,7 +6911,7 @@ function configure_grub() {
   if [[ "${option}" == "--run-force" || "${option}" == "--run-force-exit" ]]; then
     rm -rf "${executed_function}"
     run="yes"
-  elif [[ -z "${option}" || "${option}" == "--run" ]]; then
+  elif [[ -z "${option}" || "${option}" == "--run" || "${option}" == "--run-exit" ]]; then
     run="yes"
   fi
   if [[ ! -f "${CONF_PATH}/${FUNCNAME[0]}_executed" && "${run}" == "yes" ]]; then
@@ -6942,7 +6973,7 @@ function configure_sysctl_swap() {
   if [[ "${option}" == "--run-force" || "${option}" == "--run-force-exit" ]]; then
     rm -rf "${executed_function}"
     run="yes"
-  elif [[ -z "${option}" || "${option}" == "--run" ]]; then
+  elif [[ -z "${option}" || "${option}" == "--run" || "${option}" == "--run-exit" ]]; then
     run="yes"
   fi
   if [[ ! -f "${CONF_PATH}/${FUNCNAME[0]}_executed" && "${run}" == "yes" ]]; then
@@ -6981,7 +7012,7 @@ function configure_sysctl_kernel_fs() {
   if [[ "${option}" == "--run-force" || "${option}" == "--run-force-exit" ]]; then
     rm -rf "${executed_function}"
     run="yes"
-  elif [[ -z "${option}" || "${option}" == "--run" ]]; then
+  elif [[ -z "${option}" || "${option}" == "--run" || "${option}" == "--run-exit" ]]; then
     run="yes"
   fi
   if [[ ! -f "${CONF_PATH}/${FUNCNAME[0]}_executed" && "${run}" == "yes" ]]; then
@@ -7024,7 +7055,7 @@ function configure_sysctl_ips() {
   if [[ "${option}" == "--run-force" || "${option}" == "--run-force-exit" ]]; then
     rm -rf "${executed_function}"
     run="yes"
-  elif [[ -z "${option}" || "${option}" == "--run" ]]; then
+  elif [[ -z "${option}" || "${option}" == "--run" || "${option}" == "--run-exit" ]]; then
     run="yes"
   fi
   if [[ ! -f "${CONF_PATH}/${FUNCNAME[0]}_executed" && "${run}" == "yes" ]]; then
@@ -7092,7 +7123,7 @@ function upgrade_os() {
   if [[ "${option}" == "--run-force" || "${option}" == "--run-force-exit" ]]; then
     rm -rf "${executed_function}"
     run="yes"
-  elif [[ -z "${option}" || "${option}" == "--run" ]]; then
+  elif [[ -z "${option}" || "${option}" == "--run" || "${option}" == "--run-exit" ]]; then
     run="yes"
   fi
   if [[ ! -f "${CONF_PATH}/${FUNCNAME[0]}_executed" && "${run}" == "yes" ]]; then
@@ -7186,7 +7217,7 @@ configure_csf() {
   if [[ "${option}" == "--run-force" || "${option}" == "--run-force-exit" ]]; then
     rm -rf "${executed_function}"
     run="yes"
-  elif [[ -z "${option}" || "${option}" == "--run" ]]; then
+  elif [[ -z "${option}" || "${option}" == "--run" || "${option}" == "--run-exit" ]]; then
     run="yes"
   fi
   if [[ ! -f "${CONF_PATH}/${FUNCNAME[0]}_executed" && "${run}" == "yes" ]]; then
@@ -7436,7 +7467,7 @@ function install_da_pre() {
   if [[ "${option}" == "--run-force" || "${option}" == "--run-force-exit" ]]; then
     rm -rf "${executed_function}"
     run="yes"
-  elif [[ -z "${option}" || "${option}" == "--run" ]]; then
+  elif [[ -z "${option}" || "${option}" == "--run" || "${option}" == "--run-exit" ]]; then
     run="yes"
   fi
   if [[ ! -f "${CONF_PATH}/${FUNCNAME[0]}_executed" && "${run}" == "yes" ]]; then
@@ -7518,7 +7549,7 @@ function install_da() {
   if [[ "${option}" == "--run-force" || "${option}" == "--run-force-exit" ]]; then
     rm -rf "${executed_function}"
     run="yes"
-  elif [[ -z "${option}" || "${option}" == "--run" ]]; then
+  elif [[ -z "${option}" || "${option}" == "--run" || "${option}" == "--run-exit" ]]; then
     run="yes"
   fi
   if [[ ! -f "${CONF_PATH}/${FUNCNAME[0]}_executed" && "${run}" == "yes" ]]; then
@@ -7611,7 +7642,7 @@ function link_da_ipv6() {
   if [[ "${option}" == "--run-force" || "${option}" == "--run-force-exit" ]]; then
     rm -rf "${executed_function}"
     run="yes"
-  elif [[ -z "${option}" || "${option}" == "--run" ]]; then
+  elif [[ -z "${option}" || "${option}" == "--run" || "${option}" == "--run-exit" ]]; then
     run="yes"
   fi
   if [[ ! -f "${CONF_PATH}/${FUNCNAME[0]}_executed" && "${run}" == "yes" ]]; then
@@ -7725,7 +7756,7 @@ function rebuild_da_package() {
   if [[ "${option}" == "--run-force" || "${option}" == "--run-force-exit" ]]; then
     rm -rf "${executed_function}"
     run="yes"
-  elif [[ -z "${option}" || "${option}" == "--run" ]]; then
+  elif [[ -z "${option}" || "${option}" == "--run" || "${option}" == "--run-exit" ]]; then
     run="yes"
   fi
   if [[ ! -f "${CONF_PATH}/${FUNCNAME[0]}_executed" && "${run}" == "yes" ]]; then
@@ -7800,7 +7831,7 @@ function install_da_post() {
   if [[ "${option}" == "--run-force" || "${option}" == "--run-force-exit" ]]; then
     rm -rf "${executed_function}"
     run="yes"
-  elif [[ -z "${option}" || "${option}" == "--run" ]]; then
+  elif [[ -z "${option}" || "${option}" == "--run" || "${option}" == "--run-exit" ]]; then
     run="yes"
   fi
   if [[ ! -f "${CONF_PATH}/${FUNCNAME[0]}_executed" && "${run}" == "yes" ]]; then
@@ -7893,7 +7924,7 @@ function configure_da_ssl_pre() {
   if [[ "${option}" == "--run-force" || "${option}" == "--run-force-exit" ]]; then
     rm -rf "${executed_function}"
     run="yes"
-  elif [[ -z "${option}" || "${option}" == "--run" ]]; then
+  elif [[ -z "${option}" || "${option}" == "--run" || "${option}" == "--run-exit" ]]; then
     run="yes"
   fi
   if [[ ! -f "${CONF_PATH}/${FUNCNAME[0]}_executed" && "${run}" == "yes" ]]; then
@@ -7945,7 +7976,7 @@ function configure_da_ssl() {
   if [[ "${option}" == "--run-force" || "${option}" == "--run-force-exit" ]]; then
     rm -rf "${executed_function}"
     run="yes"
-  elif [[ -z "${option}" || "${option}" == "--run" ]]; then
+  elif [[ -z "${option}" || "${option}" == "--run" || "${option}" == "--run-exit" ]]; then
     run="yes"
   fi
   if [[ ! -f "${CONF_PATH}/${FUNCNAME[0]}_executed" && "${run}" == "yes" ]]; then
@@ -8032,7 +8063,7 @@ function change_da_auth() {
   if [[ "${option}" == "--run-force" || "${option}" == "--run-force-exit" ]]; then
     rm -rf "${executed_function}"
     run="yes"
-  elif [[ -z "${option}" || "${option}" == "--run" ]]; then
+  elif [[ -z "${option}" || "${option}" == "--run" || "${option}" == "--run-exit" ]]; then
     run="yes"
   fi
   if [[ ! -f "${CONF_PATH}/${FUNCNAME[0]}_executed" && "${run}" == "yes" ]]; then
@@ -8092,7 +8123,7 @@ function configure_da_sql() {
   if [[ "${option}" == "--run-force" || "${option}" == "--run-force-exit" ]]; then
     rm -rf "${executed_function}"
     run="yes"
-  elif [[ -z "${option}" || "${option}" == "--run" ]]; then
+  elif [[ -z "${option}" || "${option}" == "--run" || "${option}" == "--run-exit" ]]; then
     run="yes"
   fi
   if [[ ! -f "${CONF_PATH}/${FUNCNAME[0]}_executed" && "${run}" == "yes" ]]; then
@@ -8346,7 +8377,7 @@ function configure_da_mail() {
   if [[ "${option}" == "--run-force" || "${option}" == "--run-force-exit" ]]; then
     rm -rf "${executed_function}"
     run="yes"
-  elif [[ -z "${option}" || "${option}" == "--run" ]]; then
+  elif [[ -z "${option}" || "${option}" == "--run" || "${option}" == "--run-exit" ]]; then
     run="yes"
   fi
   if [[ ! -f "${CONF_PATH}/${FUNCNAME[0]}_executed" && "${run}" == "yes" ]]; then
@@ -8512,7 +8543,7 @@ function configure_da_ftp() {
   if [[ "${option}" == "--run-force" || "${option}" == "--run-force-exit" ]]; then
     rm -rf "${executed_function}"
     run="yes"
-  elif [[ -z "${option}" || "${option}" == "--run" ]]; then
+  elif [[ -z "${option}" || "${option}" == "--run" || "${option}" == "--run-exit" ]]; then
     run="yes"
   fi
   if [[ ! -f "${CONF_PATH}/${FUNCNAME[0]}_executed" && "${run}" == "yes" ]]; then
@@ -8553,7 +8584,7 @@ function configure_nginx_apache() {
   if [[ "${option}" == "--run-force" || "${option}" == "--run-force-exit" ]]; then
     rm -rf "${executed_function}"
     run="yes"
-  elif [[ -z "${option}" || "${option}" == "--run" ]]; then
+  elif [[ -z "${option}" || "${option}" == "--run" || "${option}" == "--run-exit" ]]; then
     run="yes"
   fi
   if [[ ! -f "${CONF_PATH}/${FUNCNAME[0]}_executed" && "${run}" == "yes" ]]; then
@@ -8693,7 +8724,7 @@ function configure_web_apps_html() {
   if [[ "${option}" == "--run-force" || "${option}" == "--run-force-exit" ]]; then
     rm -rf "${executed_function}"
     run="yes"
-  elif [[ -z "${option}" || "${option}" == "--run" ]]; then
+  elif [[ -z "${option}" || "${option}" == "--run" || "${option}" == "--run-exit" ]]; then
     run="yes"
   fi
   if [[ ! -f "${CONF_PATH}/${FUNCNAME[0]}_executed" && "${run}" == "yes" ]]; then
@@ -8735,7 +8766,7 @@ function build_da_custom_conf() {
   if [[ "${option}" == "--run-force" || "${option}" == "--run-force-exit" ]]; then
     rm -rf "${executed_function}"
     run="yes"
-  elif [[ -z "${option}" || "${option}" == "--run" ]]; then
+  elif [[ -z "${option}" || "${option}" == "--run" || "${option}" == "--run-exit" ]]; then
     run="yes"
   fi
   if [[ ! -f "${CONF_PATH}/${FUNCNAME[0]}_executed" && "${run}" == "yes" ]]; then
@@ -8833,7 +8864,7 @@ function configure_da() {
   if [[ "${option}" == "--run-force" || "${option}" == "--run-force-exit" ]]; then
     rm -rf "${executed_function}"
     run="yes"
-  elif [[ -z "${option}" || "${option}" == "--run" ]]; then
+  elif [[ -z "${option}" || "${option}" == "--run" || "${option}" == "--run-exit" ]]; then
     run="yes"
   fi
   if [[ ! -f "${CONF_PATH}/${FUNCNAME[0]}_executed" && "${run}" == "yes" ]]; then
@@ -8904,7 +8935,7 @@ function add_da_ip() {
   if [[ "${option}" == "--run-force" || "${option}" == "--run-force-exit" ]]; then
     rm -rf "${executed_function}"
     run="yes"
-  elif [[ -z "${option}" || "${option}" == "--run" ]]; then
+  elif [[ -z "${option}" || "${option}" == "--run" || "${option}" == "--run-exit" ]]; then
     run="yes"
   fi
   if [[ ! -f "${CONF_PATH}/${FUNCNAME[0]}_executed" && "${run}" == "yes" ]]; then
@@ -8948,7 +8979,7 @@ function configure_maxibox() {
   if [[ "${option}" == "--run-force" || "${option}" == "--run-force-exit" ]]; then
     rm -rf "${executed_function}"
     run="yes"
-  elif [[ -z "${option}" || "${option}" == "--run" ]]; then
+  elif [[ -z "${option}" || "${option}" == "--run" || "${option}" == "--run-exit" ]]; then
     run="yes"
   fi
   if [[ ! -f "${CONF_PATH}/${FUNCNAME[0]}_executed" && "${run}" == "yes" ]]; then
@@ -8981,7 +9012,7 @@ function configure_maxicode_pre() {
   if [[ "${option}" == "--run-force" || "${option}" == "--run-force-exit" ]]; then
     rm -rf "${executed_function}"
     run="yes"
-  elif [[ -z "${option}" || "${option}" == "--run" ]]; then
+  elif [[ -z "${option}" || "${option}" == "--run" || "${option}" == "--run-exit" ]]; then
     run="yes"
   fi
   if [[ ! -f "${CONF_PATH}/${FUNCNAME[0]}_executed" && "${run}" == "yes" ]]; then
@@ -9018,7 +9049,7 @@ function configure_maxicode() {
   if [[ "${option}" == "--run-force" || "${option}" == "--run-force-exit" ]]; then
     rm -rf "${executed_function}"
     run="yes"
-  elif [[ -z "${option}" || "${option}" == "--run" ]]; then
+  elif [[ -z "${option}" || "${option}" == "--run" || "${option}" == "--run-exit" ]]; then
     run="yes"
   fi
   if [[ ! -f "${CONF_PATH}/${FUNCNAME[0]}_executed" && "${run}" == "yes" ]]; then
@@ -9090,7 +9121,7 @@ function configure_maxiperm() {
   if [[ "${option}" == "--run-force" || "${option}" == "--run-force-exit" ]]; then
     rm -rf "${executed_function}"
     run="yes"
-  elif [[ -z "${option}" || "${option}" == "--run" ]]; then
+  elif [[ -z "${option}" || "${option}" == "--run" || "${option}" == "--run-exit" ]]; then
     run="yes"
   fi
   if [[ ! -f "${CONF_PATH}/${FUNCNAME[0]}_executed" && "${run}" == "yes" ]]; then
@@ -9135,7 +9166,7 @@ function configure_maxinis() {
   if [[ "${option}" == "--run-force" || "${option}" == "--run-force-exit" ]]; then
     rm -rf "${executed_function}"
     run="yes"
-  elif [[ -z "${option}" || "${option}" == "--run" ]]; then
+  elif [[ -z "${option}" || "${option}" == "--run" || "${option}" == "--run-exit" ]]; then
     run="yes"
   fi
   if [[ ! -f "${CONF_PATH}/${FUNCNAME[0]}_executed" && "${run}" == "yes" ]]; then
@@ -9199,7 +9230,7 @@ function configure_maxigpg() {
   if [[ "${option}" == "--run-force" || "${option}" == "--run-force-exit" ]]; then
     rm -rf "${executed_function}"
     run="yes"
-  elif [[ -z "${option}" || "${option}" == "--run" ]]; then
+  elif [[ -z "${option}" || "${option}" == "--run" || "${option}" == "--run-exit" ]]; then
     run="yes"
   fi
   if [[ ! -f "${CONF_PATH}/${FUNCNAME[0]}_executed" && "${run}" == "yes" ]]; then
@@ -9308,7 +9339,7 @@ function configure_maxida() {
   if [[ "${option}" == "--run-force" || "${option}" == "--run-force-exit" ]]; then
     rm -rf "${executed_function}"
     run="yes"
-  elif [[ -z "${option}" || "${option}" == "--run" ]]; then
+  elif [[ -z "${option}" || "${option}" == "--run" || "${option}" == "--run-exit" ]]; then
     run="yes"
   fi
   if [[ ! -f "${CONF_PATH}/${FUNCNAME[0]}_executed" && "${run}" == "yes" ]]; then
@@ -9390,7 +9421,7 @@ function configure_maxicron() {
   if [[ "${option}" == "--run-force" || "${option}" == "--run-force-exit" ]]; then
     rm -rf "${executed_function}"
     run="yes"
-  elif [[ -z "${option}" || "${option}" == "--run" ]]; then
+  elif [[ -z "${option}" || "${option}" == "--run" || "${option}" == "--run-exit" ]]; then
     run="yes"
   fi
   if [[ ! -f "${CONF_PATH}/${FUNCNAME[0]}_executed" && "${run}" == "yes" ]]; then
@@ -9434,7 +9465,7 @@ function configure_maxiaide() {
   if [[ "${option}" == "--run-force" || "${option}" == "--run-force-exit" ]]; then
     rm -rf "${executed_function}"
     run="yes"
-  elif [[ -z "${option}" || "${option}" == "--run" ]]; then
+  elif [[ -z "${option}" || "${option}" == "--run" || "${option}" == "--run-exit" ]]; then
     run="yes"
   fi
   if [[ ! -f "${CONF_PATH}/${FUNCNAME[0]}_executed" && "${run}" == "yes" ]]; then
@@ -9487,7 +9518,7 @@ function configure_maxiwall() {
   if [[ "${option}" == "--run-force" || "${option}" == "--run-force-exit" ]]; then
     rm -rf "${executed_function}"
     run="yes"
-  elif [[ -z "${option}" || "${option}" == "--run" ]]; then
+  elif [[ -z "${option}" || "${option}" == "--run" || "${option}" == "--run-exit" ]]; then
     run="yes"
   fi
   if [[ ! -f "${CONF_PATH}/${FUNCNAME[0]}_executed" && "${run}" == "yes" ]]; then
@@ -9776,7 +9807,7 @@ function configure_maxicloud() {
   if [[ "${option}" == "--run-force" || "${option}" == "--run-force-exit" ]]; then
     rm -rf "${executed_function}"
     run="yes"
-  elif [[ -z "${option}" || "${option}" == "--run" ]]; then
+  elif [[ -z "${option}" || "${option}" == "--run" || "${option}" == "--run-exit" ]]; then
     run="yes"
   fi
   if [[ ! -f "${CONF_PATH}/${FUNCNAME[0]}_executed" && "${run}" == "yes" ]]; then
@@ -9831,7 +9862,7 @@ function configure_maxipass() {
   if [[ "${option}" == "--run-force" || "${option}" == "--run-force-exit" ]]; then
     rm -rf "${executed_function}"
     run="yes"
-  elif [[ -z "${option}" || "${option}" == "--run" ]]; then
+  elif [[ -z "${option}" || "${option}" == "--run" || "${option}" == "--run-exit" ]]; then
     run="yes"
   fi
   if [[ ! -f "${CONF_PATH}/${FUNCNAME[0]}_executed" && "${run}" == "yes" ]]; then
@@ -9903,7 +9934,7 @@ function configure_maxify() {
   if [[ "${option}" == "--run-force" || "${option}" == "--run-force-exit" ]]; then
     rm -rf "${executed_function}"
     run="yes"
-  elif [[ -z "${option}" || "${option}" == "--run" ]]; then
+  elif [[ -z "${option}" || "${option}" == "--run" || "${option}" == "--run-exit" ]]; then
     run="yes"
   fi
   if [[ ! -f "${CONF_PATH}/${FUNCNAME[0]}_executed" && "${run}" == "yes" ]]; then
@@ -9944,7 +9975,7 @@ function configure_logs() {
   if [[ "${option}" == "--run-force" || "${option}" == "--run-force-exit" ]]; then
     rm -rf "${executed_function}"
     run="yes"
-  elif [[ -z "${option}" || "${option}" == "--run" ]]; then
+  elif [[ -z "${option}" || "${option}" == "--run" || "${option}" == "--run-exit" ]]; then
     run="yes"
   fi
   if [[ ! -f "${CONF_PATH}/${FUNCNAME[0]}_executed" && "${run}" == "yes" ]]; then
@@ -9978,7 +10009,7 @@ function configure_da_memcached() {
   if [[ "${option}" == "--run-force" || "${option}" == "--run-force-exit" ]]; then
     rm -rf "${executed_function}"
     run="yes"
-  elif [[ -z "${option}" || "${option}" == "--run" ]]; then
+  elif [[ -z "${option}" || "${option}" == "--run" || "${option}" == "--run-exit" ]]; then
     run="yes"
   fi
   if [[ ! -f "${CONF_PATH}/${FUNCNAME[0]}_executed" && "${run}" == "yes" ]]; then
@@ -10044,7 +10075,7 @@ function configure_da_geoip() {
   if [[ "${option}" == "--run-force" || "${option}" == "--run-force-exit" ]]; then
     rm -rf "${executed_function}"
     run="yes"
-  elif [[ -z "${option}" || "${option}" == "--run" ]]; then
+  elif [[ -z "${option}" || "${option}" == "--run" || "${option}" == "--run-exit" ]]; then
     run="yes"
   fi
   if [[ ! -f "${CONF_PATH}/${FUNCNAME[0]}_executed" && "${run}" == "yes" ]]; then
@@ -10093,7 +10124,7 @@ configure_da_dns_templates() {
   if [[ "${option}" == "--run-force" || "${option}" == "--run-force-exit" ]]; then
     rm -rf "${executed_function}"
     run="yes"
-  elif [[ -z "${option}" || "${option}" == "--run" ]]; then
+  elif [[ -z "${option}" || "${option}" == "--run" || "${option}" == "--run-exit" ]]; then
     run="yes"
   fi
   if [[ ! -f "${CONF_PATH}/${FUNCNAME[0]}_executed" && "${run}" == "yes" ]]; then
@@ -10181,7 +10212,7 @@ function configure_da_owner_skins() {
   if [[ "${option}" == "--run-force" || "${option}" == "--run-force-exit" ]]; then
     rm -rf "${executed_function}"
     run="yes"
-  elif [[ -z "${option}" || "${option}" == "--run" ]]; then
+  elif [[ -z "${option}" || "${option}" == "--run" || "${option}" == "--run-exit" ]]; then
     run="yes"
   fi
   if [[ ! -f "${CONF_PATH}/${FUNCNAME[0]}_executed" && "${run}" == "yes" ]]; then
@@ -10259,7 +10290,7 @@ function configure_da_admin_skins() {
   if [[ "${option}" == "--run-force" || "${option}" == "--run-force-exit" ]]; then
     rm -rf "${executed_function}"
     run="yes"
-  elif [[ -z "${option}" || "${option}" == "--run" ]]; then
+  elif [[ -z "${option}" || "${option}" == "--run" || "${option}" == "--run-exit" ]]; then
     run="yes"
   fi
   if [[ ! -f "${CONF_PATH}/${FUNCNAME[0]}_executed" && "${run}" == "yes" ]]; then
@@ -10335,7 +10366,7 @@ function configure_da_reseller_skins() {
   if [[ "${option}" == "--run-force" || "${option}" == "--run-force-exit" ]]; then
     rm -rf "${executed_function}"
     run="yes"
-  elif [[ -z "${option}" || "${option}" == "--run" ]]; then
+  elif [[ -z "${option}" || "${option}" == "--run" || "${option}" == "--run-exit" ]]; then
     run="yes"
   fi
   if [[ ! -f "${CONF_PATH}/${FUNCNAME[0]}_executed" && "${run}" == "yes" ]]; then
@@ -10410,7 +10441,7 @@ function configure_da_admin_admin_settings() {
   if [[ "${option}" == "--run-force" || "${option}" == "--run-force-exit" ]]; then
     rm -rf "${executed_function}"
     run="yes"
-  elif [[ -z "${option}" || "${option}" == "--run" ]]; then
+  elif [[ -z "${option}" || "${option}" == "--run" || "${option}" == "--run-exit" ]]; then
     run="yes"
   fi
   if [[ ! -f "${CONF_PATH}/${FUNCNAME[0]}_executed" && "${run}" == "yes" ]]; then
@@ -10441,7 +10472,7 @@ function configure_da_owner_accounts() {
   if [[ "${option}" == "--run-force" || "${option}" == "--run-force-exit" ]]; then
     rm -rf "${executed_function}"
     run="yes"
-  elif [[ -z "${option}" || "${option}" == "--run" ]]; then
+  elif [[ -z "${option}" || "${option}" == "--run" || "${option}" == "--run-exit" ]]; then
     run="yes"
   fi
   if [[ ! -f "${CONF_PATH}/${FUNCNAME[0]}_executed" && "${run}" == "yes" ]]; then
@@ -10479,7 +10510,7 @@ function configure_da_admin_accounts() {
   if [[ "${option}" == "--run-force" || "${option}" == "--run-force-exit" ]]; then
     rm -rf "${executed_function}"
     run="yes"
-  elif [[ -z "${option}" || "${option}" == "--run" ]]; then
+  elif [[ -z "${option}" || "${option}" == "--run" || "${option}" == "--run-exit" ]]; then
     run="yes"
   fi
   if [[ ! -f "${CONF_PATH}/${FUNCNAME[0]}_executed" && "${run}" == "yes" ]]; then
@@ -10549,7 +10580,7 @@ function configure_da_reseller_accounts() {
   if [[ "${option}" == "--run-force" || "${option}" == "--run-force-exit" ]]; then
     rm -rf "${executed_function}"
     run="yes"
-  elif [[ -z "${option}" || "${option}" == "--run" ]]; then
+  elif [[ -z "${option}" || "${option}" == "--run" || "${option}" == "--run-exit" ]]; then
     run="yes"
   fi
   if [[ ! -f "${CONF_PATH}/${FUNCNAME[0]}_executed" && "${run}" == "yes" ]]; then
@@ -10973,7 +11004,7 @@ function configure_da_reseller_root_domains() {
   if [[ "${option}" == "--run-force" || "${option}" == "--run-force-exit" ]]; then
     rm -rf "${executed_function}"
     run="yes"
-  elif [[ -z "${option}" || "${option}" == "--run" ]]; then
+  elif [[ -z "${option}" || "${option}" == "--run" || "${option}" == "--run-exit" ]]; then
     run="yes"
   fi
   if [[ ! -f "${CONF_PATH}/${FUNCNAME[0]}_executed" && "${run}" == "yes" ]]; then
@@ -11085,7 +11116,7 @@ function configure_da_reseller_wildcard_domains() {
   if [[ "${option}" == "--run-force" || "${option}" == "--run-force-exit" ]]; then
     rm -rf "${executed_function}"
     run="yes"
-  elif [[ -z "${option}" || "${option}" == "--run" ]]; then
+  elif [[ -z "${option}" || "${option}" == "--run" || "${option}" == "--run-exit" ]]; then
     run="yes"
   fi
   if [[ ! -f "${CONF_PATH}/${FUNCNAME[0]}_executed" && "${run}" == "yes" ]]; then
@@ -11198,7 +11229,7 @@ function configure_da_user_accounts() {
   if [[ "${option}" == "--run-force" || "${option}" == "--run-force-exit" ]]; then
     rm -rf "${executed_function}"
     run="yes"
-  elif [[ -z "${option}" || "${option}" == "--run" ]]; then
+  elif [[ -z "${option}" || "${option}" == "--run" || "${option}" == "--run-exit" ]]; then
     run="yes"
   fi
   if [[ ! -f "${CONF_PATH}/${FUNCNAME[0]}_executed" && "${run}" == "yes" ]]; then
@@ -11551,7 +11582,7 @@ function configure_da_user_root_domains() {
   if [[ "${option}" == "--run-force" || "${option}" == "--run-force-exit" ]]; then
     rm -rf "${executed_function}"
     run="yes"
-  elif [[ -z "${option}" || "${option}" == "--run" ]]; then
+  elif [[ -z "${option}" || "${option}" == "--run" || "${option}" == "--run-exit" ]]; then
     run="yes"
   fi
   if [[ ! -f "${CONF_PATH}/${FUNCNAME[0]}_executed" && "${run}" == "yes" ]]; then
@@ -11664,7 +11695,7 @@ function configure_da_user_wildcard_domains() {
   if [[ "${option}" == "--run-force" || "${option}" == "--run-force-exit" ]]; then
     rm -rf "${executed_function}"
     run="yes"
-  elif [[ -z "${option}" || "${option}" == "--run" ]]; then
+  elif [[ -z "${option}" || "${option}" == "--run" || "${option}" == "--run-exit" ]]; then
     run="yes"
   fi
   if [[ ! -f "${CONF_PATH}/${FUNCNAME[0]}_executed" && "${run}" == "yes" ]]; then
@@ -11776,7 +11807,7 @@ function configure_da_reseller_subdomains() {
   if [[ "${option}" == "--run-force" || "${option}" == "--run-force-exit" ]]; then
     rm -rf "${executed_function}"
     run="yes"
-  elif [[ -z "${option}" || "${option}" == "--run" ]]; then
+  elif [[ -z "${option}" || "${option}" == "--run" || "${option}" == "--run-exit" ]]; then
     run="yes"
   fi
   if [[ ! -f "${CONF_PATH}/${FUNCNAME[0]}_executed" && "${run}" == "yes" ]]; then
@@ -11908,7 +11939,7 @@ function configure_da_user_subdomains() {
   if [[ "${option}" == "--run-force" || "${option}" == "--run-force-exit" ]]; then
     rm -rf "${executed_function}"
     run="yes"
-  elif [[ -z "${option}" || "${option}" == "--run" ]]; then
+  elif [[ -z "${option}" || "${option}" == "--run" || "${option}" == "--run-exit" ]]; then
     run="yes"
   fi
   if [[ ! -f "${CONF_PATH}/${FUNCNAME[0]}_executed" && "${run}" == "yes" ]]; then
@@ -12025,7 +12056,7 @@ function configure_da_reseller_emails() {
   if [[ "${option}" == "--run-force" || "${option}" == "--run-force-exit" ]]; then
     rm -rf "${executed_function}"
     run="yes"
-  elif [[ -z "${option}" || "${option}" == "--run" ]]; then
+  elif [[ -z "${option}" || "${option}" == "--run" || "${option}" == "--run-exit" ]]; then
     run="yes"
   fi
   if [[ ! -f "${CONF_PATH}/${FUNCNAME[0]}_executed" && "${run}" == "yes" ]]; then
@@ -12128,7 +12159,7 @@ function configure_da_user_emails() {
   if [[ "${option}" == "--run-force" || "${option}" == "--run-force-exit" ]]; then
     rm -rf "${executed_function}"
     run="yes"
-  elif [[ -z "${option}" || "${option}" == "--run" ]]; then
+  elif [[ -z "${option}" || "${option}" == "--run" || "${option}" == "--run-exit" ]]; then
     run="yes"
   fi
   if [[ ! -f "${CONF_PATH}/${FUNCNAME[0]}_executed" && "${run}" == "yes" ]]; then
@@ -12230,7 +12261,7 @@ function configure_da_reseller_domain_ssl_pre() {
   if [[ "${option}" == "--run-force" || "${option}" == "--run-force-exit" ]]; then
     rm -rf "${executed_function}"
     run="yes"
-  elif [[ -z "${option}" || "${option}" == "--run" ]]; then
+  elif [[ -z "${option}" || "${option}" == "--run" || "${option}" == "--run-exit" ]]; then
     run="yes"
   fi
   if [[ ! -f "${CONF_PATH}/${FUNCNAME[0]}_executed" && "${run}" == "yes" ]]; then
@@ -12337,7 +12368,7 @@ function configure_da_user_domain_ssl_pre() {
   if [[ "${option}" == "--run-force" || "${option}" == "--run-force-exit" ]]; then
     rm -rf "${executed_function}"
     run="yes"
-  elif [[ -z "${option}" || "${option}" == "--run" ]]; then
+  elif [[ -z "${option}" || "${option}" == "--run" || "${option}" == "--run-exit" ]]; then
     run="yes"
   fi
   if [[ ! -f "${CONF_PATH}/${FUNCNAME[0]}_executed" && "${run}" == "yes" ]]; then
@@ -12432,7 +12463,7 @@ function configure_da_reseller_domain_ssl() {
   if [[ "${option}" == "--run-force" || "${option}" == "--run-force-exit" ]]; then
     rm -rf "${executed_function}"
     run="yes"
-  elif [[ -z "${option}" || "${option}" == "--run" ]]; then
+  elif [[ -z "${option}" || "${option}" == "--run" || "${option}" == "--run-exit" ]]; then
     run="yes"
   fi
   if [[ ! -f "${CONF_PATH}/${FUNCNAME[0]}_executed" && "${run}" == "yes" ]]; then
@@ -12552,7 +12583,7 @@ function configure_da_user_domain_ssl() {
   if [[ "${option}" == "--run-force" || "${option}" == "--run-force-exit" ]]; then
     rm -rf "${executed_function}"
     run="yes"
-  elif [[ -z "${option}" || "${option}" == "--run" ]]; then
+  elif [[ -z "${option}" || "${option}" == "--run" || "${option}" == "--run-exit" ]]; then
     run="yes"
   fi
   if [[ ! -f "${CONF_PATH}/${FUNCNAME[0]}_executed" && "${run}" == "yes" ]]; then
@@ -12671,7 +12702,7 @@ function configure_da_owner_security() {
   if [[ "${option}" == "--run-force" || "${option}" == "--run-force-exit" ]]; then
     rm -rf "${executed_function}"
     run="yes"
-  elif [[ -z "${option}" || "${option}" == "--run" ]]; then
+  elif [[ -z "${option}" || "${option}" == "--run" || "${option}" == "--run-exit" ]]; then
     run="yes"
   fi
   if [[ ! -f "${CONF_PATH}/${FUNCNAME[0]}_executed" && "${run}" == "yes" ]]; then
@@ -12756,7 +12787,7 @@ function configure_da_admin_security() {
   if [[ "${option}" == "--run-force" || "${option}" == "--run-force-exit" ]]; then
     rm -rf "${executed_function}"
     run="yes"
-  elif [[ -z "${option}" || "${option}" == "--run" ]]; then
+  elif [[ -z "${option}" || "${option}" == "--run" || "${option}" == "--run-exit" ]]; then
     run="yes"
   fi
   if [[ ! -f "${CONF_PATH}/${FUNCNAME[0]}_executed" && "${run}" == "yes" ]]; then
@@ -12841,7 +12872,7 @@ function configure_da_reseller_security() {
   if [[ "${option}" == "--run-force" || "${option}" == "--run-force-exit" ]]; then
     rm -rf "${executed_function}"
     run="yes"
-  elif [[ -z "${option}" || "${option}" == "--run" ]]; then
+  elif [[ -z "${option}" || "${option}" == "--run" || "${option}" == "--run-exit" ]]; then
     run="yes"
   fi
   if [[ ! -f "${CONF_PATH}/${FUNCNAME[0]}_executed" && "${run}" == "yes" ]]; then
@@ -12928,7 +12959,7 @@ function configure_da_user_security() {
   if [[ "${option}" == "--run-force" || "${option}" == "--run-force-exit" ]]; then
     rm -rf "${executed_function}"
     run="yes"
-  elif [[ -z "${option}" || "${option}" == "--run" ]]; then
+  elif [[ -z "${option}" || "${option}" == "--run" || "${option}" == "--run-exit" ]]; then
     run="yes"
   fi
   if [[ ! -f "${CONF_PATH}/${FUNCNAME[0]}_executed" && "${run}" == "yes" ]]; then
@@ -13011,7 +13042,7 @@ function configure_da_reseller_databases() {
   if [[ "${option}" == "--run-force" || "${option}" == "--run-force-exit" ]]; then
     rm -rf "${executed_function}"
     run="yes"
-  elif [[ -z "${option}" || "${option}" == "--run" ]]; then
+  elif [[ -z "${option}" || "${option}" == "--run" || "${option}" == "--run-exit" ]]; then
     run="yes"
   fi
   if [[ ! -f "${CONF_PATH}/${FUNCNAME[0]}_executed" && "${run}" == "yes" ]]; then
@@ -13114,7 +13145,7 @@ function configure_da_user_databases() {
   if [[ "${option}" == "--run-force" || "${option}" == "--run-force-exit" ]]; then
     rm -rf "${executed_function}"
     run="yes"
-  elif [[ -z "${option}" || "${option}" == "--run" ]]; then
+  elif [[ -z "${option}" || "${option}" == "--run" || "${option}" == "--run-exit" ]]; then
     run="yes"
   fi
   if [[ ! -f "${CONF_PATH}/${FUNCNAME[0]}_executed" && "${run}" == "yes" ]]; then
@@ -13217,7 +13248,7 @@ function configure_da_custom_webs() {
   if [[ "${option}" == "--run-force" || "${option}" == "--run-force-exit" ]]; then
     rm -rf "${executed_function}"
     run="yes"
-  elif [[ -z "${option}" || "${option}" == "--run" ]]; then
+  elif [[ -z "${option}" || "${option}" == "--run" || "${option}" == "--run-exit" ]]; then
     run="yes"
   fi
   if [[ ! -f "${CONF_PATH}/${FUNCNAME[0]}_executed" && "${run}" == "yes" ]]; then
@@ -13262,7 +13293,7 @@ function harden_with_lynis() {
   if [[ "${option}" == "--run-force" || "${option}" == "--run-force-exit" ]]; then
     rm -rf "${executed_function}"
     run="yes"
-  elif [[ -z "${option}" || "${option}" == "--run" ]]; then
+  elif [[ -z "${option}" || "${option}" == "--run" || "${option}" == "--run-exit" ]]; then
     run="yes"
   fi
   if [[ ! -f "${CONF_PATH}/${FUNCNAME[0]}_executed" && "${run}" == "yes" ]]; then
@@ -13313,7 +13344,7 @@ function configure_cronjobs() {
   if [[ "${option}" == "--run-force" || "${option}" == "--run-force-exit" ]]; then
     rm -rf "${executed_function}"
     run="yes"
-  elif [[ -z "${option}" || "${option}" == "--run" ]]; then
+  elif [[ -z "${option}" || "${option}" == "--run" || "${option}" == "--run-exit" ]]; then
     run="yes"
   fi
   if [[ ! -f "${CONF_PATH}/${FUNCNAME[0]}_executed" && "${run}" == "yes" ]]; then
@@ -13354,7 +13385,7 @@ function setup_post() {
   if [[ "${option}" == "--run-force" || "${option}" == "--run-force-exit" ]]; then
     rm -rf "${executed_function}"
     run="yes"
-  elif [[ -z "${option}" || "${option}" == "--run" ]]; then
+  elif [[ -z "${option}" || "${option}" == "--run" || "${option}" == "--run-exit" ]]; then
     run="yes"
   fi
   if [[ ! -f "${CONF_PATH}/${FUNCNAME[0]}_executed" && "${run}" == "yes" ]]; then
@@ -13943,8 +13974,8 @@ ENDSSH
     ;;
   -t | --test)
 
-    #ssh_api lish-push-script --script-path "${CODE_PATH}/ssh_scripts/test_script.sh"
-    ssh_api push-script --sp sun.sofibox.com:893 --gu root:root --script-path "${CODE_PATH}/ssh_scripts/test_script.sh"
+    #ssh_api lish-push-script --local-script-path "${CODE_PATH}/ssh_scripts/test_script.sh"
+    ssh_api push-script --sp sun.sofibox.com:893 --gu root:root --local-script-path "${CODE_PATH}/ssh_scripts/test_script.sh"
     exit 1
     exec_time start "linode_reboot_api"
     linode_api_admin reboot-linode --linode-label "${BOX_HOSTNAME_FQDN}" --linode-config-label "${LINODE_OS_CONFIG_LABEL}" --log-level 6
