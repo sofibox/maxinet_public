@@ -4,7 +4,7 @@
 APP_SPECIFIC_NAME="Maxinet"
 APP_STATUS="alpha"
 # Note some minor versions are not published
-APP_VERSION="0.5.2.9-${APP_STATUS}"
+APP_VERSION="0.5.3.0-${APP_STATUS}"
 COMPANY_ID="${COMPANY_ID}"
 # Hello there, this is a powerful script that able initialize one or more server installation from scratch. From configuring the server disk, until you got the full working server with a live website.
 # It also includes many security and hardening script.
@@ -13905,9 +13905,13 @@ ENDSSH
     exit 0
     break
     ;;
-  --boot-linode)
+  --boot-linode | --boot-server)
     shift
-    linode_api_admin boot-linode "$@"
+    if [ "${DNS_PROVIDER_NAME}" == "linode" ]; then
+      linode_api_admin boot-linode "$@"
+    else
+      _echo "$(msg red)Error, unknown DNS provider to execute boot command! $(msg end)" -- name
+    fi
     exit 0
     break
     ;;
