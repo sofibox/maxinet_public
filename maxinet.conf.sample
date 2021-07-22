@@ -9,6 +9,8 @@
 # Warning Directadmin user password only accept the maximum of 64 characters. More than this will have problem with API
 # Directadmin cannot contains this character in password, it will not work with API -> '+'
 # ====================================
+# This is used to hide sensitive information on the terminal such as password.
+HIDE_SENSITIVE_TEXT="false"
 #([0]="emerg" [1]="alert" [2]="crit" [3]="err" [4]="warning" [5]="notice" [6]="info" [7]="debug" [8]="expert")
 # Use 7 for development
 # For advanced or expert logging, use LOG_VERBOSITY_LEVEL="8"
@@ -199,7 +201,6 @@ DA_RESELLER_WILDCARD_DOMAIN2=
 
 DA_MAX_UNAME_LENGTH="30"
 # DA_ADMIN_SQLPASS is for DA sql password (eg: phpmyadmin login) Password cannot contains this character [ ] <> and )
-# DA_ADMIN_SQLPASS is for DA sql password (eg: phpmyadmin login) Password cannot contains this character [ ]
 DA_ADMIN_SQLPASS=*long-secured-password*"
 # Remember cannot contains this character & for DA_ROOT_SQL_PASS
 DA_ROOT_SQL_PASS="*long-secured-password*"
@@ -255,7 +256,7 @@ SSH_PASSPHRASE="**SSH_PASSPHRASE***"
 # vps | dedicated
 BOX_ISO_OS_TYPE="debian"
 # values: custom, normal, console | do not use console if system support GUI, else you will see blank UI
-# only use console for system that doesn't support graphic display, for example linode lish without glish.
+# only use console for system that does not support graphic display, for example linode lish without glish.
 BOX_OS_INSTALL_UI="normal"
 BOX_TYPE="dedicated"
 BOX_MAIN_DISK="/dev/sda"
@@ -339,7 +340,7 @@ MAXIWALL_AIPDB_API_KEY="strong*63161ec_covid19f****63ex742*x***85xaMaXi32xax41**
 
 # External/Internal DNS provider
 # provider can be linode, digitalocean, amazonaws and more, put value [local] to disable this feature and use internal DNS#EXTERNAL_DNS_PROVIDER="linode"
-#DNS_PROVIDER_USER="sofibox"
+# DNS_PROVIDER_USER="sofibox"
 # Format <provider_name>:<provider_username>:<api_key>
 DNS_PROVIDER_API1="*API-KEY"
 DNS_PROVIDER_TERMINAL_SERVER="lish-singapore.linode.com"
@@ -360,3 +361,9 @@ LINODE_RESCUE_DISK_LABEL="Rescue_Disk"
 
 # Alternative packages version
 INSTALL_RUSTC_VERSION="1.52.0"
+
+# Temporary variable used for initial values
+
+ROOT_RESCUE_INITIAL="12321aa"
+SSH_USERPASS_INITIAL="12321aa"
+#ROOT_USERPASS_INITIAL="12321aa"

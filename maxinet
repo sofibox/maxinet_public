@@ -4,7 +4,7 @@
 APP_SPECIFIC_NAME="Maxinet"
 APP_STATUS="alpha"
 # Note some minor versions are not published
-APP_VERSION="0.5.3.0-${APP_STATUS}"
+APP_VERSION="0.5.3.2-${APP_STATUS}"
 COMPANY_ID="${COMPANY_ID}"
 # Hello there, this is a powerful script that able initialize one or more server installation from scratch. From configuring the server disk, until you got the full working server with a live website.
 # It also includes many security and hardening script.
@@ -466,7 +466,12 @@ function init_server() {
   done
   echo "Server Physical Information:"
   echo "Provider: ${DNS_PROVIDER_NAME}"
-  echo "IPv4 address: ${IPV4_ADD0}"
+  echo "cd /root || exit 1"
+  if [[ "${HIDE_SENSITIVE_TEXT}" == "true" ]]; then
+    echo "IPv4 address: *privacy*"
+  else
+    echo "IPv4 address: ${IPV4_ADD0}"
+  fi
   echo "Disk space: "
   echo "Memory/RAM: "
   echo "Checking IP and domain propagation ..."
@@ -639,7 +644,7 @@ function init_server() {
 
     _echo "$(msg cyan)Setup will automatically execute remote maxinet script and start installation of the server ... (it might take some time) ...$(msg end)" -name
     # ssh_api push-script --server ${BOX_HOSTNAME_FQDN} --port ${SSH_PORT} --group root --username ${ROOT_USERNAME} --local-script-path "${CODE_PATH}/ssh_scripts/maxinet_setup.sh"
-    ssh_api push-script --server-port "${BOX_HOSTNAME_FQDN}:${SSH_PORT}" --group-user "root:${ROOT_USERNAME}" --local-script-path "${CODE_PATH}/ssh_scripts/maxinet_setup.sh"
+    ssh_api push-script --server-port "${BOX_HOSTNAME_FQDN}:${SSH_PORT}" --group-user "root:${ROOT_USERNAME}" --local-script-path "${CODE_PATH}/ssh_scripts/maxinet_setup.sh" --silent-push
     # After installation above, the system must restart once, so we execute next script to reopen LUKS
 
     # After the above script is executed, now we wait for it to shutdown (executed by the script installation) properly before booting
@@ -670,7 +675,7 @@ function init_server() {
       _echo "$(msg cyan) Notice, PRE_AUTORUN_SETUP is set to no. Hence, auto installation script is disabled! Please run --setup manually$(msg end)" --name
     else
       _echo "$(msg cyan)Resuming server installation installation by executing ${SCRIPT_NAME} script on remote server...$(msg end)" --name
-      ssh_api push-script --server-port "${BOX_HOSTNAME_FQDN}:${SSH_PORT}" --group-user "root:${ROOT_USERNAME}" --local-script-path "${CODE_PATH}/ssh_scripts/maxinet_setup.sh"
+      ssh_api push-script --server-port "${BOX_HOSTNAME_FQDN}:${SSH_PORT}" --group-user "root:${ROOT_USERNAME}" --local-script-path "${CODE_PATH}/ssh_scripts/maxinet_setup.sh" --silent-push
     fi
     echo ""
     _echo "$(msg green)======================== FINISH ========================$(msg end)" --plain
@@ -696,7 +701,7 @@ function ssh_api() {
 
   local action argnum options long_opts retval key_path group user comment server_label server port destination rsa_key \
     linode_label local_script_path remote_script_path remote_path push_iso_write_script push_shutdown_script push_reboot_script \
-    push_maxinet_setup_script password local_files
+    push_maxinet_setup_script password local_files silent_push
 
   action="$1"
 
@@ -710,7 +715,7 @@ function ssh_api() {
 
   long_opts="help,key-path:,group:,user:,comment:,server-label:,server:,port:,destination:,without-prompt,rsa-key:,linode-label:, \
   local-script-path:,remote-script-path:,remote-path:,local-files:,push-iso-write-script,push-shutdown-script,push-reboot-script,push-maxinet-setup-script, \
-  sp:,server-port:,gu:,group-user:,password:"
+  sp:,server-port:,gu:,group-user:,password:,silent-push"
   options=$(getopt -o '' --long "${long_opts}" -n "${FUNCNAME[0]} in ${SCRIPT_NAME}" -- "$@")
   retval=$?
   if [ ${retval} != 0 ]; then
@@ -741,6 +746,7 @@ function ssh_api() {
   push_maxinet_setup_script=false
   port="22" #If not specified the default is port 22
   password=""
+  silent_push=false
   while true; do
     case "$1" in
     --help)
@@ -855,6 +861,10 @@ function ssh_api() {
       password="$2"
       shift 2
       ;;
+    --silent-push)
+      silent_push=true
+      shift
+      ;;
     --)
       shift
       break
@@ -933,10 +943,10 @@ function ssh_api() {
     fi
 
   elif [ "${action}" == "login" ]; then
-    local user ssh_pid private_key_name private_key_file
-    user="$2"
+    local option ssh_pid private_key_name private_key_file
+    option="$2"
     # This is special login based on user from config file (for faster login)
-    if [ "${user}" == "${ROOT_USERNAME}" ]; then
+    if [[ ${argnum} -le 1 || "${option}" == "${ROOT_USERNAME}" ]]; then
       private_key_name="root_${ROOT_USERNAME}_${BOX_HOSTNAME_FQDN}.id_rsa"
       private_key_file="${key_path}/${private_key_name}"
       rsa_key="${private_key_file}"
@@ -949,7 +959,7 @@ function ssh_api() {
       fi
       _echo "$(msg cyan)Logging into SSH server at ${ROOT_USERNAME}@${BOX_HOSTNAME_FQDN}:${SSH_PORT}... $(msg end)" --name
       ssh -o "StrictHostKeyChecking no" -i "${rsa_key}" -p "${SSH_PORT}" "${ROOT_USERNAME}@${BOX_HOSTNAME_FQDN}"
-    elif [ "${user}" == "${SSH_USERNAME}" ]; then
+    elif [ "${option}" == "${SSH_USERNAME}" ]; then
       private_key_name="user_${SSH_USERNAME}_${BOX_HOSTNAME_FQDN}.id_rsa"
       private_key_file="${key_path}/${private_key_name}"
       rsa_key="${private_key_file}"
@@ -1073,8 +1083,13 @@ function ssh_api() {
       fi
     fi
 
-    _echo "$(msg cyan)Pushing script ${local_script_path} into SSH console ${user}@${server}... $(msg end)" --nam
-    ssh -q -o "StrictHostKeyChecking no" -i "${rsa_key}" -p "${port}" "${user}@${server}" <"${local_script_path}" >/dev/null 2>&1 &
+    _echo "$(msg cyan)Pushing script ${local_script_path} into SSH console ${user}@${server}... $(msg end)" --name
+    if [ "${silent_push}" == "true" ]; then
+      ssh -q -o "StrictHostKeyChecking no" -i "${rsa_key}" -p "${port}" "${user}@${server}" <"${local_script_path}" >/dev/null 2>&1 &
+    else
+      # Must pass the value -tt (else the terminal color won't work)
+      ssh -o "StrictHostKeyChecking no" -i "${rsa_key}" -p "${port}" -tt "${user}@${server}" <"${local_script_path}"
+    fi
     # Test kill after 10 seconds
     #sleep 10
     #ssh_pid=$?
@@ -1707,12 +1722,17 @@ function _trap_cleanup() {
     fi
     echo ""
     echo "-------------------------------END-----------------------------------------"
-    echo "Remember you can always resume installation with (--help for more information):"
-    echo "For local installation: ${SCRIPT_NAME} --setup"
-    echo "For remote installation: ${SCRIPT_NAME} --ssh-login \"${BOX_HOSTNAME_FQDN}:${SSH_PORT}\" \"root:${ROOT_USERNAME}\" \"${CODE_PATH}/ssh_scripts/maxinet_setup.sh\""
-    echo "To login as root user: ${SCRIPT_NAME} --ssh-login \"${BOX_HOSTNAME_FQDN}:${SSH_PORT}\" \"user:root\""
-    echo "To login as SSH user: ${SCRIPT_NAME} --ssh-login \"${BOX_HOSTNAME_FQDN}:${SSH_PORT}\" \"root:SSH_USERNAME\""
-    echo "To unlock LUKS Disk encryption: ${SCRIPT_NAME} --ssh-luks-unlock ${DROP_BEAR_PORT} \"<LUKS_PASS>\""
+    echo ""
+    echo "Remember you can always resume installation with the following command:"
+    echo "For local installation: ${SCRIPT_NAME} --setup 2>&1 | tee ${SCRIPT_NAME}.log"
+    echo "For remote installation: ${SCRIPT_NAME} --push-ssh-script --sp ${BOX_HOSTNAME_FQDN}:${SSH_PORT} --gu root:${ROOT_USERNAME} --push-maxinet-setup-script"
+    echo ""
+    echo "SSH user login guide:"
+    echo "To login as root user: ${SCRIPT_NAME} --ssh-login"
+    echo "To login as SSH user: ${SCRIPT_NAME} --ssh-login ${SSH_USERNAME}"
+    echo ""
+    echo "Server LUKS unlock guide:"
+    echo "To unlock LUKS Disk encryption: ${SCRIPT_NAME} --luks-unlock"
     script_time
   fi
   # clean exit
@@ -2326,6 +2346,8 @@ function create_file() {
         echo "# ==============================================="
         echo "# This is just a test script"
         echo "touch test_file"
+        echo "echo \"This is just a test file\" > test_file"
+        echo "echo \"If you can read this, it means the test_script.sh script was running perfectly\" >> test_file"
         echo "# Put 2 times exit below to safely exit the script if the first exit is not executed"
         echo "exit"
         echo "exit"
@@ -6242,9 +6264,11 @@ function secure_box() {
     else
       echo "[${SCRIPT_NAME}]: [Skipped] user ${SSH_USERNAME} is already set as AllowUsers list in sshd_config ..." 2>&1 | tee -a "${REPORT_FILE}"
     fi
-    # Don't permit root login
-    echo "[${SCRIPT_NAME}]: Disabling root login via sshd_config ..." 2>&1 | tee -a "${REPORT_FILE}"
-    sed -i '/^PermitRootLogin/s/yes/no/' /etc/ssh/sshd_config
+    # Don't permit root login only after finish installation (use cert login only with prohibited-password)
+    # This one already enabled in operating system level ISO,
+    # but recommend to use prohibited-password during installation. When finish installation use PermitRootLogin no
+    #echo "[${SCRIPT_NAME}]: Disabling root login via sshd_config ..." 2>&1 | tee -a "${REPORT_FILE}"
+    #sed -i '/^PermitRootLogin/s/yes/no/' /etc/ssh/sshd_config
     echo "[${SCRIPT_NAME}]: Disabling Password authentication via sshd_config ..." 2>&1 | tee -a "${REPORT_FILE}"
     sed -i "s/^#PasswordAuthentication.*/PasswordAuthentication no/" /etc/ssh/sshd_config
     echo "[${SCRIPT_NAME}]: Disabling empty password login via sshd_config ..." 2>&1 | tee -a "${REPORT_FILE}"
@@ -13395,6 +13419,8 @@ function setup_post() {
     _echo "$(msg yellow)Warning, script terminated due to the supplied option ${option}$(msg end)" --name
     exit 0
   fi
+
+  # TODO note, at the end of setup_post, must put PermitRootLogin to no to maximum security, previously PermitRootLogin was prohibited-password
 }
 function setup() {
   script_header
@@ -13430,15 +13456,21 @@ function setup() {
     _traps _trap_cleanup QUIT INT TERM EXIT
   fi
   # ============End of locking===============
-  #fi
-  # TODO: this is deprecated will change soon:
-  echo "Remember you can always resume installation with (--help for more information):"
-  echo "For local installation: ${SCRIPT_NAME} --setup"
-  echo "For remote installation: ${SCRIPT_NAME} --ssh-login \"${BOX_HOSTNAME_FQDN}:${SSH_PORT}\" \"root:${ROOT_USERNAME}\" \"${CODE_PATH}/ssh_scripts/maxinet_setup.sh\""
-  echo "To login as root user: ${SCRIPT_NAME} --ssh-login \"${BOX_HOSTNAME_FQDN}:${SSH_PORT}\" \"user:root\""
-  echo "To login as SSH user: ${SCRIPT_NAME} --ssh-login \"${BOX_HOSTNAME_FQDN}:${SSH_PORT}\" \"root:SSH_USERNAME\""
-  echo "To unlock LUKS Disk encryption: ${SCRIPT_NAME} --ssh-luks-unlock ${DROP_BEAR_PORT} \"<LUKS_PASS>\""
+  echo ""
+  echo "Remember you can always resume installation with the following command:"
+  echo "For local installation: ${SCRIPT_NAME} --setup 2>&1 | tee ${SCRIPT_NAME}.log"
+  echo "For remote installation: ${SCRIPT_NAME} --push-ssh-script --sp ${BOX_HOSTNAME_FQDN}:${SSH_PORT} --gu root:${ROOT_USERNAME} --push-maxinet-setup-script"
+  echo ""
+  echo "SSH user login guide:"
+  echo "To login as root user: ${SCRIPT_NAME} --ssh-login"
+  echo "To login as SSH user: ${SCRIPT_NAME} --ssh-login ${SSH_USERNAME}"
+  echo ""
+  echo "Server LUKS unlock guide:"
+  echo "To unlock LUKS Disk encryption: ${SCRIPT_NAME} --luks-unlock"
+
   _pause 5
+
+  # Validate config files
   validate_config
 
   if [[ ${DISTRO_ID} == "centos" || ${DISTRO_ID} == "debian" ]]; then
@@ -13879,15 +13911,21 @@ ENDSSH
     break
     ;;
 
-  -lu | --luks-unlock | --unlock-luks | --ssh-luks-unlock)
+  -lu | --luks-unlock | --unlock-luks | --ssh-luks-unlock | --unlock-server)
     shift
     ssh_api luks-unlock "$@"
     exit 0
     break
     ;;
+  --push-ssh-script | --run-ssh-script)
+    shift
+    ssh_api push-script "$@"
+    exit 0
+    break
+    ;;
     # ./maxinet --ssh-login <optional_hostname> <optional_port> <optional_user>
   # If hostname or port are not provided, they will use the default ones from config file
-  --ssh-login)
+  --ssh-login | --login-to-server | --login)
     shift
     ssh_api login "$@"
     exit 0
@@ -13905,10 +13943,13 @@ ENDSSH
     exit 0
     break
     ;;
-  --boot-linode | --boot-server)
+  --boot-linode | --boot-server | --start-server)
     shift
     if [ "${DNS_PROVIDER_NAME}" == "linode" ]; then
       linode_api_admin boot-linode "$@"
+    elif [ "${DNS_PROVIDER_NAME}" == "digitalocean" ]; then
+      digitalocean_api_admin boot-do "$@"
+    #TODO elif "Other provider"
     else
       _echo "$(msg red)Error, unknown DNS provider to execute boot command! $(msg end)" -- name
     fi
@@ -13970,7 +14011,7 @@ ENDSSH
   -t | --test)
 
     #ssh_api lish-push-script --local-script-path "${CODE_PATH}/ssh_scripts/test_script.sh"
-    ssh_api push-script --sp sun.sofibox.com:893 --gu root:root --local-script-path "${CODE_PATH}/ssh_scripts/test_script.sh"
+    ssh_api push-script --sp sun.sofibox.com:893 --gu root:root --local-script-path "${CODE_PATH}/ssh_scripts/test_script.sh" --silent-push
     exit 1
     exec_time start "linode_reboot_api"
     linode_api_admin reboot-linode --linode-label "${BOX_HOSTNAME_FQDN}" --linode-config-label "${LINODE_OS_CONFIG_LABEL}" --log-level 6

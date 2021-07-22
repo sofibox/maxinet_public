@@ -5,6 +5,8 @@
 # ===============================================
 # This is just a test script
 touch test_file
+echo "This is just a test file" > test_file
+echo "If you can read this, it means the test_script.sh script was running perfectly" >> test_file
 # Put 2 times exit below to safely exit the script if the first exit is not executed
 exit
 exit
