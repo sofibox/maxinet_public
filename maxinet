@@ -4,7 +4,7 @@
 APP_SPECIFIC_NAME="Maxinet"
 APP_STATUS="alpha"
 # Note some minor versions are not published
-APP_VERSION="0.5.2.8-${APP_STATUS}"
+APP_VERSION="0.5.2.9-${APP_STATUS}"
 COMPANY_ID="${COMPANY_ID}"
 # Hello there, this is a powerful script that able initialize one or more server installation from scratch. From configuring the server disk, until you got the full working server with a live website.
 # It also includes many security and hardening script.
@@ -246,7 +246,20 @@ function is_valid() {
   #elif ["${distro_id}" == "ubuntu" ]; then
   #: Do more distro check here in the future
   fi
-  if [[ "${type}" == "integer" ]]; then
+  # is_valid available_port <server> <port>
+  # This function will check if defined server and port is available (in a listening state)
+  # Usage: available_port <server> <port>
+  # eg: available_port test.sofibox.com 22
+  # It will return 0 (if available), and other return codes (if listening state for the port is not available)
+  if [[ "${type}" == "available_port" ]]; then
+    local server port retval
+    server="${data1}"
+    port="${data2}"
+    nc -z -v -w5 "${server}" "${port}" 2>/dev/null
+    retval=$?
+    return ${retval}
+
+  elif [[ "${type}" == "integer" ]]; then
     if [[ ${data1} =~ [0-9] ]]; then
       return 0
     else
@@ -598,11 +611,10 @@ function init_server() {
     _echo "$(msg cyan)Checking if dropbear port ${DROP_BEAR_PORT} is open from --server ${BOX_HOSTNAME_FQDN} ...$(msg end)" --name
     count=0
     while :; do
-      port_status=$(check_server_port "${BOX_HOSTNAME_FQDN}" "${DROP_BEAR_PORT}")
       sleep 1
       ((count++))
       _echo "$(msg yellow) Waiting for dropbear port ${DROP_BEAR_PORT} to be available ...$(msg end)" --start-spin --name
-      if [ "${port_status}" -eq 0 ]; then
+      if is_valid available_port "${BOX_HOSTNAME_FQDN}" "${DROP_BEAR_PORT}"; then
         _echo "$(msg green)OK, dropbear port ${DROP_BEAR_PORT} is now available. Unlocking encrypted LUKS disk on boot ...$(msg end)" --stop-spin --name
         # Wait 5 seconds
         sleep 5
@@ -615,8 +627,8 @@ function init_server() {
       fi
     done
 
-    _echo "$(msg cyan)Copying maxinet and maxinet.conf script into remote server ... $(msg end)" --name
-    ssh_api transfer-files --server-port "${BOX_HOSTNAME_FQDN}:${SSH_PORT}" --group-user "root:${ROOT_USERNAME}" --local-files "${SCRIPT_PATH}/maxinet ${SCRIPT_PATH}/maxinet.conf" --remote-path ~/
+    _echo "$(msg cyan)Copying maxinet, maxinet.conf and readme.txt into remote server ... $(msg end)" --name
+    ssh_api transfer-files --server-port "${BOX_HOSTNAME_FQDN}:${SSH_PORT}" --group-user "root:${ROOT_USERNAME}" --local-files "${SCRIPT_PATH}/maxinet ${SCRIPT_PATH}/maxinet.conf ${SCRIPT_PATH}/readme.txt" --remote-path ~/
     sleep 2
 
     if [ "${PRE_AUTORUN_SETUP}" == "no" ]; then
@@ -639,11 +651,10 @@ function init_server() {
     _echo "$(msg cyan)Checking if dropbear port ${DROP_BEAR_PORT} is open from --server ${BOX_HOSTNAME_FQDN} ...$(msg end)" --name
     count=0
     while :; do
-      port_status=$(check_server_port "${BOX_HOSTNAME_FQDN}" "${DROP_BEAR_PORT}")
       sleep 1
       ((count++))
       _echo "$(msg yellow) Waiting for dropbear port ${DROP_BEAR_PORT} to be available ...$(msg end)" --start-spin --name
-      if [ "${port_status}" -eq 0 ]; then
+      if is_valid available_port "${BOX_HOSTNAME_FQDN}" "${DROP_BEAR_PORT}"; then
         _echo "$(msg green)OK, dropbear port ${DROP_BEAR_PORT} is now available. Unlocking encrypted LUKS disk on boot ...$(msg end)" --stop-spin --name
         # Wait 5 seconds
         sleep 5
@@ -672,18 +683,6 @@ function init_server() {
   fi
 }
 
-# This function will check if defined server and port is available (in a listening state)
-# Usage: check_server_port <server> <port>
-# eg: check_server_port test.sofibox.com 22
-# It will return 0 (if available), and other return codes (if listening state for the port is not available)
-function check_server_port() {
-  local server port result
-  server="$1"
-  port="$2"
-  nc -z -v -w5 "${server}" "${port}" >/dev/null
-  result=$?
-  echo "${result}"
-}
 # This function is used to manage SSH key (create, get, copy)
 # Usage: ssh_api create-key|create-key-with-putty| copy-pubkeys <group_name> <user> <comment>
 # Note 1: create-key will create normal ssh key
@@ -702,18 +701,21 @@ function ssh_api() {
   action="$1"
 
   argnum="$#"
-  if [ ${argnum} -eq 0 ]; then
-    echo "Error, no argument is supplied. Use [ ${SCRIPT_NAME} --iso --help ] to see the valid options"
-    exit 1
-  fi
+  # We allow empty argument. For example for faster login use maxinet --ssh-login (by default it will login as root)
+  #echo "argnum: ${argnum}"
+  #if [ ${argnum} -le 1 ]; then
+  #  echo "Error, no option is supplied for action ${action}. Use [ ${SCRIPT_NAME} --iso --help ] to see the valid options"
+  #  exit 1
+  #fi
+
   long_opts="help,key-path:,group:,user:,comment:,server-label:,server:,port:,destination:,without-prompt,rsa-key:,linode-label:, \
   local-script-path:,remote-script-path:,remote-path:,local-files:,push-iso-write-script,push-shutdown-script,push-reboot-script,push-maxinet-setup-script, \
   sp:,server-port:,gu:,group-user:,password:"
   options=$(getopt -o '' --long "${long_opts}" -n "${FUNCNAME[0]} in ${SCRIPT_NAME}" -- "$@")
   retval=$?
   if [ ${retval} != 0 ]; then
-    echo "Error, invalid parse data. Terminating..." >&2
-    exit 1
+    _echo "$(msg red)Error, invalid parse data. Terminating...$(msg end)" >&2
+    _exit 147
   fi
 
   # Must quote this option variable
@@ -900,9 +902,9 @@ function ssh_api() {
     # Guide: https://www.arminpech.de/2019/12/23/debian-unlock-luks-root-partition-remotely-by-ssh-using-dropbear/
     # Guide 2: https://www.gandalfk7.it/posts/20200914_02_Debian_9_and_10_boot_luks_unlock/
   elif [[ "${action}" == "luks-unlock" || "${action}" == "ssh-luks-unlock" || "${action}" == "unlock-luks" ]]; then
-    option="$2"
 
-    if [ -z "${option}" ]; then
+    # This means if the argument is only 1 (with action argument)
+    if [[ "${argnum}" -le 1 ]]; then
       linode_label="${BOX_HOSTNAME_FQDN}"
       port="${DROP_BEAR_PORT}"
       password="${LUKS_PASS}"
@@ -939,25 +941,28 @@ function ssh_api() {
       private_key_file="${key_path}/${private_key_name}"
       rsa_key="${private_key_file}"
       _echo "$(msg cyan)Checking whether ${BOX_HOSTNAME_FQDN}'s port ${SSH_PORT} is online ...$(msg end)" --name
-      port_status=$(check_server_port "${BOX_HOSTNAME_FQDN}" "${SSH_PORT}")
-      if [ "${port_status}" -ne 0 ]; then
+      if is_valid available_port "${BOX_HOSTNAME_FQDN}" "${SSH_PORT}"; then
+        _echo "$(msg green)OK, the port ${SSH_PORT} is available at ${BOX_HOSTNAME_FQDN} $(msg end)" --name
+      else
         _echo "$(msg red)Error, the --server-port ${BOX_HOSTNAME_FQDN}:${SSH_PORT} is not available (make sure server is online or port ${SSH_PORT} is available)$(msg end)" --name
         _exit 147
       fi
       _echo "$(msg cyan)Logging into SSH server at ${ROOT_USERNAME}@${BOX_HOSTNAME_FQDN}:${SSH_PORT}... $(msg end)" --name
-      ssh -o "StrictHostKeyChecking no" -i "${rsa_key}" -p "${SSH_PORT}" "${ROOT_USERNAME}${BOX_HOSTNAME_FQDN}"
+      ssh -o "StrictHostKeyChecking no" -i "${rsa_key}" -p "${SSH_PORT}" "${ROOT_USERNAME}@${BOX_HOSTNAME_FQDN}"
     elif [ "${user}" == "${SSH_USERNAME}" ]; then
       private_key_name="user_${SSH_USERNAME}_${BOX_HOSTNAME_FQDN}.id_rsa"
       private_key_file="${key_path}/${private_key_name}"
       rsa_key="${private_key_file}"
       _echo "$(msg cyan)Checking whether ${BOX_HOSTNAME_FQDN}'s port ${SSH_PORT} is online ...$(msg end)" --name
-      port_status=$(check_server_port "${BOX_HOSTNAME_FQDN}" "${SSH_PORT}")
-      if [ "${port_status}" -ne 0 ]; then
+      if is_valid available_port "${BOX_HOSTNAME_FQDN}" "${SSH_PORT}"; then
+        _echo "$(msg green)OK, the port ${SSH_PORT} is available at ${BOX_HOSTNAME_FQDN} $(msg end)" --name
+      else
         _echo "$(msg red)Error, the --server-port ${BOX_HOSTNAME_FQDN}:${SSH_PORT} is not available (make sure server is online or port ${SSH_PORT} is available)$(msg end)" --name
         _exit 147
       fi
       _echo "$(msg cyan)Logging into SSH server at ${SSH_USERNAME}@${BOX_HOSTNAME_FQDN}:${SSH_PORT}... $(msg end)" --name
-      ssh -o "StrictHostKeyChecking no" -i "${rsa_key}" -p "${SSH_PORT}" "${SSH_USERNAME}${BOX_HOSTNAME_FQDN}"
+      _echo "$(msg yellow)Note: After successfully logged in as non-root user, use command [ sudo su - ] to login as root user$(msg end)" --name
+      ssh -o "StrictHostKeyChecking no" -i "${rsa_key}" -p "${SSH_PORT}" "${SSH_USERNAME}@${BOX_HOSTNAME_FQDN}"
     else
       if [[ -z "${group}" ]]; then
         _echo "$(msg red)Error, the option --group is required to have value$(msg end)" --name
@@ -973,9 +978,10 @@ function ssh_api() {
         _exit 147
       fi
       _echo "$(msg cyan)Checking whether ${server}'s port ${port} is online ...$(msg end)" --name
-      port_status=$(check_server_port "${server}" "${port}")
-      if [ "${port_status}" -ne 0 ]; then
-        _echo "$(msg red)Error, the --server-port ${server}:${port} is not available (make sure server is online or port ${port} is not blocked by firewall$(msg end)" --name
+      if is_valid available_port "${server}" "${port}"; then
+        _echo "$(msg green)OK, the port ${port} is available at ${server} $(msg end)" --name
+      else
+        _echo "$(msg red)Error, the --server-port ${server}:${port} is not available (make sure server is online or port ${port} is available)$(msg end)" --name
         _exit 147
       fi
       if [ -z "${rsa_key}" ]; then
@@ -3561,10 +3567,11 @@ function linode_api_admin() {
   # if you have long record increase this value (increasing this value affects performance when query)
   linode_max_page=2
 
-  if [ ${argnum} -eq 0 ]; then
-    echo "Error, no argument is supplied. Use [ ${SCRIPT_NAME} --linode-api --help ] to see the valid options"
-    exit 1
-  fi
+  # This one is not needed, we can allow empty argument for shortcut purpose. Example --linode-api restart
+  #if [ ${argnum} -eq 0 ]; then
+  #  echo "Error, no argument is supplied. Use [ ${SCRIPT_NAME} --linode-api --help ] to see the valid options"
+  #  exit 1
+  #fi
   # do not use --type, it is a reserved keyword
   long_opts="help,verbose:,log-level:,quiet,scripting,default,allow-duplicate-entry,linode-label:,domain:,domain-type:,domain-email:, \
   domain-ttl:,record-type:,record-name:,record-value:,record-ttl:,record-priority:,label-devsda:,label-devsdb:,label-devsdc:,label-devsdd:,label-devsde:, \
@@ -3575,8 +3582,8 @@ function linode_api_admin() {
   options=$(getopt -o hvlqsd --long "${long_opts}" -n "${FUNCNAME[0]}@${action} in ${SCRIPT_NAME}" -- "$@")
   retval=$?
   if [ ${retval} != 0 ]; then
-    echo "Error, invalid parsed data. Terminating..." >&2
-    exit 1
+    _echo "$(msg red)Error, invalid parsed data. Terminating...$(msg end)" >&2
+    _exit 147
   fi
 
   # Must quote this option variable
@@ -4390,14 +4397,14 @@ function linode_api_admin() {
     fi
   # linode_api_admin restart-linode --linode-label test.server.com --linode-config-label OS_Config
   elif [[ "${action^^}" == +(RESTART-LINODE|REBOOT-LINODE) ]]; then
+    local linode_id linode_config_id linode_api_exec option
     option="$2"
-    local linode_id linode_config_id linode_api_exec
     # Required linode_id and linode_config_id
 
     # This is for faster server reboot syntax. For example to reboot, we do not need to specify many arguments.
     # maxinet --linode-api reboot-linode os (this will reboot using OS_Config), also works the same without 'os' argument
     # maxinet --linode-api reboot-linode boot (this will reboot using Boot_Config)
-    if [[ -z "${option}" || "${option}" == "os" ]]; then
+    if [[ "${argnum}" -le 1 || "${option}" == "os" ]]; then
       linode_label="${BOX_HOSTNAME_FQDN}"
       linode_config_label="${LINODE_OS_CONFIG_LABEL}"
     elif [[ "${option}" == "boot" ]]; then
@@ -4973,7 +4980,7 @@ function linode_api_admin() {
     local linode_id linode_api_exec ssh_pid linode_config_id linode_api_exec option
     option="$2"
     # Boot shortcut. eg: linode_api_admin boot os
-    if [[ -z "${option}" || "${option}" == "os" ]]; then
+    if [[ "${argnum}" -le 1 || "${option}" == "os" ]]; then
       linode_label="${BOX_HOSTNAME_FQDN}"
       linode_config_label="${LINODE_OS_CONFIG_LABEL}"
     elif [[ "${option}" == "boot" ]]; then
@@ -6060,6 +6067,7 @@ function setup_pre() {
   fi
 
   if [[ "${option}" == "--run-force-exit" || "${option}" == "--run-exit" ]]; then
+    _echo "$(msg yellow)Warning, script terminated due to the supplied option ${option}$(msg end)" --name
     exit 0
   fi
 }
@@ -6127,6 +6135,7 @@ get_latest_maxinet() {
     echo "=~=~=~=~=~=~=~=~=~" 2>&1 | tee -a "${REPORT_FILE}"
   fi
   if [[ "${option}" == "--run-force-exit" || "${option}" == "--run-exit" ]]; then
+    _echo "$(msg yellow)Warning, script terminated due to the supplied option ${option}$(msg end)" --name
     exit 0
   fi
   exec_time end "${FUNCNAME[0]}"
@@ -6322,6 +6331,7 @@ function secure_box() {
     echo "=~=~=~=~=~=~=~=~=~" 2>&1 | tee -a "${REPORT_FILE}"
   fi
   if [[ "${option}" == "--run-force-exit" || "${option}" == "--run-exit" ]]; then
+    _echo "$(msg yellow)Warning, script terminated due to the supplied option ${option}$(msg end)" --name
     exit 0
   fi
 }
@@ -6361,6 +6371,7 @@ function init_local_maxicode() {
     echo "=~=~=~=~=~=~=~=~=~" 2>&1 | tee -a "${REPORT_FILE}"
   fi
   if [[ "${option}" == "--run-force-exit" || "${option}" == "--run-exit" ]]; then
+    _echo "$(msg yellow)Warning, script terminated due to the supplied option ${option}$(msg end)" --name
     exit 0
   fi
 }
@@ -6549,6 +6560,7 @@ function configure_net() {
   fi
 
   if [[ "${option}" == "--run-force-exit" || "${option}" == "--run-exit" ]]; then
+    _echo "$(msg yellow)Warning, script terminated due to the supplied option ${option}$(msg end)" --name
     exit 0
   fi
 }
@@ -6726,6 +6738,7 @@ function configure_net2() {
     echo "=~=~=~=~=~=~=~=~=~" 2>&1 | tee -a "${REPORT_FILE}"
   fi
   if [[ "${option}" == "--run-force-exit" || "${option}" == "--run-exit" ]]; then
+    _echo "$(msg yellow)Warning, script terminated due to the supplied option ${option}$(msg end)" --name
     exit 0
   fi
 }
@@ -6794,6 +6807,7 @@ function configure_fstab() {
     echo "=~=~=~=~=~=~=~=~=~" 2>&1 | tee -a "${REPORT_FILE}"
   fi
   if [[ "${option}" == "--run-force-exit" || "${option}" == "--run-exit" ]]; then
+    _echo "$(msg yellow)Warning, script terminated due to the supplied option ${option}$(msg end)" --name
     exit 0
   fi
 }
@@ -6855,6 +6869,7 @@ EOF
   fi
 
   if [[ "${option}" == "--run-force-exit" || "${option}" == "--run-exit" ]]; then
+    _echo "$(msg yellow)Warning, script terminated due to the supplied option ${option}$(msg end)" --name
     exit 0
   fi
 }
@@ -6895,6 +6910,7 @@ function configure_sysctl_swap() {
     echo "=~=~=~=~=~=~=~=~=~" 2>&1 | tee -a "${REPORT_FILE}"
   fi
   if [[ "${option}" == "--run-force-exit" || "${option}" == "--run-exit" ]]; then
+    _echo "$(msg yellow)Warning, script terminated due to the supplied option ${option}$(msg end)" --name
     exit 0
   fi
 }
@@ -6938,6 +6954,7 @@ function configure_sysctl_kernel_fs() {
     echo "=~=~=~=~=~=~=~=~=~" 2>&1 | tee -a "${REPORT_FILE}"
   fi
   if [[ "${option}" == "--run-force-exit" || "${option}" == "--run-exit" ]]; then
+    _echo "$(msg yellow)Warning, script terminated due to the supplied option ${option}$(msg end)" --name
     exit 0
   fi
 }
@@ -7006,6 +7023,7 @@ function configure_sysctl_ips() {
     echo "=~=~=~=~=~=~=~=~=~" 2>&1 | tee -a "${REPORT_FILE}"
   fi
   if [[ "${option}" == "--run-force-exit" || "${option}" == "--run-exit" ]]; then
+    _echo "$(msg yellow)Warning, script terminated due to the supplied option ${option}$(msg end)" --name
     exit 0
   fi
 }
@@ -7099,6 +7117,7 @@ function upgrade_os() {
     echo "=~=~=~=~=~=~=~=~=~" 2>&1 | tee -a "${REPORT_FILE}"
   fi
   if [[ "${option}" == "--run-force-exit" || "${option}" == "--run-exit" ]]; then
+    _echo "$(msg yellow)Warning, script terminated due to the supplied option ${option}$(msg end)" --name
     exit 0
   fi
 }
@@ -7350,6 +7369,7 @@ configure_csf() {
   # TIPS. CSF can be removed with this command:
   #sh /etc/csf/uninstall.sh
   if [[ "${option}" == "--run-force-exit" || "${option}" == "--run-exit" ]]; then
+    _echo "$(msg yellow)Warning, script terminated due to the supplied option ${option}$(msg end)" --name
     exit 0
   fi
 }
@@ -7430,6 +7450,7 @@ function install_da_pre() {
     echo "=~=~=~=~=~=~=~=~=~" 2>&1 | tee -a "${REPORT_FILE}"
   fi
   if [[ "${option}" == "--run-force-exit" || "${option}" == "--run-exit" ]]; then
+    _echo "$(msg yellow)Warning, script terminated due to the supplied option ${option}$(msg end)" --name
     exit 0
   fi
 
@@ -7483,6 +7504,7 @@ function install_da() {
     echo "=~=~=~=~=~=~=~=~=~" 2>&1 | tee -a "${REPORT_FILE}"
   fi
   if [[ "${option}" == "--run-force-exit" || "${option}" == "--run-exit" ]]; then
+    _echo "$(msg yellow)Warning, script terminated due to the supplied option ${option}$(msg end)" --name
     exit 0
   fi
 
@@ -7638,6 +7660,7 @@ function link_da_ipv6() {
   fi
 
   if [[ "${option}" == "--run-force-exit" || "${option}" == "--run-exit" ]]; then
+    _echo "$(msg yellow)Warning, script terminated due to the supplied option ${option}$(msg end)" --name
     exit 0
   fi
 }
@@ -7715,6 +7738,7 @@ function rebuild_da_package() {
   fi
 
   if [[ "${option}" == "--run-force-exit" || "${option}" == "--run-exit" ]]; then
+    _echo "$(msg yellow)Warning, script terminated due to the supplied option ${option}$(msg end)" --name
     exit 0
   fi
 }
@@ -7805,6 +7829,7 @@ function install_da_post() {
   fi
 
   if [[ "${option}" == "--run-force-exit" || "${option}" == "--run-exit" ]]; then
+    _echo "$(msg yellow)Warning, script terminated due to the supplied option ${option}$(msg end)" --name
     exit 0
   fi
 }
@@ -7855,6 +7880,7 @@ function configure_da_ssl_pre() {
   fi
 
   if [[ "${option}" == "--run-force-exit" || "${option}" == "--run-exit" ]]; then
+    _echo "$(msg yellow)Warning, script terminated due to the supplied option ${option}$(msg end)" --name
     exit 0
   fi
 }
@@ -7944,6 +7970,7 @@ function configure_da_ssl() {
   fi
 
   if [[ "${option}" == "--run-force-exit" || "${option}" == "--run-exit" ]]; then
+    _echo "$(msg yellow)Warning, script terminated due to the supplied option ${option}$(msg end)" --name
     exit 0
   fi
 }
@@ -8007,6 +8034,7 @@ function change_da_auth() {
   fi
 
   if [[ "${option}" == "--run-force-exit" || "${option}" == "--run-exit" ]]; then
+    _echo "$(msg yellow)Warning, script terminated due to the supplied option ${option}$(msg end)" --name
     exit 0
   fi
 }
@@ -8260,6 +8288,7 @@ function configure_da_sql() {
   # This script requires that we have root or da_admin password defined in cnf, else it's not working
   # ${da_scripts_path}/reset_da_admin_password.sh --password "${DA_ADMIN_SQLPASS}"
   if [[ "${option}" == "--run-force-exit" || "${option}" == "--run-exit" ]]; then
+    _echo "$(msg yellow)Warning, script terminated due to the supplied option ${option}$(msg end)" --name
     exit 0
   fi
 }
@@ -8426,6 +8455,7 @@ function configure_da_mail() {
     echo "=~=~=~=~=~=~=~=~=~" 2>&1 | tee -a "${REPORT_FILE}"
   fi
   if [[ "${option}" == "--run-force-exit" || "${option}" == "--run-exit" ]]; then
+    _echo "$(msg yellow)Warning, script terminated due to the supplied option ${option}$(msg end)" --name
     exit 0
   fi
 }
@@ -8467,6 +8497,7 @@ function configure_da_ftp() {
     echo "=~=~=~=~=~=~=~=~=~" 2>&1 | tee -a "${REPORT_FILE}"
   fi
   if [[ "${option}" == "--run-force-exit" || "${option}" == "--run-exit" ]]; then
+    _echo "$(msg yellow)Warning, script terminated due to the supplied option ${option}$(msg end)" --name
     exit 0
   fi
 }
@@ -8606,6 +8637,7 @@ function configure_nginx_apache() {
     echo "=~=~=~=~=~=~=~=~=~" 2>&1 | tee -a "${REPORT_FILE}"
   fi
   if [[ "${option}" == "--run-force-exit" || "${option}" == "--run-exit" ]]; then
+    _echo "$(msg yellow)Warning, script terminated due to the supplied option ${option}$(msg end)" --name
     exit 0
   fi
 }
@@ -8647,6 +8679,7 @@ function configure_web_apps_html() {
     echo "=~=~=~=~=~=~=~=~=~" 2>&1 | tee -a "${REPORT_FILE}"
   fi
   if [[ "${option}" == "--run-force-exit" || "${option}" == "--run-exit" ]]; then
+    _echo "$(msg yellow)Warning, script terminated due to the supplied option ${option}$(msg end)" --name
     exit 0
   fi
 }
@@ -8746,6 +8779,7 @@ function build_da_custom_conf() {
     echo "=~=~=~=~=~=~=~=~=~" 2>&1 | tee -a "${REPORT_FILE}"
   fi
   if [[ "${option}" == "--run-force-exit" || "${option}" == "--run-exit" ]]; then
+    _echo "$(msg yellow)Warning, script terminated due to the supplied option ${option}$(msg end)" --name
     exit 0
   fi
 }
@@ -8817,6 +8851,7 @@ function configure_da() {
     echo "=~=~=~=~=~=~=~=~=~" 2>&1 | tee -a "${REPORT_FILE}"
   fi
   if [[ "${option}" == "--run-force-exit" || "${option}" == "--run-exit" ]]; then
+    _echo "$(msg yellow)Warning, script terminated due to the supplied option ${option}$(msg end)" --name
     exit 0
   fi
 }
@@ -8861,6 +8896,7 @@ function add_da_ip() {
     echo "=~=~=~=~=~=~=~=~=~" 2>&1 | tee -a "${REPORT_FILE}"
   fi
   if [[ "${option}" == "--run-force-exit" || "${option}" == "--run-exit" ]]; then
+    _echo "$(msg yellow)Warning, script terminated due to the supplied option ${option}$(msg end)" --name
     exit 0
   fi
 }
@@ -8894,6 +8930,7 @@ function configure_maxibox() {
     echo "=~=~=~=~=~=~=~=~=~" 2>&1 | tee -a "${REPORT_FILE}"
   fi
   if [[ "${option}" == "--run-force-exit" || "${option}" == "--run-exit" ]]; then
+    _echo "$(msg yellow)Warning, script terminated due to the supplied option ${option}$(msg end)" --name
     exit 0
   fi
 }
@@ -8928,6 +8965,7 @@ function configure_maxicode_pre() {
     echo "=~=~=~=~=~=~=~=~=~" 2>&1 | tee -a "${REPORT_FILE}"
   fi
   if [[ "${option}" == "--run-force-exit" || "${option}" == "--run-exit" ]]; then
+    _echo "$(msg yellow)Warning, script terminated due to the supplied option ${option}$(msg end)" --name
     exit 0
   fi
 }
@@ -9004,6 +9042,7 @@ function configure_maxicode() {
     echo "=~=~=~=~=~=~=~=~=~" 2>&1 | tee -a "${REPORT_FILE}"
   fi
   if [[ "${option}" == "--run-force-exit" || "${option}" == "--run-exit" ]]; then
+    _echo "$(msg yellow)Warning, script terminated due to the supplied option ${option}$(msg end)" --name
     exit 0
   fi
 }
@@ -9047,6 +9086,7 @@ function configure_maxiperm() {
     echo "=~=~=~=~=~=~=~=~=~" 2>&1 | tee -a "${REPORT_FILE}"
   fi
   if [[ "${option}" == "--run-force-exit" || "${option}" == "--run-exit" ]]; then
+    _echo "$(msg yellow)Warning, script terminated due to the supplied option ${option}$(msg end)" --name
     exit 0
   fi
 }
@@ -9111,6 +9151,7 @@ function configure_maxinis() {
     echo "=~=~=~=~=~=~=~=~=~" 2>&1 | tee -a "${REPORT_FILE}"
   fi
   if [[ "${option}" == "--run-force-exit" || "${option}" == "--run-exit" ]]; then
+    _echo "$(msg yellow)Warning, script terminated due to the supplied option ${option}$(msg end)" --name
     exit 0
   fi
 }
@@ -9221,6 +9262,7 @@ EOF
     echo "=~=~=~=~=~=~=~=~=~" 2>&1 | tee -a "${REPORT_FILE}"
   fi
   if [[ "${option}" == "--run-force-exit" || "${option}" == "--run-exit" ]]; then
+    _echo "$(msg yellow)Warning, script terminated due to the supplied option ${option}$(msg end)" --name
     exit 0
   fi
 }
@@ -9304,6 +9346,7 @@ function configure_maxida() {
     echo "=~=~=~=~=~=~=~=~=~" 2>&1 | tee -a "${REPORT_FILE}"
   fi
   if [[ "${option}" == "--run-force-exit" || "${option}" == "--run-exit" ]]; then
+    _echo "$(msg yellow)Warning, script terminated due to the supplied option ${option}$(msg end)" --name
     exit 0
   fi
 }
@@ -9347,6 +9390,7 @@ function configure_maxicron() {
     echo "=~=~=~=~=~=~=~=~=~" 2>&1 | tee -a "${REPORT_FILE}"
   fi
   if [[ "${option}" == "--run-force-exit" || "${option}" == "--run-exit" ]]; then
+    _echo "$(msg yellow)Warning, script terminated due to the supplied option ${option}$(msg end)" --name
     exit 0
   fi
 }
@@ -9397,6 +9441,7 @@ function configure_maxiaide() {
     echo "=~=~=~=~=~=~=~=~=~" 2>&1 | tee -a "${REPORT_FILE}"
   fi
   if [[ "${option}" == "--run-force-exit" || "${option}" == "--run-exit" ]]; then
+    _echo "$(msg yellow)Warning, script terminated due to the supplied option ${option}$(msg end)" --name
     exit 0
   fi
 }
@@ -9688,6 +9733,7 @@ function configure_maxiwall() {
     echo "=~=~=~=~=~=~=~=~=~" 2>&1 | tee -a "${REPORT_FILE}"
   fi
   if [[ "${option}" == "--run-force-exit" || "${option}" == "--run-exit" ]]; then
+    _echo "$(msg yellow)Warning, script terminated due to the supplied option ${option}$(msg end)" --name
     exit 0
   fi
 }
@@ -9744,6 +9790,7 @@ function configure_maxicloud() {
     echo "=~=~=~=~=~=~=~=~=~" 2>&1 | tee -a "${REPORT_FILE}"
   fi
   if [[ "${option}" == "--run-force-exit" || "${option}" == "--run-exit" ]]; then
+    _echo "$(msg yellow)Warning, script terminated due to the supplied option ${option}$(msg end)" --name
     exit 0
   fi
 }
@@ -9814,6 +9861,7 @@ function configure_maxipass() {
     echo "=~=~=~=~=~=~=~=~=~" 2>&1 | tee -a "${REPORT_FILE}"
   fi
   if [[ "${option}" == "--run-force-exit" || "${option}" == "--run-exit" ]]; then
+    _echo "$(msg yellow)Warning, script terminated due to the supplied option ${option}$(msg end)" --name
     exit 0
   fi
 }
@@ -9858,6 +9906,7 @@ function configure_maxify() {
   fi
 
   if [[ "${option}" == "--run-force-exit" || "${option}" == "--run-exit" ]]; then
+    _echo "$(msg yellow)Warning, script terminated due to the supplied option ${option}$(msg end)" --name
     exit 0
   fi
 }
@@ -9891,6 +9940,7 @@ function configure_logs() {
   fi
 
   if [[ "${option}" == "--run-force-exit" || "${option}" == "--run-exit" ]]; then
+    _echo "$(msg yellow)Warning, script terminated due to the supplied option ${option}$(msg end)" --name
     exit 0
   fi
 }
@@ -9957,6 +10007,7 @@ function configure_da_memcached() {
   fi
 
   if [[ "${option}" == "--run-force-exit" || "${option}" == "--run-exit" ]]; then
+    _echo "$(msg yellow)Warning, script terminated due to the supplied option ${option}$(msg end)" --name
     exit 0
   fi
 
@@ -10007,6 +10058,7 @@ function configure_da_geoip() {
     echo "=~=~=~=~=~=~=~=~=~" 2>&1 | tee -a "${REPORT_FILE}"
   fi
   if [[ "${option}" == "--run-force-exit" || "${option}" == "--run-exit" ]]; then
+    _echo "$(msg yellow)Warning, script terminated due to the supplied option ${option}$(msg end)" --name
     exit 0
   fi
 }
@@ -10093,6 +10145,7 @@ configure_da_dns_templates() {
     echo "=~=~=~=~=~=~=~=~=~" 2>&1 | tee -a "${REPORT_FILE}"
   fi
   if [[ "${option}" == "--run-force-exit" || "${option}" == "--run-exit" ]]; then
+    _echo "$(msg yellow)Warning, script terminated due to the supplied option ${option}$(msg end)" --name
     exit 0
   fi
 }
@@ -10171,6 +10224,7 @@ function configure_da_owner_skins() {
     echo "=~=~=~=~=~=~=~=~=~" 2>&1 | tee -a "${REPORT_FILE}"
   fi
   if [[ "${option}" == "--run-force-exit" || "${option}" == "--run-exit" ]]; then
+    _echo "$(msg yellow)Warning, script terminated due to the supplied option ${option}$(msg end)" --name
     exit 0
   fi
 }
@@ -10249,6 +10303,7 @@ function configure_da_admin_skins() {
     echo "=~=~=~=~=~=~=~=~=~" 2>&1 | tee -a "${REPORT_FILE}"
   fi
   if [[ "${option}" == "--run-force-exit" || "${option}" == "--run-exit" ]]; then
+    _echo "$(msg yellow)Warning, script terminated due to the supplied option ${option}$(msg end)" --name
     exit 0
   fi
 }
@@ -10324,6 +10379,7 @@ function configure_da_reseller_skins() {
     echo "=~=~=~=~=~=~=~=~=~" 2>&1 | tee -a "${REPORT_FILE}"
   fi
   if [[ "${option}" == "--run-force-exit" || "${option}" == "--run-exit" ]]; then
+    _echo "$(msg yellow)Warning, script terminated due to the supplied option ${option}$(msg end)" --name
     exit 0
   fi
 }
@@ -10355,6 +10411,7 @@ function configure_da_admin_admin_settings() {
   fi
   ######
   if [[ "${option}" == "--run-force-exit" || "${option}" == "--run-exit" ]]; then
+    _echo "$(msg yellow)Warning, script terminated due to the supplied option ${option}$(msg end)" --name
     exit 0
   fi
 }
@@ -10391,6 +10448,7 @@ function configure_da_owner_accounts() {
     echo "=~=~=~=~=~=~=~=~=~" 2>&1 | tee -a "${REPORT_FILE}"
   fi
   if [[ "${option}" == "--run-force-exit" || "${option}" == "--run-exit" ]]; then
+    _echo "$(msg yellow)Warning, script terminated due to the supplied option ${option}$(msg end)" --name
     exit 0
   fi
 }
@@ -10456,6 +10514,7 @@ function configure_da_admin_accounts() {
     echo "=~=~=~=~=~=~=~=~=~" 2>&1 | tee -a "${REPORT_FILE}"
   fi
   if [[ "${option}" == "--run-force-exit" || "${option}" == "--run-exit" ]]; then
+    _echo "$(msg yellow)Warning, script terminated due to the supplied option ${option}$(msg end)" --name
     exit 0
   fi
 }
@@ -10887,6 +10946,7 @@ function configure_da_reseller_accounts() {
     echo "=~=~=~=~=~=~=~=~=~" 2>&1 | tee -a "${REPORT_FILE}"
   fi
   if [[ "${option}" == "--run-force-exit" || "${option}" == "--run-exit" ]]; then
+    _echo "$(msg yellow)Warning, script terminated due to the supplied option ${option}$(msg end)" --name
     exit 0
   fi
 }
@@ -11000,6 +11060,7 @@ function configure_da_reseller_root_domains() {
     echo "=~=~=~=~=~=~=~=~=~" 2>&1 | tee -a "${REPORT_FILE}"
   fi
   if [[ "${option}" == "--run-force-exit" || "${option}" == "--run-exit" ]]; then
+    _echo "$(msg yellow)Warning, script terminated due to the supplied option ${option}$(msg end)" --name
     exit 0
   fi
 }
@@ -11111,6 +11172,7 @@ function configure_da_reseller_wildcard_domains() {
     echo "=~=~=~=~=~=~=~=~=~" 2>&1 | tee -a "${REPORT_FILE}"
   fi
   if [[ "${option}" == "--run-force-exit" || "${option}" == "--run-exit" ]]; then
+    _echo "$(msg yellow)Warning, script terminated due to the supplied option ${option}$(msg end)" --name
     exit 0
   fi
 }
@@ -11465,6 +11527,7 @@ function configure_da_user_accounts() {
     echo "=~=~=~=~=~=~=~=~=~" 2>&1 | tee -a "${REPORT_FILE}"
   fi
   if [[ "${option}" == "--run-force-exit" || "${option}" == "--run-exit" ]]; then
+    _echo "$(msg yellow)Warning, script terminated due to the supplied option ${option}$(msg end)" --name
     exit 0
   fi
 }
@@ -11578,6 +11641,7 @@ function configure_da_user_root_domains() {
     echo "=~=~=~=~=~=~=~=~=~" 2>&1 | tee -a "${REPORT_FILE}"
   fi
   if [[ "${option}" == "--run-force-exit" || "${option}" == "--run-exit" ]]; then
+    _echo "$(msg yellow)Warning, script terminated due to the supplied option ${option}$(msg end)" --name
     exit 0
   fi
 }
@@ -11690,6 +11754,7 @@ function configure_da_user_wildcard_domains() {
     echo "=~=~=~=~=~=~=~=~=~" 2>&1 | tee -a "${REPORT_FILE}"
   fi
   if [[ "${option}" == "--run-force-exit" || "${option}" == "--run-exit" ]]; then
+    _echo "$(msg yellow)Warning, script terminated due to the supplied option ${option}$(msg end)" --name
     exit 0
   fi
 }
@@ -11822,6 +11887,7 @@ function configure_da_reseller_subdomains() {
     echo "=~=~=~=~=~=~=~=~=~" 2>&1 | tee -a "${REPORT_FILE}"
   fi
   if [[ "${option}" == "--run-force-exit" || "${option}" == "--run-exit" ]]; then
+    _echo "$(msg yellow)Warning, script terminated due to the supplied option ${option}$(msg end)" --name
     exit 0
   fi
 }
@@ -11940,6 +12006,7 @@ function configure_da_user_subdomains() {
     echo "=~=~=~=~=~=~=~=~=~" 2>&1 | tee -a "${REPORT_FILE}"
   fi
   if [[ "${option}" == "--run-force-exit" || "${option}" == "--run-exit" ]]; then
+    _echo "$(msg yellow)Warning, script terminated due to the supplied option ${option}$(msg end)" --name
     exit 0
   fi
 }
@@ -12042,6 +12109,7 @@ function configure_da_reseller_emails() {
     echo "=~=~=~=~=~=~=~=~=~" 2>&1 | tee -a "${REPORT_FILE}"
   fi
   if [[ "${option}" == "--run-force-exit" || "${option}" == "--run-exit" ]]; then
+    _echo "$(msg yellow)Warning, script terminated due to the supplied option ${option}$(msg end)" --name
     exit 0
   fi
 }
@@ -12144,6 +12212,7 @@ function configure_da_user_emails() {
     echo "=~=~=~=~=~=~=~=~=~" 2>&1 | tee -a "${REPORT_FILE}"
   fi
   if [[ "${option}" == "--run-force-exit" || "${option}" == "--run-exit" ]]; then
+    _echo "$(msg yellow)Warning, script terminated due to the supplied option ${option}$(msg end)" --name
     exit 0
   fi
 }
@@ -12251,6 +12320,7 @@ function configure_da_reseller_domain_ssl_pre() {
     echo "=~=~=~=~=~=~=~=~=~" 2>&1 | tee -a "${REPORT_FILE}"
   fi
   if [[ "${option}" == "--run-force-exit" || "${option}" == "--run-exit" ]]; then
+    _echo "$(msg yellow)Warning, script terminated due to the supplied option ${option}$(msg end)" --name
     exit 0
   fi
 }
@@ -12344,6 +12414,7 @@ function configure_da_user_domain_ssl_pre() {
     echo "=~=~=~=~=~=~=~=~=~" 2>&1 | tee -a "${REPORT_FILE}"
   fi
   if [[ "${option}" == "--run-force-exit" || "${option}" == "--run-exit" ]]; then
+    _echo "$(msg yellow)Warning, script terminated due to the supplied option ${option}$(msg end)" --name
     exit 0
   fi
 }
@@ -12465,6 +12536,7 @@ function configure_da_reseller_domain_ssl() {
     echo "=~=~=~=~=~=~=~=~=~" 2>&1 | tee -a "${REPORT_FILE}"
   fi
   if [[ "${option}" == "--run-force-exit" || "${option}" == "--run-exit" ]]; then
+    _echo "$(msg yellow)Warning, script terminated due to the supplied option ${option}$(msg end)" --name
     exit 0
   fi
 }
@@ -12583,6 +12655,7 @@ function configure_da_user_domain_ssl() {
     echo "=~=~=~=~=~=~=~=~=~" 2>&1 | tee -a "${REPORT_FILE}"
   fi
   if [[ "${option}" == "--run-force-exit" || "${option}" == "--run-exit" ]]; then
+    _echo "$(msg yellow)Warning, script terminated due to the supplied option ${option}$(msg end)" --name
     exit 0
   fi
 }
@@ -12668,6 +12741,7 @@ function configure_da_owner_security() {
     echo "=~=~=~=~=~=~=~=~=~" 2>&1 | tee -a "${REPORT_FILE}"
   fi
   if [[ "${option}" == "--run-force-exit" || "${option}" == "--run-exit" ]]; then
+    _echo "$(msg yellow)Warning, script terminated due to the supplied option ${option}$(msg end)" --name
     exit 0
   fi
 }
@@ -12753,6 +12827,7 @@ function configure_da_admin_security() {
     echo "=~=~=~=~=~=~=~=~=~" 2>&1 | tee -a "${REPORT_FILE}"
   fi
   if [[ "${option}" == "--run-force-exit" || "${option}" == "--run-exit" ]]; then
+    _echo "$(msg yellow)Warning, script terminated due to the supplied option ${option}$(msg end)" --name
     exit 0
   fi
 }
@@ -12838,6 +12913,7 @@ function configure_da_reseller_security() {
     echo "=~=~=~=~=~=~=~=~=~" 2>&1 | tee -a "${REPORT_FILE}"
   fi
   if [[ "${option}" == "--run-force-exit" || "${option}" == "--run-exit" ]]; then
+    _echo "$(msg yellow)Warning, script terminated due to the supplied option ${option}$(msg end)" --name
     exit 0
   fi
 }
@@ -12924,6 +13000,7 @@ function configure_da_user_security() {
     echo "=~=~=~=~=~=~=~=~=~" 2>&1 | tee -a "${REPORT_FILE}"
   fi
   if [[ "${option}" == "--run-force-exit" || "${option}" == "--run-exit" ]]; then
+    _echo "$(msg yellow)Warning, script terminated due to the supplied option ${option}$(msg end)" --name
     exit 0
   fi
 }
@@ -13027,6 +13104,7 @@ function configure_da_reseller_databases() {
     echo "=~=~=~=~=~=~=~=~=~" 2>&1 | tee -a "${REPORT_FILE}"
   fi
   if [[ "${option}" == "--run-force-exit" || "${option}" == "--run-exit" ]]; then
+    _echo "$(msg yellow)Warning, script terminated due to the supplied option ${option}$(msg end)" --name
     exit 0
   fi
 }
@@ -13131,6 +13209,7 @@ function configure_da_user_databases() {
     echo "=~=~=~=~=~=~=~=~=~" 2>&1 | tee -a "${REPORT_FILE}"
   fi
   if [[ "${option}" == "--run-force-exit" || "${option}" == "--run-exit" ]]; then
+    _echo "$(msg yellow)Warning, script terminated due to the supplied option ${option}$(msg end)" --name
     exit 0
   fi
 }
@@ -13176,6 +13255,7 @@ function configure_da_custom_webs() {
     echo "=~=~=~=~=~=~=~=~=~" 2>&1 | tee -a "${REPORT_FILE}"
   fi
   if [[ "${option}" == "--run-force-exit" || "${option}" == "--run-exit" ]]; then
+    _echo "$(msg yellow)Warning, script terminated due to the supplied option ${option}$(msg end)" --name
     exit 0
   fi
 }
@@ -13227,6 +13307,7 @@ function harden_with_lynis() {
     echo "=~=~=~=~=~=~=~=~=~" 2>&1 | tee -a "${REPORT_FILE}"
   fi
   if [[ "${option}" == "--run-force-exit" || "${option}" == "--run-exit" ]]; then
+    _echo "$(msg yellow)Warning, script terminated due to the supplied option ${option}$(msg end)" --name
     exit 0
   fi
 }
@@ -13267,6 +13348,7 @@ function configure_cronjobs() {
     echo "=~=~=~=~=~=~=~=~=~" 2>&1 | tee -a "${REPORT_FILE}"
   fi
   if [[ "${option}" == "--run-force-exit" || "${option}" == "--run-exit" ]]; then
+    _echo "$(msg yellow)Warning, script terminated due to the supplied option ${option}$(msg end)" --name
     exit 0
   fi
 }
@@ -13310,6 +13392,7 @@ function setup_post() {
   fi
 
   if [[ "${option}" == "--run-force-exit" || "${option}" == "--run-exit" ]]; then
+    _echo "$(msg yellow)Warning, script terminated due to the supplied option ${option}$(msg end)" --name
     exit 0
   fi
 }
@@ -13796,7 +13879,7 @@ ENDSSH
     break
     ;;
 
-  -lu | --luks-unlock | --ssh-luks-unlock)
+  -lu | --luks-unlock | --unlock-luks | --ssh-luks-unlock)
     shift
     ssh_api luks-unlock "$@"
     exit 0
@@ -13819,6 +13902,12 @@ ENDSSH
   --ssh-transfer)
     shift
     ssh_api transfer-files "$@"
+    exit 0
+    break
+    ;;
+  --boot-linode)
+    shift
+    linode_api_admin boot-linode "$@"
     exit 0
     break
     ;;

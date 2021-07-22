@@ -10,7 +10,7 @@
     <select />
   </component>
   <component name="ChangeListManager">
-    <list default="true" id="113c828c-9a32-4b24-ab1e-978ce50c6320" name="Default Changelist" comment="Removed deprecated codes&#10;Added TODO.list just for TODO list reference" />
+    <list default="true" id="113c828c-9a32-4b24-ab1e-978ce50c6320" name="Default Changelist" comment="Update codes" />
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
     <option name="HIGHLIGHT_NON_ACTIVE_CHANGELIST" value="false" />
@@ -55,28 +55,13 @@
     </key>
   </component>
   <component name="RunManager">
-    <configuration default="true" type="ArquillianTestNG" factoryName="" nameIsGenerated="true">
+    <configuration default="true" type="ArquillianJUnit" factoryName="" nameIsGenerated="true">
       <option name="arquillianRunConfiguration">
         <value>
           <option name="containerStateName" value="" />
         </value>
       </option>
-      <option name="TEST_OBJECT" value="CLASS" />
-      <properties />
-      <listeners />
-      <method v="2">
-        <option name="Make" enabled="true" />
-      </method>
-    </configuration>
-    <configuration default="true" type="JetRunConfigurationType">
-      <module name="maxinet_public" />
-      <method v="2">
-        <option name="Make" enabled="true" />
-      </method>
-    </configuration>
-    <configuration default="true" type="KotlinStandaloneScriptRunConfigurationType">
-      <module name="maxinet_public" />
-      <option name="filePath" />
+      <option name="TEST_OBJECT" value="class" />
       <method v="2">
         <option name="Make" enabled="true" />
       </method>
@@ -187,13 +172,7 @@
       <workItem from="1626881645441" duration="53000" />
       <workItem from="1626891301347" duration="502000" />
       <workItem from="1626919806027" duration="673000" />
-    </task>
-    <task id="LOCAL-00042" summary="Fixed trap function terminated running script when trying to run this script as a second instance. It should only notify that a script is running and exit not terminated all other instances.&#10;&#10;Added new readme about LUKS encryption - step by step procedures to create LUKS encryption on Debian and CentOS (private repo)&#10;&#10;Added prestashop platform files to automatically install prestashop website based on user variable DA_RESELLER_ROOT_WEB_TYPE[INDEX] from the config (pending function)&#10;&#10;Improved Directadmin restart condition to force restart if waiting time is longer than 60 seconds&#10;&#10;Fixed typo CMD_API_SECURITY_QUESTIONS does not exist but CMD_SECURITY_QUESTIONS does based on this: https://forum.directadmin.com/threads/cmd_api-have-way-to-change-php-version-of-unique-account.62965/#post-327435&#10;&#10;Added sudo installation for distribution that doesn't have sudo installed by default&#10;&#10;Fixed after changing network interface name from the function configure_net, we must also include network information (including the interface name) by calling configure_net2 before system reboot. Without this we won't have proper network connection for SSH.&#10;&#10;Changed variable IPV6_ADD to IPV6_ADD0 and IPV6_DEF_GATEWAY to IPV6_DEF_GATEWAY0 to allow multiple IPv6 addresses in the future&#10;&#10;Added option to build mysql or mariadb based on maxisetup.conf config file. &#10;&#10;New variable for installing sql:&#10;&#10;# Format &lt;sql_type&gt;-&lt;sql_version&gt;&#10;CB_MYSQL_INS=&quot;mariadb-10.5&quot; # or eg: mysql-8.0">
-      <created>1613629738527</created>
-      <option name="number" value="00042" />
-      <option name="presentableId" value="LOCAL-00042" />
-      <option name="project" value="LOCAL" />
-      <updated>1613629738527</updated>
+      <workItem from="1626928324558" duration="116000" />
     </task>
     <task id="LOCAL-00043" summary="Improved documentation LUKS.md (private repo)&#10;Increased max_wait value for restarting wait time for 120 seconds&#10;Fixed missing argument for set max_username_length&#10;Fixed checking mysqld process doesn't detect running mysql process when using pgrep command. Changed code from &#10;&#10;if pgrep -x &quot;mysqld&quot; &gt;/dev/null 2&gt;&amp;1; then&#10;&#10;to &#10;&#10;if command -v mysqld &amp;&gt;/dev/null; then">
       <created>1613884978574</created>
@@ -531,7 +510,14 @@
       <option name="project" value="LOCAL" />
       <updated>1626919863785</updated>
     </task>
-    <option name="localTasksCounter" value="91" />
+    <task id="LOCAL-00091" summary="Update codes">
+      <created>1626928424170</created>
+      <option name="number" value="00091" />
+      <option name="presentableId" value="LOCAL-00091" />
+      <option name="project" value="LOCAL" />
+      <updated>1626928424170</updated>
+    </task>
+    <option name="localTasksCounter" value="92" />
     <servers />
   </component>
   <component name="TypeScriptGeneratedFilesManager">
@@ -550,7 +536,6 @@
     <option name="oldMeFiltersMigrated" value="true" />
   </component>
   <component name="VcsManagerConfiguration">
-    <MESSAGE value="Improved linode API" />
     <MESSAGE value="Added the ability to build an ISO file with preseed config used to customize server installation. This ISO file will automatically install server without any interaction.&#10;Updated cd_to_path function to store previous path&#10;Improved linode API&#10;&#10;New variables:&#10;&#10;IPV4_NETMASK0=&#10;IPV6_NETMASK0=&#10;BOX_COUNTRY_NAME=&quot;Malaysia&quot;&#10;BOX_COUNTRY_CODE=&quot;MY&quot;" />
     <MESSAGE value="Improved iso-creation and modified new preseed configs&#10;&#10;New variables:&#10;&#10;BOX_LANGUAGE_CODE=&quot;en&quot;&#10;BOX_LOCALE=&quot;en_US.UTF-8&quot;&#10;BOX_KEYBOARD=&quot;us&quot;" />
     <MESSAGE value="Added hash function for creating password&#10;&#10;Added argument to run preseed.cfg for both graphic and text setup&#10;Added timeout to skip setup menu for custom ISO" />
@@ -575,6 +560,7 @@
     <MESSAGE value="Updated init_server() function&#10;Updated function_name to exit function from an option --exit to --run-exit&#10;Added new function setup()&#10;Added documentation on the source code how to call function_name with argument. eg:&#10;&#10;secure_box --run-force&#10;&#10;This will force the script to run secure_box even if it was previously ran. This function_name documentation will be included in the --help section.&#10;&#10;Updated SETUP_GIT_URL link" />
     <MESSAGE value="New changes" />
     <MESSAGE value="Removed deprecated codes&#10;Added TODO.list just for TODO list reference" />
-    <option name="LAST_COMMIT_MESSAGE" value="Removed deprecated codes&#10;Added TODO.list just for TODO list reference" />
+    <MESSAGE value="Update codes" />
+    <option name="LAST_COMMIT_MESSAGE" value="Update codes" />
   </component>
 </project>
