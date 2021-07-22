@@ -4,7 +4,7 @@
 APP_SPECIFIC_NAME="Maxinet"
 APP_STATUS="alpha"
 # Note some minor versions are not published
-APP_VERSION="0.5.2.6-${APP_STATUS}"
+APP_VERSION="0.5.2.7-${APP_STATUS}"
 COMPANY_ID="${COMPANY_ID}"
 # Hello there, this is a powerful script that able initialize one or more server installation from scratch. From configuring the server disk, until you got the full working server with a live website.
 # It also includes many security and hardening script.
@@ -15,13 +15,8 @@ COMPANY_ID="${COMPANY_ID}"
 # =~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~="
 # Run installation with log output: ./${script_name} --setup 2>&1 | tee maxinet.log
 # Run initialize installation with log output: ./${script_name} --init-server init-all rebuild-iso 2>&1 | tee maxinet.log
-# TOP TO DO LIST:
-# TODO: Enable DNSSEC https://help.directadmin.com/item.php?id=651 (also check mail configuration to support new ipv6) - linode does not support DNSSEC so make this optional if dns management is linode then don't enable
-# TODO: provide an optional option to automatically create google domain verification TXT record through API (need Google business account at console) - Google site verification
-# TODO: create hostname and setup dkim, dmarc, at linode spf at linode (use common subdomain, ftp, mail, www, smtp, pop) - normally it should be created first before installing DA but dkim need to be updated.
 
 # FUNCTION BEGIN HERE
-
 function script_header() {
   # This is script header
   _echo "$(msg red)=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=$(msg end)" --quiet
@@ -577,32 +572,27 @@ function init_server() {
     _echo "$(msg cyan)Copying RSA key public key for login purpose ...$(msg end)" --name
     ssh_api copy-public-keys --without-prompt
     echo ""
-
-    # Wait booting. Another method is to ping port 22 via script and return value. Use this at this moment
-    _echo "Giving 12 seconds for ${BOX_HOSTNAME_FQDN} to finish booting into Finnix rescue OS ..." --name
+    # Wait 12 seconds for Rescue OS to boot properly
+    # Note the method to determine whether Finnix Rescue OS port is available or not will not work because by default Rescue Disk do not have open port
+    _echo "$(msg cyan)Giving 12 seconds for ${BOX_HOSTNAME_FQDN} to finish booting into Finnix rescue OS ...$(msg end)" --name
     sleep 12
-
-    _echo "Writing OS into ${LINODE_BOOT_DISK_LABEL} Partition via SSH background (this will be completed until linode is turned off automatically) ..." --name
-    #ssh -q -o "StrictHostKeyChecking no" -i /root/.ssh/linode_lish.id_rsa -tt "${DNS_PROVIDER_USER}@${DNS_PROVIDER_TERMINAL_SERVER}" "${BOX_HOSTNAME_FQDN}" <"${CODE_PATH}/ssh_scripts/os_write_ag.sh" >/dev/null 2>&1 &
+    _echo "$(msg cyan)Writing OS into ${LINODE_BOOT_DISK_LABEL} Partition via SSH background (this will be completed until linode is turned off automatically) ...$(msg end)" --name
+    # ssh -q -o "StrictHostKeyChecking no" -i /root/.ssh/linode_lish.id_rsa -tt "${DNS_PROVIDER_USER}@${DNS_PROVIDER_TERMINAL_SERVER}" "${BOX_HOSTNAME_FQDN}" <"${CODE_PATH}/ssh_scripts/os_write_ag.sh" >/dev/null 2>&1 &
     # This above lish ssh command is equivalent to below using --push-iso-write-script option and other config will be used the default values from config file:
     ssh_api lish-push-script --push-iso-write-script
-    #check_linode_status_until "offline"
-
-    #linode_api_admin wait-linode-until --status offline
+    # Wait until linode status is offline
     linode_api_admin wait-linode-status --linode-label "${BOX_HOSTNAME_FQDN}" --until-status offline
 
     # After system shutdown, then we can execute the following
     # Note I can use reboot-linode or boot-linode (boot-linode is used if the linode status is offline, if it's online you cannot use it)
     linode_api_admin boot-linode --linode-label "${BOX_HOSTNAME_FQDN}" --linode-config-label "${LINODE_BOOT_CONFIG_LABEL}"
-    _echo "Installing operating system on OS_Disk via preseed file ... (approx 5 minutes. It will finish when linode is turned off automatically): " --name
-    #check_linode_status_until "offline"
+    _echo "$(msg cyan)Installing operating system automatically using preseed configuration (approx 5 minutes. Server will turned off automatically when finish): $(msg end)" --name
     linode_api_admin wait-linode-status --linode-label "${BOX_HOSTNAME_FQDN}" --until-status offline
     # Remove the Boot_Config, we do not need this anymore
     linode_api_admin delete-config --linode-label "${BOX_HOSTNAME_FQDN}" --linode-config-label "${LINODE_BOOT_CONFIG_LABEL}"
     # Boot into the new OS
     _echo "Booting into operating system (make sure to unlock LUKS)" --name
     linode_api_admin boot-linode --linode-label "${BOX_HOSTNAME_FQDN}" --linode-config-label "${LINODE_OS_CONFIG_LABEL}"
-
     _echo "$(msg cyan)Checking if dropbear port ${DROP_BEAR_PORT} is open from --server ${BOX_HOSTNAME_FQDN} ...$(msg end)" --name
     count=0
     while :; do
@@ -623,10 +613,6 @@ function init_server() {
       fi
     done
 
-    # Guide: https://www.arminpech.de/2019/12/23/debian-unlock-luks-root-partition-remotely-by-ssh-using-dropbear/
-    # Guide 2: https://www.gandalfk7.it/posts/20200914_02_Debian_9_and_10_boot_luks_unlock/
-    # Now you can SSH with :
-    # maxinet --ssh-login sun.sofibox.com
     _echo "$(msg cyan)Copying maxinet and maxinet.conf script into remote server ... $(msg end)" --name
     ssh_api transfer-files --server-port "${BOX_HOSTNAME_FQDN}:${SSH_PORT}" --group-user "root:${ROOT_USERNAME}" --local-files "${SCRIPT_PATH}/maxinet ${SCRIPT_PATH}/maxinet.conf" --remote-path ~/
     sleep 2
@@ -634,7 +620,6 @@ function init_server() {
     if [ "${PRE_AUTORUN_SETUP}" == "no" ]; then
       _echo "$(msg cyan) Warning, PRE_AUTORUN_SETUP is set to no. Hence, auto installation script is disabled! Please run --setup manually$(msg end)" --name
       linode_api_admin shutdown-linode --linode-label "${BOX_HOSTNAME_FQDN}"
-      linode_api_admin wait-linode-status --linode-label "${BOX_HOSTNAME_FQDN}" --until-status offline
       _exit 0
     fi
 
@@ -643,11 +628,11 @@ function init_server() {
     ssh_api push-script --server-port "${BOX_HOSTNAME_FQDN}:${SSH_PORT}" --group-user "root:${ROOT_USERNAME}" --local-script-path "${CODE_PATH}/ssh_scripts/maxinet_setup.sh"
     # After installation above, the system must restart once, so we execute next script to reopen LUKS
 
-    # After the above script is executed, now we wait for it to shutdown properly before booting
+    # After the above script is executed, now we wait for it to shutdown (executed by the script installation) properly before booting
     linode_api_admin wait-linode-status --linode-label "${BOX_HOSTNAME_FQDN}" --until-status offline
 
     _echo "$(msg cyan)Booting into operating system (LUKS console might be appeared and unlocked automatically) ...$(msg end)" --name
-    linode_api_admin "reboot-linode" --linode-label "${BOX_HOSTNAME_FQDN}" --linode-config-label "${LINODE_OS_CONFIG_LABEL}"
+    linode_api_admin reboot-linode --linode-label "${BOX_HOSTNAME_FQDN}" --linode-config-label "${LINODE_OS_CONFIG_LABEL}"
     # check server and port if available in order to auto unlock it
     _echo "$(msg cyan)Checking if dropbear port ${DROP_BEAR_PORT} is open from --server ${BOX_HOSTNAME_FQDN} ...$(msg end)" --name
     count=0
@@ -672,7 +657,6 @@ function init_server() {
       _echo "$(msg cyan) Notice, PRE_AUTORUN_SETUP is set to no. Hence, auto installation script is disabled! Please run --setup manually$(msg end)" --name
     else
       _echo "$(msg cyan)Resuming server installation installation by executing ${SCRIPT_NAME} script on remote server...$(msg end)" --name
-      # OLD: ssh_login "${BOX_HOSTNAME_FQDN}:${SSH_PORT}" "root:${ROOT_USERNAME}" "${CODE_PATH}/ssh_scripts/maxinet_setup.sh"
       ssh_api push-script --server-port "${BOX_HOSTNAME_FQDN}:${SSH_PORT}" --group-user "root:${ROOT_USERNAME}" --local-script-path "${CODE_PATH}/ssh_scripts/maxinet_setup.sh"
     fi
     echo ""
@@ -683,44 +667,6 @@ function init_server() {
     :
   elif [ "${DNS_PROVIDER_NAME}" == "local" ]; then
     :
-  fi
-}
-# This function is used to unlock LUKS disk encryption on boot via terminal
-# Usage: ssh_luks_unlock <drop_bear_port> <disk_luks_password>
-# Note 1: The drop_bear_port is setup using dropbear-initramfs (This is set in OS preseed-file and config file)
-# Note 2: The disk_luks_password is the OS LUKS encryption password (This is set in OS preseed-file and config file)
-# Note 3: The unlock method required a port and a password. It will use a normal SSH with certificate (Certificate is set in OS preseed-file)
-# Note 4: After it has successfully logged into the system via SSH, we write the disk_luks_password using this code and the OS will automatically unlock it: "echo -ne \"${pass}\" > /lib/cryptsetup/passfifo"
-# eg calling within code: ssh_luks_unlock 2222 "1234"
-# eg calling outside code: <script_name> --ssh-luks-unlock 2222 "1234"
-function ssh_luks_unlock() {
-  local port pass rsa_private_key
-  port="$1"
-  pass="$2"
-  # Clear known_hosts (reset)
-  echo >/root/.ssh/known_hosts
-  # This key is in the local machine
-  rsa_private_key_local="${SCRIPT_PATH}/secure/ssh/root_root_${BOX_HOSTNAME_FQDN}.id_rsa"
-  # This key is in the remote machine
-  rsa_private_key_remote="/root/.ssh/root_root_${BOX_HOSTNAME_FQDN}.id_rsa"
-  # Copy the RSA private local key to remote key in /root/.ssh
-  cp "${rsa_private_key_local}" /root/.ssh/
-  # Make sure the .ssh folder is secured
-  chmod -R 600 /root/.ssh/
-  _echo def "Unlocking LUKS encrypted disk on boot using port ${port} and password ${pass} ..."
-  if [ -f "${rsa_private_key_remote}" ]; then
-    _echo def "Connecting to ssh with port ${port} to unlock LUKS encrypted disk on boot ..."
-    # Do not use -q, need verbose for this connection to debug error
-    ssh -o "StrictHostKeyChecking no" -p "${port}" -i "${rsa_private_key_remote}" "${BOX_HOSTNAME_FQDN}" "echo -ne \"${pass}\" > /lib/cryptsetup/passfifo" 2> >(grep -v 'Permanently added' 1>&2)
-    retval=$?
-    if [ ${retval} -eq 0 ]; then
-      _echo success "Success, LUKS unlocked return ok status"
-    else
-      _echo warning "Warning, LUKS unlocked return with code ${retval}"
-    fi
-  else
-    _echo error "Error, remote private key ${rsa_private_key_remote} does not exist!"
-    _exit 1
   fi
 }
 
@@ -939,8 +885,18 @@ function ssh_api() {
     _echo "$(msg cyan)Transferring file local files(s) [ ${local_files} ] into remote SSH ${remote_path} ...$(msg end)" --name
     scp -o "StrictHostKeyChecking no" -P "${port}" -i "${rsa_key}" ${local_files} "${user}@${server}:${remote_path}" 2> >(grep -v 'Permanently' 1>&2)
 
-  # ssh_api luks-unlock --port 8922 --password 1234
-  # or without argument ssh_api luks-unlock (it will get the default values from config file)
+    # ssh_api luks-unlock --port 8922 --password 1234
+    # or without argument ssh_api luks-unlock (it will get the default values from config file)
+    # This function is used to unlock LUKS disk encryption on boot via terminal
+    # Usage: ssh_api luks-unlock --port <drop_bear_port> --password <disk_luks_password>
+    # Note 1: The drop_bear_port is setup using dropbear-initramfs (This is set in OS preseed-file and config file)
+    # Note 2: The disk_luks_password is the OS LUKS encryption password (This is set in OS preseed-file and config file)
+    # Note 3: The unlock method required a port and a password. It will use a normal SSH with certificate (Certificate is set in OS preseed-file)
+    # Note 4: After it has successfully logged into the system via SSH, we write the disk_luks_password using this code and the OS will automatically unlock it: "echo -ne \"${pass}\" > /lib/cryptsetup/passfifo"
+    # eg calling within code: ssh_api luks-unlock --port 8922 --password 1234
+    # eg calling outside code: <script_name> --ssh-luks-unlock --port 8922 --password 1234
+    # Guide: https://www.arminpech.de/2019/12/23/debian-unlock-luks-root-partition-remotely-by-ssh-using-dropbear/
+    # Guide 2: https://www.gandalfk7.it/posts/20200914_02_Debian_9_and_10_boot_luks_unlock/
   elif [[ "${action}" == "luks-unlock" || "${action}" == "ssh-luks-unlock" || "${action}" == "unlock-luks" ]]; then
     option="$2"
 
@@ -980,12 +936,24 @@ function ssh_api() {
       private_key_name="root_${ROOT_USERNAME}_${BOX_HOSTNAME_FQDN}.id_rsa"
       private_key_file="${key_path}/${private_key_name}"
       rsa_key="${private_key_file}"
+      _echo "$(msg cyan)Checking whether ${BOX_HOSTNAME_FQDN}'s port ${SSH_PORT} is online ...$(msg end)" --name
+      port_status=$(check_server_port "${BOX_HOSTNAME_FQDN}" "${SSH_PORT}")
+      if [ "${port_status}" -ne 0 ]; then
+        _echo "$(msg red)Error, the --server-port ${BOX_HOSTNAME_FQDN}:${SSH_PORT} is not available (make sure server is online or port ${SSH_PORT} is available$(msg end)" --name
+        _exit 147
+      fi
       _echo "$(msg cyan)Logging into SSH server at ${ROOT_USERNAME}@${BOX_HOSTNAME_FQDN}:${SSH_PORT}... $(msg end)" --name
       ssh -o "StrictHostKeyChecking no" -i "${rsa_key}" -p "${SSH_PORT}" "${ROOT_USERNAME}${BOX_HOSTNAME_FQDN}"
     elif [ "${user}" == "${SSH_USERNAME}" ]; then
       private_key_name="user_${SSH_USERNAME}_${BOX_HOSTNAME_FQDN}.id_rsa"
       private_key_file="${key_path}/${private_key_name}"
       rsa_key="${private_key_file}"
+      _echo "$(msg cyan)Checking whether ${BOX_HOSTNAME_FQDN}'s port ${SSH_PORT} is online ...$(msg end)" --name
+      port_status=$(check_server_port "${BOX_HOSTNAME_FQDN}" "${SSH_PORT}")
+      if [ "${port_status}" -ne 0 ]; then
+        _echo "$(msg red)Error, the --server-port ${BOX_HOSTNAME_FQDN}:${SSH_PORT} is not available (make sure server is online or port ${SSH_PORT} is available$(msg end)" --name
+        _exit 147
+      fi
       _echo "$(msg cyan)Logging into SSH server at ${SSH_USERNAME}@${BOX_HOSTNAME_FQDN}:${SSH_PORT}... $(msg end)" --name
       ssh -o "StrictHostKeyChecking no" -i "${rsa_key}" -p "${SSH_PORT}" "${SSH_USERNAME}${BOX_HOSTNAME_FQDN}"
     else
@@ -1002,7 +970,12 @@ function ssh_api() {
         _echo "$(msg red)Error, the option --port is required to have value$(msg end)" --name
         _exit 147
       fi
-
+      _echo "$(msg cyan)Checking whether ${server}'s port ${port} is online ...$(msg end)" --name
+      port_status=$(check_server_port "${server}" "${port}")
+      if [ "${port_status}" -ne 0 ]; then
+        _echo "$(msg red)Error, the --server-port ${server}:${port} is not available (make sure server is online or port ${port} is not blocked by firewall$(msg end)" --name
+        _exit 147
+      fi
       if [ -z "${rsa_key}" ]; then
         private_key_name="${group}_${user}_${server}.id_rsa"
         private_key_file="${key_path}/${private_key_name}"
@@ -1362,109 +1335,6 @@ function ssh_login() {
   #exec_time end "${FUNCNAME[0]}"
 }
 
-# TODO ssh_api transfer-file
-# This function is use to transfer file over SSH using scp
-# Usage: ssh_transfer <hostname_fqdn>:<port> <group>:<user> <local_path> <remote_path>
-# To transfer multiple files, quote the local_path for example:
-# ssh_transfer sun.sofibox.com:897 root:root "/local/test1.txt local/test2.txt" ~/
-function ssh_transfer() {
-  if [ -z "$1" ]; then
-    _echo def ""
-    _echo yellow "Usage: ssh_transfer sun.sofibox.com:port group:user local_path remote_path"
-    _echo yellow "eg: ssh_transfer sun.sofibox.com:897 root:root /local/mini.iso ~/mini.iso"
-    _echo yellow "To transfer multiple files, quote the local_path"
-    _echo def ""
-    _exit 1
-  fi
-
-  install_required "apt:sshpass"
-  local server_port group_user local_path remote_path hostname_fqdn host_port ssh_group ssh_user
-  server_port="$1"
-  group_user="$2"
-  local_path="$3"
-  remote_path="$4"
-
-  hostname_fqdn=$(echo "${server_port}" | awk -F':' '{ print $1 }')
-  host_port=$(echo "${server_port}" | awk -F':' '{ print $2 }')
-  ssh_group=$(echo "${group_user}" | awk -F':' '{ print $1 }')
-  ssh_user=$(echo "${group_user}" | awk -F':' '{ print $2 }')
-
-  # Remove all known hosts (reset)
-  echo >/root/.ssh/known_hosts
-  # Copying all ssh public keys into /root/.ssh/
-  cp "${SCRIPT_PATH}"/secure/ssh/*.id_rsa* /root/.ssh/
-  # Make sure they have 600 permission
-  chmod -R 600 /root/.ssh/
-  # Do not quote local_path to enable multiple file transfers
-  _echo def "Transferring file local files(s) ${local_path} into remote SSH ${remote_path} ..."
-  scp -o "StrictHostKeyChecking no" -P "${host_port}" -i "/root/.ssh/${ssh_group}_${ssh_user}_${hostname_fqdn}.id_rsa" ${local_path} "${IPV4_ADD0}:${remote_path}" 2> >(grep -v 'Permanently' 1>&2)
-}
-# This function is used to check linode status until a specified condition and then it will break
-# Usage: check_linode_status_until online/offline
-# To recursively check linode status until offline
-# eg: check_linode_status_until offline
-function check_linode_status_until() {
-  option="$1"
-  if [[ "${option}" == "offline" ]]; then
-    _echo "Checking linode status ..."
-    while :; do
-      linode_status=$(linode_api_admin "get-linode-status" "${BOX_HOSTNAME_FQDN}" | tail -n 1)
-      if [ "${linode_status}" == "online" ]; then
-        spinner start "Linode is online, waiting for offline status"
-        # Re-execute shutdown command to shutdown
-        ssh -o "StrictHostKeyChecking no" -i /root/.ssh/linode_lish.id_rsa -tt "${DNS_PROVIDER_USER}@${DNS_PROVIDER_TERMINAL_SERVER}" "${BOX_HOSTNAME_FQDN}" /dev/null <"${SCRIPT_PATH}/dns/linode/shutdown_command.sh" 2>&1 &
-      elif [ "${linode_status}" == "offline" ]; then
-        spinner stop "Success, Linode is offline"
-        break
-      else
-        spinner start "Linode status is ${linode_status}, waiting for offline status"
-      fi
-    done
-  elif [[ "${option}" == "online" ]]; then
-    _echo "Checking linode status ..."
-    while :; do
-      linode_status=$(linode_api_admin "get-linode-status" "${BOX_HOSTNAME_FQDN}" | tail -n 1)
-      if [ "${linode_status}" == "online" ]; then
-        spinner stop "Success, Linode is online"
-        break
-      elif [ "${linode_status}" == "offline" ]; then
-        spinner start "Linode is offline, waiting for online status"
-      else
-        spinner start "Linode status is ${linode_status}, waiting for offline status"
-      fi
-    done
-  else
-    _echo "Error, unknown argument passed in ${FUNCNAME[0]}!" "${REPORT_FILE}"
-  fi
-}
-
-# Deprecated function this one is already integrated with _echo() function. The _echo() function has bug fixed.
-# This function will display spinning progress.
-# SPIN_PROGRESS and SPIN_COUNT must be declared outside function
-# Use inside function with loop to show animation of the spinner
-# Usage:
-# spinner <start/stop> <message>
-# to start spinner: spinner start "Deleting that one ..."
-# output: Deleting that one ... /
-# to stop spinner and replace with success message: spinner stop "Success deleted that one!"
-# output: Success deleted that one!
-# Not recommend to use long string for the spinning message that fill up the width of the terminal with weird output.
-function spinner() {
-  local option strings_start strings_end
-  option="$1"
-  #string_count=0
-  if [[ "${option}" == "spin" || "${option}" == "start" || "${option}" == "startspin" ]]; then
-    shift
-    strings_start="$1"
-    echo -ne "\r${strings_start} ${SPIN_PROGRESS:SPIN_COUNT++:1}"
-    ((SPIN_COUNT == ${#SPIN_PROGRESS})) && SPIN_COUNT=0
-  elif [[ "${option}" == "endspin" || "${option}" == "stop" ]]; then
-    shift
-    strings_end="$*"
-    #add \033[K or \e[K after the \r to clear text
-    echo -ne "\r\e[K${strings_end}\n"
-  fi
-}
 # This function will validate if config is valid, if one of the variables missing, it will complain and exit
 function validate_config() {
   local count_user total_valid_user this_da_owner_uname
@@ -2738,7 +2608,7 @@ function create_file() {
       # new line separated by \
       echo "d-i preseed/late_command string \\"
       echo "in-target apt-get -y install htop wget git dropbear-initramfs; \\"
-      # Allow root login (TODO: make sure it used cert to login)
+      # Allow root login
       # For encryption https://stackoverflow.com/questions/33113363/debian-preseed-late-command-not-executed
       # Another tip: https://askubuntu.com/questions/364051/how-do-you-preseed-an-ssh-key
       # UNLOCK LUKS doc here: https://www.cyberciti.biz/security/how-to-unlock-luks-using-dropbear-ssh-keys-remotely-in-linux/
@@ -3427,12 +3297,11 @@ function iso_api() {
 
     iso_url="https://www.finnix.org/releases/${finnix_select_version}/finnix-${finnix_select_version}.iso"
 
-    # TODO backup first before remove
-    echo "Removing previous file ${isofile_final} ..."
+    _echo "$(msg cyan)Removing previous file ${isofile_final} ...$(msg end)" --name
     rm -rf "${isofile_final}"
 
     echo ""
-    echo "Removing previous file ${isodir_write} ..."
+    echo "$(msg cyan)Removing previous file ${isodir_write} ...$(msg end)" --name
     rm -rf "${isodir_write}"
 
     mkdir -p "${root_temp_path}"
@@ -4379,7 +4248,11 @@ function linode_api_admin() {
       fi
 
     fi
-  #linode_api_admin wait-linode-status --linode-label test.server.com --until-status running
+
+    # This action is used to check linode status until a specified condition and then it will break
+    # Current accepted condition is running or offline passed via --until-status option
+    # Usage:
+    #linode_api_admin wait-linode-status --linode-label test.server.com --until-status running
   elif [[ "${action}" == "wait-linode-status" ]]; then
     local linode_id linode_status
     # Wait 2 seconds for the status to be new
@@ -4390,24 +4263,25 @@ function linode_api_admin() {
     fi
     sleep 2
     if [ "${until_status^^}" == "RUNNING" ]; then
-
       _echo "$(msg cyan)Waiting for linode ${linode_label} to have running status ...$(msg end)" --name
       linode_status=$(${LINODE_CLI_BIN} --pretty --json --suppress-warnings linodes view "${linode_id}" | ${JQ_BIN} -r ".[] | .status")
       if [[ "${linode_status}" == "running" ]]; then
         # test uncomment below later if not working
-        _echo "$(msg red)Error linode ${linode_label} is already in running mode$(msg end)" --name --verbose 3
-        _exit 1
-        # or force to shutdown with this if it does not work:
-        # LABEL LISH (my label because this is duplicated to be used with function)
-        #ssh -o "StrictHostKeyChecking no" -i /root/.ssh/linode_lish.id_rsa -tt "${DNS_PROVIDER_USER}@${DNS_PROVIDER_TERMINAL_SERVER}" "${BOX_HOSTNAME_FQDN}" /dev/null <"${SCRIPT_PATH}/dns/linode/shutdown_command.sh" 2>&1 &
+        _echo "$(msg yellow)Warning linode ${linode_label} is already in running mode$(msg end)" --name --verbose 3
+        return 0
       else
         while :; do
           linode_status=$(${LINODE_CLI_BIN} --pretty --json --suppress-warnings linodes view "${linode_id}" | ${JQ_BIN} -r ".[] | .status")
           if [[ "${linode_status}" == "running" ]]; then
-            _echo "Success, linode ${linode_label} is online." --stop-spin
+            _echo "$(msg green)Success, linode ${linode_label} is online.$(msg end)" --stop-spin
             break
+          elif [[ "${linode_status}" == "offline" ]]; then
+            # Force shutdown using lish_console command
+            # Don't do this, this function does not execute command, just checking status
+            #lish_console shutdown
+            :
           else
-            _echo "Linode status is ${linode_status}. Waiting for running status ..." --start-spin
+            _echo "$(msg yellow)Linode status is ${linode_status}. Waiting for running status ...$(msg end)" --start-spin
           fi
         done
       fi
@@ -4415,16 +4289,16 @@ function linode_api_admin() {
       _echo "$(msg cyan)Waiting for linode ${linode_label} to have offline status ...$(msg end)" --name
       linode_status=$(${LINODE_CLI_BIN} --pretty --json --suppress-warnings linodes view "${linode_id}" | ${JQ_BIN} -r ".[] | .status")
       if [[ "${linode_status}" == "offline" ]]; then
-        _echo "$(msg red)Error linode ${linode_label} is already in offline mode$(msg end)" --name --verbose 3
-        _exit 1
+        _echo "$(msg yellow)Warning linode ${linode_label} is already in offline mode$(msg end)" --name --verbose 3
+        return 0
       else
         while :; do
           linode_status=$(${LINODE_CLI_BIN} --pretty --json --suppress-warnings linodes view "${linode_id}" | ${JQ_BIN} -r ".[] | .status")
           if [[ "${linode_status}" == "offline" ]]; then
-            _echo "Success, linode ${linode_label} is offline." --stop-spin --plain
+            _echo "$(msg green)Success, linode ${linode_label} is offline.$(msg end)" --stop-spin --name
             break
           else
-            _echo "Linode status is ${linode_status}. Waiting for offline status ..." --start-spin --plain
+            _echo "$(msg yellow)Linode status is ${linode_status}. Waiting for offline status ...$(msg end)" --start-spin --name
           fi
         done
       fi
@@ -13801,19 +13675,18 @@ while [ "$#" -gt 0 ]; do
     break
     ;;
   --config-test)
+    shift
     :
     break
     ;;
   # This one is for configuring script, for example supplying config file through terminal
   -c | --configure)
+    shift
     _echo "Configuring ${APP_SPECIFIC_NAME} ..." --name
     :
-    shift
     break
     ;;
-  #./maxinet --setup remote - For remote setup
-  #./maxinet --setup - For local setup
-  -setup | --setup)
+  --setup | --install)
     shift
     setup "$@"
     exit 0
@@ -13841,7 +13714,7 @@ while [ "$#" -gt 0 ]; do
   #   :This will remove all existing partitions including rescue disk and profile. No rescue disk and profile is created
   # Note3: If you run like this (without argument): maxinet --init-server
   #   :This will remove and re-create system related partitions. It will not disturb the rescue option
-  -is | --init-server)
+  --init-server | --deploy-server | --build-server | --create-server)
     shift
     script_header
     init_server "$@"
@@ -13850,7 +13723,7 @@ while [ "$#" -gt 0 ]; do
     ;;
   # Test or user linode API here
   # eg: maxinet --linode-api "get-linode-id" "sun.sofibox.com"
-  -la | --linode-api | --linode_api | --linode)
+  --linode-api | --linode_api | --linode)
     shift
     linode_api_admin "$@"
     exit 0
@@ -13896,31 +13769,31 @@ ENDSSH
 
   -lu | --luks-unlock | --ssh-luks-unlock)
     shift
-    ssh_luks_unlock "$@"
+    ssh_api luks-unlock "$@"
     exit 0
     break
     ;;
     # ./maxinet --ssh-login <optional_hostname> <optional_port> <optional_user>
   # If hostname or port are not provided, they will use the default ones from config file
-  -sshl | --ssh-login)
+  --ssh-login)
     shift
-    ssh_login "$@"
+    ssh_api login "$@"
     exit 0
     break
     ;;
-  -ssha | --ssh-api)
+  --ssh-api | --ssh)
     shift
     ssh_api "$@"
     exit 0
     break
     ;;
-  -ssht | --ssh-transfer)
+  --ssh-transfer)
     shift
-    ssh_transfer "$@"
+    ssh_api transfer-files "$@"
     exit 0
     break
     ;;
-  -csp | --check-server-port)
+  --check-server-port)
     shift
     check_server_port "$@"
     exit 0

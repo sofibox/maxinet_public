@@ -1,0 +1,6 @@
+# TOP TO DO LIST:
+# TODO: Enable DNSSEC https://help.directadmin.com/item.php?id=651 (also check mail configuration to support new ipv6) - linode does not support DNSSEC so make this optional if dns management is linode then don't enable
+# TODO: provide an optional option to automatically create google domain verification TXT record through API (need Google business account at console) - Google site verification
+# TODO: create hostname and setup dkim, dmarc, at linode spf at linode (use common subdomain, ftp, mail, www, smtp, pop) - normally it should be created first before installing DA but dkim need to be updated.
+# TODO new idea on SSH return value: write flag file after finished executed file, then read the remote file, if return true.. then execution finish then i can kill ssh. or i can use this to verify installation of debian finished ( no need to verify turn off or not).
+# TODO check normal user cannot SSH
