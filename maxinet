@@ -1,10 +1,12 @@
 #!/bin/bash
+# Shellcheck global configuration
+# shellcheck source=maxinet.conf
 # =~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~="
 # Author: Arafat Ali | Email: webmaster@sofibox.com | Website: sofibox.com
 APP_SPECIFIC_NAME="Maxinet"
 APP_STATUS="alpha"
 # Note some minor versions are not published
-APP_VERSION="0.5.3.2-${APP_STATUS}"
+APP_VERSION="0.5.3.4-${APP_STATUS}"
 COMPANY_ID="${COMPANY_ID}"
 # Hello there, this is a powerful script that able initialize one or more server installation from scratch. From configuring the server disk, until you got the full working server with a live website.
 # It also includes many security and hardening script.
@@ -19,16 +21,16 @@ COMPANY_ID="${COMPANY_ID}"
 # FUNCTION BEGIN HERE
 function script_header() {
   # This is script header
-  _echo "$(msg red)=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=$(msg end)" --quiet
-  _echo "$(msg cyan)Welcome to $(msg red)${APP_SPECIFIC_NAME}$(msg cyan) Automated Script$(msg end)" --quiet
-  _echo "$(msg blue)This powerful script is part of Sofibox/MaxiNet scripts$(msg end)" --quiet
-  _echo "$(msg green)For script help: $(msg yellow)${SCRIPT_NAME} --help$(msg end)" --quiet
-  _echo "$(msg green)Script official URL: $(msg yAellow)http://sofibox.com/maxinet$(msg end)" --quiet
-  _echo "$(msg green)Version: $(msg yellow)${SCRIPT_NAME}-${APP_VERSION}$(msg end)" --quiet
-  _echo "$(msg green)Distro ID: $(msg yellow)${DISTRO_ID}$(msg end) | $(msg green) Distro Version: $(msg yellow)${DISTRO_VERSION}$(msg end)" --quiet
-  _echo "$(msg cyan)$(msg bold)(C) Author: Arafat Ali | Email: arafat@sofibox.com$(msg end)" --quiet
-  _echo "$(msg red)=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=$(msg end)" --quiet
-  _echo "" --quiet
+  _echo "$(msg red)=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=$(msg end)" --plain
+  _echo "$(msg cyan)Welcome to $(msg red)${APP_SPECIFIC_NAME}$(msg cyan) Automated Script$(msg end)" --plain
+  _echo "$(msg blue)This powerful script is part of Sofibox/MaxiNet scripts$(msg end)" --plain
+  _echo "$(msg green)For script help: $(msg yellow)${SCRIPT_NAME} --help$(msg end)" --plain
+  _echo "$(msg green)Script official URL: $(msg yAellow)http://sofibox.com/maxinet$(msg end)" --plain
+  _echo "$(msg green)Version: $(msg yellow)${SCRIPT_NAME}-${APP_VERSION}$(msg end)" --plain
+  _echo "$(msg green)Distro ID: $(msg yellow)${DISTRO_ID}$(msg end) | $(msg green) Distro Version: $(msg yellow)${DISTRO_VERSION}$(msg end)" --plain
+  _echo "$(msg cyan)$(msg bold)(C) Author: Arafat Ali | Email: arafat@sofibox.com$(msg end)" --plain
+  _echo "$(msg red)=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=$(msg end)" --plain
+  _echo "" --plain
 }
 function help() {
   echo "Welcome to help section!"
@@ -466,7 +468,6 @@ function init_server() {
   done
   echo "Server Physical Information:"
   echo "Provider: ${DNS_PROVIDER_NAME}"
-  echo "cd /root || exit 1"
   if [[ "${HIDE_SENSITIVE_TEXT}" == "true" ]]; then
     echo "IPv4 address: *privacy*"
   else
@@ -698,13 +699,11 @@ function init_server() {
 # eg: ssh_api "clear-known-host"
 # group_name = user, admin, root, rescue, backup, os, diradmin ...
 function ssh_api() {
-
   local action argnum options long_opts retval key_path group user comment server_label server port destination rsa_key \
-    linode_label local_script_path remote_script_path remote_path push_iso_write_script push_shutdown_script push_reboot_script \
+    linode_label local_script_path remote_script_path remote_path local_path push_iso_write_script push_shutdown_script push_reboot_script \
     push_maxinet_setup_script password local_files silent_push
 
   action="$1"
-
   argnum="$#"
   # We allow empty argument. For example for faster login use maxinet --ssh-login (by default it will login as root)
   #echo "argnum: ${argnum}"
@@ -712,9 +711,8 @@ function ssh_api() {
   #  echo "Error, no option is supplied for action ${action}. Use [ ${SCRIPT_NAME} --iso --help ] to see the valid options"
   #  exit 1
   #fi
-
   long_opts="help,key-path:,group:,user:,comment:,server-label:,server:,port:,destination:,without-prompt,rsa-key:,linode-label:, \
-  local-script-path:,remote-script-path:,remote-path:,local-files:,push-iso-write-script,push-shutdown-script,push-reboot-script,push-maxinet-setup-script, \
+  local-script-path:,remote-script-path:,remote-path:,local-path:,local-files:,push-iso-write-script,push-shutdown-script,push-reboot-script,push-maxinet-setup-script, \
   sp:,server-port:,gu:,group-user:,password:,silent-push"
   options=$(getopt -o '' --long "${long_opts}" -n "${FUNCNAME[0]} in ${SCRIPT_NAME}" -- "$@")
   retval=$?
@@ -739,6 +737,7 @@ function ssh_api() {
   local_script_path=""
   remote_script_path=""
   remote_path=""
+  local_path=""
   local_files=""
   push_iso_write_script=false
   push_shutdown_script=false
@@ -797,10 +796,15 @@ function ssh_api() {
       ;;
     --remote-script-path)
       remote_script_path="$2"
+      echo "remote_script_path: ${remote_script_path}"
       shift 2
       ;;
     --remote-path)
       remote_path="$2"
+      shift 2
+      ;;
+    --local-path)
+      local_path="$2"
       shift 2
       ;;
     --local-files)
@@ -882,11 +886,24 @@ function ssh_api() {
   # ssh_api login root
   # ssh_api login my_ssh_user
   # ssh_api push-script
+  # Example of downloading log file from the remote to local path/log
+  # ssh_api file-download --server-port test.server.com:444 --group-user root:root --remote-path ~/maxinet.log --local-path "${SCRIPT_PATH}/log"
+  if [[ "${action}" == "file-download" || "${action}" == "download-files" || "${action}" == "get-files" || "${action}" == "get-file" || "${action}" == "file-retrieve" || "${action}" == "files-retrieve" ]]; then
+    local private_key_name private_key_file
+    if [ -z "${rsa_key}" ]; then
+      private_key_name="${group}_${user}_${server}.id_rsa"
+      private_key_file="${key_path}/${private_key_name}"
+      rsa_key="${private_key_file}"
+    fi
 
-  if [[ "${action}" == "transfer-files" || "${action}" == "transfer-file" || "${action}" == "file-transfer" || "${action}" == "files-transfer" ]]; then
+    # Do not quote local_path to enable multiple file transfers
+    _echo "$(msg cyan)Getting file remote files(s) from ${local_path} via SSH ...$(msg end)" --name
+    scp -o "StrictHostKeyChecking no" -P "${port}" -i "${rsa_key}" "${user}@${server}:${remote_path}" "${local_path}" 2> >(grep -v 'Permanently' 1>&2)
+
+  elif [[ "${action}" == "file-upload" || "${action}" == "upload-files" || "${action}" == "transfer-files" || "${action}" == "transfer-file" || "${action}" == "file-transfer" || "${action}" == "files-transfer" ]]; then
     # ssh_api transfer-files/file-transfer/transfer-file --server-port ${BOX_HOSTNAME_FQDN}:${SSH_PORT} --group-user root:${ROOT_USERNAME} --local-files "/tmp/file1 /var/file2" --remote-path ~/
     #ssh_api transfer-files/file-transfer/transfer-file --server ${BOX_HOSTNAME_FQDN} ---port ${SSH_PORT} --group root --user ${ROOT_USERNAME} --local-files "/tmp/file1 /var/file2" --remote-path ~/
-    install_required "apt:sshpass"
+    #install_required "apt:sshpass"
     local private_key_name private_key_file
 
     if [ -z "${rsa_key}" ]; then
@@ -926,7 +943,7 @@ function ssh_api() {
       rsa_key="${private_key_file}"
     fi
 
-    _echo "$(msg cyan)Unlocking LUKS encrypted disk on boot using port ${port} and password ${password} ... $(msg end)" --name
+    _echo "$(msg cyan)Unlocking LUKS encrypted disk on boot ... $(msg end)" --name
     if [ -f "${rsa_key}" ]; then
       _echo "$(msg cyan)Connecting to ssh with port ${port} to unlock LUKS encrypted disk on boot ...$(msg end)" --name
       # Do not use -q, need verbose for this connection to debug error
@@ -950,25 +967,57 @@ function ssh_api() {
       private_key_name="root_${ROOT_USERNAME}_${BOX_HOSTNAME_FQDN}.id_rsa"
       private_key_file="${key_path}/${private_key_name}"
       rsa_key="${private_key_file}"
+      _echo "$(msg cyan)Checking server ${BOX_HOSTNAME_FQDN}'s online status ...$(msg end)" --name
+      linode_status=$(linode_api_admin get-linode-status --linode-label "${BOX_HOSTNAME_FQDN}" --scripting)
+      linode_status=$(linode_api_admin get-linode-status --linode-label "${BOX_HOSTNAME_FQDN}" --scripting)
+      if [ "${linode_status}" == "offline" ]; then
+        _echo "$(msg yelllow)Warning, linode is offline!$(msg end)" --name
+        linode_api_admin boot-linode --linode-label "${BOX_HOSTNAME_FQDN}" --linode-config-label "${LINODE_OS_CONFIG_LABEL}"
+      fi
+
+      # This will check available port even if NO LUKS encrypted
       _echo "$(msg cyan)Checking whether ${BOX_HOSTNAME_FQDN}'s port ${SSH_PORT} is online ...$(msg end)" --name
       if is_valid available_port "${BOX_HOSTNAME_FQDN}" "${SSH_PORT}"; then
         _echo "$(msg green)OK, the port ${SSH_PORT} is available at ${BOX_HOSTNAME_FQDN} $(msg end)" --name
       else
-        _echo "$(msg red)Error, the --server-port ${BOX_HOSTNAME_FQDN}:${SSH_PORT} is not available (make sure server is online or port ${SSH_PORT} is available)$(msg end)" --name
-        _exit 147
+        _echo "$(msg yelllow)Warning, the --server-port ${BOX_HOSTNAME_FQDN}:${SSH_PORT} is not available!$(msg end)" --name
+        ssh_api luks-unlock --port "${DROP_BEAR_PORT}" --password "${LUKS_PASS}"
+        sleep 10
+        if is_valid available_port "${BOX_HOSTNAME_FQDN}" "${SSH_PORT}"; then
+          _echo "$(msg green)OK, the port ${SSH_PORT} is available at ${BOX_HOSTNAME_FQDN} $(msg end)" --name
+        else
+          _echo "$(msg red)Error, the --server-port ${BOX_HOSTNAME_FQDN}:${SSH_PORT} is not available (make sure server is online or port ${SSH_PORT} is available)$(msg end)" --name
+          _exit 147
+        fi
       fi
+
       _echo "$(msg cyan)Logging into SSH server at ${ROOT_USERNAME}@${BOX_HOSTNAME_FQDN}:${SSH_PORT}... $(msg end)" --name
       ssh -o "StrictHostKeyChecking no" -i "${rsa_key}" -p "${SSH_PORT}" "${ROOT_USERNAME}@${BOX_HOSTNAME_FQDN}"
     elif [ "${option}" == "${SSH_USERNAME}" ]; then
       private_key_name="user_${SSH_USERNAME}_${BOX_HOSTNAME_FQDN}.id_rsa"
       private_key_file="${key_path}/${private_key_name}"
       rsa_key="${private_key_file}"
+      _echo "$(msg cyan)Checking server ${BOX_HOSTNAME_FQDN}'s online status ...$(msg end)" --name
+      linode_status=$(linode_api_admin get-linode-status --linode-label "${BOX_HOSTNAME_FQDN}" --scripting)
+      if [ "${linode_status}" == "offline" ]; then
+        _echo "$(msg yelllow)Warning, linode is offline!$(msg end)" --name
+        linode_api_admin boot-linode --linode-label "${BOX_HOSTNAME_FQDN}" --linode-config-label "${LINODE_OS_CONFIG_LABEL}"
+      fi
+
+      # This will check available port even if NO LUKS encrypted
       _echo "$(msg cyan)Checking whether ${BOX_HOSTNAME_FQDN}'s port ${SSH_PORT} is online ...$(msg end)" --name
       if is_valid available_port "${BOX_HOSTNAME_FQDN}" "${SSH_PORT}"; then
         _echo "$(msg green)OK, the port ${SSH_PORT} is available at ${BOX_HOSTNAME_FQDN} $(msg end)" --name
       else
-        _echo "$(msg red)Error, the --server-port ${BOX_HOSTNAME_FQDN}:${SSH_PORT} is not available (make sure server is online or port ${SSH_PORT} is available)$(msg end)" --name
-        _exit 147
+        _echo "$(msg yelllow)Warning, the --server-port ${BOX_HOSTNAME_FQDN}:${SSH_PORT} is not available!$(msg end)" --name
+        ssh_api luks-unlock --port "${DROP_BEAR_PORT}" --password "${LUKS_PASS}"
+        sleep 10
+        if is_valid available_port "${BOX_HOSTNAME_FQDN}" "${SSH_PORT}"; then
+          _echo "$(msg green)OK, the port ${SSH_PORT} is available at ${BOX_HOSTNAME_FQDN} $(msg end)" --name
+        else
+          _echo "$(msg red)Error, the --server-port ${BOX_HOSTNAME_FQDN}:${SSH_PORT} is not available (make sure server is online or port ${SSH_PORT} is available)$(msg end)" --name
+          _exit 147
+        fi
       fi
       _echo "$(msg cyan)Logging into SSH server at ${SSH_USERNAME}@${BOX_HOSTNAME_FQDN}:${SSH_PORT}... $(msg end)" --name
       _echo "$(msg yellow)Note: After successfully logged in as non-root user, use command [ sudo su - ] to login as root user$(msg end)" --name
@@ -987,13 +1036,29 @@ function ssh_api() {
         _echo "$(msg red)Error, the option --port is required to have value$(msg end)" --name
         _exit 147
       fi
+      _echo "$(msg cyan)Checking server ${server}'s online status ...$(msg end)" --name
+      linode_status=$(linode_api_admin get-linode-status --linode-label "${server}" --scripting)
+      if [ "${linode_status}" == "offline" ]; then
+        _echo "$(msg yelllow)Warning, linode is offline!$(msg end)" --name
+        linode_api_admin boot-linode --linode-label "${server}" --linode-config-label "${LINODE_OS_CONFIG_LABEL}"
+      fi
+
+      # This will check available port even if NO LUKS encrypted
       _echo "$(msg cyan)Checking whether ${server}'s port ${port} is online ...$(msg end)" --name
       if is_valid available_port "${server}" "${port}"; then
         _echo "$(msg green)OK, the port ${port} is available at ${server} $(msg end)" --name
       else
-        _echo "$(msg red)Error, the --server-port ${server}:${port} is not available (make sure server is online or port ${port} is available)$(msg end)" --name
-        _exit 147
+        _echo "$(msg yelllow)Warning, the --server-port ${server}:${port} is not available!$(msg end)" --name
+        ssh_api luks-unlock --port "${DROP_BEAR_PORT}" --password "${LUKS_PASS}"
+        sleep 10
+        if is_valid available_port "${server}" "${port}"; then
+          _echo "$(msg green)OK, the port ${port} is available at ${server} $(msg end)" --name
+        else
+          _echo "$(msg red)Error, the --server-port ${server}:${port} is not available (make sure server is online or port ${port} is available)$(msg end)" --name
+          _exit 147
+        fi
       fi
+
       if [ -z "${rsa_key}" ]; then
         private_key_name="${group}_${user}_${server}.id_rsa"
         private_key_file="${key_path}/${private_key_name}"
@@ -1293,70 +1358,6 @@ function lish_console() {
   ssh -i "${SECURE_PATH}/ssh/linode_lish.id_rsa" -o "StrictHostKeyChecking no" -oAddressFamily=inet -tt "${DNS_PROVIDER_USER}@${DNS_PROVIDER_TERMINAL_SERVER}" "${BOX_HOSTNAME_FQDN}" ${options}
   #exec_time end lish_console
 }
-# This function is going to be deprecated. It will be combined in ssh_api
-# This function is used to login into server (SSH login)
-# It can be supplied with script and run in silent/noisy mode
-# Usage: ssh_login "<server>:<port>" "<group>:<user>" <silent> optional_script_path>
-# eg: ssh_login test.sofibox.com:897 root:root silent/noisy /path_to_script
-# eg2: ssh_login test.sofibox.com:897 root:root /path_to_script
-# eg3: ssh_login test.sofibox.com:897 root:root
-# eg4: ssh_login test.sofibox.com:897 root:root "noisy"
-function ssh_login() {
-  #exec_time start "${FUNCNAME[0]}"
-  if [ -z "$1" ]; then
-    _echo def ""
-    _echo yellow "Usage: ssh_login sun.sofibox.com:port group:user optional_silent_mode optional_script"
-    _echo yellow "eg: ssh_login sun.sofibox.com:897 root:root silent /path_to_script.sh"
-    _echo def ""
-    _exit 1
-  fi
-  # For LUKS:  ssh -o "StrictHostKeyChecking no" -q -p 2222 -i "/root/.ssh/root_sun.sofibox.com.id_rsa" "sun.sofibox.com" "echo -ne \"abma892\" > /lib/cryptsetup/passfifo"
-  #shift
-  install_required "apt:sshpass"
-  local server_port group_user script mode hostname_fqdn host_port ssh_group ssh_user
-  server_port="$1"
-  group_user="$2"
-  mode="$3"
-
-  if [[ "${mode}" == "silent" || "${mode}" == "noisy" ]]; then
-    script="$4"
-  else
-    mode="noisy"
-    script="$3"
-  fi
-
-  hostname_fqdn=$(echo "${server_port}" | awk -F':' '{ print $1 }')
-  host_port=$(echo "${server_port}" | awk -F':' '{ print $2 }')
-  ssh_group=$(echo "${group_user}" | awk -F':' '{ print $1 }')
-  ssh_user=$(echo "${group_user}" | awk -F':' '{ print $2 }')
-
-  # Remove all known hosts (reset)
-  echo >/root/.ssh/known_hosts
-  # Copying all ssh public keys into /root/.ssh/
-  cp "${SCRIPT_PATH}"/secure/ssh/*.id_rsa* /root/.ssh/
-  # Make sure they have 600 permission
-  chmod -R 600 /root/.ssh/
-  if [ "${ssh_user}" == "root" ]; then
-    :
-  else
-    ssh_user_append="${ssh_user}@"
-  fi
-  _echo def "Connecting to ${hostname_fqdn} using port ${host_port} with private key ${ssh_group}_${ssh_user}_${BOX_HOSTNAME_FQDN}.id_rsa ..."
-  if [[ -n "${script}" && "${mode}" == "silent" ]]; then
-    #echo "Script given and it's quite mod"
-    ssh -q -o "StrictHostKeyChecking no" -p "${host_port}" -i "/root/.ssh/${ssh_group}_${ssh_user}_${BOX_HOSTNAME_FQDN}.id_rsa" "${IPV4_ADD0}" /dev/null <"${script}" 2>&1 &
-  elif [[ "${mode}" == "noisy" && -n "${script}" ]]; then
-    # echo "script given but not quite mode"
-    ssh -o "StrictHostKeyChecking no" -p "${host_port}" -i "/root/.ssh/${ssh_group}_${ssh_user}_${BOX_HOSTNAME_FQDN}.id_rsa" "${IPV4_ADD0}" <"${script}"
-  elif [[ "${mode}" == "silent" && -z "${script}" ]]; then
-    #echo "Script not given but it's quite mode"
-    ssh -q -o "StrictHostKeyChecking no" -p "${host_port}" -i "/root/.ssh/${ssh_group}_${ssh_user}_${BOX_HOSTNAME_FQDN}.id_rsa" "${IPV4_ADD0}"
-  elif [[ "${mode}" == "noisy" && -z "${script}" ]]; then
-    #echo "Script not given and no quite mod"
-    ssh -o "StrictHostKeyChecking no" -p "${host_port}" -i "/root/.ssh/${ssh_group}_${ssh_user}_${BOX_HOSTNAME_FQDN}.id_rsa" "${ssh_user_append}${IPV4_ADD0}"
-  fi
-  #exec_time end "${FUNCNAME[0]}"
-}
 
 # This function will validate if config is valid, if one of the variables missing, it will complain and exit
 function validate_config() {
@@ -1408,7 +1409,7 @@ function validate_config() {
     echo "[${SCRIPT_NAME}]: [Skipped]: Warning owner ${this_da_owner_uname} has security question and answer defined with different length of array" 2>&1 | tee -a "${REPORT_FILE}"
     _exit 1
   else
-    echo "[${SCRIPT_NAME}]: OK, all variables for owner ${DA_OWNER_USERNAME1} are set." 2>&1 | tee -a "${REPORT_FILE}"
+    # echo "[${SCRIPT_NAME}]: OK, all variables for owner ${DA_OWNER_USERNAME1} are set." 2>&1 | tee -a "${REPORT_FILE}"
     ((total_valid_user++))
   fi
 
@@ -1466,11 +1467,11 @@ function validate_config() {
       echo "[${SCRIPT_NAME}]: [Skipped]: Warning admin ${this_da_admin_uname} has security question and answer defined with different length of array" 2>&1 | tee -a "${REPORT_FILE}"
       _exit 1
     else
-      echo "[${SCRIPT_NAME}]: OK, all variables for admin ${this_da_admin_uname} are set." 2>&1 | tee -a "${REPORT_FILE}"
-
+      #echo "[${SCRIPT_NAME}]: OK, all variables for admin ${this_da_admin_uname} are set." 2>&1 | tee -a "${REPORT_FILE}"
+      ((total_valid_user++))
     fi
     ((count_user++))
-    ((total_valid_user++))
+
   done
 
   local da_reseller_unames da_reseller_unames_count this_da_reseller_uname this_da_reseller_name this_da_reseller_system_email \
@@ -1571,10 +1572,10 @@ function validate_config() {
       echo "[${SCRIPT_NAME}]: [Skipped]: Warning reseller ${this_da_reseller_uname} has security question and answer defined with different length of array" 2>&1 | tee -a "${REPORT_FILE}"
       _exit 1
     else
-      echo "[${SCRIPT_NAME}]: OK, all variables for reseller ${this_da_reseller_uname} are set." 2>&1 | tee -a "${REPORT_FILE}"
+      #echo "[${SCRIPT_NAME}]: OK, all variables for reseller ${this_da_reseller_uname} are set." 2>&1 | tee -a "${REPORT_FILE}"
+      ((total_valid_user++))
     fi
     ((count_user++))
-    ((total_valid_user++))
   done
 
   local da_user_unames da_user_count this_da_user_uname this_da_user_password this_da_user_name this_da_user_system_email \
@@ -1672,7 +1673,7 @@ function validate_config() {
       echo "[${SCRIPT_NAME}]: [Skipped]: Warning user ${this_da_user_uname} has security question and answer defined with different length of array" 2>&1 | tee -a "${REPORT_FILE}"
       _exit 1
     else
-      echo "[${SCRIPT_NAME}]: OK, all variables for user ${this_da_user_uname} are set." 2>&1 | tee -a "${REPORT_FILE}"
+      #echo "[${SCRIPT_NAME}]: OK, all variables for user ${this_da_user_uname} are set." 2>&1 | tee -a "${REPORT_FILE}"
       ((total_valid_user++))
     fi
     ((count_user++))
@@ -3008,7 +3009,7 @@ function iso_api() {
         # exit 1
         echo ""
         _echo "$(msg cyan)Extracting the ISO file ${debian_isofile}'s contents into a temporary writeable directory at ${isodir_write_tmp} ...$(msg end)" --name
-        xorriso -osirrox on -indev "${debian_isofile}" -extract / ${isodir_write_tmp}/
+        xorriso -osirrox on -indev "${debian_isofile}" -extract / "${isodir_write_tmp}/"
         echo ""
 
         # Do not remove existing ISO file because we want to reuse this without downloading new ISO using the option --iso-base=local
@@ -3729,34 +3730,42 @@ function linode_api_admin() {
       ;;
     --label-devsda)
       label_devsda="$2"
+      echo "label_devsda: ${label_devsda}"
       shift 2
       ;;
     --label-devsdb)
       label_devsdb="$2"
+      echo "label_devsdb: ${label_devsdb}"
       shift 2
       ;;
     --label-devsdc)
       label_devsdc="$2"
+      echo "label_devsdc: ${label_devsdc}"
       shift 2
       ;;
     --label-devsdd)
       label_devsdd="$2"
+      echo "label_devsdd: ${label_devsdd}"
       shift 2
       ;;
     --label_devsde)
       label_devsde="$2"
+      echo "label_devsde: ${label_devsde}"
       shift 2
       ;;
     --label-devsdf)
       label_devsdf="$2"
+      echo "label_devsdf: ${label_devsdf}"
       shift 2
       ;;
     --label-devsdg)
       label_devsdg="$2"
+      echo "label_devsdg: ${label_devsdg}"
       shift 2
       ;;
     --label-devsdh)
       label_devsdh="$2"
+      echo "label_devsdh: ${label_devsdh}"
       shift 2
       ;;
     --until-status)
@@ -5713,7 +5722,7 @@ function da_api_admin() {
       # da_api_admin "create-dns-record" "maxibi.com" "TXT" "_domainkey" "o%3D%7E%3B+r%3Dwebmaster%40sofibox.com"
       # The last one equal to: o=~; r=webmaster@sofibox.com (use https://www.url-encode-decode.com/ to decode)
     elif [ "${action}" == "create-dns-record" ]; then
-      local domain name ttl type value domain_id dis_args retval add_dns_record
+      local domain name ttl type value domain_id dis_args retval
       shift
       domain="$1"
       type="$2"
@@ -6186,7 +6195,7 @@ function secure_box() {
   fi
   if [[ ! -f "${CONF_PATH}/${FUNCNAME[0]}_executed" && "${run}" == "yes" ]]; then
     echo "[${SCRIPT_NAME}]: Executing ${FUNCNAME[0]} ..." 2>&1 | tee -a "${REPORT_FILE}"
-    local find_au rsa_public_key
+    local find_au find_ar rsa_public_key
     # This file should exist in the root file after OS has finished installation (preseed file put this file)
     rsa_public_key="/root/user_${SSH_USERNAME}_${BOX_HOSTNAME_FQDN}.id_rsa.pub"
     if [ ! -f "${rsa_public_key}" ]; then
@@ -6256,14 +6265,27 @@ function secure_box() {
     sudo -H -u "${SSH_USERNAME}" bash -c "chmod 700 ~/.ssh/authorized_keys"
 
     #sed -i "/AllowUsers/c\AllowUsers ${SSH_USERNAME}" /etc/ssh/sshd_config
+    # For user
     find_au=$(grep -w "AllowUsers ${SSH_USERNAME}" /etc/ssh/sshd_config)
-    if [[ -z "${find_au}" ]]; then
-      # Put at the bottom
-      echo "[${SCRIPT_NAME}]: Adding user ${SSH_USERNAME} to AllowUsers list in sshd_config ..." 2>&1 | tee -a "${REPORT_FILE}"
-      echo "AllowUsers ${SSH_USERNAME}" >>/etc/ssh/sshd_config
+    if [[ -n "${find_au}" ]]; then
+      _echo "$(msg yellow)[Skipped] user ${SSH_USERNAME} is already set as AllowUsers list in sshd_config ...$(msg end)" --name
     else
-      echo "[${SCRIPT_NAME}]: [Skipped] user ${SSH_USERNAME} is already set as AllowUsers list in sshd_config ..." 2>&1 | tee -a "${REPORT_FILE}"
+      # Put at the bottom
+      _echo "$(msg yellow)Adding user ${SSH_USERNAME} to AllowUsers list in sshd_config ...$(msg end)" --name
+      echo "AllowUsers ${SSH_USERNAME}" >>/etc/ssh/sshd_config
+
     fi
+    # For root
+    find_ar=$(grep -w "AllowUsers ${ROOT_USERNAME}" /etc/ssh/sshd_config)
+    if [[ -n "${find_ar}" ]]; then
+      _echo "$(msg yellow)[Skipped] user ${ROOT_USERNAME} is already set as AllowUsers list in sshd_config ...$(msg end)" --name
+    else
+      # Put at the bottom
+      _echo "$(msg yellow)Adding user ${ROOT_USERNAME} to AllowUsers list in sshd_config ...$(msg end)" --name
+      echo "AllowUsers ${ROOT_USERNAME}" >>/etc/ssh/sshd_config
+
+    fi
+
     # Don't permit root login only after finish installation (use cert login only with prohibited-password)
     # This one already enabled in operating system level ISO,
     # but recommend to use prohibited-password during installation. When finish installation use PermitRootLogin no
@@ -9574,7 +9596,7 @@ function configure_maxiwall() {
     rustup install "${rustup_preferred_version}"
     export RUSTUP_TOOLCHAIN="${rustup_preferred_version}"
 
-    # Need to source oncde in order to use rustrc  source "$HOME/.cargo/env"
+    # Need to source once in order to use rustrc  source "$HOME/.cargo/env"
     _echo def "Sourcing cargo env file ..."
     source "$HOME/.cargo/env"
 
@@ -14009,13 +14031,6 @@ ENDSSH
     break
     ;;
   -t | --test)
-
-    #ssh_api lish-push-script --local-script-path "${CODE_PATH}/ssh_scripts/test_script.sh"
-    ssh_api push-script --sp sun.sofibox.com:893 --gu root:root --local-script-path "${CODE_PATH}/ssh_scripts/test_script.sh" --silent-push
-    exit 1
-    exec_time start "linode_reboot_api"
-    linode_api_admin reboot-linode --linode-label "${BOX_HOSTNAME_FQDN}" --linode-config-label "${LINODE_OS_CONFIG_LABEL}" --log-level 6
-    exec_time end "linode_reboot_api"
     exit 0
     break
     ;;
