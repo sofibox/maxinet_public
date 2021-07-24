@@ -5,7 +5,7 @@
 # Author: Arafat Ali | Email: webmaster@sofibox.com | Website: sofibox.com
 _APP_SPECIFIC_NAME="Maxinet"
 # Note some minor versions are not published
-_APP_VERSION="0.5.4.2"
+_APP_VERSION="0.5.4.3"
 _APP_STATUS="alpha"
 _APP_VERSION_STATUS="${_APP_VERSION}-${_APP_STATUS}"
 
@@ -322,7 +322,7 @@ function is_valid() {
   data2="$3"
   distro_id="${DISTRO_ID}"
 
-    required "debian@@apt:ipcalc,iproute2"
+  required "debian@@apt:ipcalc,iproute2"
 
   # is_valid available_port <server> <port>
   # This function will check if defined server and port is available (in a listening state)
@@ -728,7 +728,7 @@ function init_server() {
     done
 
     _echo "$(msg cyan)Copying maxinet, maxinet.conf and readme.txt into remote server ... $(msg end)" --name
-    ssh_api transfer-files --server-port "${BOX_HOSTNAME_FQDN}:${SSH_PORT}" --group-user "root:${ROOT_USERNAME}" --local-files "${SCRIPT_PATH}/maxinet ${SCRIPT_PATH}/maxinet.conf ${SCRIPT_PATH}/readme.txt" --remote-path ~/
+    ssh_api transfer-files --server-port "${BOX_HOSTNAME_FQDN}:${SSH_PORT}" --group-user "root:${ROOT_USERNAME}" --local-files "${SCRIPT_PATH}/maxinet ${SCRIPT_PATH}/maxinet.conf ${SCRIPT_PATH}/readme.txt" --remote-path ~/ --silent
     sleep 2
 
     if [ "${PRE_AUTORUN_SETUP}" == "no" ]; then
@@ -755,7 +755,7 @@ function init_server() {
 
     _echo "$(msg cyan)Setup will automatically execute remote maxinet script and start installation of the server ... (it might take some time) ...$(msg end)" -name
     # ssh_api push-script --server ${BOX_HOSTNAME_FQDN} --port ${SSH_PORT} --group root --username ${ROOT_USERNAME} --local-script-path "${CODE_PATH}/ssh_scripts/maxinet_setup.sh"
-    ssh_api push-script --server-port "${BOX_HOSTNAME_FQDN}:${SSH_PORT}" --group-user "root:${ROOT_USERNAME}" --local-script-path "${CODE_PATH}/ssh_scripts/maxinet_setup.sh" --silent-push
+    ssh_api push-script --server-port "${BOX_HOSTNAME_FQDN}:${SSH_PORT}" --group-user "root:${ROOT_USERNAME}" --local-script-path "${CODE_PATH}/ssh_scripts/maxinet_setup.sh"
     # After installation above, the system must restart once, so we execute next script to reopen LUKS
 
     # After the above script is executed, now we wait for it to shutdown (executed by the script installation) properly before booting
@@ -3568,7 +3568,7 @@ function iso_api() {
           echo ""
           _echo "$(msg cyan)Generating uploaded file link of ${debian_isofile_final} ...$(msg end)" --name
           file_direct_link=$(dropbox_api get-link --destination "/files" --filename "${debian_isofile_final}" --scripting)
-          if [ "${file_direct_link}" ]; then
+          if [ -z "${file_direct_link}" ]; then
             _echo "$(msg red)Error, uploaded file direct link is empty. Please inspect why! $(msg end)" --name
             _exit 147
           fi
@@ -6544,8 +6544,70 @@ function get_latest_code() {
   echo ""
 
 }
+# This function updates the maxicode to the latest binary
+function update_latest_maxicode() {
+  local option executed_function run
+  option="$1"
+  run="no"
+  func_name="${FUNCNAME[0]}"
+  executed_function="${CONF_PATH}/${func_name}_executed"
+  if [ "${option}" == "--skip-mark" ]; then
+    cat /dev/null >"${executed_function}"
+    #run="no"
+    return 0
+  elif [ "${option}" == "--skip" ]; then
+    #run="no"
+    return 0
+  fi
+  if [[ "${option}" == "--run-force" || "${option}" == "--run-force-exit" ]]; then
+    rm -rf "${executed_function}"
+    run="yes"
+  elif [[ -z "${option}" || "${option}" == "--run" || "${option}" == "--run-exit" ]]; then
+    run="yes"
+  fi
+  if [[ ! -f "${CONF_PATH}/${func_name}_executed" && "${run}" == "yes" ]]; then
+    exec_time start "${func_name}"
+    local maxicode_latest_path
+    # This always copied the correct version of the distribution automatically
+    maxicode_latest_path="${LATEST_OS_CODE_PATH}/usr/local/maxicode"
 
-# Basic security hardening for Linux
+    _echo "$(msg cyan)Executing $(msg magenta)${func_name}()$(msg end) $(msg cyan)...$(msg end)" --name
+    _echo "$(msg red)=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=$(msg end)" --plain
+    echo ""
+    if [ ! -d "${maxicode_latest_path}" ]; then
+      _echo "$(msg red)Error, maxicode latest script does not exist in ${maxicode_latest_path}$(msg end)" --name
+      _exit 147
+    fi
+    _echo "$(msg cyan)Removing existing maxicode scripts from /usr/local/maxicode ...$(msg end)" --name
+    rm -rf "/usr/local/maxicode"
+    echo ""
+    _echo "$(msg cyan)Copying maxicode scripts from ${maxicode_latest_path} into /usr/local/maxicode ...$(msg end)" --name
+    cp -r "${maxicode_latest_path}" /usr/local/
+    echo ""
+
+    ##########################################################################
+    # TODO add maxicode folder to /usr/local/maxicode
+    # TODO Make sure maxinet is binary executable (link that on startup)
+    # TODO run maxinet --update-maxicode in order to get the latest version of binary from maxicode.
+    # TODO make sure IDE use this maxicode directly from that private repo, so box will be always up to date
+    ##########################################################################
+
+    check_finish_reboot "${func_name}"
+    exec_time total "${func_name}"
+  else
+    echo ""
+    _echo "$(msg red)=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=$(msg end)" --plain
+    _echo "$(msg yellow)[Skipped]: $(msg magenta)${func_name}()$(msg end) $(msg yellow)has ran before$(msg end)" --name
+  fi
+
+  if [[ "${option}" == "--run-force-exit" || "${option}" == "--run-exit" ]]; then
+    _echo "$(msg yellow)Note: this script is terminated due to the supplied option ${option} from function $(msg magenta)${func_name}()$(msg end) $(msg end)" --name
+    _exit 0
+  fi
+  echo ""
+}
+
+# This function contains the security hardening for Linux
 function secure_box() {
   # TODO update this function and formatting
   local option executed_function run
@@ -6755,45 +6817,6 @@ function secure_box() {
   fi
 }
 
-function update_latest_maxicode() {
-  local option executed_function run
-  option="$1"
-  run="no"
-  executed_function="${CONF_PATH}/${FUNCNAME[0]}_executed"
-  if [ "${option}" == "--skip-mark" ]; then
-    cat /dev/null >"${executed_function}"
-    #run="no"
-    return 0
-  elif [ "${option}" == "--skip" ]; then
-    #run="no"
-    return 0
-  fi
-  if [[ "${option}" == "--run-force" || "${option}" == "--run-force-exit" ]]; then
-    rm -rf "${executed_function}"
-    run="yes"
-  elif [[ -z "${option}" || "${option}" == "--run" || "${option}" == "--run-exit" ]]; then
-    run="yes"
-  fi
-  if [[ ! -f "${CONF_PATH}/${FUNCNAME[0]}_executed" && "${run}" == "yes" ]]; then
-    echo "[${SCRIPT_NAME}]: Executing ${FUNCNAME[0]} ..." 2>&1 | tee -a "${REPORT_FILE}"
-    echo "[${SCRIPT_NAME}]: Copying maxicode scripts into /usr/local/maxicode ..." 2>&1 | tee -a "${REPORT_FILE}"
-    sleep 1
-    cp -r "${DATA_PATH}/maxinet/storage/os/${DISTRO_ID}/usr/local/maxicode" /usr/local/
-    # TODO add maxicode folder to /usr/local/maxicode
-    # Make sure maxinet is binary executable (link that on startup)
-    # run maxinet --init-maxicode in order to get the latest version of binary from maxicode.
-    # make sure IDE use this maxicode directly from that private repo, so box will be always up to date
-
-    check_finish_reboot "${FUNCNAME[0]}"
-  else
-    echo "[${SCRIPT_NAME}]: [Skipped]: ${FUNCNAME[0]} has ran before" 2>&1 | tee -a "${REPORT_FILE}"
-    echo "=~=~=~=~=~=~=~=~=~" 2>&1 | tee -a "${REPORT_FILE}"
-  fi
-  if [[ "${option}" == "--run-force-exit" || "${option}" == "--run-exit" ]]; then
-    _echo "$(msg yellow)Warning, script terminated due to the supplied option ${option}$(msg end)" --name
-    exit 0
-  fi
-}
 # This one configuration hostname, network etc.
 function configure_net() {
   local option executed_function run
@@ -13905,9 +13928,8 @@ function setup() {
     get_latest_code --run-force
     # Note 1: Get the latest security codes from maxicode (recommend to run as --run-force instead of --run so we always get the latest security update)
     update_latest_maxicode --run-force-exit
-    # TODO debug installation until here
     # Note 1: This call contains security hardening server
-    secure_box --run
+    secure_box --run-exit
     # Note 1: This will configure grub such as setting up password for grub bootloader
     # Note 2: Grub bootloader password can also be used in preseed file, but having preseed file during installation is a bad idea.
     configure_grub --run
@@ -14268,7 +14290,7 @@ while [ "$#" -gt 0 ]; do
     exit 0
     break
     ;;
-  --update-maxinet-remote-script | --update-remote-scripts | --update-remote-script)
+  --update-maxinet-remote-script | --update-remote-scripts | --update-remote-script | --update-remote-code)
     shift
     ssh_api transfer-files --server-port "${BOX_HOSTNAME_FQDN}:${SSH_PORT}" --group-user "root:${ROOT_USERNAME}" --local-files "${SCRIPT_PATH}/maxinet ${SCRIPT_PATH}/maxinet.conf ${SCRIPT_PATH}/readme.txt" --remote-path ~/
     exit 0
@@ -14432,7 +14454,7 @@ ENDSSH
     break
     ;;
   -t | --test)
-    required "ubuntu@@apt:git,nano,htop,vim,bc"  "debian@@apt:git,nano,htop,vim,bc"
+    required "ubuntu@@apt:git,nano,htop,vim,bc" "debian@@apt:git,nano,htop,vim,bc"
     exit 0
     break
     ;;

@@ -10,7 +10,7 @@
     <select />
   </component>
   <component name="ChangeListManager">
-    <list default="true" id="113c828c-9a32-4b24-ab1e-978ce50c6320" name="Default Changelist" comment="Added ability to download remote file installation log by triggering this simple command:&#10;&#10;maxinet --get-remote-log&#10;&#10;By default this log file is stored at &lt;script_path&gt;/log/" />
+    <list default="true" id="113c828c-9a32-4b24-ab1e-978ce50c6320" name="Default Changelist" comment="Update and improvement&#10;&#10;Improved required() function to be portable&#10;&#10;Example of the call:&#10;&#10;required &quot;ubuntu@@apt:dos2unix,htop,nano+make:xxx,test,ok&quot; \&#10;  &quot;centos@@dnf:dos2unix,nano&quot; &quot;debian@@apt:dos2unix,htop&quot;&#10;&#10;required &quot;ubuntu@@apt:nano,htop,vim&quot; \&#10;  &quot;centos@@dnf:dos2unix,nano&quot; &quot;debian@@apt:dos2unix,htop,git,x&quot;" />
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
     <option name="HIGHLIGHT_NON_ACTIVE_CHANGELIST" value="false" />
@@ -55,15 +55,13 @@
     </key>
   </component>
   <component name="RunManager">
-    <configuration default="true" type="ArquillianTestNG" factoryName="" nameIsGenerated="true">
+    <configuration default="true" type="ArquillianJUnit" factoryName="" nameIsGenerated="true">
       <option name="arquillianRunConfiguration">
         <value>
           <option name="containerStateName" value="" />
         </value>
       </option>
-      <option name="TEST_OBJECT" value="CLASS" />
-      <properties />
-      <listeners />
+      <option name="TEST_OBJECT" value="class" />
       <method v="2">
         <option name="Make" enabled="true" />
       </method>
@@ -183,13 +181,7 @@
       <workItem from="1627105983148" duration="220000" />
       <workItem from="1627106216163" duration="259000" />
       <workItem from="1627107273019" duration="48000" />
-    </task>
-    <task id="LOCAL-00050" summary="Disabled maxicata.lua email reporting for maxicata (no need email in default config, it can auto block IPs). (private repo)&#10;&#10;Added configure_grub to set grub password&#10;&#10;Added configure_fstab to configure secured mount option for disk (with the condition DISK encryption is enabled at maxisetup.conf&#10;&#10;new variables:&#10;&#10;LUKS_PASS=&quot;luks*encryption*password&quot;&#10;# Username to set for grub bootloader&#10;GRUB_UNAME=&quot;grub_user&quot;&#10;# Password to set for grub bootloader&#10;GRUB_PASS=&quot;*grub_pasword*&quot;&#10;LVM_VOLUME_GROUP=&quot;vg1&quot;&#10;DISK_ENCRYPTION=&quot;yes&quot;">
-      <created>1614266642210</created>
-      <option name="number" value="00050" />
-      <option name="presentableId" value="LOCAL-00050" />
-      <option name="project" value="LOCAL" />
-      <updated>1614266642210</updated>
+      <workItem from="1627146436150" duration="81000" />
     </task>
     <task id="LOCAL-00051" summary="Added ability to configure linode-cli without using expect package (more faster and less buggy)&#10;Added new API to automatically create all domains in linode&#10;Fixed bug: Added wait time 5 seconds after starting lfd for the first time to generate error log. Previously after starting lfd, script straightaway check the log file to identify error which has not yet created.&#10;Fixed bug: Added missing gpg package when using INSTALLATION TYPE=GENERAL from maxisetup.conf&#10;Added new DKIM outbound signing policy DNS template for all domains for normal user and reseller to increase email spam score/reputation&#10;&#10;New variable:&#10;&#10;# Is used to configure DNS management API that required username:&#10;&#10;DNS_PROVIDER_USER=&quot;sofibox&quot;">
       <created>1614478015705</created>
@@ -527,7 +519,14 @@
       <option name="project" value="LOCAL" />
       <updated>1627107314324</updated>
     </task>
-    <option name="localTasksCounter" value="99" />
+    <task id="LOCAL-00099" summary="Update and improvement&#10;&#10;Improved required() function to be portable&#10;&#10;Example of the call:&#10;&#10;required &quot;ubuntu@@apt:dos2unix,htop,nano+make:xxx,test,ok&quot; \&#10;  &quot;centos@@dnf:dos2unix,nano&quot; &quot;debian@@apt:dos2unix,htop&quot;&#10;&#10;required &quot;ubuntu@@apt:nano,htop,vim&quot; \&#10;  &quot;centos@@dnf:dos2unix,nano&quot; &quot;debian@@apt:dos2unix,htop,git,x&quot;">
+      <created>1627146508194</created>
+      <option name="number" value="00099" />
+      <option name="presentableId" value="LOCAL-00099" />
+      <option name="project" value="LOCAL" />
+      <updated>1627146508194</updated>
+    </task>
+    <option name="localTasksCounter" value="100" />
     <servers />
   </component>
   <component name="TypeScriptGeneratedFilesManager">
@@ -546,7 +545,6 @@
     <option name="oldMeFiltersMigrated" value="true" />
   </component>
   <component name="VcsManagerConfiguration">
-    <MESSAGE value="Install Dropbear and added new function to unlock LUKS password on boot ssh_luks_unlock&#10;Improved ssh_login function&#10;Changed old code for creating ssh key to just call function ssh_key_manager &quot;create-key&quot;" />
     <MESSAGE value="Improved ssh_key_manager() function&#10;&#10;Improved ssh_login() funciton&#10;&#10;Added new function ssh_transfer() to transfer file via SSH using scp protocol&#10;&#10;Added user ssh key, to disable root login and use user to login in preseed config and save public key directly in ISO file to auto copy.&#10;&#10;Fixed extra curly bracket on line 1135 (might be due to hand shaking)&#10;&#10;Added new remote script maxisetup_ssh.sh&#10;&#10;New variables in maxisetup.conf.sample&#10;&#10;DROP_BEAR_PORT=&quot;1234&quot;&#10;DNS_PROVIDER_TERMINAL_SERVER=&quot;lish-singapore.linode.com&quot;" />
     <MESSAGE value="Improved ssh_login code&#10;Added documentation in the terminal to resume remote installation (in the case setup needs to restart remotely). This will display when SSH is terminated.&#10;Improved check_finish_reboot function&#10;Added the ability to detect if OS is encrypted. Hence, the variable DISK_ENCRYPTION used to specify OS encryption status manually is now deprecated.&#10;Renamed variable disk_uuid to local disk_uuid_boot because this uuid is only for boot partition&#10;Extra ports specification config for variable CSF_EXTRA_ALLOW_PORTS now doesn't need to specify comma at the beginning.&#10;Added new variable CSF_DENY_IP_LIMIT to increase DENY_IP_LIMIT from 200 (default) to any values. This one was missing feature.&#10;Added speedtest.net installation in post_setup()&#10;Added the ability to automatically unlock LUKS encryption remotely and run maxisetup automatically.&#10;Other changes ... especially in maxida, maxiwall, websetup .. other extra things" />
     <MESSAGE value="Update small changes, add debug line to debug new version of DA 1.62 (some API has changed as reported)" />
@@ -571,6 +569,7 @@
     <MESSAGE value="New update and improvement" />
     <MESSAGE value="Update and improvement" />
     <MESSAGE value="Added ability to download remote file installation log by triggering this simple command:&#10;&#10;maxinet --get-remote-log&#10;&#10;By default this log file is stored at &lt;script_path&gt;/log/" />
-    <option name="LAST_COMMIT_MESSAGE" value="Added ability to download remote file installation log by triggering this simple command:&#10;&#10;maxinet --get-remote-log&#10;&#10;By default this log file is stored at &lt;script_path&gt;/log/" />
+    <MESSAGE value="Update and improvement&#10;&#10;Improved required() function to be portable&#10;&#10;Example of the call:&#10;&#10;required &quot;ubuntu@@apt:dos2unix,htop,nano+make:xxx,test,ok&quot; \&#10;  &quot;centos@@dnf:dos2unix,nano&quot; &quot;debian@@apt:dos2unix,htop&quot;&#10;&#10;required &quot;ubuntu@@apt:nano,htop,vim&quot; \&#10;  &quot;centos@@dnf:dos2unix,nano&quot; &quot;debian@@apt:dos2unix,htop,git,x&quot;" />
+    <option name="LAST_COMMIT_MESSAGE" value="Update and improvement&#10;&#10;Improved required() function to be portable&#10;&#10;Example of the call:&#10;&#10;required &quot;ubuntu@@apt:dos2unix,htop,nano+make:xxx,test,ok&quot; \&#10;  &quot;centos@@dnf:dos2unix,nano&quot; &quot;debian@@apt:dos2unix,htop&quot;&#10;&#10;required &quot;ubuntu@@apt:nano,htop,vim&quot; \&#10;  &quot;centos@@dnf:dos2unix,nano&quot; &quot;debian@@apt:dos2unix,htop,git,x&quot;" />
   </component>
 </project>
