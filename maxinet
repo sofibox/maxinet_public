@@ -5,7 +5,7 @@
 # Author: Arafat Ali | Email: webmaster@sofibox.com | Website: sofibox.com
 _APP_SPECIFIC_NAME="Maxinet"
 # Note some minor versions are not published
-_APP_VERSION="0.5.3.8"
+_APP_VERSION="0.5.3.9"
 _APP_STATUS="alpha"
 _APP_VERSION_STATUS="${_APP_VERSION}-${_APP_STATUS}"
 
@@ -1001,7 +1001,7 @@ function ssh_api() {
     fi
 
     # Do not quote local_path to enable multiple file transfers
-    _echo "$(msg cyan)Getting file remote files(s) from ${local_path} via SSH ...$(msg end)" --name
+    _echo "$(msg cyan)Getting remote files(s) from ${local_path} via SSH ...$(msg end)" --name
     scp -o "StrictHostKeyChecking no" -P "${port}" -i "${rsa_key}" "${user}@${server}:${remote_path}" "${local_path}" 2> >(grep -v 'Permanently' 1>&2)
 
   elif [[ "${action}" == "file-upload" || "${action}" == "upload-files" || "${action}" == "transfer-files" || "${action}" == "transfer-file" || "${action}" == "file-transfer" || "${action}" == "files-transfer" ]]; then
@@ -14114,8 +14114,21 @@ ENDSSH
     exit 0
     break
     ;;
+  --get-remote-log)
+    shift
+    echo "Download setup log file into ${SCRIPT_PATH}/log/${SCRIPT_NAME}.log ..."
+    ssh_api file-download --server-port "${BOX_HOSTNAME_FQDN}:${SSH_PORT}" --group-user root:root --remote-path ~/maxinet.log --local-path "${SCRIPT_PATH}/log"
+    retval=$?
+    if [ "${retval}" -eq 0 ]; then
+      _echo "$(msg green)Success, now you can view this log file at ${SCRIPT_PATH}/log/${SCRIPT_NAME}.log$(msg end)" --name
+    else
+      _echo "$(msg red)Error, something is wrong when trying to retrieve the log file at ${SCRIPT_PATH}/log/${SCRIPT_NAME}.log$(msg end)" --name
+    fi
+    exit 0
+    break
+    ;;
     # ./maxinet --ssh-login <optional_hostname> <optional_port> <optional_user>
-  # If hostname or port are not provided, they will use the default ones from config file
+    # If hostname or port are not provided, they will use the default ones from config file
   --ssh-login | --login-to-server | --login)
     shift
     ssh_api login "$@"
