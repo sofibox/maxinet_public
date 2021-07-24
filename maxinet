@@ -3,11 +3,12 @@
 # shellcheck source=maxinet.conf
 # =~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~="
 # Author: Arafat Ali | Email: webmaster@sofibox.com | Website: sofibox.com
-APP_SPECIFIC_NAME="Maxinet"
-APP_STATUS="alpha"
+_APP_SPECIFIC_NAME="Maxinet"
 # Note some minor versions are not published
-APP_VERSION="0.5.3.4-${APP_STATUS}"
-COMPANY_ID="${COMPANY_ID}"
+_APP_VERSION="0.5.3.7"
+_APP_STATUS="alpha"
+_APP_VERSION_STATUS="${_APP_VERSION}-${_APP_STATUS}"
+
 # Hello there, this is a powerful script that able initialize one or more server installation from scratch. From configuring the server disk, until you got the full working server with a live website.
 # It also includes many security and hardening script.
 # Initially this script was designed to work 100% with Directadmin installation but it can be used to install other server stacks such as LEMP, Laravel, Magento, Prestashop and more
@@ -19,29 +20,94 @@ COMPANY_ID="${COMPANY_ID}"
 # Run initialize installation with log output: ./${script_name} --init-server init-all rebuild-iso 2>&1 | tee maxinet.log
 
 # FUNCTION BEGIN HERE
+
+# This function is used to handle exit trap that can accept multiple trap arguments
+# syntax: _traps <trap_clean_function> SIG1 SIG2 SIG3 OTHER_SIG ...
+# eg: _traps trap_cleanup QUIT INT TERM EXIT
+function _traps() {
+  local clean_func
+  clean_func="$1"
+  shift
+  for sig; do
+    # Test each signal from function called
+    # shellcheck disable=SC2064
+    # include shellcheck disable directive because: https://github.com/koalaman/shellcheck/issues/2131
+    trap "${clean_func} ${sig}" "${sig}"
+  done
+}
+
+# This function is used by _traps function to clean exit
+function trap_cleanup() {
+  # The first argument will have the name of the trap signal executed:
+  # echo "Trapped: $1"
+  ((CTRL_C_COUNT++))
+  # Check if the locking directory is exist, if yes, remove it
+  if [ -d "${LOCK_DIR}" ]; then
+    rm -rf "${LOCK_DIR}"
+    #echo ""
+    #echo "[${SCRIPT_NAME}]: OK, locked flag removed from ${LOCK_DIR}"
+  fi
+  # this if condition will determine that this cleanup function is only called a single time CTRL_C_COUNT=1
+  # this function might be called several times because we passed long arguments for trap to call this function
+  if [[ ${CTRL_C_COUNT} == 1 ]]; then
+    echo ""
+    # if the trapped signal is INT (interactive) then we know this is interactive exit executed by a user.
+    if [ "$1" == "INT" ]; then
+      # so print the current user who terminated this script
+      _echo "$(msg yellow)*** Warning, this script has been terminated by user: $(msg red)${USER}!$(msg end) $(msg yellow)***$(msg end)" --name
+      # Check if trap with other signal here
+      #elif [ "$1" == "MORE" ]; then
+      :
+    else
+      # for other trap signals, we just print out the trap signal
+      _echo "$(msg cyan)This script has been terminated with signal:$(msg end) $(msg red)${1}$(msg end)" --name
+    fi
+    echo ""
+    echo "-------------------------------END-----------------------------------------"
+    echo "Guide"
+    echo ""
+    echo "Remember you can always resume installation with the following command:"
+    echo "For local installation: ${SCRIPT_NAME} --setup 2>&1 | tee ${SCRIPT_NAME}.log"
+    echo "For remote installation: ${SCRIPT_NAME} --push-ssh-script --sp ${BOX_HOSTNAME_FQDN}:${SSH_PORT} --gu root:${ROOT_USERNAME} --push-maxinet-setup-script"
+    echo ""
+    echo "SSH user login guide:"
+    echo "To login as root user: ${SCRIPT_NAME} --ssh-login ${ROOT_USERNAME}"
+    echo "To login as SSH user: ${SCRIPT_NAME} --ssh-login ${SSH_USERNAME}"
+    echo ""
+    echo "Server LUKS unlock guide:"
+    echo "To unlock LUKS Disk encryption: ${SCRIPT_NAME} --luks-unlock"
+    echo ""
+    script_time
+    echo ""
+  fi
+  # clean exit
+  exit 1
+}
+
 function script_header() {
   # This is script header
   _echo "$(msg red)=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=$(msg end)" --plain
-  _echo "$(msg cyan)Welcome to $(msg red)${APP_SPECIFIC_NAME}$(msg cyan) Automated Script$(msg end)" --plain
+  _echo "$(msg cyan)Welcome to $(msg red)${_APP_SPECIFIC_NAME}$(msg cyan) Automated Script$(msg end)" --plain
   _echo "$(msg blue)This powerful script is part of Sofibox/MaxiNet scripts$(msg end)" --plain
   _echo "$(msg green)For script help: $(msg yellow)${SCRIPT_NAME} --help$(msg end)" --plain
   _echo "$(msg green)Script official URL: $(msg yAellow)http://sofibox.com/maxinet$(msg end)" --plain
-  _echo "$(msg green)Version: $(msg yellow)${SCRIPT_NAME}-${APP_VERSION}$(msg end)" --plain
+  _echo "$(msg green)Version: $(msg yellow)${SCRIPT_NAME}-${_APP_VERSION_STATUS}$(msg end)" --plain
   _echo "$(msg green)Distro ID: $(msg yellow)${DISTRO_ID}$(msg end) | $(msg green) Distro Version: $(msg yellow)${DISTRO_VERSION}$(msg end)" --plain
   _echo "$(msg cyan)$(msg bold)(C) Author: Arafat Ali | Email: arafat@sofibox.com$(msg end)" --plain
   _echo "$(msg red)=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=$(msg end)" --plain
   _echo "" --plain
 }
 function help() {
+  # This help section is deprecated, will update time to time when the code finish
   echo "Welcome to help section!"
   echo "------------------------"
-  echo "Run initialize installation with log output: ${SCRIPT_NAME} --init-server init-all rebuild-iso 2>&1 | tee maxinet.log"
+  echo "Run initialize installation with log output: ${SCRIPT_NAME} --init-server init-all rebuild-iso 2>&1 | tee ${SCRIPT_NAME}.log"
   echo ""
   echo "To start/resume local installation: "
   echo "eg:"
   echo "${SCRIPT_NAME} --setup"
   echo "OR"
-  echo "${SCRIPT_NAME} --setup 2>&1 | tee maxinet.log"
+  echo "${SCRIPT_NAME} --setup 2>&1 | tee ${SCRIPT_NAME}.log"
   echo ""
   echo "To start/resume remote installation:"
   echo "Syntax: ${SCRIPT_NAME} --ssh-login <fqdn>:<ssh_port> <user_role>:<user_name> <local_script_to_push_for_installation>"
@@ -60,6 +126,7 @@ function help() {
 }
 
 function manual() {
+  # This help section is deprecated, will update time to time when the code finish
   local manual_name="$1"
   if [ "${manual_name}" == "init_server" ]; then
     local lopt="--init-server"
@@ -244,7 +311,7 @@ function is_valid() {
   distro_id="${DISTRO_ID}"
 
   if [ "${distro_id}" == "debian" ]; then
-    install_required "apt:ipcalc" "apt:iproute2"
+    required "apt:ipcalc" "apt:iproute2"
   #elif ["${distro_id}" == "ubuntu" ]; then
   #: Do more distro check here in the future
   fi
@@ -469,14 +536,15 @@ function init_server() {
   echo "Server Physical Information:"
   echo "Provider: ${DNS_PROVIDER_NAME}"
   if [[ "${HIDE_SENSITIVE_TEXT}" == "true" ]]; then
-    echo "IPv4 address: *privacy*"
+    echo "IPv4 address: *hidden_ip*"
   else
     echo "IPv4 address: ${IPV4_ADD0}"
   fi
-  echo "Disk space: "
-  echo "Memory/RAM: "
+  #echo "Disk space: "
+  #echo "Memory/RAM: "
   echo "Checking IP and domain propagation ..."
-
+  # TODO check IP propagation
+  sleep 5
   if [ ${backup} == "true" ]; then
     _echo "$(msg blue)Notice, the option --backup-all is set. The following backup will events be triggered automatically: $(msg end)" --name --plain
     _echo "$(msg blue)1) Previous iso image will be backed up automatically $(msg end)" --name --plain
@@ -569,7 +637,15 @@ function init_server() {
     fi
 
     if [ "${rebuild_iso}" == "true" ]; then
-      _echo "$(msg yellow)Warning, new ISO will be rebuilt because the option --rebuild-iso is set$(msg end)" --name
+
+      if [ "${backup}" == "true" ]; then
+
+        _echo "$(msg yellow)Warning, the option --rebuild-iso is set. Hence the existing ISO will be replace with the new one $(msg green)but don\'t worry this ISO file will be backed up because --backup option is set$(msg end)" --name
+      else
+
+        _echo "$(msg yellow)Warning, the option --rebuild-iso is set. Hence the existing ISO will be replace with the new one!$(msg end)" --name
+
+      fi
       _pause 10
       echo "Creating ISO file"
       # Create ISO type for Hard disk boot, pull from web, upload to dropbox and write an automation script for installation
@@ -614,14 +690,22 @@ function init_server() {
     # Boot into the new OS
     _echo "Booting into operating system (make sure to unlock LUKS)" --name
     linode_api_admin boot-linode --linode-label "${BOX_HOSTNAME_FQDN}" --linode-config-label "${LINODE_OS_CONFIG_LABEL}"
-    _echo "$(msg cyan)Checking if dropbear port ${DROP_BEAR_PORT} is open from --server ${BOX_HOSTNAME_FQDN} ...$(msg end)" --name
+    if [ "${HIDE_SENSITIVE_TEXT}" == "true" ]; then
+      _echo "$(msg cyan)Checking if initial boot port *hidden_port* is open from --server ${BOX_HOSTNAME_FQDN} ...$(msg end)" --name
+    else
+      _echo "$(msg cyan)Checking if initial boot port ${DROP_BEAR_PORT} is open from --server ${BOX_HOSTNAME_FQDN} ...$(msg end)" --name
+    fi
     count=0
     while :; do
       sleep 1
       ((count++))
       _echo "$(msg yellow) Waiting for dropbear port ${DROP_BEAR_PORT} to be available ...$(msg end)" --start-spin --name
       if is_valid available_port "${BOX_HOSTNAME_FQDN}" "${DROP_BEAR_PORT}"; then
-        _echo "$(msg green)OK, dropbear port ${DROP_BEAR_PORT} is now available. Unlocking encrypted LUKS disk on boot ...$(msg end)" --stop-spin --name
+        if [ "${HIDE_SENSITIVE_TEXT}" == "true" ]; then
+          _echo "$(msg green)OK, LUKS boot port is now available. Unlocking encrypted LUKS disk on boot ...$(msg end)" --stop-spin --name
+        else
+          _echo "$(msg green)OK, dropbear port ${DROP_BEAR_PORT} is now available. Unlocking encrypted LUKS disk on boot ...$(msg end)" --stop-spin --name
+        fi
         # Wait 5 seconds
         sleep 5
         ssh_api unlock-luks --port "${DROP_BEAR_PORT}" --password "${LUKS_PASS}"
@@ -638,7 +722,23 @@ function init_server() {
     sleep 2
 
     if [ "${PRE_AUTORUN_SETUP}" == "no" ]; then
-      _echo "$(msg cyan) Warning, PRE_AUTORUN_SETUP is set to no. Hence, auto installation script is disabled! Please run --setup manually$(msg end)" --name
+      _echo "$(msg yellow)Warning, PRE_AUTORUN_SETUP is set to no. Hence, remote auto installation script is now halt! $(msg end)" --name
+      echo ""
+      _echo "$(msg yellow)Note: The server will be turned off, if you want to continue remote setup, trigger the following commands: $(msg end)" --name
+      _echo "$(msg magenta)1) Turn on the server: maxinet --start-server$(msg end)" --plain
+      _echo "$(msg magenta)2) Unlock server LUKS disk encrypted: maxinet --luks-unlock$(msg end)" --plain
+
+      if [ "${HIDE_SENSITIVE_TEXT}" == "true" ]; then
+        _echo "$(msg magenta)3) Automatically execute --setup on remote server: maxinet --ssh-api push-script --server-port *hidden_server*:*hidden_port* --group-user root:root --push-maxinet-setup-script$(msg end)" --plain
+      else
+        _echo "$(msg magenta)3) Automatically execute --setup on remote server: maxinet --ssh-api push-script --server-port sun.sofibox.com:893 --group-user root:root --push-maxinet-setup-script$(msg end)" --plain
+      fi
+      echo ""
+      _echo "OR login into remote server and manually run --setup with the following command:" --name
+      _echo "$(msg magenta)1) Turn on server: maxinet --ssh-login root$(msg end)" --plain
+      _echo "$(msg magenta)2) cd ~$(msg end)" --plain
+      _echo "$(msg magenta)3) ./${SCRIPT_NAME} --setup 2>&1 | tee ${SCRIPT_NAME}.log ~$(msg end)" --plain
+      _echo "$(msg magenta)4) See ~/readme.txt for more information$(msg end)" --plain
       linode_api_admin shutdown-linode --linode-label "${BOX_HOSTNAME_FQDN}"
       _exit 0
     fi
@@ -701,7 +801,7 @@ function init_server() {
 function ssh_api() {
   local action argnum options long_opts retval key_path group user comment server_label server port destination rsa_key \
     linode_label local_script_path remote_script_path remote_path local_path push_iso_write_script push_shutdown_script push_reboot_script \
-    push_maxinet_setup_script password local_files silent_push
+    push_maxinet_setup_script password local_files silent_push silent
 
   action="$1"
   argnum="$#"
@@ -713,7 +813,7 @@ function ssh_api() {
   #fi
   long_opts="help,key-path:,group:,user:,comment:,server-label:,server:,port:,destination:,without-prompt,rsa-key:,linode-label:, \
   local-script-path:,remote-script-path:,remote-path:,local-path:,local-files:,push-iso-write-script,push-shutdown-script,push-reboot-script,push-maxinet-setup-script, \
-  sp:,server-port:,gu:,group-user:,password:,silent-push"
+  sp:,server-port:,gu:,group-user:,password:,silent-push,silent"
   options=$(getopt -o '' --long "${long_opts}" -n "${FUNCNAME[0]} in ${SCRIPT_NAME}" -- "$@")
   retval=$?
   if [ ${retval} != 0 ]; then
@@ -746,6 +846,7 @@ function ssh_api() {
   port="22" #If not specified the default is port 22
   password=""
   silent_push=false
+  silent=false
   while true; do
     case "$1" in
     --help)
@@ -869,6 +970,10 @@ function ssh_api() {
       silent_push=true
       shift
       ;;
+    --silent)
+      silent=true
+      shift
+      ;;
     --)
       shift
       break
@@ -903,7 +1008,7 @@ function ssh_api() {
   elif [[ "${action}" == "file-upload" || "${action}" == "upload-files" || "${action}" == "transfer-files" || "${action}" == "transfer-file" || "${action}" == "file-transfer" || "${action}" == "files-transfer" ]]; then
     # ssh_api transfer-files/file-transfer/transfer-file --server-port ${BOX_HOSTNAME_FQDN}:${SSH_PORT} --group-user root:${ROOT_USERNAME} --local-files "/tmp/file1 /var/file2" --remote-path ~/
     #ssh_api transfer-files/file-transfer/transfer-file --server ${BOX_HOSTNAME_FQDN} ---port ${SSH_PORT} --group root --user ${ROOT_USERNAME} --local-files "/tmp/file1 /var/file2" --remote-path ~/
-    #install_required "apt:sshpass"
+    #required "apt:sshpass"
     local private_key_name private_key_file
 
     if [ -z "${rsa_key}" ]; then
@@ -942,17 +1047,20 @@ function ssh_api() {
       private_key_file="${key_path}/${private_key_name}"
       rsa_key="${private_key_file}"
     fi
-
-    _echo "$(msg cyan)Unlocking LUKS encrypted disk on boot ... $(msg end)" --name
+    if [ "${HIDE_SENSITIVE_TEXT}" == "true" ]; then
+      _echo "$(msg cyan)Unlocking LUKS encrypted disk on boot via SSH with port *hidden_port* ...$(msg end)" --name
+    else
+      _echo "$(msg cyan)Unlocking LUKS encrypted disk on boot via SSH port ${port} ...$(msg end)" --name
+    fi
     if [ -f "${rsa_key}" ]; then
-      _echo "$(msg cyan)Connecting to ssh with port ${port} to unlock LUKS encrypted disk on boot ...$(msg end)" --name
+
       # Do not use -q, need verbose for this connection to debug error
       ssh -o "StrictHostKeyChecking no" -oAddressFamily=inet -p "${port}" -i "${rsa_key}" "${linode_label}" "echo -ne \"${password}\" > /lib/cryptsetup/passfifo" 2> >(grep -v 'Permanently added' 1>&2)
       retval=$?
       if [ ${retval} -eq 0 ]; then
-        _echo "$(msg green)Success, LUKS unlocked return ok status$(msg end)" --name
+        _echo "$(msg green)Success, LUKS disk unlocked with return code 0 $(msg end)" --name
       else
-        _echo "$(msg yellow)Warning, LUKS unlocked return with code ${retval}$(msg end)" --name
+        _echo "$(msg yellow)Warning, failed to unlock LUKS disk [return code ${retval}]$(msg end)" --name
       fi
     else
       _echo "$(msg red)Error, private key ${rsa_key} does not exist!$(msg end)" --name --verbose 3
@@ -967,26 +1075,42 @@ function ssh_api() {
       private_key_name="root_${ROOT_USERNAME}_${BOX_HOSTNAME_FQDN}.id_rsa"
       private_key_file="${key_path}/${private_key_name}"
       rsa_key="${private_key_file}"
-      _echo "$(msg cyan)Checking server ${BOX_HOSTNAME_FQDN}'s online status ...$(msg end)" --name
-      linode_status=$(linode_api_admin get-linode-status --linode-label "${BOX_HOSTNAME_FQDN}" --scripting)
-      linode_status=$(linode_api_admin get-linode-status --linode-label "${BOX_HOSTNAME_FQDN}" --scripting)
-      if [ "${linode_status}" == "offline" ]; then
-        _echo "$(msg yelllow)Warning, linode is offline!$(msg end)" --name
-        linode_api_admin boot-linode --linode-label "${BOX_HOSTNAME_FQDN}" --linode-config-label "${LINODE_OS_CONFIG_LABEL}"
-      fi
 
       # This will check available port even if NO LUKS encrypted
       _echo "$(msg cyan)Checking whether ${BOX_HOSTNAME_FQDN}'s port ${SSH_PORT} is online ...$(msg end)" --name
       if is_valid available_port "${BOX_HOSTNAME_FQDN}" "${SSH_PORT}"; then
-        _echo "$(msg green)OK, the port ${SSH_PORT} is available at ${BOX_HOSTNAME_FQDN} $(msg end)" --name
-      else
-        _echo "$(msg yelllow)Warning, the --server-port ${BOX_HOSTNAME_FQDN}:${SSH_PORT} is not available!$(msg end)" --name
-        ssh_api luks-unlock --port "${DROP_BEAR_PORT}" --password "${LUKS_PASS}"
-        sleep 10
-        if is_valid available_port "${BOX_HOSTNAME_FQDN}" "${SSH_PORT}"; then
-          _echo "$(msg green)OK, the port ${SSH_PORT} is available at ${BOX_HOSTNAME_FQDN} $(msg end)" --name
+        if [ "${HIDE_SENSITIVE_TEXT}" == "true" ]; then
+          _echo "$(msg green)OK, the port *hidden_port* is available at ${BOX_HOSTNAME_FQDN} $(msg end)" --name
+
         else
-          _echo "$(msg red)Error, the --server-port ${BOX_HOSTNAME_FQDN}:${SSH_PORT} is not available (make sure server is online or port ${SSH_PORT} is available)$(msg end)" --name
+          _echo "$(msg green)OK, the port ${SSH_PORT} is available at ${BOX_HOSTNAME_FQDN} $(msg end)" --name
+        fi
+      else
+        if [ "${HIDE_SENSITIVE_TEXT}" == "true" ]; then
+          _echo "$(msg yelllow)Warning, the --server-port ${BOX_HOSTNAME_FQDN}:*hidden_port* is not available!$(msg end)" --name
+        else
+          _echo "$(msg yelllow)Warning, the --server-port ${BOX_HOSTNAME_FQDN}:${SSH_PORT} is not available!$(msg end)" --name
+        fi
+        _echo "$(msg cyan)Checking server ${BOX_HOSTNAME_FQDN}'s online status ...$(msg end)" --name
+        linode_status=$(linode_api_admin get-linode-status --linode-label "${BOX_HOSTNAME_FQDN}" --scripting)
+        if [ "${linode_status}" == "offline" ]; then
+          _echo "$(msg yelllow)Warning, linode is offline!$(msg end)" --name
+          linode_api_admin boot-linode --linode-label "${BOX_HOSTNAME_FQDN}" --linode-config-label "${LINODE_OS_CONFIG_LABEL}" --scripting
+        fi
+        ssh_api luks-unlock --port "${DROP_BEAR_PORT}" --password "${LUKS_PASS}"
+        sleep 7
+        if is_valid available_port "${BOX_HOSTNAME_FQDN}" "${SSH_PORT}"; then
+          if [ "${HIDE_SENSITIVE_TEXT}" == "true" ]; then
+            _echo "$(msg green)OK, the port *hidden_port* is available at ${BOX_HOSTNAME_FQDN} $(msg end)" --name
+          else
+            _echo "$(msg green)OK, the port ${SSH_PORT} is available at ${BOX_HOSTNAME_FQDN} $(msg end)" --name
+          fi
+        else
+          if [ "${HIDE_SENSITIVE_TEXT}" == "true" ]; then
+            _echo "$(msg red)Error, the --server-port ${BOX_HOSTNAME_FQDN}:*hidden_port* is not available (make sure server is online or port *hidden_port* is available)$(msg end)" --name
+          else
+            _echo "$(msg red)Error, the --server-port ${BOX_HOSTNAME_FQDN}:${SSH_PORT} is not available (make sure server is online or port ${SSH_PORT} is available)$(msg end)" --name
+          fi
           _exit 147
         fi
       fi
@@ -997,12 +1121,6 @@ function ssh_api() {
       private_key_name="user_${SSH_USERNAME}_${BOX_HOSTNAME_FQDN}.id_rsa"
       private_key_file="${key_path}/${private_key_name}"
       rsa_key="${private_key_file}"
-      _echo "$(msg cyan)Checking server ${BOX_HOSTNAME_FQDN}'s online status ...$(msg end)" --name
-      linode_status=$(linode_api_admin get-linode-status --linode-label "${BOX_HOSTNAME_FQDN}" --scripting)
-      if [ "${linode_status}" == "offline" ]; then
-        _echo "$(msg yelllow)Warning, linode is offline!$(msg end)" --name
-        linode_api_admin boot-linode --linode-label "${BOX_HOSTNAME_FQDN}" --linode-config-label "${LINODE_OS_CONFIG_LABEL}"
-      fi
 
       # This will check available port even if NO LUKS encrypted
       _echo "$(msg cyan)Checking whether ${BOX_HOSTNAME_FQDN}'s port ${SSH_PORT} is online ...$(msg end)" --name
@@ -1010,8 +1128,15 @@ function ssh_api() {
         _echo "$(msg green)OK, the port ${SSH_PORT} is available at ${BOX_HOSTNAME_FQDN} $(msg end)" --name
       else
         _echo "$(msg yelllow)Warning, the --server-port ${BOX_HOSTNAME_FQDN}:${SSH_PORT} is not available!$(msg end)" --name
+        _echo "$(msg cyan)Checking server ${BOX_HOSTNAME_FQDN}'s online status ...$(msg end)" --name
+        linode_status=$(linode_api_admin get-linode-status --linode-label "${BOX_HOSTNAME_FQDN}" --scripting)
+        if [ "${linode_status}" == "offline" ]; then
+          _echo "$(msg yelllow)Warning, linode is offline!$(msg end)" --name
+          linode_api_admin boot-linode --linode-label "${BOX_HOSTNAME_FQDN}" --linode-config-label "${LINODE_OS_CONFIG_LABEL}" --scripting
+        fi
+
         ssh_api luks-unlock --port "${DROP_BEAR_PORT}" --password "${LUKS_PASS}"
-        sleep 10
+        sleep 7
         if is_valid available_port "${BOX_HOSTNAME_FQDN}" "${SSH_PORT}"; then
           _echo "$(msg green)OK, the port ${SSH_PORT} is available at ${BOX_HOSTNAME_FQDN} $(msg end)" --name
         else
@@ -1036,12 +1161,6 @@ function ssh_api() {
         _echo "$(msg red)Error, the option --port is required to have value$(msg end)" --name
         _exit 147
       fi
-      _echo "$(msg cyan)Checking server ${server}'s online status ...$(msg end)" --name
-      linode_status=$(linode_api_admin get-linode-status --linode-label "${server}" --scripting)
-      if [ "${linode_status}" == "offline" ]; then
-        _echo "$(msg yelllow)Warning, linode is offline!$(msg end)" --name
-        linode_api_admin boot-linode --linode-label "${server}" --linode-config-label "${LINODE_OS_CONFIG_LABEL}"
-      fi
 
       # This will check available port even if NO LUKS encrypted
       _echo "$(msg cyan)Checking whether ${server}'s port ${port} is online ...$(msg end)" --name
@@ -1049,8 +1168,14 @@ function ssh_api() {
         _echo "$(msg green)OK, the port ${port} is available at ${server} $(msg end)" --name
       else
         _echo "$(msg yelllow)Warning, the --server-port ${server}:${port} is not available!$(msg end)" --name
+        _echo "$(msg cyan)Checking server ${server}'s online status ...$(msg end)" --name
+        linode_status=$(linode_api_admin get-linode-status --linode-label "${server}" --scripting)
+        if [ "${linode_status}" == "offline" ]; then
+          _echo "$(msg yelllow)Warning, linode is offline!$(msg end)" --name
+          linode_api_admin boot-linode --linode-label "${server}" --linode-config-label "${LINODE_OS_CONFIG_LABEL}" --scripting
+        fi
         ssh_api luks-unlock --port "${DROP_BEAR_PORT}" --password "${LUKS_PASS}"
-        sleep 10
+        sleep 7
         if is_valid available_port "${server}" "${port}"; then
           _echo "$(msg green)OK, the port ${port} is available at ${server} $(msg end)" --name
         else
@@ -1148,7 +1273,11 @@ function ssh_api() {
       fi
     fi
 
-    _echo "$(msg cyan)Pushing script ${local_script_path} into SSH console ${user}@${server}... $(msg end)" --name
+    if [ "${HIDE_SENSITIVE_TEXT}" == "true" ]; then
+      _echo "$(msg cyan)Pushing script ${local_script_path} into SSH console ... $(msg end)" --name
+    else
+      _echo "$(msg cyan)Pushing script ${local_script_path} into SSH console ${user}@${server}... $(msg end)" --name
+    fi
     if [ "${silent_push}" == "true" ]; then
       ssh -q -o "StrictHostKeyChecking no" -i "${rsa_key}" -p "${port}" "${user}@${server}" <"${local_script_path}" >/dev/null 2>&1 &
     else
@@ -1192,7 +1321,12 @@ function ssh_api() {
       fi
     fi
 
-    _echo "$(msg cyan)Pushing script ${local_script_path} into lish console ${user}@${server}... $(msg end)" --name
+    if [ "${HIDE_SENSITIVE_TEXT}" == "true" ]; then
+      _echo "$(msg cyan)Pushing script ${local_script_path} into lish console... $(msg end)" --name
+    else
+      _echo "$(msg cyan)Pushing script ${local_script_path} into lish console ${user}@${server}... $(msg end)" --name
+    fi
+
     #ssh -q -o "StrictHostKeyChecking no" -i /root/.ssh/linode_lish.id_rsa -tt "${DNS_PROVIDER_USER}@${DNS_PROVIDER_TERMINAL_SERVER}" "${BOX_HOSTNAME_FQDN}" <"${SCRIPT_PATH}/dns/linode/os_write.sh" >/dev/null 2>&1 &
 
     # push script: ssh_api lish-push-script --key rsa_key.id.rsa --user maxibi --server member.linode.com --linode-label sun.sofibox.com --local-script-path /tmp/os_write.sh
@@ -1203,7 +1337,6 @@ function ssh_api() {
 
     #{ kill -9 ${ssh_pid} && wait ${ssh_pid}; } 2>/dev/null
   elif [ "${action}" == "create-key" ]; then
-
     local private_key_name
     mkdir -p "${key_path}"
     if [[ -z "${group}" ]]; then
@@ -1219,8 +1352,14 @@ function ssh_api() {
       private_key_name="${group}_${user}_${server_label}.id_rsa"
 
     fi
-    _echo "$(msg cyan)Creating private and public key RSA SSH key authentication at ${key_path}/${private_key_name} ...$(msg end)" --name
-    ssh-keygen -f "${key_path}/${private_key_name}" -t rsa -b 4096 -P "" -C "${comment}" <<<y
+
+    if [[ "${silent}" == "true" || "${HIDE_SENSITIVE_TEXT}" == "true" ]]; then
+      _echo "$(msg cyan)Creating private and public key RSA SSH key authentication ...$(msg end)" --name
+      ssh-keygen -q -f "${key_path}/${private_key_name}" -t rsa -b 4096 -P "" -C "${comment}" <<<y
+    else
+      _echo "$(msg cyan)Creating private and public key RSA SSH key authentication at ${key_path}/${private_key_name} ...$(msg end)" --name
+      ssh-keygen -f "${key_path}/${private_key_name}" -t rsa -b 4096 -P "" -C "${comment}" <<<y
+    fi
   elif [ "${action}" == "create-key-with-putty" ]; then
     local private_key_name private_key_putty_name
     mkdir -p "${key_path}"
@@ -1237,11 +1376,17 @@ function ssh_api() {
       private_key_name="${group}_${user}_${server_label}.id_rsa"
       private_key_putty_name="${group}_${user}_${server_label}.ppk"
     fi
-    _echo "$(msg cyan)Creating private and public key RSA SSH key authentication at ${key_path}/${private_key_name} ...$(msg end)" --name
-    ssh-keygen -f "${key_path}/${private_key_name}" -t rsa -b 4096 -P "" -C "${comment}" <<<y
+
+    if [[ "${silent}" == "true" || "${HIDE_SENSITIVE_TEXT}" == "true" ]]; then
+      _echo "$(msg cyan)Creating private and public key RSA SSH key authentication ...$(msg end)" --name
+      ssh-keygen -q -f "${key_path}/${private_key_name}" -t rsa -b 4096 -P "" -C "${comment}" <<<y
+    else
+      _echo "$(msg cyan)Creating private and public key RSA SSH key authentication at ${key_path}/${private_key_name} ...$(msg end)" --name
+      ssh-keygen -f "${key_path}/${private_key_name}" -t rsa -b 4096 -P "" -C "${comment}" <<<y
+    fi
     echo ""
     _echo "$(msg cyan)Creating RSA SSH key authentication for Putty at ${key_path}/${private_key_putty_name} ...$(msg end)" --name
-    install_required "apt:putty-tools"
+    required "apt:putty-tools"
     puttygen "${key_path}/${private_key_name}" -o "${key_path}/${private_key_putty_name}"
   elif [[ "${action}" == "get-pubkey" || "${action}" == "get-public-key" ]]; then
     local public_key_name public_key_file
@@ -1683,62 +1828,6 @@ function validate_config() {
   #exit 1
 }
 
-# This function is used to handle exit trap that can accept multiple trap arguments
-# syntax: _traps <trap_clean_function> SIG1 SIG2 SIG3 OTHER_SIG ...
-# eg: _traps _trap_cleanup QUIT INT TERM EXIT
-function _traps() {
-  local clean_func
-  clean_func="$1"
-  shift
-  for sig; do
-    # Test each signal from function called
-    # shellcheck disable=SC2064
-    # include shellcheck disable directive because: https://github.com/koalaman/shellcheck/issues/2131
-    trap "${clean_func} ${sig}" "${sig}"
-  done
-}
-
-# This function is used by _traps function to clean exit
-function _trap_cleanup() {
-  # The first argument will have the name of the trap signal executed:
-  # echo "Trapped: $1"
-  ((CTRL_C_COUNT++))
-  # Check if the locking directory is exist, if yes, remove it
-  if [ -d "${LOCK_DIR}" ]; then
-    rm -rf "${LOCK_DIR}"
-    echo ""
-    echo "[${SCRIPT_NAME}]: OK, locked flag removed from ${LOCK_DIR}"
-  fi
-  # this if condition will determine that this cleanup function is only called a single time CTRL_C_COUNT=1
-  # this function might be called several times because we passed long arguments for trap to call this function
-  if [[ ${CTRL_C_COUNT} == 1 ]]; then
-    echo ""
-    # if the trapped signal is INT (interactive) then we know this is interactive exit executed by a user.
-    if [ "$1" == "INT" ]; then
-      # so print the current user who terminated this script
-      echo "[${SCRIPT_NAME}]: *** Warning, this script has been terminated by user: ${USER}! ***"
-    else
-      # for other trap signals, we just print out the trap signal
-      echo "[${SCRIPT_NAME}]: This script has been terminated with signal: ${1}"
-    fi
-    echo ""
-    echo "-------------------------------END-----------------------------------------"
-    echo ""
-    echo "Remember you can always resume installation with the following command:"
-    echo "For local installation: ${SCRIPT_NAME} --setup 2>&1 | tee ${SCRIPT_NAME}.log"
-    echo "For remote installation: ${SCRIPT_NAME} --push-ssh-script --sp ${BOX_HOSTNAME_FQDN}:${SSH_PORT} --gu root:${ROOT_USERNAME} --push-maxinet-setup-script"
-    echo ""
-    echo "SSH user login guide:"
-    echo "To login as root user: ${SCRIPT_NAME} --ssh-login"
-    echo "To login as SSH user: ${SCRIPT_NAME} --ssh-login ${SSH_USERNAME}"
-    echo ""
-    echo "Server LUKS unlock guide:"
-    echo "To unlock LUKS Disk encryption: ${SCRIPT_NAME} --luks-unlock"
-    script_time
-  fi
-  # clean exit
-  exit 1
-}
 # This function gets the operating system ID and version number
 # syntax: get_linux_os <id|version>
 # eg: get_linux_os id | sample output: centos
@@ -1774,9 +1863,8 @@ function get_linux_os() {
 
 # This will install required component automatically if doesn't exist,
 # It will do nothing if the component exist.
-# eg: install_required "htop" "vim"
-
-function install_required() {
+# eg: required "apt:htop" "apt:vim" "make:dbxcli"
+function required() {
   local required_cmds missing_count install_success install_failed detect_by distro_id
   required_cmds="$*"
   missing_count=0
@@ -1806,22 +1894,41 @@ function install_required() {
         #   detect_by="dpkg_status and cmd_status"
       fi
       echo ""
-      echo "Warning, missing ${required_cmd} component detected by ${detect_by}. Installing ${required_cmd} ..."
+
       if [ "${missing_count}" -eq 1 ]; then
+        _echo "$(msg yellow)Warning, ${detect_by} detected one or more missing packages$(msg end)" --name
         echo ""
         if [ "${required_method}" == "apt" ]; then
-
-          echo "Running apt-get update for the first missing package ..."
-          apt-get -y update
-          apt-get -y install "${required_cmd}"
+          _echo "$(msg cyan)Running apt-get update for the first missing package ...$(msg end)" --name
+          apt-get -qq -y update
           retval=$?
         elif [ "${required_method}" == "dnf" ]; then
-          :
+          _echo "$(msg cyan)Running dnf update for the first missing package ...$(msg end)" --name
+          dnf --quiet -y update
         elif [ "${required_method}" == "make" ]; then
+          # Configure make here for the first time
           :
         else
-          echo "Invalid required method"
+          _echo "$(msg red)Error, invalid required installation method$(msg end)" --name
         fi
+        echo ""
+      fi
+
+      if [ "${required_method}" == "apt" ]; then
+        _echo "$(msg cyan)${missing_count}) Installing $(msg magenta)${required_cmd}$(msg end) $(msg cyan)using apt method ...$(msg end)" --name
+        echo ""
+        apt-get -y install "${required_cmd}"
+        retval=$?
+      elif [ "${required_method}" == "dnf" ]; then
+        _echo "$(msg cyan)${missing_count}) Installing $(msg magenta)${required_cmd}$(msg end) $(msg cyan)using dnf method ...$(msg end)" --name
+        echo ""
+        dnf -y install "${required_cmd}"
+      elif [ "${required_method}" == "make" ]; then
+        # This need testing
+        _echo "$(msg cyan)${missing_count}) Installing $(msg magenta)${required_cmd}$(msg end) $(msg cyan)using make method ...$(msg end)" --name
+        echo ""
+      else
+        _echo "$(msg red)Error, invalid required installation method$(msg end)" --name
         echo ""
       fi
 
@@ -1834,12 +1941,12 @@ function install_required() {
   done
   if [ "${missing_count}" -gt 0 ]; then
     echo ""
-    _echo "$(msg blue)Total missing component: ${missing_count}$(msg end)"
-    _echo "$(msg green)Total success component(s) installation: ${install_success}$(msg end)"
+    _echo "$(msg green)Total success installation: ${install_success} out of ${missing_count}$(msg end)" --name
     if [ "${install_failed}" -gt 0 ]; then
-      _echo "$(msg red)Total failed component(s) installation: ${install_failed}$(msg end)"
+      _echo "$(msg red)Total failed installation: ${install_failed}$(msg end)" --name
     else
-      _echo "Total failed component(s) installation: ${install_failed}"
+      :
+      # _echo "Total failed installation: ${install_failed}"
     fi
     echo ""
   fi
@@ -2249,7 +2356,7 @@ function script_time() {
 # Note: When this script runs for the first time, the global variable EXEC_START is calculated as current timestamp. So, no need to call exec_time start for the first time
 function exec_time() {
   local option runtime days hours minutes seconds title
-  install_required "apt:bc"
+  required "apt:bc"
   option=$1
   title=$2
   if [ "${option}" == "start" ]; then
@@ -2401,7 +2508,7 @@ function create_file() {
 
     elif [[ ${create_action} == "debian-preseed" ]]; then
 
-      install_required "apt:whois" "apt:pwgen"
+      required "apt:whois" "apt:pwgen"
       {
         # 1 Good reading: https://serverfault.com/questions/893483/what-means-3-numbers-in-manual-partitioning-of-hdd-in-preseed-for-ubuntu
         # 2 Useful setting for SSH: https://github.com/coreprocess/linux-unattended-installation/blob/master/ubuntu/20.04/custom/preseed.cfg
@@ -2977,7 +3084,7 @@ function iso_api() {
 
       # For hard disk booting
       if [[ "${iso_type}" == "hdd-iso" || "${iso_type}" == "hdd-boot" || "${iso_type}" == "hdd" || "${iso_type}" == "isolinux" ]]; then
-        install_required "apt:debconf" "apt:isolinux" "apt:syslinux-utils" "apt:xorriso" "apt:wget"
+        required "apt:debconf" "apt:isolinux" "apt:syslinux-utils" "apt:xorriso" "apt:wget"
 
         _echo "$(msg cyan)Creating new RSA Key for root ...$(msg end)" --name
         # This will create 2 files one is private and another one with the extension .pub
@@ -3024,10 +3131,19 @@ function iso_api() {
         #chmod 555 ${ISODIR_WRITE}/preseed.cfg
         echo ""
 
-        _echo "$(msg cyan)Writing rsa public key (root) file into ${isodir_write_tmp}/root_${ROOT_USERNAME}_${BOX_HOSTNAME_FQDN}.id_rsa.pub ...$(msg end)" --name
+        if [ "${HIDE_SENSITIVE_TEXT}" == "true" ]; then
+          _echo "$(msg cyan)Writing rsa public key (root) file ...$(msg end)" --name
+        else
+          _echo "$(msg cyan)Writing rsa public key (root) file into ${isodir_write_tmp}/root_${ROOT_USERNAME}_${BOX_HOSTNAME_FQDN}.id_rsa.pub ...$(msg end)" --name
+        fi
         ssh_api get-public-key --group root --user "${ROOT_USERNAME}" --server "${BOX_HOSTNAME_FQDN}" >"${isodir_write_tmp}/root_${ROOT_USERNAME}_${BOX_HOSTNAME_FQDN}.id_rsa.pub"
         echo ""
-        _echo "$(msg cyan)Writing rsa public key (user) file into ${isodir_write_tmp}/user_${SSH_USERNAME}_${BOX_HOSTNAME_FQDN}.id_rsa.pub ...$(msg end)" --name
+        if [ "${HIDE_SENSITIVE_TEXT}" == "true" ]; then
+
+          _echo "$(msg cyan)Writing rsa public key (user) file ...$(msg end)" --name
+        else
+          _echo "$(msg cyan)Writing rsa public key (user) file into ${isodir_write_tmp}/user_${SSH_USERNAME}_${BOX_HOSTNAME_FQDN}.id_rsa.pub ...$(msg end)" --name
+        fi
         ssh_api get-public-key --group user --user "${SSH_USERNAME}" --server "${BOX_HOSTNAME_FQDN}" >"${isodir_write_tmp}/user_${SSH_USERNAME}_${BOX_HOSTNAME_FQDN}.id_rsa.pub"
         echo ""
 
@@ -3237,7 +3353,7 @@ function iso_api() {
           echo ""
           _echo "$(msg cyan)Generating uploaded file link of ${debian_isofile_final} ...$(msg end)" --name
           file_direct_link=$(dropbox_api get-link --destination "/files" --filename "${debian_isofile_final}" --scripting)
-          echo "file_direct_link is ${file_direct_link}"
+
           _echo "$(msg newline)" --plain
 
           _echo "$(msg cyan)Creating automation script for installing operating system remotely into ${CODE_PATH}/ssh_scripts/os_write_ag.sh ...$(msg end)" --name
@@ -3271,12 +3387,22 @@ function iso_api() {
             echo "dd if=mini.iso of=/dev/sda"
           } >"$(dirname "${debian_iso_complete_file}")/install.txt"
           echo ""
-          _echo "$(msg cyan)ISO direct link is: ${file_direct_link}$(msg end)" --name
+          if [ "${HIDE_SENSITIVE_TEXT}" == "true" ]; then
+
+            _echo "$(msg cyan)ISO direct link is: *hidden_link*$(msg end)" --name
+          else
+            _echo "$(msg cyan)ISO direct link is: $(msg red)${file_direct_link}$(msg end)" --name
+          fi
+
           if [ ${write_script} == "true" ]; then
 
             _echo "$(msg red)==================================$(msg end)" --plain
             _echo "$(msg newline)" --plain
-            _echo "$(msg green)wget -O mini.iso \"${file_direct_link}\"$(msg end)" --plain
+            if [ "${HIDE_SENSITIVE_TEXT}" == "true" ]; then
+              _echo "$(msg green)wget -O mini.iso *hidden_link*$(msg end)" --plain
+            else
+              _echo "$(msg green)wget -O mini.iso \"${file_direct_link}\"$(msg end)" --plain
+            fi
             _echo "$(msg green)dd if=mini.iso of=/dev/sda$(msg end)" --plain
             _echo "$(msg green)mkdir /mnt/iso$(msg end)" --plain
             _echo "$(msg green)mount mini.iso /mnt/iso$(msg end)" --plain
@@ -3308,7 +3434,7 @@ function iso_api() {
     :
     exit 1
 
-    install_required "apt:genisoimage" "apt:wget" "apt:pwgen" "apt:whois" "apt:xorriso" "apt:debconf" "apt:isolinux" "apt:syslinux-utils" "apt:squashfs-tools" "apt:putty-tools"
+    required "apt:genisoimage" "apt:wget" "apt:pwgen" "apt:whois" "apt:xorriso" "apt:debconf" "apt:isolinux" "apt:syslinux-utils" "apt:squashfs-tools" "apt:putty-tools"
     dbx_cli="${SCRIPT_PATH}/storage/os/debian/usr/local/maxicode/maxicloud/dropbox/dbx"
     if [[ "${HOST_MAX_PROCESSOR}" -lt 2 ]]; then
       _echo 'red' "Warning, this process will run slower when using compression tool because HOST_MAX_PROCESSOR is set less than 2"
@@ -3867,7 +3993,7 @@ function linode_api_admin() {
   # Package requirement installation for using linode:
   # python3-pip is for running pip3 command
   # autoconf is used to install make package (we want to install this https://github.com/vyos/ipaddrcheck)
-  install_required "apt:bind9-host" "apt:python3-pip" "apt:jq" "apt:autoconf"
+  required "apt:bind9-host" "apt:python3-pip" "apt:jq" "apt:autoconf"
   if ! command -v linode-cli &>/dev/null; then
     [[ ${scripting} == "false" ]] && _echo "Warning, missing linode-cli component. Installing linode-cli ..." --name --verbose 4
     [[ ${scripting} == "false" ]] && _echo "$(pip3 install linode-cli --upgrade)" --name --verbose 5
@@ -5934,10 +6060,11 @@ function check_finish_reboot() {
     fi
     echo ""
   else
-    echo "[${SCRIPT_NAME}]: [OK]: ${func_name} has been executed" 2>&1 | tee -a "${REPORT_FILE}"
+    echo ""
+    _echo "$(msg red)=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=$(msg end)" --plain
+    _echo "$(msg green)[OK]: $(msg magenta)${func_name}()$(msg end) $(msg green)has been executed$(msg end)" --name
     # This sleep is for debugging, when finish developing this script, I should remove this sleep to speed up the script
     #sleep 1
-    echo "=~=~=~=~=~=~=~=~=~" 2>&1 | tee -a "${REPORT_FILE}"
   fi
   return 0
 }
@@ -5990,7 +6117,7 @@ function check_fix_service() {
           _echo warning "Found missing perl IO::Socket::INET6 module. Installing libio-socket-inet6-perl for Debian"
           sleep 1
           # Use this function for best compatibility with other DISTRO
-          install_required "apt:libio-socket-inet6-perl"
+          required "apt:libio-socket-inet6-perl"
           #apt-get -y install libio-socket-inet6-perl 2>&1 | tee -a "${REPORT_FILE}"
           _echo yellow "Clearing lfd log entry ..."
           sleep 1
@@ -6041,11 +6168,13 @@ function restart_da_web_server() {
   fi
 }
 
+# This is the setup pre function
 function setup_pre() {
-  local option executed_function run
+  local option executed_function run func_name
   option="$1"
   run="no"
-  executed_function="${CONF_PATH}/${FUNCNAME[0]}_executed"
+  func_name="${FUNCNAME[0]}"
+  executed_function="${CONF_PATH}/${func_name}_executed"
   if [ "${option}" == "--skip-mark" ]; then
     cat /dev/null >"${executed_function}"
     #run="no"
@@ -6060,11 +6189,13 @@ function setup_pre() {
   elif [[ -z "${option}" || "${option}" == "--run" || "${option}" == "--run-exit" ]]; then
     run="yes"
   fi
-  if [[ ! -f "${CONF_PATH}/${FUNCNAME[0]}_executed" && "${run}" == "yes" ]]; then
-    echo "[${SCRIPT_NAME}]: Executing ${FUNCNAME[0]} ..." 2>&1 | tee -a "${REPORT_FILE}"
+  if [[ ! -f "${CONF_PATH}/${func_name}_executed" && "${run}" == "yes" ]]; then
+    exec_time start "${func_name}"
+    _echo "$(msg cyan)Executing $(msg magenta)${func_name}()$(msg end) $(msg cyan)...$(msg end)" --name
+    _echo "$(msg red)=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=$(msg end)" --plain
+    echo ""
     if [ "${DISTRO_ID}" == "centos" ]; then
-      echo "[${SCRIPT_NAME}]: Current OS distro ID is centos. Disabling SELinux policy ..." 2>&1 | tee -a "${REPORT_FILE}"
-      sleep 1
+      _echo "$(msg magenta)Note, current OS distro ID is centos. Disabling SELinux policy ...$(msg end)" --name
       setenforce 0
       if [ -e /etc/selinux/config ]; then
         sed -i s/^SELINUX=.*$/SELINUX=disabled/ /etc/selinux/config
@@ -6072,44 +6203,57 @@ function setup_pre() {
       if [ -e /usr/sbin/setenforce ]; then
         /usr/sbin/setenforce 0
       fi
-      check_finish_reboot "${FUNCNAME[0]}"
+      check_finish_reboot "${func_name}"
     elif [ "${DISTRO_ID}" == "debian" ]; then
-      # psmisc = pstree utils (needed by maxigpg script from maxicode)
 
       # Known usability bug from Debian installer with old grub-pc
+      # This only show when you have kernel set to GRUB 2
       # Fixed grub-pc appear interactive GUI when running dist-upgrade https://github.com/hashicorp/vagrant/issues/289
       # This is the Debian usability bug for grub as explained in here:
       # https://askubuntu.com/questions/23418/what-do-i-select-for-grub-install-devices-after-an-update#comment837055_23418
-      # This only show when you have kernel set to GRUB 2
 
+      _echo "$(msg cyan)Updating and upgrading Debian OS ...$(msg end)" --name
+      echo ""
       apt-get -y update
       apt-get -y upgrade
 
-      # By default sudo is not installed. It's needed for new OS
-      apt-get -y install sudo screen nmap psmisc gpg unzip zip 2>&1 | tee -a "${REPORT_FILE}"
+      # Note 1: By default sudo is not installed in custom distribution. It's needed for new OS
+      # Note 2: psmisc is a pstree utils (needed by maxigpg script from maxicode)
+      _echo "$(msg cyan)Installing pre-requisite components for Debian OS ...$(msg end)" --name
+      echo ""
+      apt-get -y install sudo screen nmap psmisc gpg unzip zip
+    elif [ "${DISTRO_ID}" == "ubuntu" ]; then
+      :
+    elif [ "${DISTRO_ID}" == "almalinux" ]; then
+      :
     else
-      echo "[${SCRIPT_NAME}]: Error, unknown value for distribution ID ${DISTRO_ID}" 2>&1 | tee -a "${REPORT_FILE}"
+      _echo "$(msg red)Error, unknown value for distribution ID ${DISTRO_ID}$(msg end)" --name --verbose 3
       _exit 147
     fi
-    check_finish_reboot "${FUNCNAME[0]}"
+    check_finish_reboot "${func_name}"
+    exec_time total "${func_name}"
   else
-    echo "[${SCRIPT_NAME}]: [Skipped]: ${FUNCNAME[0]} has ran before" 2>&1 | tee -a "${REPORT_FILE}"
-    echo "=~=~=~=~=~=~=~=~=~" 2>&1 | tee -a "${REPORT_FILE}"
+    echo ""
+    _echo "$(msg red)=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=$(msg end)" --plain
+    _echo "$(msg yellow)[Skipped]: $(msg magenta)${func_name}()$(msg end) $(msg yellow)has ran before$(msg end)" --name
   fi
 
   if [[ "${option}" == "--run-force-exit" || "${option}" == "--run-exit" ]]; then
-    _echo "$(msg yellow)Warning, script terminated due to the supplied option ${option}$(msg end)" --name
-    exit 0
+    _echo "$(msg yellow)Note: this script is terminated due to the supplied option ${option} from function $(msg magenta)${func_name}()$(msg end) $(msg end)" --name
+    _exit 0
   fi
+  echo ""
+
 }
-# Get the latest scripts from private repo (need to have private token defined in config)
+# Get the latest scripts (temporarily using git which needs to have private token defined in config)
 # This private repo contains lots of security scripts for Linux (c) by Arafat Ali (aka MaXi32)
-# can re-run this to re-clone (update latest codes)
-get_latest_maxinet() {
-  local option executed_function run
+# can re-run this with option get_latest_code --run-force to force re-clone and update to latest codes
+function get_latest_code() {
+  local option executed_function run func_name
   option="$1"
   run="no"
-  executed_function="${CONF_PATH}/${FUNCNAME[0]}_executed"
+  func_name="${FUNCNAME[0]}"
+  executed_function="${CONF_PATH}/${func_name}_executed"
   if [ "${option}" == "--skip-mark" ]; then
     cat /dev/null >"${executed_function}"
     #run="no"
@@ -6124,52 +6268,66 @@ get_latest_maxinet() {
   elif [[ -z "${option}" || "${option}" == "--run" || "${option}" == "--run-exit" ]]; then
     run="yes"
   fi
-  if [[ ! -f "${CONF_PATH}/${FUNCNAME[0]}_executed" && "${run}" == "yes" ]]; then
-    exec_time start "${FUNCNAME[0]}"
-    echo "[${SCRIPT_NAME}]: Executing ${FUNCNAME[0]} ..." 2>&1 | tee -a "${REPORT_FILE}"
-    local GIT_ASKPASS
+  if [[ ! -f "${CONF_PATH}/${func_name}_executed" && "${run}" == "yes" ]]; then
+    exec_time start "${func_name}"
+    local code_version
+    _echo "$(msg cyan)Executing $(msg magenta)${func_name}()$(msg end) $(msg cyan)...$(msg end)" --name
+    _echo "$(msg red)=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=$(msg end)" --plain
+    echo ""
+
+    if [ "${DISTRO_ID}" == "centos" ]; then
+      required "dnf:git"
+    elif [ "${DISTRO_ID}" == "debian" ]; then
+      required "apt:git"
+    else
+      _echo "$(msg error)Error, unknown value for distribution ID ${DISTRO_ID}. This distribution is not supported$(msg end)" --name
+      _exit 147
+    fi
     if ! command -v git &>/dev/null; then
-      if [ "${DISTRO_ID}" == "centos" ]; then
-        echo "[${SCRIPT_NAME}]: Downloading git for centos ..." 2>&1 | tee -a "${REPORT_FILE}"
-        dnf -y install git 2>&1 | tee -a "${REPORT_FILE}"
-      elif [ "${DISTRO_ID}" == "debian" ]; then
-        echo "[${SCRIPT_NAME}]: Downloading git for debian ..." 2>&1 | tee -a "${REPORT_FILE}"
-        apt-get -y install git 2>&1 | tee -a "${REPORT_FILE}"
-      else
-        echo "[${SCRIPT_NAME}]: Error, unknown value for distribution ID ${DISTRO_ID}" 2>&1 | tee -a "${REPORT_FILE}"
-        _exit 147
-      fi
+      _echo "$(msg red)Error, git binary is missing or not installed properly$(msg end)" --name
+      _exit 147
     fi
     # This one work for both CentOS and Debian
-    echo "[${SCRIPT_NAME}]: Setting up temporary git authentication for private repository ..." 2>&1 | tee -a "${REPORT_FILE}"
+    _echo "$(msg cyan)Configuring git authentication ...$(msg end)" --name
+
     cat /dev/null >"${HOME}/.git-askpass"
     echo "#!/bin/bash" >>"${HOME}/.git-askpass"
     echo "echo ${GIT_TOKEN}" >>"${HOME}/.git-askpass"
     chmod +x "${HOME}/.git-askpass"
     export GIT_ASKPASS="${HOME}/.git-askpass"
-    cd_to_path "${DATA_PATH}"
-    echo "[${SCRIPT_NAME}]: Removing existing ${SCRIPT_NAME} repository ..." 2>&1 | tee -a "${REPORT_FILE}"
-    # remove existing setup
-    rm -rf "${DATA_PATH}/maxinet"
-    echo "[${SCRIPT_NAME}]: Cloning new ${SCRIPT_NAME} repository ..." 2>&1 | tee -a "${REPORT_FILE}"
-    echo "=~=~=~=~=~=~=~"
-    git clone "${SETUP_GIT_URL}" 2>&1 | tee -a "${REPORT_FILE}"
-    echo "=~=~=~=~=~=~=~"
-    # Now we have setup folder.
-    # Delete these files for security
-    echo "[${SCRIPT_NAME}]: Removing git authentication and destroying its environment variable ..." 2>&1 | tee -a "${REPORT_FILE}"
+
+    _echo "$(msg cyan)Removing ${SCRIPT_NAME} existing repository from ${LATEST_CODE_PATH} ...$(msg end)" --name
+    rm -rf "${LATEST_CODE_PATH}"
+    mkdir -p "${LATEST_CODE_PATH}"
+    echo ""
+    _echo "$(msg cyan)Cloning new ${SCRIPT_NAME} repository from ${SETUP_GIT_URL} ... $(msg end)" --name
+    echo ""
+    git clone "${SETUP_GIT_URL}" "${LATEST_CODE_PATH}"
+    echo ""
+    code_version=$(grep -w "^_APP_VERSION" "${LATEST_CODE_PATH}/${SCRIPT_NAME}" | cut -d "=" -f 2- | sed -e 's/"//' -e 's/"$//')
+    if [ -n "${code_version}" ]; then
+      _echo "$(msg cyan)Latest code version is ${code_version}$(msg end)" --name
+    else
+      _echo "$(msg red)Error, could not determine the latest code version!$(msg end)" --name
+      _exit 147
+    fi
+    # After we have the latest source code folder, now we can delete these sensitive files for security
+    _echo "$(msg cyan) Removing current git authentication ...$(msg end)" --name
     rm -f "${HOME}/.git-askpass"
     unset GIT_ASKPASS
-    check_finish_reboot "${FUNCNAME[0]}"
+    check_finish_reboot "${func_name}"
+    exec_time total "${func_name}"
   else
-    echo "[${SCRIPT_NAME}]: [Skipped]: ${FUNCNAME[0]} has ran before" 2>&1 | tee -a "${REPORT_FILE}"
-    echo "=~=~=~=~=~=~=~=~=~" 2>&1 | tee -a "${REPORT_FILE}"
+    echo ""
+    _echo "$(msg red)=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=$(msg end)" --plain
+    _echo "$(msg yellow)[Skipped]: $(msg magenta)${func_name}()$(msg end) $(msg yellow)has ran before$(msg end)" --name
   fi
+
   if [[ "${option}" == "--run-force-exit" || "${option}" == "--run-exit" ]]; then
-    _echo "$(msg yellow)Warning, script terminated due to the supplied option ${option}$(msg end)" --name
-    exit 0
+    _echo "$(msg yellow)Note: this script is terminated due to the supplied option ${option} from function $(msg magenta)${func_name}()$(msg end) $(msg end)" --name
+    _exit 0
   fi
-  exec_time end "${FUNCNAME[0]}"
+  echo ""
 
 }
 
@@ -9004,7 +9162,7 @@ function configure_maxicode_pre() {
   if [[ ! -f "${CONF_PATH}/${FUNCNAME[0]}_executed" && "${run}" == "yes" ]]; then
     echo "[${SCRIPT_NAME}]: Executing ${FUNCNAME[0]} ..." 2>&1 | tee -a "${REPORT_FILE}"
     #apt-get -y install ipcalc bc jq gawk
-    install_required "apt:ipcalc" "apt:bc" "apt:jq" "apt:gawk"
+    required "apt:ipcalc" "apt:bc" "apt:jq" "apt:gawk"
     check_finish_reboot "${FUNCNAME[0]}"
   else
     echo "[${SCRIPT_NAME}]: [Skipped]: ${FUNCNAME[0]} has ran before" 2>&1 | tee -a "${REPORT_FILE}"
@@ -13475,22 +13633,9 @@ function setup() {
 
     CTRL_C_COUNT=0
     # IF SCRIPT EXIT UNSUCCESSFULLY, THEN WE CALL cleanup function
-    _traps _trap_cleanup QUIT INT TERM EXIT
+    _traps trap_cleanup QUIT INT TERM EXIT
   fi
   # ============End of locking===============
-  echo ""
-  echo "Remember you can always resume installation with the following command:"
-  echo "For local installation: ${SCRIPT_NAME} --setup 2>&1 | tee ${SCRIPT_NAME}.log"
-  echo "For remote installation: ${SCRIPT_NAME} --push-ssh-script --sp ${BOX_HOSTNAME_FQDN}:${SSH_PORT} --gu root:${ROOT_USERNAME} --push-maxinet-setup-script"
-  echo ""
-  echo "SSH user login guide:"
-  echo "To login as root user: ${SCRIPT_NAME} --ssh-login"
-  echo "To login as SSH user: ${SCRIPT_NAME} --ssh-login ${SSH_USERNAME}"
-  echo ""
-  echo "Server LUKS unlock guide:"
-  echo "To unlock LUKS Disk encryption: ${SCRIPT_NAME} --luks-unlock"
-
-  _pause 5
 
   # Validate config files
   validate_config
@@ -13535,11 +13680,11 @@ function setup() {
   # Note 1: setup_pre can be used to install screen, disable Selinux in CentOS or other necessary pre install components
   setup_pre --run
   # Note 1: Clone all setup script from git (recommend to run as --run-force instead of --run so we always get the latest security update)
-  get_latest_maxinet --run-force
+  get_latest_code --run-force-exit
   # Note 1: Get the latest security codes from maxicode (recommend to run as --run-force instead of --run so we always get the latest security update)
   init_local_maxicode --run-force
   # Note 1: This call contains security hardening server
-  secure_box --run-exit
+  secure_box --run
   # Note 1: This will configure grub such as setting up password for grub bootloader
   # Note 2: Grub bootloader password can also be used in preseed file, but having preseed file during installation is a bad idea.
   configure_grub --run
@@ -13741,6 +13886,14 @@ DATE_TIME_RANDSTR="$(${DATE_BIN} '+%d-%m-%Y_%H-%M-%S').${RANDOM}"
 #eg: 31-03-2020_11-56-16
 DATE_TIME_NOW="$(date '+%d-%m-%Y_%H-%M-%S')"
 
+# This is the latest path for the code (the content of this path will be always up to date when get_latest_code() is executed with --run-force
+LATEST_CODE_PATH="${DATA_PATH}/latest_${SCRIPT_NAME}"
+
+LATEST_OS_CODE_PATH="${LATEST_CODE_PATH}/storage/os/${DISTRO_ID}"
+
+# Company ID that running this script (for display purpose)
+COMPANY_ID="${COMPANY_ID}"
+
 if [[ "${USE_MULTI_LOG_FILE}" == "yes" ]]; then
   # set to use multiple log files with different random date. eg: maxinet-31-03-2020_11-56-16.12345-report.log
   REPORT_FILE="${LOG_PATH}/${SCRIPT_NAME}-${DATE_TIME_RANDSTR}-report.log"
@@ -13848,7 +14001,7 @@ while [ "$#" -gt 0 ]; do
   # This one is for configuring script, for example supplying config file through terminal
   -c | --configure)
     shift
-    _echo "Configuring ${APP_SPECIFIC_NAME} ..." --name
+    _echo "Configuring ${_APP_SPECIFIC_NAME} ..." --name
     :
     break
     ;;
@@ -13880,10 +14033,16 @@ while [ "$#" -gt 0 ]; do
   #   :This will remove all existing partitions including rescue disk and profile. No rescue disk and profile is created
   # Note3: If you run like this (without argument): maxinet --init-server
   #   :This will remove and re-create system related partitions. It will not disturb the rescue option
-  --init-server | --deploy-server | --build-server | --create-server)
+  --init-server | --deploy-server | --build-server | --create-server | --setup-server)
     shift
     script_header
     init_server "$@"
+    exit 0
+    break
+    ;;
+  --update-maxinet-remote-script | --update-remote-scripts | --update-remote-script)
+    shift
+    ssh_api transfer-files --server-port "${BOX_HOSTNAME_FQDN}:${SSH_PORT}" --group-user "root:${ROOT_USERNAME}" --local-files "${SCRIPT_PATH}/maxinet ${SCRIPT_PATH}/maxinet.conf ${SCRIPT_PATH}/readme.txt" --remote-path ~/
     exit 0
     break
     ;;
@@ -14017,7 +14176,7 @@ ENDSSH
     if [ "${package_name}" == "go" ]; then
       apt-get -y install golang-go
     elif [ "${package_name}" == "dbxcli" ]; then
-      install_required "apt:git" "apt:golang-go" "apt:gox"
+      required "apt:git" "apt:golang-go" "apt:gox"
       mkdir $HOME/go
       go get github.com/dropbox/dbxcli
       cd_to_path "$HOME/go/src/github.com/dropbox/dbxcli"
@@ -14031,6 +14190,7 @@ ENDSSH
     break
     ;;
   -t | --test)
+    required "apt:git" "apt:htop" "apt:nano" "apt:wget"
     exit 0
     break
     ;;
