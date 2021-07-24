@@ -5,7 +5,7 @@
 # Author: Arafat Ali | Email: webmaster@sofibox.com | Website: sofibox.com
 _APP_SPECIFIC_NAME="Maxinet"
 # Note some minor versions are not published
-_APP_VERSION="0.5.3.9"
+_APP_VERSION="0.5.4.2"
 _APP_STATUS="alpha"
 _APP_VERSION_STATUS="${_APP_VERSION}-${_APP_STATUS}"
 
@@ -21,6 +21,19 @@ _APP_VERSION_STATUS="${_APP_VERSION}-${_APP_STATUS}"
 
 # FUNCTION BEGIN HERE
 
+# This function automatically remove CRLF to make sure file is compatible with linux
+function set_linux_crlf() {
+  local files retval
+  files="$1"
+  required "debian@@apt:dos2unix" "ubuntu@@dnf:dos2unix"
+  for file in ${files}; do
+    dos2unix <"${file}" | cmp - "${file}" 2>&1
+    retval=$?
+    if [ "${retval}" -ne 0 ]; then
+      dos2unix "${file}"
+    fi
+  done
+}
 # This function is used to handle exit trap that can accept multiple trap arguments
 # syntax: _traps <trap_clean_function> SIG1 SIG2 SIG3 OTHER_SIG ...
 # eg: _traps trap_cleanup QUIT INT TERM EXIT
@@ -211,7 +224,7 @@ function manual() {
     echo "$(msg yellow)EXAMPLE SYNTAX 1:$(msg end)"
     echo "${SCRIPT_NAME} ${lopt} get-linode-status --linode-label server.test.com"
     echo "$(msg yellow)EXAMPLE OUTPUT 1:$(msg end)"
-    echo "online"
+    echo "running"
     echo ""
     echo "1.4) $(msg cyan)get-domain-id$(msg end)  -  get the linode domain id for a given domain"
     echo "$(msg yellow)SYNTAX 1:$(msg end)"
@@ -309,11 +322,8 @@ function is_valid() {
   data2="$3"
   distro_id="${DISTRO_ID}"
 
-  if [ "${distro_id}" == "debian" ]; then
-    required "apt:ipcalc" "apt:iproute2"
-  #elif ["${distro_id}" == "ubuntu" ]; then
-  #: Do more distro check here in the future
-  fi
+    required "debian@@apt:ipcalc,iproute2"
+
   # is_valid available_port <server> <port>
   # This function will check if defined server and port is available (in a listening state)
   # Usage: available_port <server> <port>
@@ -555,7 +565,7 @@ function init_server() {
     _echo "$(msg yellow)Warning, --rebuild-all is set. The following options are enabled by default: $(msg end)" --name --verbose 4
     _echo "$(msg yellow)Warning, --rebuild-iso is set. Hence new ISO will be rebuilt $(msg end)" --name --verbose 4
     _echo "$(msg yellow)Warning, --rebuild-partition is set. Hence, all disk partitions will be rebuilt $(msg end)" --name --verbose 4
-    _echo "$(msg yellow)Warning, --rebuild-config is set. Hence, all configs will be removed $(msg end)" --name --verbose 4
+    _echo "$(msg yellow)Warning, --rebuild-config is set. Hence, all configs will be rebuilt $(msg end)" --name --verbose 4
   else
     if [ ${rebuild_iso} == "true" ]; then
       _echo "$(msg yellow)Warning, --rebuild-iso is set. Hence new ISO will be rebuilt $(msg end)" --name --verbose 4
@@ -566,7 +576,7 @@ function init_server() {
     fi
 
     if [ ${rebuild_config} == "true" ]; then
-      _echo "$(msg yellow)Warning, --rebuild-config is set. Hence, all configs will be removed $(msg end)" --name --verbose 4
+      _echo "$(msg yellow)Warning, --rebuild-config is set. Hence, all configs will be rebuilt $(msg end)" --name --verbose 4
     fi
   fi
   _pause 5
@@ -678,8 +688,9 @@ function init_server() {
     linode_api_admin wait-linode-status --linode-label "${BOX_HOSTNAME_FQDN}" --until-status offline
 
     # After system shutdown, then we can execute the following
-    # Note I can use reboot-linode or boot-linode (boot-linode is used if the linode status is offline, if it's online you cannot use it)
+    # Note I can use reboot-linode or boot-linode (boot-linode is used if the linode status is offline, if it's running you cannot use it)
     linode_api_admin boot-linode --linode-label "${BOX_HOSTNAME_FQDN}" --linode-config-label "${LINODE_BOOT_CONFIG_LABEL}"
+
     _echo "$(msg cyan)Installing operating system automatically using preseed configuration (approx 5 minutes. Server will turned off automatically when finish): $(msg end)" --name
     # Do not over call the API, use sleep 4 minutes (240 seconds). The installation approximate time is 5 + minutes.
     sleep 240
@@ -1007,7 +1018,6 @@ function ssh_api() {
   elif [[ "${action}" == "file-upload" || "${action}" == "upload-files" || "${action}" == "transfer-files" || "${action}" == "transfer-file" || "${action}" == "file-transfer" || "${action}" == "files-transfer" ]]; then
     # ssh_api transfer-files/file-transfer/transfer-file --server-port ${BOX_HOSTNAME_FQDN}:${SSH_PORT} --group-user root:${ROOT_USERNAME} --local-files "/tmp/file1 /var/file2" --remote-path ~/
     #ssh_api transfer-files/file-transfer/transfer-file --server ${BOX_HOSTNAME_FQDN} ---port ${SSH_PORT} --group root --user ${ROOT_USERNAME} --local-files "/tmp/file1 /var/file2" --remote-path ~/
-    #required "apt:sshpass"
     local private_key_name private_key_file
 
     if [ -z "${rsa_key}" ]; then
@@ -1385,7 +1395,7 @@ function ssh_api() {
     fi
     echo ""
     _echo "$(msg cyan)Creating RSA SSH key authentication for Putty at ${key_path}/${private_key_putty_name} ...$(msg end)" --name
-    required "apt:putty-tools"
+    required "debian@@apt:putty-tools" "ubuntu@@apt:putty-tools"
     puttygen "${key_path}/${private_key_name}" -o "${key_path}/${private_key_putty_name}"
   elif [[ "${action}" == "get-pubkey" || "${action}" == "get-public-key" ]]; then
     local public_key_name public_key_file
@@ -1862,93 +1872,296 @@ function get_linux_os() {
 
 # This will install required component automatically if doesn't exist,
 # It will do nothing if the component exist.
-# eg: required "apt:htop" "apt:vim" "make:dbxcli"
+# eg:
+#required "ubuntu@@apt:dos2unix,htop,nano+make:xxx,test,ok" \
+#  "centos@@dnf:dos2unix,nano" "debian@@apt:dos2unix,htop"
+#required "ubuntu@@apt:nano,htop,vim" \
+#  "centos@@dnf:dos2unix,nano" "debian@@apt:dos2unix,htop,git,x"
+
 function required() {
-  local required_cmds missing_count install_success install_failed detect_by distro_id
+  local required_cmds required_cmd detect_by dpkg_status distro_id distro_id_cmd install_commands install_method_commands install_method \
+    install_packages missing_count install_success install_failed
+  # Get the current distro ID from global variable DISTRO_ID
+  distro_id="${DISTRO_ID}"
+  # Get all the arguments passed for required() function and store in required_cmds
   required_cmds="$*"
-  missing_count=0
-  install_success=0
-  install_failed=0
-  detect_by=""
-  # Do not quote the array, we want split elements:
-  for install_cmd in ${required_cmds[*]}; do
-    #command -v "${required_cmd}" &>/dev/null
-    #cmd_status=$?
-    required_method=$(echo "${install_cmd}" | awk -F':' '{ print $1 }')
-    required_cmd=$(echo "${install_cmd}" | awk -F':' '{ print $2 }')
-    #echo "${required_method}"
-    #echo "${required_cmd}"
-    dpkg_status=$(
-      dpkg -s "${required_cmd}" 2>&1 | grep -qF "Status: install ok installed"
-      echo $?
-    )
-    if [[ "${dpkg_status}" -eq 1 ]]; then
-      ((missing_count++))
+  # Initialize these 3 variables to 0
+  ((missing_count = install_success = install_failed = 0))
+  # This variable holds the method to detect missing package, default value is unknown_method
+  detect_by="unknown_method"
+  # Loop through required_cmds
+  for required_cmd in ${required_cmds[*]}; do
+    # Get the distro_id value from the string before separator @@. eg: ubuntu
+    distro_id_cmd=$(echo "${required_cmd}" | awk -F'@@' '{ print $1 }')
+    # Condition if distro_id_cmd is ubuntu and it is the same value as current DISTRO_ID
+    if [[ "${distro_id_cmd}" == "ubuntu" && "${distro_id_cmd}" == "${distro_id}" ]]; then
+      # Get the string of install command after separator @@. eg: apt:htop,nano,git+make:suricata,dbxcli or dnf:dos2unix,nano+pip:linode-cli
+      install_commands=$(echo "${required_cmd}" | awk -F'@@' '{ print $2 }')
+      # Get the install method command and separate them by '+' symbol. eg: apt:htop,nano,git and make:suricata,dbxcli (separated)
+      install_method_commands=$(echo "${install_commands}" | awk -F'+' '{for (i=1;i<=NF;i++)print $i}')
+      # Loop through the separated installation method
+      for install_method_command in ${install_method_commands[*]}; do
+        # Get the install method. eg: dnf, make or pip
+        install_method=$(echo "${install_method_command}" | awk -F':' '{ print $1 }')
+        # Get the install packages listed as comma. eg: htop,nano,git or suricata,dbxcli
+        install_packages=$(echo "${install_method_command}" | awk -F':' '{ print $2 }')
+        # Condition if install_method is apt, then execute the apt method installation
+        if [ "${install_method}" == "apt" ]; then
+          # Get each of the installation package separated by ',' symbol. eg: htop,nano,git or dos2unix,nano
+          install_package_commands=$(echo "${install_packages}" | awk -F',' '{for (i=1;i<=NF;i++)print $i}')
+          # Loop through the installation package
+          for install_package_command in ${install_package_commands[*]}; do
+            # Find the status of the installation package whether it is installed or not
+            dpkg_status=$(
+              dpkg -s "${install_package_command}" 2>&1 | grep -qF "Status: install ok installed"
+              echo $?
+            )
+            # If the package is not installed (return 1), then
+            if [[ "${dpkg_status}" -eq 1 ]]; then
+              # Add 1 to missing_count
+              ((missing_count++))
+              # This is for display purpose or filter for next version on how to detect missing package
+              if [ "${dpkg_status}" -eq 1 ]; then
+                detect_by="dpkg_status"
+                # elif [ "${cmd_status}" = 1 ]; then
+                #   detect_by="cmd_status"
+                # elif [[ "${dpkg_status}" == 1 && "${cmd_status}" == 1 ]]; then
+                #   detect_by="dpkg_status and cmd_status"
+              fi
 
-      if [ "${dpkg_status}" -eq 1 ]; then
-        detect_by="dpkg_status"
-        # elif [ "${cmd_status}" = 1 ]; then
-        #   detect_by="cmd_status"
-        # elif [[ "${dpkg_status}" == 1 && "${cmd_status}" == 1 ]]; then
-        #   detect_by="dpkg_status and cmd_status"
-      fi
-      echo ""
+              # When the first missing package is triggered, then we display warning message, and for this first time, we trigger update command to refresh the expired cache
+              if [ "${missing_count}" -eq 1 ]; then
+                _echo "$(msg yellow)Warning, ${detect_by} detected one or more missing packages$(msg end)" --name
+                echo ""
+                _echo "$(msg cyan)Running ${install_method} update for the first missing package ...$(msg end)" --name
+                apt-get -qq -y update
+              fi
 
-      if [ "${missing_count}" -eq 1 ]; then
-        _echo "$(msg yellow)Warning, ${detect_by} detected one or more missing packages$(msg end)" --name
-        echo ""
-        if [ "${required_method}" == "apt" ]; then
-          _echo "$(msg cyan)Running apt-get update for the first missing package ...$(msg end)" --name
-          apt-get -qq -y update
-          retval=$?
-        elif [ "${required_method}" == "dnf" ]; then
-          _echo "$(msg cyan)Running dnf update for the first missing package ...$(msg end)" --name
-          dnf --quiet -y update
-        elif [ "${required_method}" == "make" ]; then
-          # Configure make here for the first time
-          :
+              _echo "$(msg cyan)${missing_count}) Installing $(msg magenta)${install_package_command}$(msg end) $(msg cyan)using ${install_method} method ...$(msg end)" --name
+              echo ""
+              apt-get -y install "${install_package_command}"
+              retval=$?
+              if [[ "${retval}" -eq 0 ]]; then
+                ((install_success++))
+              else
+                ((install_failed++))
+              fi
+
+            fi
+
+          done
+        elif [ "${install_method}" == "make" ]; then
+          echo "This installation method of make has not been implemented. Remove this from the syntax"
+          _exit 147
+          _echo "Installing using make ..."
+          ((missing_count++))
+          # for make find a way to detect installation (this is source installation)
+          #make install command and return value retval;
+          retval=1
+          if [[ "${retval}" -eq 0 ]]; then
+            ((install_success++))
+          else
+            ((install_failed++))
+          fi
         else
-          _echo "$(msg red)Error, invalid required installation method$(msg end)" --name
+
+          _echo "$(msg red)Error, invalid required installation method ${install_method} for ${distro_id_cmd}. Please check the required() syntax$(msg end)" --name
+          _exit 147
+        fi
+
+      done
+
+      if [ "${missing_count}" -gt 0 ]; then
+        echo ""
+        _echo "$(msg green)Total success installation: ${install_success} out of ${missing_count}$(msg end)" --name
+        if [ "${install_failed}" -gt 0 ]; then
+          _echo "$(msg red)Total failed installation: ${install_failed}$(msg end)" --name
+        else
+          :
+          # _echo "Total failed installation: ${install_failed}"
         fi
         echo ""
       fi
+    elif [[ "${distro_id_cmd}" == "debian" && "${distro_id_cmd}" == "${distro_id}" ]]; then
+      # Get the string of install command after separator @@. eg: apt:htop,nano,git+make:suricata,dbxcli or dnf:dos2unix,nano+pip:linode-cli
+      install_commands=$(echo "${required_cmd}" | awk -F'@@' '{ print $2 }')
+      # Get the install method command and separate them by '+' symbol. eg: apt:htop,nano,git and make:suricata,dbxcli (separated)
+      install_method_commands=$(echo "${install_commands}" | awk -F'+' '{for (i=1;i<=NF;i++)print $i}')
+      # Loop through the separated installation method
+      for install_method_command in ${install_method_commands[*]}; do
+        # Get the install method. eg: dnf, make or pip
+        install_method=$(echo "${install_method_command}" | awk -F':' '{ print $1 }')
+        # Get the install packages listed as comma. eg: htop,nano,git or suricata,dbxcli
+        install_packages=$(echo "${install_method_command}" | awk -F':' '{ print $2 }')
+        # Condition if install_method is apt, then execute the apt method installation
+        if [ "${install_method}" == "apt" ]; then
+          # Get each of the installation package separated by ',' symbol. eg: htop,nano,git or dos2unix,nano
+          install_package_commands=$(echo "${install_packages}" | awk -F',' '{for (i=1;i<=NF;i++)print $i}')
+          # Loop through the installation package
+          for install_package_command in ${install_package_commands[*]}; do
+            # Find the status of the installation package whether it is installed or not
+            dpkg_status=$(
+              dpkg -s "${install_package_command}" 2>&1 | grep -qF "Status: install ok installed"
+              echo $?
+            )
+            # If the package is not installed (return 1), then
+            if [[ "${dpkg_status}" -eq 1 ]]; then
+              # Add 1 to missing_count
+              ((missing_count++))
+              # This is for display purpose or filter for next version on how to detect missing package
+              if [ "${dpkg_status}" -eq 1 ]; then
+                detect_by="dpkg_status"
+                # elif [ "${cmd_status}" = 1 ]; then
+                #   detect_by="cmd_status"
+                # elif [[ "${dpkg_status}" == 1 && "${cmd_status}" == 1 ]]; then
+                #   detect_by="dpkg_status and cmd_status"
+              fi
 
-      if [ "${required_method}" == "apt" ]; then
-        _echo "$(msg cyan)${missing_count}) Installing $(msg magenta)${required_cmd}$(msg end) $(msg cyan)using apt method ...$(msg end)" --name
+              # When the first missing package is triggered, then we display warning message, and for this first time, we trigger update command to refresh the expired cache
+              if [ "${missing_count}" -eq 1 ]; then
+                _echo "$(msg yellow)Warning, ${detect_by} detected one or more missing packages$(msg end)" --name
+                echo ""
+                _echo "$(msg cyan)Running ${install_method} update for the first missing package ...$(msg end)" --name
+                apt-get -qq -y update
+              fi
+
+              _echo "$(msg cyan)${missing_count}) Installing $(msg magenta)${install_package_command}$(msg end) $(msg cyan)using ${install_method} method ...$(msg end)" --name
+              echo ""
+              apt-get -y install "${install_package_command}"
+              retval=$?
+              if [[ "${retval}" -eq 0 ]]; then
+                ((install_success++))
+              else
+                ((install_failed++))
+              fi
+
+            fi
+
+          done
+        elif [ "${install_method}" == "make" ]; then
+          echo "This installation method of make has not been implemented. Remove this from the syntax"
+          _exit 147
+          _echo "Installing using make ..."
+          ((missing_count++))
+          # for make find a way to detect installation (this is source installation)
+          #make install command and return value retval;
+          retval=1
+          if [[ "${retval}" -eq 0 ]]; then
+            ((install_success++))
+          else
+            ((install_failed++))
+          fi
+        else
+
+          _echo "$(msg red)Error, invalid required installation method ${install_method} for ${distro_id_cmd}. Please check the required() syntax$(msg end)" --name
+          _exit 147
+        fi
+
+      done
+
+      if [ "${missing_count}" -gt 0 ]; then
         echo ""
-        apt-get -y install "${required_cmd}"
-        retval=$?
-      elif [ "${required_method}" == "dnf" ]; then
-        _echo "$(msg cyan)${missing_count}) Installing $(msg magenta)${required_cmd}$(msg end) $(msg cyan)using dnf method ...$(msg end)" --name
-        echo ""
-        dnf -y install "${required_cmd}"
-      elif [ "${required_method}" == "make" ]; then
-        # This need testing
-        _echo "$(msg cyan)${missing_count}) Installing $(msg magenta)${required_cmd}$(msg end) $(msg cyan)using make method ...$(msg end)" --name
-        echo ""
-      else
-        _echo "$(msg red)Error, invalid required installation method$(msg end)" --name
+        _echo "$(msg green)Total success installation: ${install_success} out of ${missing_count}$(msg end)" --name
+        if [ "${install_failed}" -gt 0 ]; then
+          _echo "$(msg red)Total failed installation: ${install_failed}$(msg end)" --name
+        else
+          :
+          # _echo "Total failed installation: ${install_failed}"
+        fi
         echo ""
       fi
+    elif [[ "${distro_id_cmd}" == "centos" && "${distro_id_cmd}" == "${distro_id}" ]]; then
+      # Get the string of install command after separator @@. eg: apt:htop,nano,git+make:suricata,dbxcli or dnf:dos2unix,nano+pip:linode-cli
+      install_commands=$(echo "${required_cmd}" | awk -F'@@' '{ print $2 }')
+      # Get the install method command and separate them by '+' symbol. eg: apt:htop,nano,git and make:suricata,dbxcli (separated)
+      install_method_commands=$(echo "${install_commands}" | awk -F'+' '{for (i=1;i<=NF;i++)print $i}')
+      # Loop through the separated installation method
+      for install_method_command in ${install_method_commands[*]}; do
+        # Get the install method. eg: dnf, make or pip
+        install_method=$(echo "${install_method_command}" | awk -F':' '{ print $1 }')
+        # Get the install packages listed as comma. eg: htop,nano,git or suricata,dbxcli
+        install_packages=$(echo "${install_method_command}" | awk -F':' '{ print $2 }')
+        # Condition if install_method is apt, then execute the apt method installation
+        if [ "${install_method}" == "apt" ]; then
+          # Get each of the installation package separated by ',' symbol. eg: htop,nano,git or dos2unix,nano
+          install_package_commands=$(echo "${install_packages}" | awk -F',' '{for (i=1;i<=NF;i++)print $i}')
+          # Loop through the installation package
+          for install_package_command in ${install_package_commands[*]}; do
+            # Find the status of the installation package whether it is installed or not
+            dpkg_status=$(
+              dpkg -s "${install_package_command}" 2>&1 | grep -qF "Status: install ok installed"
+              echo $?
+            )
+            # If the package is not installed (return 1), then
+            if [[ "${dpkg_status}" -eq 1 ]]; then
+              # Add 1 to missing_count
+              ((missing_count++))
+              # This is for display purpose or filter for next version on how to detect missing package
+              if [ "${dpkg_status}" -eq 1 ]; then
+                detect_by="dpkg_status"
+                # elif [ "${cmd_status}" = 1 ]; then
+                #   detect_by="cmd_status"
+                # elif [[ "${dpkg_status}" == 1 && "${cmd_status}" == 1 ]]; then
+                #   detect_by="dpkg_status and cmd_status"
+              fi
 
-      if [[ "${retval}" -eq 0 ]]; then
-        ((install_success++))
-      else
-        ((install_failed++))
+              # When the first missing package is triggered, then we display warning message, and for this first time, we trigger update command to refresh the expired cache
+              if [ "${missing_count}" -eq 1 ]; then
+                _echo "$(msg yellow)Warning, ${detect_by} detected one or more missing packages$(msg end)" --name
+                echo ""
+                _echo "$(msg cyan)Running ${install_method} update for the first missing package ...$(msg end)" --name
+                dnf --quiet -y update
+              fi
+
+              _echo "$(msg cyan)${missing_count}) Installing $(msg magenta)${install_package_command}$(msg end) $(msg cyan)using ${install_method} method ...$(msg end)" --name
+              echo ""
+              dnf -y install "${install_package_command}"
+              retval=$?
+              if [[ "${retval}" -eq 0 ]]; then
+                ((install_success++))
+              else
+                ((install_failed++))
+              fi
+
+            fi
+
+          done
+        elif [ "${install_method}" == "make" ]; then
+          echo "This installation method of make has not been implemented. Remove this from the syntax"
+          _exit 147
+          _echo "Installing using make ..."
+          ((missing_count++))
+          # for make find a way to detect installation (this is source installation)
+          #make install command and return value retval;
+          retval=1
+          if [[ "${retval}" -eq 0 ]]; then
+            ((install_success++))
+          else
+            ((install_failed++))
+          fi
+        else
+
+          _echo "$(msg red)Error, invalid required installation method ${install_method} for ${distro_id_cmd}. Please check the required() syntax$(msg end)" --name
+          _exit 147
+        fi
+
+      done
+
+      if [ "${missing_count}" -gt 0 ]; then
+        echo ""
+        _echo "$(msg green)Total success installation: ${install_success} out of ${missing_count}$(msg end)" --name
+        if [ "${install_failed}" -gt 0 ]; then
+          _echo "$(msg red)Total failed installation: ${install_failed}$(msg end)" --name
+        else
+          :
+          # _echo "Total failed installation: ${install_failed}"
+        fi
+        echo ""
       fi
-    fi
-  done
-  if [ "${missing_count}" -gt 0 ]; then
-    echo ""
-    _echo "$(msg green)Total success installation: ${install_success} out of ${missing_count}$(msg end)" --name
-    if [ "${install_failed}" -gt 0 ]; then
-      _echo "$(msg red)Total failed installation: ${install_failed}$(msg end)" --name
     else
       :
-      # _echo "Total failed installation: ${install_failed}"
     fi
-    echo ""
-  fi
+  done
 }
 # This is a random string that will return alphabet character (lower and uppercase)
 # syntax: get_rnd_alpha <length>
@@ -2355,7 +2568,7 @@ function script_time() {
 # Note: When this script runs for the first time, the global variable EXEC_START is calculated as current timestamp. So, no need to call exec_time start for the first time
 function exec_time() {
   local option runtime days hours minutes seconds title
-  required "apt:bc"
+  required "debian@@apt:bc"
   option=$1
   title=$2
   if [ "${option}" == "start" ]; then
@@ -2508,7 +2721,7 @@ function create_file() {
 
     elif [[ ${create_action} == "debian-preseed" ]]; then
 
-      required "apt:whois" "apt:pwgen"
+      required "debian@@apt:whois,pwgen" "ubuntu@@apt:whois,pwgen"
       {
         # 1 Good reading: https://serverfault.com/questions/893483/what-means-3-numbers-in-manual-partitioning-of-hdd-in-preseed-for-ubuntu
         # 2 Useful setting for SSH: https://github.com/coreprocess/linux-unattended-installation/blob/master/ubuntu/20.04/custom/preseed.cfg
@@ -3084,7 +3297,9 @@ function iso_api() {
 
       # For hard disk booting
       if [[ "${iso_type}" == "hdd-iso" || "${iso_type}" == "hdd-boot" || "${iso_type}" == "hdd" || "${iso_type}" == "isolinux" ]]; then
-        required "apt:debconf" "apt:isolinux" "apt:syslinux-utils" "apt:xorriso" "apt:wget"
+
+        required "ubuntu@@apt:debconf,isolinux,syslinux-utils,xorriso,wget" \
+          "debian@@apt:debconf,isolinux,syslinux-utils,xorriso,wget"
 
         _echo "$(msg cyan)Creating new RSA Key for root ...$(msg end)" --name
         # This will create 2 files one is private and another one with the extension .pub
@@ -3353,7 +3568,10 @@ function iso_api() {
           echo ""
           _echo "$(msg cyan)Generating uploaded file link of ${debian_isofile_final} ...$(msg end)" --name
           file_direct_link=$(dropbox_api get-link --destination "/files" --filename "${debian_isofile_final}" --scripting)
-
+          if [ "${file_direct_link}" ]; then
+            _echo "$(msg red)Error, uploaded file direct link is empty. Please inspect why! $(msg end)" --name
+            _exit 147
+          fi
           _echo "$(msg newline)" --plain
 
           _echo "$(msg cyan)Creating automation script for installing operating system remotely into ${CODE_PATH}/ssh_scripts/os_write_ag.sh ...$(msg end)" --name
@@ -3367,7 +3585,7 @@ function iso_api() {
             echo "wget -O mini.iso ${file_direct_link}"
             echo "dd if=mini.iso of=/dev/sda"
             # This is needed to force reboot especially for rescue mode.
-            echo "reboot -f"
+            echo "reboot --poweroff --force"
             echo "# Put 2 times exit below to safely exit the script if the first exit is not executed"
             echo "exit"
             echo "exit"
@@ -3993,7 +4211,7 @@ function linode_api_admin() {
   # Package requirement installation for using linode:
   # python3-pip is for running pip3 command
   # autoconf is used to install make package (we want to install this https://github.com/vyos/ipaddrcheck)
-  required "apt:bind9-host" "apt:python3-pip" "apt:jq" "apt:autoconf"
+  required "ubuntu@@apt:bind9-host,python3-pip,jq,autoconf" "debian@@apt:bind9-host,python3-pip,jq,autoconf"
   if ! command -v linode-cli &>/dev/null; then
     [[ ${scripting} == "false" ]] && _echo "Warning, missing linode-cli component. Installing linode-cli ..." --name --verbose 4
     [[ ${scripting} == "false" ]] && _echo "$(pip3 install linode-cli --upgrade)" --name --verbose 5
@@ -4097,7 +4315,7 @@ function linode_api_admin() {
       echo "${linode_status}"
       [[ ${scripting} == "false" ]] && exec_time total "linode_api_admin"
       # Special return code
-      if [ "${linode_status}" == "online" ]; then
+      if [ "${linode_status}" == "running" ]; then
         return 1
       elif [ "${linode_status}" == "rebooting" ]; then
         return 2
@@ -4442,7 +4660,7 @@ function linode_api_admin() {
       return 147
     fi
     sleep 2
-    if [ "${until_status^^}" == "RUNNING" ]; then
+    if [[ "${until_status^^}" == "RUNNING" || "${until_status^^}" == "ONLINE" ]]; then
       _echo "$(msg cyan)Waiting for linode ${linode_label} to have running status ...$(msg end)" --name
       linode_status=$(${LINODE_CLI_BIN} --pretty --json --suppress-warnings linodes view "${linode_id}" | ${JQ_BIN} -r ".[] | .status")
       if [[ "${linode_status}" == "running" ]]; then
@@ -4453,13 +4671,13 @@ function linode_api_admin() {
         while :; do
           linode_status=$(${LINODE_CLI_BIN} --pretty --json --suppress-warnings linodes view "${linode_id}" | ${JQ_BIN} -r ".[] | .status")
           if [[ "${linode_status}" == "running" ]]; then
-            _echo "$(msg green)Success, linode ${linode_label} is online.$(msg end)" --stop-spin
+            _echo "$(msg green)Success, linode ${linode_label} is running.$(msg end)" --stop-spin
             break
           elif [[ "${linode_status}" == "offline" ]]; then
             # Force shutdown using lish_console command
             # Don't do this, this function does not execute command, just checking status
             #lish_console shutdown
-            :
+            _echo "$(msg yellow)Warning, linode is offline. Waiting for running status ...$(msg end)" --name --verbose 3
           else
             _echo "$(msg yellow)Linode status is ${linode_status}. Waiting for running status ...$(msg end)" --start-spin
           fi
@@ -4477,6 +4695,8 @@ function linode_api_admin() {
           if [[ "${linode_status}" == "offline" ]]; then
             _echo "$(msg green)Success, linode ${linode_label} is offline.$(msg end)" --stop-spin --name
             break
+          elif [[ "${linode_status}" == "running" ]]; then
+            _echo "$(msg yellow)Warning, linode is running. Waiting for offline status ...$(msg end)" --name --verbose 3
           else
             _echo "$(msg yellow)Linode status is ${linode_status}. Waiting for offline status ...$(msg end)" --start-spin --name
           fi
@@ -4655,7 +4875,7 @@ function linode_api_admin() {
       if [ "${recovery_mode_shutdown}" == "true" ]; then
         # This solved the workaround here: https://www.linode.com/community/questions/21319/please-remove-the-disk-eject-question-on-finnix-rescue-disk
         # Force shutting down linode using script (fix delay reboot due to Finnix recovery need to press enter to eject CDROM even no CDROM is present.)
-        # Note when using this method, it will not show the status "shutting_down", only offline or online.
+        # Note when using this method, it will not show the status "shutting_down", only offline or running.
         [[ ${scripting} == "false" ]] && _echo "$(msg cyan)Shutting down linode ${linode_label} using SSH push script (if server is in recovery mode) ...$(msg end)" --name
         ssh -o "StrictHostKeyChecking no" -i /root/.ssh/linode_lish.id_rsa -tt "${DNS_PROVIDER_USER}@${DNS_PROVIDER_TERMINAL_SERVER}" "${BOX_HOSTNAME_FQDN}" <"${SCRIPT_PATH}/dns/linode/shutdown_command.sh" >/dev/null 2>&1 &
         ssh_pid=$!
@@ -6117,7 +6337,7 @@ function check_fix_service() {
           _echo warning "Found missing perl IO::Socket::INET6 module. Installing libio-socket-inet6-perl for Debian"
           sleep 1
           # Use this function for best compatibility with other DISTRO
-          required "apt:libio-socket-inet6-perl"
+          required "debian@@apt:libio-socket-inet6-perl"
           #apt-get -y install libio-socket-inet6-perl 2>&1 | tee -a "${REPORT_FILE}"
           _echo yellow "Clearing lfd log entry ..."
           sleep 1
@@ -6275,14 +6495,8 @@ function get_latest_code() {
     _echo "$(msg red)=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=$(msg end)" --plain
     echo ""
 
-    if [ "${DISTRO_ID}" == "centos" ]; then
-      required "dnf:git"
-    elif [ "${DISTRO_ID}" == "debian" ]; then
-      required "apt:git"
-    else
-      _echo "$(msg error)Error, unknown value for distribution ID ${DISTRO_ID}. This distribution is not supported$(msg end)" --name
-      _exit 147
-    fi
+    required "debian@@apt:git" "ubuntu@@apt:git" "centos@@dnf:git"
+
     if ! command -v git &>/dev/null; then
       _echo "$(msg red)Error, git binary is missing or not installed properly$(msg end)" --name
       _exit 147
@@ -6333,6 +6547,7 @@ function get_latest_code() {
 
 # Basic security hardening for Linux
 function secure_box() {
+  # TODO update this function and formatting
   local option executed_function run
   option="$1"
   run="no"
@@ -9162,7 +9377,7 @@ function configure_maxicode_pre() {
   if [[ ! -f "${CONF_PATH}/${FUNCNAME[0]}_executed" && "${run}" == "yes" ]]; then
     echo "[${SCRIPT_NAME}]: Executing ${FUNCNAME[0]} ..." 2>&1 | tee -a "${REPORT_FILE}"
     #apt-get -y install ipcalc bc jq gawk
-    required "apt:ipcalc" "apt:bc" "apt:jq" "apt:gawk"
+    required "debian@@apt:ipcalc,bc,jq,gawk"
     check_finish_reboot "${FUNCNAME[0]}"
   else
     echo "[${SCRIPT_NAME}]: [Skipped]: ${FUNCNAME[0]} has ran before" 2>&1 | tee -a "${REPORT_FILE}"
@@ -13604,6 +13819,7 @@ function setup_post() {
 }
 
 function setup() {
+  # Just prevent running --setup if set to local, the other value still run this
   if [ "${EXECUTION_ENV}" == "local" ]; then
     _echo "$(msg red)Error, cannot execute --setup because the execution environment file ${SCRIPT_PATH}/execution_env is not set as remote$(msg end)" --name
     _exit 147
@@ -13689,6 +13905,7 @@ function setup() {
     get_latest_code --run-force
     # Note 1: Get the latest security codes from maxicode (recommend to run as --run-force instead of --run so we always get the latest security update)
     update_latest_maxicode --run-force-exit
+    # TODO debug installation until here
     # Note 1: This call contains security hardening server
     secure_box --run
     # Note 1: This will configure grub such as setting up password for grub bootloader
@@ -13790,6 +14007,7 @@ function setup() {
     harden_with_lynis --run
     configure_cronjobs --run
     setup_post --run
+    # End of function_name call
 
     echo "" 2>&1 | tee -a "${REPORT_FILE}"
     if [ "${INSTALL_TYPE}" == "directadmin" ]; then
@@ -14196,13 +14414,14 @@ ENDSSH
     shift
     package_name="$1"
     cd_to_path "${HOME}"
+
     if [ "${package_name}" == "go" ]; then
-      apt-get -y install golang-go
+      required "debian@@golang-go" "ubuntu@@golang-go"
     elif [ "${package_name}" == "dbxcli" ]; then
-      required "apt:git" "apt:golang-go" "apt:gox"
-      mkdir $HOME/go
+      required "debian@@apt:git,golang-go,gox" "ubuntu@@apt:git,golang-go,gox"
+      mkdir -p "${HOME}/go"
       go get github.com/dropbox/dbxcli
-      cd_to_path "$HOME/go/src/github.com/dropbox/dbxcli"
+      cd_to_path "${HOME}/go/src/github.com/dropbox/dbxcli"
       # To be continued ...
     elif [ "${package_name}" == "dbx" ]; then
       :
@@ -14213,7 +14432,7 @@ ENDSSH
     break
     ;;
   -t | --test)
-    required "apt:git" "apt:htop" "apt:nano" "apt:wget"
+    required "ubuntu@@apt:git,nano,htop,vim,bc"  "debian@@apt:git,nano,htop,vim,bc"
     exit 0
     break
     ;;

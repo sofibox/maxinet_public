@@ -10,9 +10,7 @@
     <select />
   </component>
   <component name="ChangeListManager">
-    <list default="true" id="113c828c-9a32-4b24-ab1e-978ce50c6320" name="Default Changelist" comment="Update and improvement">
-      <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-    </list>
+    <list default="true" id="113c828c-9a32-4b24-ab1e-978ce50c6320" name="Default Changelist" comment="Added ability to download remote file installation log by triggering this simple command:&#10;&#10;maxinet --get-remote-log&#10;&#10;By default this log file is stored at &lt;script_path&gt;/log/" />
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
     <option name="HIGHLIGHT_NON_ACTIVE_CHANGELIST" value="false" />
@@ -57,13 +55,15 @@
     </key>
   </component>
   <component name="RunManager">
-    <configuration default="true" type="ArquillianJUnit" factoryName="" nameIsGenerated="true">
+    <configuration default="true" type="ArquillianTestNG" factoryName="" nameIsGenerated="true">
       <option name="arquillianRunConfiguration">
         <value>
           <option name="containerStateName" value="" />
         </value>
       </option>
-      <option name="TEST_OBJECT" value="class" />
+      <option name="TEST_OBJECT" value="CLASS" />
+      <properties />
+      <listeners />
       <method v="2">
         <option name="Make" enabled="true" />
       </method>
@@ -182,13 +182,7 @@
       <workItem from="1627100825003" duration="38000" />
       <workItem from="1627105983148" duration="220000" />
       <workItem from="1627106216163" duration="259000" />
-    </task>
-    <task id="LOCAL-00049" summary="Added new function configure_fstab(), to configure disk mount options during installation&#10;&#10;New variable for new TODO feature which provide the ability to turn off or on Modsecurity:&#10;&#10;SYNTAX: &lt;domain&gt;:subdomain+&lt;ON/OFF&gt;:subdomain+&lt;ON/OFF&gt;: ...&#10;&#10;DA_RESELLER_MODSEC1=(&quot;sofibox.com:sales+OFF:login+ON&quot;)">
-      <created>1614232718422</created>
-      <option name="number" value="00049" />
-      <option name="presentableId" value="LOCAL-00049" />
-      <option name="project" value="LOCAL" />
-      <updated>1614232718422</updated>
+      <workItem from="1627107273019" duration="48000" />
     </task>
     <task id="LOCAL-00050" summary="Disabled maxicata.lua email reporting for maxicata (no need email in default config, it can auto block IPs). (private repo)&#10;&#10;Added configure_grub to set grub password&#10;&#10;Added configure_fstab to configure secured mount option for disk (with the condition DISK encryption is enabled at maxisetup.conf&#10;&#10;new variables:&#10;&#10;LUKS_PASS=&quot;luks*encryption*password&quot;&#10;# Username to set for grub bootloader&#10;GRUB_UNAME=&quot;grub_user&quot;&#10;# Password to set for grub bootloader&#10;GRUB_PASS=&quot;*grub_pasword*&quot;&#10;LVM_VOLUME_GROUP=&quot;vg1&quot;&#10;DISK_ENCRYPTION=&quot;yes&quot;">
       <created>1614266642210</created>
@@ -526,7 +520,14 @@
       <option name="project" value="LOCAL" />
       <updated>1627106201277</updated>
     </task>
-    <option name="localTasksCounter" value="98" />
+    <task id="LOCAL-00098" summary="Added ability to download remote file installation log by triggering this simple command:&#10;&#10;maxinet --get-remote-log&#10;&#10;By default this log file is stored at &lt;script_path&gt;/log/">
+      <created>1627107314324</created>
+      <option name="number" value="00098" />
+      <option name="presentableId" value="LOCAL-00098" />
+      <option name="project" value="LOCAL" />
+      <updated>1627107314324</updated>
+    </task>
+    <option name="localTasksCounter" value="99" />
     <servers />
   </component>
   <component name="TypeScriptGeneratedFilesManager">
@@ -545,7 +546,6 @@
     <option name="oldMeFiltersMigrated" value="true" />
   </component>
   <component name="VcsManagerConfiguration">
-    <MESSAGE value="New ssh_login function for various type of users&#10;New function to keep checking if linode status until its status changed to offline/online, then we can proceed with other task&#10;New function to create animated spinner&#10;Fixed not able to login into SSH and change OS port to secure one (line 983-985)&#10;Fixed dropbox path script and added extra installation package in create_rescue_iso&#10;Added backup RSA private key for Putty in create_rescue_iso&#10;Disable timeout in isolinux.cfg for create_rescue_iso to straight boot into first menu without timer&#10;Fixed after boot Finnix rescue disk, we will not be able to SSH because  it needs to run systemctl restart ssh one time (added the script in .profile via squashfs-root) - line 1149&#10;Recommended to not write the same file when using find - line 1166&#10;Created a bash script that will be used to write ISO via SSH - line 1215-1225&#10;Updated linode to include new API and various fixes&#10;Updated --init-server option and more" />
     <MESSAGE value="Install Dropbear and added new function to unlock LUKS password on boot ssh_luks_unlock&#10;Improved ssh_login function&#10;Changed old code for creating ssh key to just call function ssh_key_manager &quot;create-key&quot;" />
     <MESSAGE value="Improved ssh_key_manager() function&#10;&#10;Improved ssh_login() funciton&#10;&#10;Added new function ssh_transfer() to transfer file via SSH using scp protocol&#10;&#10;Added user ssh key, to disable root login and use user to login in preseed config and save public key directly in ISO file to auto copy.&#10;&#10;Fixed extra curly bracket on line 1135 (might be due to hand shaking)&#10;&#10;Added new remote script maxisetup_ssh.sh&#10;&#10;New variables in maxisetup.conf.sample&#10;&#10;DROP_BEAR_PORT=&quot;1234&quot;&#10;DNS_PROVIDER_TERMINAL_SERVER=&quot;lish-singapore.linode.com&quot;" />
     <MESSAGE value="Improved ssh_login code&#10;Added documentation in the terminal to resume remote installation (in the case setup needs to restart remotely). This will display when SSH is terminated.&#10;Improved check_finish_reboot function&#10;Added the ability to detect if OS is encrypted. Hence, the variable DISK_ENCRYPTION used to specify OS encryption status manually is now deprecated.&#10;Renamed variable disk_uuid to local disk_uuid_boot because this uuid is only for boot partition&#10;Extra ports specification config for variable CSF_EXTRA_ALLOW_PORTS now doesn't need to specify comma at the beginning.&#10;Added new variable CSF_DENY_IP_LIMIT to increase DENY_IP_LIMIT from 200 (default) to any values. This one was missing feature.&#10;Added speedtest.net installation in post_setup()&#10;Added the ability to automatically unlock LUKS encryption remotely and run maxisetup automatically.&#10;Other changes ... especially in maxida, maxiwall, websetup .. other extra things" />
@@ -570,6 +570,7 @@
     <MESSAGE value="Added new feature to automatically unlock SSH even when the server is offline or server is LUKS encrypted. Just trigger the shortcut command:&#10;&#10;maxinet --ssh-login &lt;user&gt;&#10;&#10;eg: maxinet --ssh-login root&#10;&#10;If the server is offline, it will automatically turn it on. If the server is encrypted with LUKS password, it will automatically unlock, and then it will scan the available SSH port, if it is available, we will be logged in as &lt;user&gt;&#10;&#10;Removed deprecated old function ssh_login(), this one has been combined with improved version in ssh_api() function" />
     <MESSAGE value="New update and improvement" />
     <MESSAGE value="Update and improvement" />
-    <option name="LAST_COMMIT_MESSAGE" value="Update and improvement" />
+    <MESSAGE value="Added ability to download remote file installation log by triggering this simple command:&#10;&#10;maxinet --get-remote-log&#10;&#10;By default this log file is stored at &lt;script_path&gt;/log/" />
+    <option name="LAST_COMMIT_MESSAGE" value="Added ability to download remote file installation log by triggering this simple command:&#10;&#10;maxinet --get-remote-log&#10;&#10;By default this log file is stored at &lt;script_path&gt;/log/" />
   </component>
 </project>
