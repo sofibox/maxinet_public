@@ -10,9 +10,7 @@
     <select />
   </component>
   <component name="ChangeListManager">
-    <list default="true" id="113c828c-9a32-4b24-ab1e-978ce50c6320" name="Default Changelist" comment="Added new feature to automatically unlock SSH even when the server is offline or server is LUKS encrypted. Just trigger the shortcut command:&#10;&#10;maxinet --ssh-login &lt;user&gt;&#10;&#10;eg: maxinet --ssh-login root&#10;&#10;If the server is offline, it will automatically turn it on. If the server is encrypted with LUKS password, it will automatically unlock, and then it will scan the available SSH port, if it is available, we will be logged in as &lt;user&gt;&#10;&#10;Removed deprecated old function ssh_login(), this one has been combined with improved version in ssh_api() function">
-      <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-    </list>
+    <list default="true" id="113c828c-9a32-4b24-ab1e-978ce50c6320" name="Default Changelist" comment="New update and improvement" />
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
     <option name="HIGHLIGHT_NON_ACTIVE_CHANGELIST" value="false" />
@@ -57,13 +55,15 @@
     </key>
   </component>
   <component name="RunManager">
-    <configuration default="true" type="ArquillianJUnit" factoryName="" nameIsGenerated="true">
+    <configuration default="true" type="ArquillianTestNG" factoryName="" nameIsGenerated="true">
       <option name="arquillianRunConfiguration">
         <value>
           <option name="containerStateName" value="" />
         </value>
       </option>
-      <option name="TEST_OBJECT" value="class" />
+      <option name="TEST_OBJECT" value="CLASS" />
+      <properties />
+      <listeners />
       <method v="2">
         <option name="Make" enabled="true" />
       </method>
@@ -179,13 +179,7 @@
       <workItem from="1626968547522" duration="284000" />
       <workItem from="1626975093419" duration="438000" />
       <workItem from="1627050877271" duration="680000" />
-    </task>
-    <task id="LOCAL-00047" summary="Updated maxibox script (private repo)&#10;Updated maxicron script (private repo). Maxicron script includes the ability to stop some services to reduce memory usage. Such as clamav background process (private repo)&#10;Added maxicron-agent (private repo)&#10;Added maxicron installation in maxisetup and stop some services in post_setup() function to free memory for some not-so important background services&#10;Updated webapps to include prestashop updated version 1.7.7.2. Moved all prestashop related files to prestashop folder (private repo)">
-      <created>1614097148891</created>
-      <option name="number" value="00047" />
-      <option name="presentableId" value="LOCAL-00047" />
-      <option name="project" value="LOCAL" />
-      <updated>1614097148891</updated>
+      <workItem from="1627100825003" duration="38000" />
     </task>
     <task id="LOCAL-00048" summary="Added cronjobs function to disable some services that can cause memory leaks with small system">
       <created>1614216262790</created>
@@ -523,7 +517,14 @@
       <option name="project" value="LOCAL" />
       <updated>1627050930474</updated>
     </task>
-    <option name="localTasksCounter" value="96" />
+    <task id="LOCAL-00096" summary="New update and improvement">
+      <created>1627100855299</created>
+      <option name="number" value="00096" />
+      <option name="presentableId" value="LOCAL-00096" />
+      <option name="project" value="LOCAL" />
+      <updated>1627100855299</updated>
+    </task>
+    <option name="localTasksCounter" value="97" />
     <servers />
   </component>
   <component name="TypeScriptGeneratedFilesManager">
@@ -542,7 +543,6 @@
     <option name="oldMeFiltersMigrated" value="true" />
   </component>
   <component name="VcsManagerConfiguration">
-    <MESSAGE value="Enabled serial console interface during installation in kernel options from preseed file (compatible with linode LISH). For example, we can enter username and password through LISH console instead of GLISH&#10;&#10;Enabled full LUKS LVM disk encryption&#10;&#10;Added pre-defined SSH login and setup will disable root login automatically after installation (before restart)&#10;&#10;Created a new function to create rescue disk ISO (for finnix)&#10;&#10;Make small changes to linode API function&#10;&#10;Created extra disk for rescue disk in --init-server option&#10;&#10;Improved --ssh-login with the ability to define custom port and hostname&#10;&#10;New variables:&#10;&#10;# Partition size information&#10;BOX_RESCUE_DISK_RAW_SIZE=&quot;size-in-MB&quot;&#10;# Partition scheme&#10;BOX_BOOT_SIZE=&quot;size-in-MB&quot;&#10;BOX_ROOT_SIZE=&quot;size-in-MB&quot;&#10;BOX_TMP_SIZE=&quot;size-in-MB&quot;&#10;BOX_SWAP_SIZE=&quot;size-in-MB&quot;&#10;# -1 = largest available size (put last so can expand easier)&#10;BOX_HOME_SIZE=&quot;-1&quot;" />
     <MESSAGE value="Changed rescue disk SSH login port and add startup script to automatically restart ssh (by default ssh is not running. Without restarting ssh process, we won't be able to login remotely)&#10;&#10;New variables:&#10;HOST_MAX_PROCESSOR=&quot;&quot;&#10;RESCUE_SSH_PORT=&quot;&quot;" />
     <MESSAGE value="New ssh_login function for various type of users&#10;New function to keep checking if linode status until its status changed to offline/online, then we can proceed with other task&#10;New function to create animated spinner&#10;Fixed not able to login into SSH and change OS port to secure one (line 983-985)&#10;Fixed dropbox path script and added extra installation package in create_rescue_iso&#10;Added backup RSA private key for Putty in create_rescue_iso&#10;Disable timeout in isolinux.cfg for create_rescue_iso to straight boot into first menu without timer&#10;Fixed after boot Finnix rescue disk, we will not be able to SSH because  it needs to run systemctl restart ssh one time (added the script in .profile via squashfs-root) - line 1149&#10;Recommended to not write the same file when using find - line 1166&#10;Created a bash script that will be used to write ISO via SSH - line 1215-1225&#10;Updated linode to include new API and various fixes&#10;Updated --init-server option and more" />
     <MESSAGE value="Install Dropbear and added new function to unlock LUKS password on boot ssh_luks_unlock&#10;Improved ssh_login function&#10;Changed old code for creating ssh key to just call function ssh_key_manager &quot;create-key&quot;" />
@@ -567,6 +567,7 @@
     <MESSAGE value="Added option --boot-server" />
     <MESSAGE value="Added new variable HIDE_SENSITIVE_TEXT to hide sensitive information on the terminal&#10;&#10;Added new option for ssh_api --silent-push to silently push script without any output or pseudo-terminal (TTY)&#10;&#10;Fixed ssh_api login&#10;Fixed root unable to login using certificate after running secure_box&#10;&#10;Added shortcut options push-ssh-script --run-ssh-script for pushing script into server via ssh.&#10;&#10;Added shortcut options --login-to-server --login to login into server via SSH&#10;&#10;Other changes" />
     <MESSAGE value="Added new feature to automatically unlock SSH even when the server is offline or server is LUKS encrypted. Just trigger the shortcut command:&#10;&#10;maxinet --ssh-login &lt;user&gt;&#10;&#10;eg: maxinet --ssh-login root&#10;&#10;If the server is offline, it will automatically turn it on. If the server is encrypted with LUKS password, it will automatically unlock, and then it will scan the available SSH port, if it is available, we will be logged in as &lt;user&gt;&#10;&#10;Removed deprecated old function ssh_login(), this one has been combined with improved version in ssh_api() function" />
-    <option name="LAST_COMMIT_MESSAGE" value="Added new feature to automatically unlock SSH even when the server is offline or server is LUKS encrypted. Just trigger the shortcut command:&#10;&#10;maxinet --ssh-login &lt;user&gt;&#10;&#10;eg: maxinet --ssh-login root&#10;&#10;If the server is offline, it will automatically turn it on. If the server is encrypted with LUKS password, it will automatically unlock, and then it will scan the available SSH port, if it is available, we will be logged in as &lt;user&gt;&#10;&#10;Removed deprecated old function ssh_login(), this one has been combined with improved version in ssh_api() function" />
+    <MESSAGE value="New update and improvement" />
+    <option name="LAST_COMMIT_MESSAGE" value="New update and improvement" />
   </component>
 </project>

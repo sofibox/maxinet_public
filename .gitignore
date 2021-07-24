@@ -42,10 +42,12 @@
 /storage/os/**/usr/local/maxicode/maxiweb/backup/
 /storage/os/**/usr/local/maxicode/mrootkit/backup/
 
+# Config flags
+execution_env
+
 # Sensitive files
 maxisetup.conf
 /code/ssh_scripts/os_write_ag.sh
-/linode/nodesetup.conf
 /storage/os/**/usr/local/maxicode/maxiwall/maxiwall.conf
 /storage/os/**/usr/local/maxicode/maxida/maxida.conf
 /storage/os/**/usr/local/maxicode/maxisetup/maxisetup.conf
