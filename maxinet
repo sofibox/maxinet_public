@@ -5,29 +5,9 @@
 # Author: Arafat Ali | Email: webmaster@sofibox.com | Website: sofibox.com
 _APP_SPECIFIC_NAME="Maxinet"
 # Note some minor versions are not published
-_APP_VERSION="0.5.4.4"
+_APP_VERSION="0.5.4.5"
 _APP_STATUS="alpha"
 _APP_VERSION_STATUS="${_APP_VERSION}-${_APP_STATUS}"
-
-#@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
-#@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
-#@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@#/**********************************************************************
-#@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@*///////////////////////////////////////////////////////////////////////////
-#@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@&////////
-#@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@&////////
-#@@@@@@@@@,****.@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@%**/*.@@@@@@@@@@@@@@     %@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@&////////
-#@@@(////////////////@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@*/////////@#/////@@@@@@***** @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@&////////
-#@@*/////,&@@@&&//////*@@@@@@@@@@@@@@@@@@@@@@@@@@@@//////%@@@@@#*****@@@@@@***** @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@&////////
-#@@/////,@@@@@@@@*//***@@@@@@@@@%**//////(@@@@@@#***/////***/@@#****/@@@@@@***** @ ****** @@@@@@@@@@@@ ******** &@@@@@@ ***** @@@@@@****** @@@&////////
-#@@///////////*%#@@@@@@@@@@@@////////////////@@@#////////////@@#/////@@@@@@*********,******* @@@@@&,**************,&@@@@&,*****,@%,*****.@@@@@&////////
-#@@@@(////////////////@@@@@%/////*@@@@@@#//////@@@@,/////%@@@@@#/////@@@@@@******@@@@@@@*****.@@@,***** @@@@@@%***** @@@@@&,**********,@@@@@@@&////////
-#@@@@@@@@@@@///////////@@@@/////(@@@@@@@@%//////@@@,/////%@@@@@#/////@@@@@@***** @@@@@@@,*****%@@***** @@@@@@@@@*****&@@@@@@@*******.@@@@@@@@@&////////
-#@/////*@@@@@@@@@@*/////@@@/////(@@@@@@@@#//////@@@,/////%@@@@@#/////@@@@@@***** @@@@@@@ *****%@@***** @@@@@@@@(*****&@@@@@@ ********(@@@@@@@@&////////
-#@,/////*@@@@@@@@*/////*@@@#/////(@@@@@@&//////@@@@,/////%@@@@@#/////@@@@@@******.@@@@@@*****.@@@%*****.@@@@@@,***** @@@@@/*****,******/@@@@@@&////////
-#@@&///////////////////@@@@@@////////////////@@@@@@,/////%@@@@@#/////@@@@@@*****************/@@@@@@,**************,@@@@@#******@@@******,(@@@@&///////(
-#@@@@@%///////////*#@@@@@@@@@@@(,/////////#@@@@@@@@,/////%@@@@@#/////@@@@@@.....%@/.,***./@@@@@@@@@@@@/.,****,./@@@@@@@......@@@@@@@ ..... &@@&/#&@@@@@
-#@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
-#@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
 
 # Hello there, this is a powerful script that able initialize one or more server installation from scratch. From configuring the server disk, until you got the full working server with a live website.
 # It also includes many security and hardening script.
@@ -100,11 +80,11 @@ function trap_cleanup() {
     echo ""
     echo "Remember you can always resume installation with the following command:"
     echo "For local installation: ${SCRIPT_NAME} --setup 2>&1 | tee ${SCRIPT_NAME}.log"
-    echo "For remote installation: ${SCRIPT_NAME} --push-ssh-script --sp ${BOX_HOSTNAME_FQDN}:${SSH_PORT} --gu root:${ROOT_USERNAME} --push-maxinet-setup-script"
+    echo "For remote installation: ${SCRIPT_NAME} --push-ssh-script --sp ${BOX_HOSTNAME_FQDN}:${SSH_PORT_LABEL} --gu root:${ROOT_USERNAME_LABEL} --push-maxinet-setup-script"
     echo ""
     echo "SSH user login guide:"
-    echo "To login as root user: ${SCRIPT_NAME} --ssh-login ${ROOT_USERNAME}"
-    echo "To login as SSH user: ${SCRIPT_NAME} --ssh-login ${SSH_USERNAME}"
+    echo "To login as root user: ${SCRIPT_NAME} --ssh-login ${ROOT_USERNAME_LABEL}"
+    echo "To login as SSH user: ${SCRIPT_NAME} --ssh-login ${SSH_USERNAME_LABEL}"
     echo ""
     echo "Server LUKS unlock guide:"
     echo "To unlock LUKS Disk encryption: ${SCRIPT_NAME} --luks-unlock"
@@ -144,7 +124,7 @@ function help() {
   echo "To start/resume remote installation:"
   echo "Syntax: ${SCRIPT_NAME} --ssh-login <fqdn>:<ssh_port> <user_role>:<user_name> <local_script_to_push_for_installation>"
   echo "eg:"
-  echo "${SCRIPT_NAME} --ssh-login \"${BOX_HOSTNAME_FQDN}:${SSH_PORT}\" \"root:${ROOT_USERNAME}\" \"${CODE_PATH}/ssh_scripts/maxinet_setup.sh\""
+  echo "${SCRIPT_NAME} --ssh-login \"${BOX_HOSTNAME_FQDN}:${SSH_PORT}\" \"root:${ROOT_USERNAME_LABEL}\" \"${CODE_PATH}/ssh_scripts/maxinet_setup.sh\""
   echo ""
   echo "To unlock LUKS Disk encryption:"
   echo "Syntax: ${SCRIPT_NAME} --ssh-luks-unlock <DROP_BEAR_PORT> \"<LUKS_PASS>\""
@@ -563,12 +543,8 @@ function init_server() {
     esac
   done
   echo "Server Physical Information:"
-  echo "Provider: ${DNS_PROVIDER_NAME}"
-  if [[ "${HIDE_SENSITIVE_TEXT}" == "true" ]]; then
-    echo "IPv4 address: *hidden_ip*"
-  else
-    echo "IPv4 address: ${IPV4_ADD0}"
-  fi
+  echo "Provider: ${DNS_PROVIDER_NAME_LABEL}"
+  echo "IPv4 address: ${IPV4_ADD0_LABEL}"
   #echo "Disk space: "
   #echo "Memory/RAM: "
   echo "Checking IP and domain propagation ..."
@@ -720,49 +696,38 @@ function init_server() {
     # Boot into the new OS
     _echo "Booting into operating system (make sure to unlock LUKS)" --name
     linode_api_admin boot-linode --linode-label "${BOX_HOSTNAME_FQDN}" --linode-config-label "${LINODE_OS_CONFIG_LABEL}"
-    if [ "${HIDE_SENSITIVE_TEXT}" == "true" ]; then
-      _echo "$(msg cyan)Checking if initial boot port *hidden_port* is open from --server ${BOX_HOSTNAME_FQDN} ...$(msg end)" --name
-    else
-      _echo "$(msg cyan)Checking if initial boot port ${DROP_BEAR_PORT} is open from --server ${BOX_HOSTNAME_FQDN} ...$(msg end)" --name
-    fi
+    _echo "$(msg cyan)Checking if initial boot port ${DROP_BEAR_PORT_LABEL} is open from --server ${BOX_HOSTNAME_FQDN_LABEL} ...$(msg end)" --name
     count=0
     while :; do
       sleep 1
       ((count++))
-      _echo "$(msg yellow) Waiting for dropbear port ${DROP_BEAR_PORT} to be available ...$(msg end)" --start-spin --name
+      _echo "$(msg yellow) Waiting for LUKS boot port ${DROP_BEAR_PORT_LABEL} to be available ...$(msg end)" --start-spin --name
+
       if is_valid available_port "${BOX_HOSTNAME_FQDN}" "${DROP_BEAR_PORT}"; then
-        if [ "${HIDE_SENSITIVE_TEXT}" == "true" ]; then
-          _echo "$(msg green)OK, LUKS boot port is now available. Unlocking encrypted LUKS disk on boot ...$(msg end)" --stop-spin --name
-        else
-          _echo "$(msg green)OK, dropbear port ${DROP_BEAR_PORT} is now available. Unlocking encrypted LUKS disk on boot ...$(msg end)" --stop-spin --name
-        fi
+        _echo "$(msg green)OK, LUKS boot port ${DROP_BEAR_PORT_LABEL} is now available. Unlocking encrypted LUKS disk on boot ...$(msg end)" --stop-spin --name
         # Wait 5 seconds
         sleep 5
         ssh_api unlock-luks --port "${DROP_BEAR_PORT}" --password "${LUKS_PASS}"
         break
       fi
+
       if [ "${count}" -gt 60 ]; then
-        _echo "$(msg red)Error, failed to detect drop bear port ${DROP_BEAR_PORT} because the port is closed. Please inspect this manually (make sure firewall is not blocking this port)!$(msg end)" --name
+        _echo "$(msg red)Error, failed to detect drop bear port ${DROP_BEAR_PORT_LABEL} because the port is closed. Please inspect this manually (make sure firewall is not blocking this port)!$(msg end)" --name
         _exit 1
       fi
     done
 
     _echo "$(msg cyan)Copying maxinet, maxinet.conf and readme.txt into remote server ... $(msg end)" --name
-    ssh_api transfer-files --server-port "${BOX_HOSTNAME_FQDN}:${SSH_PORT}" --group-user "root:${ROOT_USERNAME}" --local-files "${SCRIPT_PATH}/maxinet ${SCRIPT_PATH}/maxinet.conf ${SCRIPT_PATH}/readme.txt" --remote-path ~/ --silent
+    ssh_api transfer-files --server-port "${BOX_HOSTNAME_FQDN}:${SSH_PORT}" --group-user "root:${ROOT_USERNAME}" --local-files "${SCRIPT_PATH}/maxinet ${SCRIPT_PATH}/maxinet.conf ${SCRIPT_PATH}/readme.txt" --remote-path ~/
     sleep 2
 
     if [ "${PRE_AUTORUN_SETUP}" == "no" ]; then
-      _echo "$(msg yellow)Warning, PRE_AUTORUN_SETUP is set to no. Hence, remote auto installation script is now halt! $(msg end)" --name
+      _echo "$(msg yellow)Warning, PRE_AUTORUN_SETUP is set to [ no ]. Hence, remote auto installation script is now halt! $(msg end)" --name
       echo ""
       _echo "$(msg yellow)Note: The server will be turned off, if you want to continue remote setup, trigger the following commands: $(msg end)" --name
       _echo "$(msg magenta)1) Turn on the server: maxinet --start-server$(msg end)" --plain
       _echo "$(msg magenta)2) Unlock server LUKS disk encrypted: maxinet --luks-unlock$(msg end)" --plain
-
-      if [ "${HIDE_SENSITIVE_TEXT}" == "true" ]; then
-        _echo "$(msg magenta)3) Automatically execute --setup on remote server: maxinet --ssh-api push-script --server-port *hidden_server*:*hidden_port* --group-user root:root --push-maxinet-setup-script$(msg end)" --plain
-      else
-        _echo "$(msg magenta)3) Automatically execute --setup on remote server: maxinet --ssh-api push-script --server-port sun.sofibox.com:893 --group-user root:root --push-maxinet-setup-script$(msg end)" --plain
-      fi
+      _echo "$(msg magenta)3) Automatically execute --setup on remote server: maxinet --ssh-api push-script --server-port ${BOX_HOSTNAME_FQDN_LABEL}:${SSH_PORT_LABEL} --group-user root:${SSH_USERNAME_LABEL} --push-maxinet-setup-script$(msg end)" --plain
       echo ""
       _echo "OR login into remote server and manually run --setup with the following command:" --name
       _echo "$(msg magenta)1) Turn on server: maxinet --ssh-login root$(msg end)" --plain
@@ -773,7 +738,7 @@ function init_server() {
       _exit 0
     fi
 
-    _echo "$(msg cyan)Setup will automatically execute remote maxinet script and start installation of the server ... (it might take some time) ...$(msg end)" -name
+    _echo "$(msg cyan)Setup will automatically execute remote maxinet script and start installation of the server ... (it might take some time)$(msg end)" --name
     # ssh_api push-script --server ${BOX_HOSTNAME_FQDN} --port ${SSH_PORT} --group root --username ${ROOT_USERNAME} --local-script-path "${CODE_PATH}/ssh_scripts/maxinet_setup.sh"
     ssh_api push-script --server-port "${BOX_HOSTNAME_FQDN}:${SSH_PORT}" --group-user "root:${ROOT_USERNAME}" --local-script-path "${CODE_PATH}/ssh_scripts/maxinet_setup.sh"
     # After installation above, the system must restart once, so we execute next script to reopen LUKS
@@ -1108,18 +1073,10 @@ function ssh_api() {
       # This will check available port even if NO LUKS encrypted
       _echo "$(msg cyan)Checking whether ${BOX_HOSTNAME_FQDN}'s port ${SSH_PORT} is online ...$(msg end)" --name
       if is_valid available_port "${BOX_HOSTNAME_FQDN}" "${SSH_PORT}"; then
-        if [ "${HIDE_SENSITIVE_TEXT}" == "true" ]; then
-          _echo "$(msg green)OK, the port *hidden_port* is available at ${BOX_HOSTNAME_FQDN} $(msg end)" --name
-
-        else
-          _echo "$(msg green)OK, the port ${SSH_PORT} is available at ${BOX_HOSTNAME_FQDN} $(msg end)" --name
-        fi
+        _echo "$(msg green)OK, the port ${SSH_PORT_LABEL} is available at ${BOX_HOSTNAME_FQDN_LABEL} $(msg end)" --name
       else
-        if [ "${HIDE_SENSITIVE_TEXT}" == "true" ]; then
-          _echo "$(msg yelllow)Warning, the --server-port ${BOX_HOSTNAME_FQDN}:*hidden_port* is not available!$(msg end)" --name
-        else
-          _echo "$(msg yelllow)Warning, the --server-port ${BOX_HOSTNAME_FQDN}:${SSH_PORT} is not available!$(msg end)" --name
-        fi
+        _echo "$(msg yelllow)Warning, the --server-port ${BOX_HOSTNAME_FQDN_LABEL}:${SSH_PORT_LABEL} is not available!$(msg end)" --name
+
         _echo "$(msg cyan)Checking server ${BOX_HOSTNAME_FQDN}'s online status ...$(msg end)" --name
         linode_status=$(linode_api_admin get-linode-status --linode-label "${BOX_HOSTNAME_FQDN}" --scripting)
         if [ "${linode_status}" == "offline" ]; then
@@ -1129,22 +1086,13 @@ function ssh_api() {
         ssh_api luks-unlock --port "${DROP_BEAR_PORT}" --password "${LUKS_PASS}"
         sleep 7
         if is_valid available_port "${BOX_HOSTNAME_FQDN}" "${SSH_PORT}"; then
-          if [ "${HIDE_SENSITIVE_TEXT}" == "true" ]; then
-            _echo "$(msg green)OK, the port *hidden_port* is available at ${BOX_HOSTNAME_FQDN} $(msg end)" --name
-          else
-            _echo "$(msg green)OK, the port ${SSH_PORT} is available at ${BOX_HOSTNAME_FQDN} $(msg end)" --name
-          fi
+          _echo "$(msg green)OK, the port ${SSH_PORT_LABEL} is available at ${BOX_HOSTNAME_FQDN_LABEL} $(msg end)" --name
         else
-          if [ "${HIDE_SENSITIVE_TEXT}" == "true" ]; then
-            _echo "$(msg red)Error, the --server-port ${BOX_HOSTNAME_FQDN}:*hidden_port* is not available (make sure server is online or port *hidden_port* is available)$(msg end)" --name
-          else
-            _echo "$(msg red)Error, the --server-port ${BOX_HOSTNAME_FQDN}:${SSH_PORT} is not available (make sure server is online or port ${SSH_PORT} is available)$(msg end)" --name
-          fi
+          _echo "$(msg red)Error, the --server-port ${BOX_HOSTNAME_FQDN_LABEL}:${SSH_PORT_LABEL} is not available (make sure server is online or port ${SSH_PORT} is available)$(msg end)" --name
           _exit 147
         fi
       fi
-
-      _echo "$(msg cyan)Logging into SSH server at ${ROOT_USERNAME}@${BOX_HOSTNAME_FQDN}:${SSH_PORT}... $(msg end)" --name
+      _echo "$(msg cyan)Logging into SSH server at ${ROOT_USERNAME_LABEL}@${BOX_HOSTNAME_FQDN_LABEL}:${SSH_PORT_LABEL}... $(msg end)" --name
       ssh -o "StrictHostKeyChecking no" -i "${rsa_key}" -p "${SSH_PORT}" "${ROOT_USERNAME}@${BOX_HOSTNAME_FQDN}"
     elif [ "${option}" == "${SSH_USERNAME}" ]; then
       private_key_name="user_${SSH_USERNAME}_${BOX_HOSTNAME_FQDN}.id_rsa"
@@ -1167,13 +1115,13 @@ function ssh_api() {
         ssh_api luks-unlock --port "${DROP_BEAR_PORT}" --password "${LUKS_PASS}"
         sleep 7
         if is_valid available_port "${BOX_HOSTNAME_FQDN}" "${SSH_PORT}"; then
-          _echo "$(msg green)OK, the port ${SSH_PORT} is available at ${BOX_HOSTNAME_FQDN} $(msg end)" --name
+          _echo "$(msg green)OK, the port ${SSH_PORT_LABEL} is available at ${BOX_HOSTNAME_FQDN} $(msg end)" --name
         else
-          _echo "$(msg red)Error, the --server-port ${BOX_HOSTNAME_FQDN}:${SSH_PORT} is not available (make sure server is online or port ${SSH_PORT} is available)$(msg end)" --name
+          _echo "$(msg red)Error, the --server-port ${BOX_HOSTNAME_FQDN}:${SSH_PORT_LABEL} is not available (make sure server is online or port ${SSH_PORT_LABEL} is available)$(msg end)" --name
           _exit 147
         fi
       fi
-      _echo "$(msg cyan)Logging into SSH server at ${SSH_USERNAME}@${BOX_HOSTNAME_FQDN}:${SSH_PORT}... $(msg end)" --name
+      _echo "$(msg cyan)Logging into SSH server at ${SSH_USERNAME_LABEL}@${BOX_HOSTNAME_FQDN}:${SSH_PORT_LABEL}... $(msg end)" --name
       _echo "$(msg yellow)Note: After successfully logged in as non-root user, use command [ sudo su - ] to login as root user$(msg end)" --name
       ssh -o "StrictHostKeyChecking no" -i "${rsa_key}" -p "${SSH_PORT}" "${SSH_USERNAME}@${BOX_HOSTNAME_FQDN}"
     else
@@ -1414,7 +1362,11 @@ function ssh_api() {
       ssh-keygen -f "${key_path}/${private_key_name}" -t rsa -b 4096 -P "" -C "${comment}" <<<y
     fi
     echo ""
-    _echo "$(msg cyan)Creating RSA SSH key authentication for Putty at ${key_path}/${private_key_putty_name} ...$(msg end)" --name
+    if [[ "${silent}" == "true" || "${HIDE_SENSITIVE_TEXT}" == "true" ]]; then
+      _echo "$(msg cyan)Creating RSA SSH key authentication for Putty ...$(msg end)" --name
+    else
+      _echo "$(msg cyan)Creating RSA SSH key authentication for Putty at ${key_path}/${private_key_putty_name} ...$(msg end)" --name
+    fi
     required "debian@@apt:putty-tools" "ubuntu@@apt:putty-tools"
     puttygen "${key_path}/${private_key_name}" -o "${key_path}/${private_key_putty_name}"
   elif [[ "${action}" == "get-pubkey" || "${action}" == "get-public-key" ]]; then
@@ -2662,7 +2614,31 @@ function create_file() {
   #create_file setup-readme
 
   for create_action in ${create_actions}; do
-    if [[ "${create_action}" == "setup-readme" ]]; then
+    # create_file "sensitive_label_hide" "${CONF_PATH}/sensitive_label"
+    # create_file "sensitive_label_show" "${CONF_PATH}/sensitive_label"
+    if [[ "${create_action}" == "sensitive-label-hide" || "${create_action}" == "sensitive_label_hide" ]]; then
+      {
+        echo "# ==============================================="
+        echo "# This sensitive_label file was automatically generated by ${SCRIPT_NAME}"
+        echo "# Author: ${ADMIN_NAME} | Email: ${ADMIN_EMAIL} | Web: ${BOX_DOMAIN}"
+        echo "# ==============================================="
+        echo "# This is the sensitive variable that hides its own value:"
+        echo ""
+      } >"${CONF_PATH}/sensitive_label"
+      grep -E '^[A-Za-z0-9_].+=.+$' "${CONFIG_FILE}" | awk -F'=' '{ print $1"_LABEL=\""$1"\""}' >>"${CONF_PATH}/sensitive_label"
+
+    elif [[ "${create_action}" == "sensitive-label-show" || "${create_action}" == "sensitive_label_show" ]]; then
+      {
+        echo "# ==============================================="
+        echo "# This sensitive_label file was automatically generated by ${SCRIPT_NAME}"
+        echo "# Author: ${ADMIN_NAME} | Email: ${ADMIN_EMAIL} | Web: ${BOX_DOMAIN}"
+        echo "# ==============================================="
+        echo "# This is the sensitive variable that shows its value from config file:"
+        echo ""
+      } >"${CONF_PATH}/sensitive_label"
+      grep -E '^[A-Za-z0-9_].+=.+$' "${CONFIG_FILE}" | awk -F'=' '{ print $1"_LABEL=\"${"$1"}\""}' >>"${CONF_PATH}/sensitive_label"
+
+    elif [[ "${create_action}" == "setup-readme" ]]; then
       {
         echo "# ==============================================="
         echo "# This readme file was automatically generated by ${SCRIPT_NAME}"
@@ -3387,19 +3363,11 @@ function iso_api() {
         #chmod 555 ${ISODIR_WRITE}/preseed.cfg
         echo ""
 
-        if [ "${HIDE_SENSITIVE_TEXT}" == "true" ]; then
-          _echo "$(msg cyan)Writing rsa public key (root) file ...$(msg end)" --name
-        else
-          _echo "$(msg cyan)Writing rsa public key (root) file into ${isodir_write_tmp}/root_${ROOT_USERNAME}_${BOX_HOSTNAME_FQDN}.id_rsa.pub ...$(msg end)" --name
-        fi
-        ssh_api get-public-key --group root --user "${ROOT_USERNAME}" --server "${BOX_HOSTNAME_FQDN}" >"${isodir_write_tmp}/root_${ROOT_USERNAME}_${BOX_HOSTNAME_FQDN}.id_rsa.pub"
-        echo ""
-        if [ "${HIDE_SENSITIVE_TEXT}" == "true" ]; then
+        _echo "$(msg cyan)Writing rsa public key (root) file into ${isodir_write_tmp}/root_${ROOT_USERNAME_LABEL}_${BOX_HOSTNAME_FQDN}.id_rsa.pub ...$(msg end)" --name
 
-          _echo "$(msg cyan)Writing rsa public key (user) file ...$(msg end)" --name
-        else
-          _echo "$(msg cyan)Writing rsa public key (user) file into ${isodir_write_tmp}/user_${SSH_USERNAME}_${BOX_HOSTNAME_FQDN}.id_rsa.pub ...$(msg end)" --name
-        fi
+        ssh_api get-public-key --group root --user "${ROOT_USERNAME}" --server "${BOX_HOSTNAME_FQDN}" >"${isodir_write_tmp}/root_${ROOT_USERNAME_LABEL}_${BOX_HOSTNAME_FQDN}.id_rsa.pub"
+        echo ""
+        _echo "$(msg cyan)Writing rsa public key (user) file into ${isodir_write_tmp}/user_${SSH_USERNAME_LABEL}_${BOX_HOSTNAME_FQDN}.id_rsa.pub ...$(msg end)" --name
         ssh_api get-public-key --group user --user "${SSH_USERNAME}" --server "${BOX_HOSTNAME_FQDN}" >"${isodir_write_tmp}/user_${SSH_USERNAME}_${BOX_HOSTNAME_FQDN}.id_rsa.pub"
         echo ""
 
@@ -4718,9 +4686,9 @@ function linode_api_admin() {
             # Force shutdown using lish_console command
             # Don't do this, this function does not execute command, just checking status
             #lish_console shutdown
-            _echo "$(msg yellow)Warning, linode is offline. Waiting for running status ...$(msg end)" --name --verbose 3
+            _echo "$(msg yellow)Warning, linode is offline. Waiting for running status ...$(msg end)" --start-spin --name
           else
-            _echo "$(msg yellow)Linode status is ${linode_status}. Waiting for running status ...$(msg end)" --start-spin
+            _echo "$(msg yellow)Linode status is ${linode_status}. Waiting for running status ...$(msg end)" --start-spin --name
           fi
         done
       fi
@@ -4737,7 +4705,7 @@ function linode_api_admin() {
             _echo "$(msg green)Success, linode ${linode_label} is offline.$(msg end)" --stop-spin --name
             break
           elif [[ "${linode_status}" == "running" ]]; then
-            _echo "$(msg yellow)Warning, linode is running. Waiting for offline status ...$(msg end)" --name --verbose 3
+            _echo "$(msg yellow)Warning, linode is running. Waiting for offline status ...$(msg end)" --name --start-spin
           else
             _echo "$(msg yellow)Linode status is ${linode_status}. Waiting for offline status ...$(msg end)" --start-spin --name
           fi
@@ -6687,11 +6655,7 @@ function secure_box() {
       _pause 15
       user_rsa_public_key="${SSH_PUBLIC_KEY}"
     else
-      if [ "${HIDE_SENSITIVE_TEXT}" == "true" ]; then
-        _echo "$(msg cyan)Note: ${_APP_SPECIFIC_NAME} will use user RSA public key from *hidden_key_location* for *hidden_username* SSH login ..."
-      else
-        _echo "$(msg cyan)Note: ${_APP_SPECIFIC_NAME} will use user RSA public key from ${user_rsa_public_key} for ${SSH_USERNAME} SSH login ..."
-      fi
+      _echo "$(msg cyan)Note: ${_APP_SPECIFIC_NAME} will use user RSA public key from /root/user_${SSH_USERNAME_LABEL}_${BOX_HOSTNAME_FQDN}.id_rsa.pub for ${SSH_USERNAME_LABEL} SSH login ..."
       # Reassign SSH_PUBLIC_KEY to the latest SSH key
       user_rsa_public_key=$(cat "${user_rsa_public_key}")
     fi
@@ -6715,47 +6679,24 @@ function secure_box() {
     _echo "$(msg magenta)[Testing]: Current date is $(date)$(msg end)" --name
     echo ""
     if [[ "${DISTRO_ID}" == "centos" || "${DISTRO_ID}" == "almalinux" ]]; then
-      if [ "${HIDE_SENSITIVE_TEXT}" == "true" ]; then
-        _echo "$(msg cyan)Creating a non-sudo username *hidden_username* ...$(msg end)" --name
-      else
-        _echo "$(msg cyan)Creating a non-sudo username ${SSH_USERNAME} ...$(msg end)" --name
-      fi
+      _echo "$(msg cyan)Creating a non-sudo username ${SSH_USERNAME_LABEL} ...$(msg end)" --name
       adduser "${SSH_USERNAME}" 2>&1 | tee -a "${REPORT_FILE}"
       echo ""
-      if [ "${HIDE_SENSITIVE_TEXT}" == "true" ]; then
-        _echo "$(msg cyan)Setting up password for non-sudo username *hidden_username* ...$(msg end)" --name
-      else
-        _echo "$(msg cyan)Setting up password for ${SSH_USERNAME} ...$(msg end)" --name
-      fi
+      _echo "$(msg cyan)Setting up password for non-sudo username ${SSH_USERNAME_LABEL} ...$(msg end)" --name
       echo "${SSH_USERPASS}" | passwd --stdin "${SSH_USERNAME}"
       echo ""
-      if [ "${HIDE_SENSITIVE_TEXT}" == "true" ]; then
-        _echo "$(msg cyan)Adding a non-sudo user *hidden_username* to the highest privilege group ...$(msg end)" --name
-      else
-        _echo "$(msg cyan)Adding a non-sudo user ${SSH_USERNAME} to the highest privilege group ...$(msg end)" --name
-      fi
+      _echo "$(msg cyan)Adding a non-sudo user ${SSH_USERNAME_LABEL} to the highest privilege group ...$(msg end)" --name
+
       gpasswd -a "${SSH_USERNAME}" wheel 2>&1 | tee -a "${REPORT_FILE}"
       echo ""
     elif [ "${DISTRO_ID}" == "debian" ]; then
-      if [ "${HIDE_SENSITIVE_TEXT}" == "true" ]; then
-        _echo "$(msg cyan)Creating a non-sudo username *hidden_username* ...$(msg end)" --name
-      else
-        _echo "$(msg cyan)Creating a non-sudo username ${SSH_USERNAME} ...$(msg end)" --name
-      fi
+      _echo "$(msg cyan)Creating a non-sudo username ${SSH_USERNAME_LABEL} ...$(msg end)" --name
       useradd "${SSH_USERNAME}" -s /bin/bash -m
       echo ""
-      if [ "${HIDE_SENSITIVE_TEXT}" == "true" ]; then
-        _echo "$(msg cyan)Setting up password for non-sudo username *hidden_username* ...$(msg end)" --name
-      else
-        _echo "$(msg cyan)Setting up password for ${SSH_USERNAME} ...$(msg end)" --name
-      fi
+      _echo "$(msg cyan)Setting up password for a non-sudo username for ${SSH_USERNAME_LABEL} ...$(msg end)" --name
       echo "${SSH_USERNAME}:${SSH_USERPASS}" | chpasswd
       echo ""
-      if [ "${HIDE_SENSITIVE_TEXT}" == "true" ]; then
-        _echo "$(msg cyan)Adding a non-sudo user *hidden_username* to the highest privilege group ...$(msg end)" --name
-      else
-        _echo "$(msg cyan)Adding a non-sudo user ${SSH_USERNAME} to the highest privilege group ...$(msg end)" --name
-      fi
+      _echo "$(msg cyan)Adding a non-sudo user ${SSH_USERNAME_LABEL} to the highest privilege group ...$(msg end)" --name
       usermod -aG sudo "${SSH_USERNAME}"
       echo ""
     else
@@ -6764,27 +6705,23 @@ function secure_box() {
     fi
 
     # These works with ubuntu, debian, centos (will check more with other distro)
+    _echo "$(msg cyan) Testing login a non-sudo user ${SSH_USERNAME_LABEL} ...$(msg end)" --name
     if [[ "${HIDE_SENSITIVE_TEXT}" == "true" ]]; then
-      _echo "$(msg cyan) Testing login a non-sudo user *hidden_username* ...$(msg end)" --name
-      _echo "$(msg magenta) =~=~=~=~=~=~=~=~=~=~=~=~=~=$(msg blue)" --name
+      _echo "$(msg magenta) =~=~=~=~=~=~=~=~=~=~=~=~=~=$(msg end)" --name
       sudo -H -u "${SSH_USERNAME}" bash -c 'echo "[Testing]: Hello, I am *hidden_username*, with uid *hidden_uuid*"'
-      _echo "$(msg magenta) =~=~=~=~=~=~=~=~=~=~=~=~=~=$(msg blue)" --name
+      _echo "$(msg magenta) =~=~=~=~=~=~=~=~=~=~=~=~=~=$(msg end)" --name
 
     else
-      _echo "$(msg cyan) Testing login a non-sudo user ${SSH_USERNAME} ...$(msg end)" --name
-      _echo "$(msg magenta) =~=~=~=~=~=~=~=~=~=~=~=~=~=$(msg blue)" --name
+
+      _echo "$(msg magenta) =~=~=~=~=~=~=~=~=~=~=~=~=~=$(msg end)" --name
       sudo -H -u "${SSH_USERNAME}" bash -c 'echo "[Testing]: Hello, I am ${USER}, with uid ${UID}"'
-      _echo "$(msg magenta) =~=~=~=~=~=~=~=~=~=~=~=~=~=$(msg blue)" --name
+      _echo "$(msg magenta) =~=~=~=~=~=~=~=~=~=~=~=~=~=$(msg end)" --name
     fi
 
     # TIP: To remove this non-sudo user we can do this:
     # userdel -r "${SSH_USERNAME}" , where -r will also delete his home directory
-    if [[ "${HIDE_SENSITIVE_TEXT}" == "true" ]]; then
-      _echo "$(msg cyan)Creating .ssh home directory for a non-sudo user *hidden_username* to store SSH public key files ...$(msg end)" --name
+    _echo "$(msg cyan)Creating .ssh home directory for a non-sudo user ${SSH_USERNAME_LABEL} to store SSH public key files ...$(msg end)" --name
 
-    else
-      _echo "$(msg cyan)Creating .ssh home directory for a non-sudo user ${SSH_USERNAME} to store SSH public key files ...$(msg end)" --name
-    fi
     sudo -H -u "${SSH_USERNAME}" bash -c "mkdir -p ~/.ssh"
     _echo "$(msg cyan)Creating an authorized key file ~/.ssh/authorized_keys ...$(msg end)" --name
     sudo -H -u "${SSH_USERNAME}" bash -c "touch ~/.ssh/authorized_keys"
@@ -6797,36 +6734,21 @@ function secure_box() {
     # For non-sudo user
     find_au=$(grep -w "AllowUsers ${SSH_USERNAME}" /etc/ssh/sshd_config)
     if [[ -n "${find_au}" ]]; then
-      if [[ "${HIDE_SENSITIVE_TEXT}" == "true" ]]; then
-        _echo "$(msg yellow)[Skipped] the non-sudo user *hidden_user* is already set as AllowUsers list in sshd_config ...$(msg end)" --name
-      else
-        _echo "$(msg yellow)[Skipped] the non-sudo user ${SSH_USERNAME} is already set as AllowUsers list in sshd_config ...$(msg end)" --name
-      fi
+      _echo "$(msg yellow)[Skipped] the non-sudo user ${SSH_USERNAME_LABEL} is already set as AllowUsers list in sshd_config ...$(msg end)" --name
     else
-      # Put at the bottom
-      if [[ "${HIDE_SENSITIVE_TEXT}" == "true" ]]; then
-        _echo "$(msg yellow)Adding a non-sudo user *hidden_user* to AllowUsers list in sshd_config ...$(msg end)" --name
-      else
-        _echo "$(msg yellow)Adding a non-sudo user ${SSH_USERNAME} to AllowUsers list in sshd_config ...$(msg end)" --name
-      fi
+      _echo "$(msg yellow)Adding a non-sudo user ${SSH_USERNAME_LABEL} to AllowUsers list in sshd_config ...$(msg end)" --name
       echo "AllowUsers ${SSH_USERNAME}" >>/etc/ssh/sshd_config
     fi
     echo ""
     # For root user
     find_ar=$(grep -w "AllowUsers ${ROOT_USERNAME}" /etc/ssh/sshd_config)
     if [[ -n "${find_ar}" ]]; then
-      if [[ "${HIDE_SENSITIVE_TEXT}" == "true" ]]; then
-        _echo "$(msg yellow)[Skipped] root user *hidden_user* is already set as AllowUsers list in sshd_config ...$(msg end)" --name
-      else
-        _echo "$(msg yellow)[Skipped] root user ${ROOT_USERNAME} is already set as AllowUsers list in sshd_config ...$(msg end)" --name
-      fi
+      _echo "$(msg yellow)[Skipped] root user ${ROOT_USERNAME_LABEL} is already set as AllowUsers list in sshd_config ...$(msg end)" --name
+
     else
       # Put at the bottom
-      if [[ "${HIDE_SENSITIVE_TEXT}" == "true" ]]; then
-        _echo "$(msg yellow)Adding root user *hidden_user* to AllowUsers list in sshd_config ...$(msg end)" --name
-      else
-        _echo "$(msg yellow)Adding root user ${ROOT_USERNAME} to AllowUsers list in sshd_config ...$(msg end)" --name
-      fi
+      _echo "$(msg cyan)Adding root user ${ROOT_USERNAME_LABEL} to AllowUsers list in sshd_config ...$(msg end)" --name
+
       echo "AllowUsers ${ROOT_USERNAME}" >>/etc/ssh/sshd_config
     fi
     echo ""
@@ -6836,26 +6758,17 @@ function secure_box() {
     # This command is left for reference:
     # echo "[${SCRIPT_NAME}]: Disabling root login via sshd_config ..." 2>&1 | tee -a "${REPORT_FILE}"
     # sed -i '/^PermitRootLogin/s/yes/no/' /etc/ssh/sshd_config
-
     _echo "$(msg cyan)Disabling Password authentication via sshd_config ...$(msg end)" --name
     sed -i "s/^#PasswordAuthentication.*/PasswordAuthentication no/" /etc/ssh/sshd_config
     echo ""
     _echo "$(msg cyan)Disabling empty password login via sshd_config ...$(msg end)" --name
     sed -i "s/^#PermitEmptyPasswords.*/PermitEmptyPasswords no/" /etc/ssh/sshd_config
     echo ""
-
-    if [[ "${HIDE_SENSITIVE_TEXT}" == "true" ]]; then
-      _echo "$(msg cyan)Changing SSH default port from 22 to *hidden_port* ...$(msg end)" --name
-
-    else
-      _echo "$(msg cyan)Changing SSH default port from 22 to ${SSH_PORT} ...$(msg end)" --name
-    fi
-
+    _echo "$(msg cyan)Changing SSH default port from 22 to ${SSH_PORT_LABEL} ...$(msg end)" --name
     _echo "$(msg yellow)Note, CSF will automatically add this port in allowed list during installation ...$(msg end)" --name
     sed -i "s/#Port 22/Port ${SSH_PORT}/" /etc/ssh/sshd_config
     echo ""
-
-    _echo "$(msg yellow)Changing SSH to only listen to IPv4 (disable IPv6 SSH login) ...$(msg end)" --name
+    _echo "$(msg cyan)Changing SSH to only listen to IPv4 (disable IPv6 SSH login) ...$(msg end)" --name
     sed -i "s/^#AddressFamily.*/AddressFamily inet/" /etc/ssh/sshd_config
     echo ""
     # Adding login banner
@@ -6864,50 +6777,38 @@ function secure_box() {
     echo ""
     create_file "ssh-banner1" "/etc/issue.net"
     echo ""
-
     _echo "$(msg cyan)Enabling login banner in sshd_config ...$(msg end)" --name
     sed -i "s/^#Banner none/Banner \/etc\/issue/" /etc/ssh/sshd_config
     echo ""
     # Initial firewall configuration
     if [[ "${DISTRO_ID}" == "centos" || "${DISTRO_ID}" == "almalinux" ]]; then
+      _echo "$(msg cyan)Adding SSH port ${SSH_PORT_LABEL}/tcp to firewalld ...$(msg end)" --name
       if [[ "${HIDE_SENSITIVE_TEXT}" == "true" ]]; then
-        _echo "$(msg cyan)Adding SSH port *hidden_port*/tcp to firewalld ...$(msg end)" --name
         sudo firewall-cmd --quiet --permanent --zone=public --add-port="${SSH_PORT}/tcp"
-        echo ""
-        _echo "$(msg cyan)Adding an IP address *hidden_ip* from config file in firewalld to prevent locked out during setup$(msg end)" --name
-        sudo firewall-cmd --quiet --permanent --add-source="${TEMP_ALLOW_IP}"
-        echo ""
+      else
+        sudo firewall-cmd --permanent --zone=public --add-port="${SSH_PORT}/tcp"
+      fi
+      echo ""
+      _echo "$(msg cyan)Adding an IP address ${TEMP_ALLOW_IP_LABEL} from config file in firewalld to prevent locked out during setup$(msg end)" --name
+
+      if [[ "${HIDE_SENSITIVE_TEXT}" == "true" ]]; then
+        sudo firewall-cmd --permanent --add-source="${TEMP_ALLOW_IP}"
         _echo "$(msg cyan)Reloading firewall-cmd silently ...$(msg end)" --name
         firewall-cmd --quiet --reload
-        echo ""
       else
-        _echo "$(msg cyan)Adding SSH port ${SSH_PORT}/tcp to firewalld ...$(msg end)" --name
-        sudo firewall-cmd --permanent --zone=public --add-port="${SSH_PORT}/tcp"
-        echo ""
-        _echo "$(msg cyan)Adding an IP address ${TEMP_ALLOW_IP} from config file in firewalld to prevent locked out during setup$(msg end)" --name
-        sudo firewall-cmd --permanent --add-source="${TEMP_ALLOW_IP}"
-        echo ""
+        sudo firewall-cmd --quiet --permanent --add-source="${TEMP_ALLOW_IP}"
         _echo "$(msg cyan)Reloading firewall-cmd ...$(msg end)" --name
         firewall-cmd --reload
-        echo ""
       fi
-
+      echo ""
     elif [ "${DISTRO_ID}" == "debian" ]; then
       _echo "$(msg yellow)Warning, the default debian installation doesn't include any firewalls. Debian will be installed automatically if it does not exist ...$(msg end)" --name
       required "debian@@apt:ufw"
       echo ""
-      if [[ "${HIDE_SENSITIVE_TEXT}" == "true" ]]; then
-        _echo "$(msg cyan)Adding SSH port *hidden_port*/tcp to ufw...$(msg end)" --name
-      else
-        _echo "$(msg cyan)Adding SSH port ${SSH_PORT}/tcp to ufw...$(msg end)" --name
-      fi
+      _echo "$(msg cyan)Adding SSH port ${SSH_PORT_LABEL}/tcp to ufw...$(msg end)" --name
       sudo ufw allow "${SSH_PORT}/tcp"
       echo ""
-      if [[ "${HIDE_SENSITIVE_TEXT}" == "true" ]]; then
-        _echo "$(msg cyan)Adding an IP address *hidden_ip* from config file in ufw to prevent locked out during setup$(msg end)" --name
-      else
-        _echo "$(msg cyan)Adding an IP address ${TEMP_ALLOW_IP} from config file in ufw to prevent locked out during setup$(msg end)" --name
-      fi
+      _echo "$(msg cyan)Adding an IP address ${TEMP_ALLOW_IP_LABEL} from config file in ufw to prevent locked out during setup$(msg end)" --name
       sudo ufw allow from "${TEMP_ALLOW_IP}"
       echo ""
       _echo "$(msg cyan)Enabling ufw firewall ...$(msg end)" --name
@@ -6955,6 +6856,68 @@ function secure_box() {
     _exit 0
   fi
   echo ""
+}
+
+function configure_grub() {
+  local option executed_function run
+  option="$1"
+  run="no"
+  executed_function="${CONF_PATH}/${FUNCNAME[0]}_executed"
+  if [ "${option}" == "--skip-mark" ]; then
+    cat /dev/null >"${executed_function}"
+    #run="no"
+    return 0
+  elif [ "${option}" == "--skip" ]; then
+    #run="no"
+    return 0
+  fi
+  if [[ "${option}" == "--run-force" || "${option}" == "--run-force-exit" ]]; then
+    rm -rf "${executed_function}"
+    run="yes"
+  elif [[ -z "${option}" || "${option}" == "--run" || "${option}" == "--run-exit" ]]; then
+    run="yes"
+  fi
+  if [[ ! -f "${CONF_PATH}/${FUNCNAME[0]}_executed" && "${run}" == "yes" ]]; then
+    local gr grub_hash pfile
+    echo "[${SCRIPT_NAME}]: Executing ${FUNCNAME[0]} ..." 2>&1 | tee -a "${REPORT_FILE}"
+    if [ "${SECURE_GRUB}" == "yes" ]; then
+      echo "[${SCRIPT_NAME}]: SECURE_GRUB is set" 2>&1 | tee -a "${REPORT_FILE}"
+      pfile="${TEMP_PATH}/pfile.$(get_rnd_alpha 10)"
+      cat <<EOF >"${pfile}"
+${GRUB_PASS}
+${GRUB_PASS}
+EOF
+      grub_hash=$(cat "${pfile}" | grub-mkpasswd-pbkdf2 | awk '/grub.pbkdf/{print$NF}')
+      shred -uvz "${pfile}"
+      gr=$(grep -i "password_pbkdf2" /etc/grub.d/00_header)
+      if [[ -z ${gr} ]]; then
+        echo "[${SCRIPT_NAME}]: Writing grub username and password in /etc/grub.d/00_header ... " 2>&1 | tee -a "${REPORT_FILE}"
+        {
+          echo "cat << EOF"
+          echo "set superusers=\"${GRUB_UNAME}\""
+          echo "password_pbkdf2 ${GRUB_UNAME} ${grub_hash}"
+          echo "EOF"
+        } >>/etc/grub.d/00_header
+        grub-mkconfig -o /boot/grub/grub.cfg
+        #sudo update-grub
+      else
+        echo "[${SCRIPT_NAME}]: Warning, there is already a grub password set in /etc/grub.d/00_header. It shouldn't be there. Inspect why" 2>&1 | tee -a "${REPORT_FILE}"
+        _exit 147
+      fi
+    else
+      echo "[${SCRIPT_NAME}]: Warning, SECURE_GRUB is not set" 2>&1 | tee -a "${REPORT_FILE}"
+
+    fi
+    check_finish_reboot "${FUNCNAME[0]}"
+  else
+    echo "[${SCRIPT_NAME}]: [Skipped]: ${FUNCNAME[0]} has ran before" 2>&1 | tee -a "${REPORT_FILE}"
+    echo "=~=~=~=~=~=~=~=~=~" 2>&1 | tee -a "${REPORT_FILE}"
+  fi
+
+  if [[ "${option}" == "--run-force-exit" || "${option}" == "--run-exit" ]]; then
+    _echo "$(msg yellow)Warning, script terminated due to the supplied option ${option}$(msg end)" --name
+    exit 0
+  fi
 }
 
 # This one configuration hostname, network etc.
@@ -7388,68 +7351,6 @@ function configure_fstab() {
     echo "[${SCRIPT_NAME}]: [Skipped]: ${FUNCNAME[0]} has ran before" 2>&1 | tee -a "${REPORT_FILE}"
     echo "=~=~=~=~=~=~=~=~=~" 2>&1 | tee -a "${REPORT_FILE}"
   fi
-  if [[ "${option}" == "--run-force-exit" || "${option}" == "--run-exit" ]]; then
-    _echo "$(msg yellow)Warning, script terminated due to the supplied option ${option}$(msg end)" --name
-    exit 0
-  fi
-}
-
-function configure_grub() {
-  local option executed_function run
-  option="$1"
-  run="no"
-  executed_function="${CONF_PATH}/${FUNCNAME[0]}_executed"
-  if [ "${option}" == "--skip-mark" ]; then
-    cat /dev/null >"${executed_function}"
-    #run="no"
-    return 0
-  elif [ "${option}" == "--skip" ]; then
-    #run="no"
-    return 0
-  fi
-  if [[ "${option}" == "--run-force" || "${option}" == "--run-force-exit" ]]; then
-    rm -rf "${executed_function}"
-    run="yes"
-  elif [[ -z "${option}" || "${option}" == "--run" || "${option}" == "--run-exit" ]]; then
-    run="yes"
-  fi
-  if [[ ! -f "${CONF_PATH}/${FUNCNAME[0]}_executed" && "${run}" == "yes" ]]; then
-    local gr grub_hash pfile
-    echo "[${SCRIPT_NAME}]: Executing ${FUNCNAME[0]} ..." 2>&1 | tee -a "${REPORT_FILE}"
-    if [ "${SECURE_GRUB}" == "yes" ]; then
-      echo "[${SCRIPT_NAME}]: SECURE_GRUB is set" 2>&1 | tee -a "${REPORT_FILE}"
-      pfile="${TEMP_PATH}/pfile.$(get_rnd_alpha 10)"
-      cat <<EOF >"${pfile}"
-${GRUB_PASS}
-${GRUB_PASS}
-EOF
-      grub_hash=$(cat "${pfile}" | grub-mkpasswd-pbkdf2 | awk '/grub.pbkdf/{print$NF}')
-      shred -uvz "${pfile}"
-      gr=$(grep -i "password_pbkdf2" /etc/grub.d/00_header)
-      if [[ -z ${gr} ]]; then
-        echo "[${SCRIPT_NAME}]: Writing grub username and password in /etc/grub.d/00_header ... " 2>&1 | tee -a "${REPORT_FILE}"
-        {
-          echo "cat << EOF"
-          echo "set superusers=\"${GRUB_UNAME}\""
-          echo "password_pbkdf2 ${GRUB_UNAME} ${grub_hash}"
-          echo "EOF"
-        } >>/etc/grub.d/00_header
-        grub-mkconfig -o /boot/grub/grub.cfg
-        #sudo update-grub
-      else
-        echo "[${SCRIPT_NAME}]: Warning, there is already a grub password set in /etc/grub.d/00_header. It shouldn't be there. Inspect why" 2>&1 | tee -a "${REPORT_FILE}"
-        _exit 147
-      fi
-    else
-      echo "[${SCRIPT_NAME}]: Warning, SECURE_GRUB is not set" 2>&1 | tee -a "${REPORT_FILE}"
-
-    fi
-    check_finish_reboot "${FUNCNAME[0]}"
-  else
-    echo "[${SCRIPT_NAME}]: [Skipped]: ${FUNCNAME[0]} has ran before" 2>&1 | tee -a "${REPORT_FILE}"
-    echo "=~=~=~=~=~=~=~=~=~" 2>&1 | tee -a "${REPORT_FILE}"
-  fi
-
   if [[ "${option}" == "--run-force-exit" || "${option}" == "--run-exit" ]]; then
     _echo "$(msg yellow)Warning, script terminated due to the supplied option ${option}$(msg end)" --name
     exit 0
@@ -14361,6 +14262,17 @@ fi
 # Configuring or creating autogenerate extra scripts and adding autogenerate setup readme
 create_file "ssh-push-scripts setup-readme"
 
+# This will configure whether to hide the sensitive label from config file or not based on HIDE_SENSITIVE_TEXT variable value
+if [ "${HIDE_SENSITIVE_TEXT}" == "true" ]; then
+  # This will create a source file that will hide the sensitive variable value to equal to its own variable
+  create_file "sensitive-label-hide"
+else
+  # this will create a source file that will show the sensitive variable value to equal to the value in the config file
+  create_file "sensitive-label-show"
+fi
+# Source the sensitive label whether to hide data or not
+source "${CONF_PATH}/sensitive_label"
+
 # Obtain DNS provider API information from config variable
 DNS_PROVIDER_NAME=$(echo "${DNS_PROVIDER_API1}" | awk -F':' '{ print $1 }')
 DNS_PROVIDER_USER=$(echo "${DNS_PROVIDER_API1}" | awk -F':' '{ print $2 }')
@@ -14595,6 +14507,21 @@ ENDSSH
     break
     ;;
   -t | --test)
+
+    #  var=$(grep -v '^\s*$\|^\s*\#' ${CONFIG_FILE})
+    echo "COMPANY_ID_LABEL: ${COMPANY_ID_LABEL}"
+    # grep -v '^\s*$\|^\s*\#' ${CONFIG_FILE}  | cut -d'=' -f 2-
+    exit 1
+    create_file "sensitive_label_show" "${CONF_PATH}/sensitive_label"
+    source "${CONF_PATH}/sensitive_label"
+    echo "ADMIN_NAME: ${ADMIN_NAME_LABEL}"
+    #grep -E '^[A-Za-z0-9_].+=.+$' "${CONFIG_FILE}" | awk -F'=' '{ print $1"_LABEL=\""$1"\""}'
+    echo ""
+    exit 0
+
+    #grep -E '^[A-Za-z0-9_].+=.+$' "${CONFIG_FILE}" | awk -F'^=' '{ print $1 $2}'
+    ssh_api push-script --server-port "${BOX_HOSTNAME_FQDN}:${SSH_PORT}" --group-user "root:${ROOT_USERNAME}" --local-script-path "${CODE_PATH}/ssh_scripts/maxinet_setup.sh"
+    exit 1
     required "ubuntu@@apt:git,nano,htop,vim,bc" "debian@@apt:git,nano,htop,vim,bc"
     exit 0
     break

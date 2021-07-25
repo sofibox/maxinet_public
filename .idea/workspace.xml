@@ -55,15 +55,13 @@
     </key>
   </component>
   <component name="RunManager">
-    <configuration default="true" type="ArquillianTestNG" factoryName="" nameIsGenerated="true">
+    <configuration default="true" type="ArquillianJUnit" factoryName="" nameIsGenerated="true">
       <option name="arquillianRunConfiguration">
         <value>
           <option name="containerStateName" value="" />
         </value>
       </option>
-      <option name="TEST_OBJECT" value="CLASS" />
-      <properties />
-      <listeners />
+      <option name="TEST_OBJECT" value="class" />
       <method v="2">
         <option name="Make" enabled="true" />
       </method>
@@ -185,13 +183,7 @@
       <workItem from="1627107273019" duration="48000" />
       <workItem from="1627146436150" duration="81000" />
       <workItem from="1627157743367" duration="166000" />
-    </task>
-    <task id="LOCAL-00052" summary="Added new gotify installation (pre-test) replacement of pushover&#10;&#10;Updated maxida API to create new user (private repo)&#10;&#10;Improved DA API&#10;&#10;Added zip and unzip installation">
-      <created>1614572342436</created>
-      <option name="number" value="00052" />
-      <option name="presentableId" value="LOCAL-00052" />
-      <option name="project" value="LOCAL" />
-      <updated>1614572342436</updated>
+      <workItem from="1627193218756" duration="80000" />
     </task>
     <task id="LOCAL-00053" summary="Updated various codes in private repository in maxicode and directadmin custom scripts. One of the features is the ability to upgrade directadmin custom scripts, add more APIs in maxida and much more.&#10;&#10;Added new top TODO lists in maxisetup.&#10;&#10;Added new API to create dns record in DA&#10;&#10;Fixed firewall blacklisted_ip.html file permission&#10;&#10;Added extra variables for GIT authentication in maxida.conf&#10;&#10;Added new installation for maxipass&#10;&#10;Added DKIM signing policy record in both DA and linode DNS as best practice&#10;&#10;New planned variables (already have working test script):&#10;&#10;DA_LOGIN_METHOD=&quot;sign-as&quot;&#10;&#10;# This will use DA loginas mentioned in the API documentation&#10;# sign-as = you can login using this username &quot;admin|client&quot; to log as the client (benefit: no need to know DA client passwords)&#10;# direct-login = login directly using username and password (need to know DA client passwords)&#10;DA_LOGIN_METHOD=&quot;sign-as&quot;">
       <created>1614785034062</created>
@@ -529,7 +521,14 @@
       <option name="project" value="LOCAL" />
       <updated>1627157804805</updated>
     </task>
-    <option name="localTasksCounter" value="101" />
+    <task id="LOCAL-00101" summary="New update and improvement">
+      <created>1627193243088</created>
+      <option name="number" value="00101" />
+      <option name="presentableId" value="LOCAL-00101" />
+      <option name="project" value="LOCAL" />
+      <updated>1627193243088</updated>
+    </task>
+    <option name="localTasksCounter" value="102" />
     <servers />
   </component>
   <component name="TypeScriptGeneratedFilesManager">
