@@ -10,7 +10,7 @@
     <select />
   </component>
   <component name="ChangeListManager">
-    <list default="true" id="113c828c-9a32-4b24-ab1e-978ce50c6320" name="Default Changelist" comment="Update and improvement&#10;&#10;Improved required() function to be portable&#10;&#10;Example of the call:&#10;&#10;required &quot;ubuntu@@apt:dos2unix,htop,nano+make:xxx,test,ok&quot; \&#10;  &quot;centos@@dnf:dos2unix,nano&quot; &quot;debian@@apt:dos2unix,htop&quot;&#10;&#10;required &quot;ubuntu@@apt:nano,htop,vim&quot; \&#10;  &quot;centos@@dnf:dos2unix,nano&quot; &quot;debian@@apt:dos2unix,htop,git,x&quot;" />
+    <list default="true" id="113c828c-9a32-4b24-ab1e-978ce50c6320" name="Default Changelist" comment="New update and improvement" />
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
     <option name="HIGHLIGHT_NON_ACTIVE_CHANGELIST" value="false" />
@@ -55,13 +55,15 @@
     </key>
   </component>
   <component name="RunManager">
-    <configuration default="true" type="ArquillianJUnit" factoryName="" nameIsGenerated="true">
+    <configuration default="true" type="ArquillianTestNG" factoryName="" nameIsGenerated="true">
       <option name="arquillianRunConfiguration">
         <value>
           <option name="containerStateName" value="" />
         </value>
       </option>
-      <option name="TEST_OBJECT" value="class" />
+      <option name="TEST_OBJECT" value="CLASS" />
+      <properties />
+      <listeners />
       <method v="2">
         <option name="Make" enabled="true" />
       </method>
@@ -182,13 +184,7 @@
       <workItem from="1627106216163" duration="259000" />
       <workItem from="1627107273019" duration="48000" />
       <workItem from="1627146436150" duration="81000" />
-    </task>
-    <task id="LOCAL-00051" summary="Added ability to configure linode-cli without using expect package (more faster and less buggy)&#10;Added new API to automatically create all domains in linode&#10;Fixed bug: Added wait time 5 seconds after starting lfd for the first time to generate error log. Previously after starting lfd, script straightaway check the log file to identify error which has not yet created.&#10;Fixed bug: Added missing gpg package when using INSTALLATION TYPE=GENERAL from maxisetup.conf&#10;Added new DKIM outbound signing policy DNS template for all domains for normal user and reseller to increase email spam score/reputation&#10;&#10;New variable:&#10;&#10;# Is used to configure DNS management API that required username:&#10;&#10;DNS_PROVIDER_USER=&quot;sofibox&quot;">
-      <created>1614478015705</created>
-      <option name="number" value="00051" />
-      <option name="presentableId" value="LOCAL-00051" />
-      <option name="project" value="LOCAL" />
-      <updated>1614478015706</updated>
+      <workItem from="1627157743367" duration="166000" />
     </task>
     <task id="LOCAL-00052" summary="Added new gotify installation (pre-test) replacement of pushover&#10;&#10;Updated maxida API to create new user (private repo)&#10;&#10;Improved DA API&#10;&#10;Added zip and unzip installation">
       <created>1614572342436</created>
@@ -526,7 +522,14 @@
       <option name="project" value="LOCAL" />
       <updated>1627146508194</updated>
     </task>
-    <option name="localTasksCounter" value="100" />
+    <task id="LOCAL-00100" summary="New update and improvement">
+      <created>1627157804805</created>
+      <option name="number" value="00100" />
+      <option name="presentableId" value="LOCAL-00100" />
+      <option name="project" value="LOCAL" />
+      <updated>1627157804805</updated>
+    </task>
+    <option name="localTasksCounter" value="101" />
     <servers />
   </component>
   <component name="TypeScriptGeneratedFilesManager">
@@ -566,10 +569,10 @@
     <MESSAGE value="Added option --boot-server" />
     <MESSAGE value="Added new variable HIDE_SENSITIVE_TEXT to hide sensitive information on the terminal&#10;&#10;Added new option for ssh_api --silent-push to silently push script without any output or pseudo-terminal (TTY)&#10;&#10;Fixed ssh_api login&#10;Fixed root unable to login using certificate after running secure_box&#10;&#10;Added shortcut options push-ssh-script --run-ssh-script for pushing script into server via ssh.&#10;&#10;Added shortcut options --login-to-server --login to login into server via SSH&#10;&#10;Other changes" />
     <MESSAGE value="Added new feature to automatically unlock SSH even when the server is offline or server is LUKS encrypted. Just trigger the shortcut command:&#10;&#10;maxinet --ssh-login &lt;user&gt;&#10;&#10;eg: maxinet --ssh-login root&#10;&#10;If the server is offline, it will automatically turn it on. If the server is encrypted with LUKS password, it will automatically unlock, and then it will scan the available SSH port, if it is available, we will be logged in as &lt;user&gt;&#10;&#10;Removed deprecated old function ssh_login(), this one has been combined with improved version in ssh_api() function" />
-    <MESSAGE value="New update and improvement" />
     <MESSAGE value="Update and improvement" />
     <MESSAGE value="Added ability to download remote file installation log by triggering this simple command:&#10;&#10;maxinet --get-remote-log&#10;&#10;By default this log file is stored at &lt;script_path&gt;/log/" />
     <MESSAGE value="Update and improvement&#10;&#10;Improved required() function to be portable&#10;&#10;Example of the call:&#10;&#10;required &quot;ubuntu@@apt:dos2unix,htop,nano+make:xxx,test,ok&quot; \&#10;  &quot;centos@@dnf:dos2unix,nano&quot; &quot;debian@@apt:dos2unix,htop&quot;&#10;&#10;required &quot;ubuntu@@apt:nano,htop,vim&quot; \&#10;  &quot;centos@@dnf:dos2unix,nano&quot; &quot;debian@@apt:dos2unix,htop,git,x&quot;" />
-    <option name="LAST_COMMIT_MESSAGE" value="Update and improvement&#10;&#10;Improved required() function to be portable&#10;&#10;Example of the call:&#10;&#10;required &quot;ubuntu@@apt:dos2unix,htop,nano+make:xxx,test,ok&quot; \&#10;  &quot;centos@@dnf:dos2unix,nano&quot; &quot;debian@@apt:dos2unix,htop&quot;&#10;&#10;required &quot;ubuntu@@apt:nano,htop,vim&quot; \&#10;  &quot;centos@@dnf:dos2unix,nano&quot; &quot;debian@@apt:dos2unix,htop,git,x&quot;" />
+    <MESSAGE value="New update and improvement" />
+    <option name="LAST_COMMIT_MESSAGE" value="New update and improvement" />
   </component>
 </project>

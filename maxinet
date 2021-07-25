@@ -5,9 +5,29 @@
 # Author: Arafat Ali | Email: webmaster@sofibox.com | Website: sofibox.com
 _APP_SPECIFIC_NAME="Maxinet"
 # Note some minor versions are not published
-_APP_VERSION="0.5.4.3"
+_APP_VERSION="0.5.4.4"
 _APP_STATUS="alpha"
 _APP_VERSION_STATUS="${_APP_VERSION}-${_APP_STATUS}"
+
+#@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+#@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+#@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@#/**********************************************************************
+#@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@*///////////////////////////////////////////////////////////////////////////
+#@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@&////////
+#@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@&////////
+#@@@@@@@@@,****.@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@%**/*.@@@@@@@@@@@@@@     %@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@&////////
+#@@@(////////////////@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@*/////////@#/////@@@@@@***** @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@&////////
+#@@*/////,&@@@&&//////*@@@@@@@@@@@@@@@@@@@@@@@@@@@@//////%@@@@@#*****@@@@@@***** @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@&////////
+#@@/////,@@@@@@@@*//***@@@@@@@@@%**//////(@@@@@@#***/////***/@@#****/@@@@@@***** @ ****** @@@@@@@@@@@@ ******** &@@@@@@ ***** @@@@@@****** @@@&////////
+#@@///////////*%#@@@@@@@@@@@@////////////////@@@#////////////@@#/////@@@@@@*********,******* @@@@@&,**************,&@@@@&,*****,@%,*****.@@@@@&////////
+#@@@@(////////////////@@@@@%/////*@@@@@@#//////@@@@,/////%@@@@@#/////@@@@@@******@@@@@@@*****.@@@,***** @@@@@@%***** @@@@@&,**********,@@@@@@@&////////
+#@@@@@@@@@@@///////////@@@@/////(@@@@@@@@%//////@@@,/////%@@@@@#/////@@@@@@***** @@@@@@@,*****%@@***** @@@@@@@@@*****&@@@@@@@*******.@@@@@@@@@&////////
+#@/////*@@@@@@@@@@*/////@@@/////(@@@@@@@@#//////@@@,/////%@@@@@#/////@@@@@@***** @@@@@@@ *****%@@***** @@@@@@@@(*****&@@@@@@ ********(@@@@@@@@&////////
+#@,/////*@@@@@@@@*/////*@@@#/////(@@@@@@&//////@@@@,/////%@@@@@#/////@@@@@@******.@@@@@@*****.@@@%*****.@@@@@@,***** @@@@@/*****,******/@@@@@@&////////
+#@@&///////////////////@@@@@@////////////////@@@@@@,/////%@@@@@#/////@@@@@@*****************/@@@@@@,**************,@@@@@#******@@@******,(@@@@&///////(
+#@@@@@%///////////*#@@@@@@@@@@@(,/////////#@@@@@@@@,/////%@@@@@#/////@@@@@@.....%@/.,***./@@@@@@@@@@@@/.,****,./@@@@@@@......@@@@@@@ ..... &@@&/#&@@@@@
+#@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
+#@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
 
 # Hello there, this is a powerful script that able initialize one or more server installation from scratch. From configuring the server disk, until you got the full working server with a live website.
 # It also includes many security and hardening script.
@@ -2718,6 +2738,27 @@ function create_file() {
         echo "exit"
         echo "exit"
       } >"${ssh_scripts_path}/maxinet_setup.sh"
+    # SSH banner
+    elif [[ ${create_action} == "ssh-banner1" || ${create_action} == "ssh_banner1" ]]; then
+      {
+        echo "Legal Authentication Banner:"
+        echo "---------------------------"
+        echo "=~=~=~=~=~=~=~=~=~=~=~=~=~00000~=~=~=~=~=~=~=~=~+~=~=~=~=~+~="
+        echo "Welcome to ${COMPANY_ID^} CH. This is the ${BOX_HOSTNAME^^} Server"
+        echo "The ${BOX_HOSTNAME^^} consists of ENERGY where it has been created"
+        echo "perfectly with a certain EQUATIONS from NOTHING. Human"
+        echo "beings have changed the original EQUATIONS to their own"
+        echo "EQUATIONS. The ENERGY consists of TIME where TIME is MONEY"
+        echo "and MONEY is part of the RESOURCES. If you need SOMETHING,"
+        echo "the most ethical way in the world of humanity is asking"
+        echo "for SOMETHING instead of manipulating the RESOURCES."
+        echo "Disconnect now if you are not one of the team at Sofibox"
+        echo "=~=~=~=~=~=~=~=~=~=~=~=~=~00000~=~=~=~=~=~=~=~=~+~=~=~=~=~+~="
+        echo "Do not waste your RESOURCES for NOTHING - MaXi32, 2001"
+        echo "=============== We turned on 1 LiGHT DaRK =============="
+        echo ""
+        echo "SECURE TAG: access, legal, law, connect, enforce, system"
+      } >"${path}"
 
     elif [[ ${create_action} == "debian-preseed" ]]; then
 
@@ -6609,11 +6650,11 @@ function update_latest_maxicode() {
 
 # This function contains the security hardening for Linux
 function secure_box() {
-  # TODO update this function and formatting
-  local option executed_function run
+  local option executed_function run func_name
   option="$1"
   run="no"
-  executed_function="${CONF_PATH}/${FUNCNAME[0]}_executed"
+  func_name="${FUNCNAME[0]}"
+  executed_function="${CONF_PATH}/${func_name}_executed"
   if [ "${option}" == "--skip-mark" ]; then
     cat /dev/null >"${executed_function}"
     #run="no"
@@ -6628,193 +6669,292 @@ function secure_box() {
   elif [[ -z "${option}" || "${option}" == "--run" || "${option}" == "--run-exit" ]]; then
     run="yes"
   fi
-  if [[ ! -f "${CONF_PATH}/${FUNCNAME[0]}_executed" && "${run}" == "yes" ]]; then
-    echo "[${SCRIPT_NAME}]: Executing ${FUNCNAME[0]} ..." 2>&1 | tee -a "${REPORT_FILE}"
-    local find_au find_ar rsa_public_key
+  if [[ ! -f "${CONF_PATH}/${func_name}_executed" && "${run}" == "yes" ]]; then
+    exec_time start "${func_name}"
+    local code_version find_au find_ar user_rsa_public_key
+    _echo "$(msg cyan)Executing $(msg magenta)${func_name}()$(msg end) $(msg cyan)...$(msg end)" --name
+    _echo "$(msg red)=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=$(msg end)" --plain
+    echo ""
     # This file should exist in the root file after OS has finished installation (preseed file put this file)
-    rsa_public_key="/root/user_${SSH_USERNAME}_${BOX_HOSTNAME_FQDN}.id_rsa.pub"
-    if [ ! -f "${rsa_public_key}" ]; then
-      _echo "$(msg yellow)Warning, the RSA public key file ${rsa_public_key} not found inside operating system! Using the key from variable (warning, make sure this key is up to date) ...$(msg end)" --name
+    user_rsa_public_key="/root/user_${SSH_USERNAME}_${BOX_HOSTNAME_FQDN}.id_rsa.pub"
+    if [ ! -f "${user_rsa_public_key}" ]; then
+      if [ "${HIDE_SENSITIVE_TEXT}" == "true" ]; then
+        _echo "$(msg yellow)Warning, the RSA public key file *hidden_key_location* not found inside operating system!$(msg end)" --name
+      else
+        _echo "$(msg yellow)Warning, the RSA public key file ${user_rsa_public_key} not found inside operating system!$(msg end)" --name
+      fi
+      _echo "$(msg yellow)Note: ${_APP_SPECIFIC_NAME} will use the user_rsa_public_key from config file. Please make sure this key is up to date$(msg end)" --name
       _pause 15
-      rsa_public_key="${SSH_PUBLIC_KEY}"
+      user_rsa_public_key="${SSH_PUBLIC_KEY}"
     else
-      echo "Using RSA public key from ${rsa_public_key} for ${SSH_USERNAME} SSH login ..."
+      if [ "${HIDE_SENSITIVE_TEXT}" == "true" ]; then
+        _echo "$(msg cyan)Note: ${_APP_SPECIFIC_NAME} will use user RSA public key from *hidden_key_location* for *hidden_username* SSH login ..."
+      else
+        _echo "$(msg cyan)Note: ${_APP_SPECIFIC_NAME} will use user RSA public key from ${user_rsa_public_key} for ${SSH_USERNAME} SSH login ..."
+      fi
       # Reassign SSH_PUBLIC_KEY to the latest SSH key
-      rsa_public_key=$(cat "${rsa_public_key}")
+      user_rsa_public_key=$(cat "${user_rsa_public_key}")
     fi
-    echo "[${SCRIPT_NAME}]: Securing ${BOX_HOSTNAME_FQDN} ..." 2>&1 | tee -a "${REPORT_FILE}"
-    sleep 1
-    echo "[${SCRIPT_NAME}]: Changing root password ..." 2>&1 | tee -a "${REPORT_FILE}"
-
-    if [ "${DISTRO_ID}" == "centos" ]; then
-      echo "${ROOT_USERPASS}" | passwd --stdin "${ROOT_USERNAME}" 2>&1 | tee -a "${REPORT_FILE}"
-    elif [ "${DISTRO_ID}" == "debian" ]; then
+    echo ""
+    _echo "$(msg cyan)Changing operating system main root password ...$(msg end)" --name
+    if [[ "${DISTRO_ID}" == "centos" || "${DISTRO_ID}" == "almalinux" ]]; then
+      echo "${ROOT_USERPASS}" | passwd --stdin "${ROOT_USERNAME}"
+    elif [[ "${DISTRO_ID}" == "debian" ]]; then
       echo "${ROOT_USERNAME}:${ROOT_USERPASS}" | chpasswd
     else
-      echo "[${SCRIPT_NAME}]: Error, unknown value for distribution ID ${DISTRO_ID}" 2>&1 | tee -a "${REPORT_FILE}"
+      _echo "$(msg red)Error, unknown value for distribution ID ${DISTRO_ID}. This distribution ID is not supported!$(msg end)" --name
       _exit 147
     fi
-    echo "[${SCRIPT_NAME}]: Setting hostname to ${BOX_HOSTNAME_FQDN} ..." 2>&1 | tee -a "${REPORT_FILE}"
-    hostnamectl set-hostname "${BOX_HOSTNAME_FQDN}" 2>&1 | tee -a "${REPORT_FILE}"
-    echo "[${SCRIPT_NAME}]: [Testing]: hostname is $(hostname)" 2>&1 | tee -a "${REPORT_FILE}"
-    echo "[${SCRIPT_NAME}]: Setting timezone to ${BOX_TIMEZONE} ..." 2>&1 | tee -a "${REPORT_FILE}"
-    timedatectl set-timezone "${BOX_TIMEZONE}" 2>&1 | tee -a "${REPORT_FILE}"
-    echo "[${SCRIPT_NAME}]: [Testing]: Current date is $(date)" 2>&1 | tee -a "${REPORT_FILE}"
-
-    if [ "${DISTRO_ID}" == "centos" ]; then
-      echo "[${SCRIPT_NAME}]: Creating a username ${SSH_USERNAME} ..." 2>&1 | tee -a "${REPORT_FILE}"
+    echo ""
+    _echo "$(msg cyan)Setting up server hostname to full qualified hostname (FQHN): ${BOX_HOSTNAME_FQDN} ...$(msg end)" --name
+    hostnamectl set-hostname "${BOX_HOSTNAME_FQDN}"
+    _echo "$(msg magenta)[Testing]: current hostname is $(hostname)$(msg end)" --name
+    echo ""
+    _echo "$(msg cyan)Setting up server timezone to ${BOX_TIMEZONE} ...$(msg end)" --name
+    timedatectl set-timezone "${BOX_TIMEZONE}"
+    _echo "$(msg magenta)[Testing]: Current date is $(date)$(msg end)" --name
+    echo ""
+    if [[ "${DISTRO_ID}" == "centos" || "${DISTRO_ID}" == "almalinux" ]]; then
+      if [ "${HIDE_SENSITIVE_TEXT}" == "true" ]; then
+        _echo "$(msg cyan)Creating a non-sudo username *hidden_username* ...$(msg end)" --name
+      else
+        _echo "$(msg cyan)Creating a non-sudo username ${SSH_USERNAME} ...$(msg end)" --name
+      fi
       adduser "${SSH_USERNAME}" 2>&1 | tee -a "${REPORT_FILE}"
-      echo "[${SCRIPT_NAME}]: Setting password for ${SSH_USERNAME} ..." 2>&1 | tee -a "${REPORT_FILE}"
-      echo "${SSH_USERPASS}" | passwd --stdin "${SSH_USERNAME}" 2>&1 | tee -a "${REPORT_FILE}"
-      echo "[${SCRIPT_NAME}]: Adding user ${SSH_USERNAME} to the highest privilege group ..." 2>&1 | tee -a "${REPORT_FILE}"
+      echo ""
+      if [ "${HIDE_SENSITIVE_TEXT}" == "true" ]; then
+        _echo "$(msg cyan)Setting up password for non-sudo username *hidden_username* ...$(msg end)" --name
+      else
+        _echo "$(msg cyan)Setting up password for ${SSH_USERNAME} ...$(msg end)" --name
+      fi
+      echo "${SSH_USERPASS}" | passwd --stdin "${SSH_USERNAME}"
+      echo ""
+      if [ "${HIDE_SENSITIVE_TEXT}" == "true" ]; then
+        _echo "$(msg cyan)Adding a non-sudo user *hidden_username* to the highest privilege group ...$(msg end)" --name
+      else
+        _echo "$(msg cyan)Adding a non-sudo user ${SSH_USERNAME} to the highest privilege group ...$(msg end)" --name
+      fi
       gpasswd -a "${SSH_USERNAME}" wheel 2>&1 | tee -a "${REPORT_FILE}"
+      echo ""
     elif [ "${DISTRO_ID}" == "debian" ]; then
-      echo "[${SCRIPT_NAME}]: Creating a username ${SSH_USERNAME} ..." 2>&1 | tee -a "${REPORT_FILE}"
-      useradd "${SSH_USERNAME}" -s /bin/bash -m 2>&1 | tee -a "${REPORT_FILE}"
-      echo "[${SCRIPT_NAME}]: Setting password for ${SSH_USERNAME} ..." 2>&1 | tee -a "${REPORT_FILE}"
+      if [ "${HIDE_SENSITIVE_TEXT}" == "true" ]; then
+        _echo "$(msg cyan)Creating a non-sudo username *hidden_username* ...$(msg end)" --name
+      else
+        _echo "$(msg cyan)Creating a non-sudo username ${SSH_USERNAME} ...$(msg end)" --name
+      fi
+      useradd "${SSH_USERNAME}" -s /bin/bash -m
+      echo ""
+      if [ "${HIDE_SENSITIVE_TEXT}" == "true" ]; then
+        _echo "$(msg cyan)Setting up password for non-sudo username *hidden_username* ...$(msg end)" --name
+      else
+        _echo "$(msg cyan)Setting up password for ${SSH_USERNAME} ...$(msg end)" --name
+      fi
       echo "${SSH_USERNAME}:${SSH_USERPASS}" | chpasswd
-      echo "[${SCRIPT_NAME}]: Adding user ${SSH_USERNAME} to the highest privilege group ..." 2>&1 | tee -a "${REPORT_FILE}"
-      usermod -aG sudo "${SSH_USERNAME}" 2>&1 | tee -a "${REPORT_FILE}"
+      echo ""
+      if [ "${HIDE_SENSITIVE_TEXT}" == "true" ]; then
+        _echo "$(msg cyan)Adding a non-sudo user *hidden_username* to the highest privilege group ...$(msg end)" --name
+      else
+        _echo "$(msg cyan)Adding a non-sudo user ${SSH_USERNAME} to the highest privilege group ...$(msg end)" --name
+      fi
+      usermod -aG sudo "${SSH_USERNAME}"
+      echo ""
     else
-      echo "[${SCRIPT_NAME}]: Error, unknown value for distribution ID ${DISTRO_ID}" 2>&1 | tee -a "${REPORT_FILE}"
+      _echo "$(msg red)Error, unknown value for distribution ID ${DISTRO_ID}. This distribution ID is not supported$(msg end)" --name
       _exit 147
     fi
-    echo "[${SCRIPT_NAME}]: Testing ${SSH_USERNAME} log in ..." 2>&1 | tee -a "${REPORT_FILE}"
-    echo "[${SCRIPT_NAME}]: =~=~=~=~=~=~=~=~=~=~=~=~=~=" 2>&1 | tee -a "${REPORT_FILE}"
-    sudo -H -u "${SSH_USERNAME}" bash -c 'echo "[Testing]: Hello, I am ${USER}, with uid ${UID}"' 2>&1 | tee -a "${REPORT_FILE}"
-    echo "[${SCRIPT_NAME}]: =~=~=~=~=~=~=~=~=~=~=~=~=~=" 2>&1 | tee -a "${REPORT_FILE}"
-    # TIP: To remove this user we can do this:
-    # userdel -r "${SSH_USERNAME}" , where -r will also delete home directory
 
-    echo "[${SCRIPT_NAME}]: Creating SSH private key using the name of ${SSH_USERNAME} ..." 2>&1 | tee -a "${REPORT_FILE}"
-    echo "[${SCRIPT_NAME}]: Creating a directory of .ssh in ${SSH_USERNAME}'s home directory ..." 2>&1 | tee -a "${REPORT_FILE}"
+    # These works with ubuntu, debian, centos (will check more with other distro)
+    if [[ "${HIDE_SENSITIVE_TEXT}" == "true" ]]; then
+      _echo "$(msg cyan) Testing login a non-sudo user *hidden_username* ...$(msg end)" --name
+      _echo "$(msg magenta) =~=~=~=~=~=~=~=~=~=~=~=~=~=$(msg blue)" --name
+      sudo -H -u "${SSH_USERNAME}" bash -c 'echo "[Testing]: Hello, I am *hidden_username*, with uid *hidden_uuid*"'
+      _echo "$(msg magenta) =~=~=~=~=~=~=~=~=~=~=~=~=~=$(msg blue)" --name
+
+    else
+      _echo "$(msg cyan) Testing login a non-sudo user ${SSH_USERNAME} ...$(msg end)" --name
+      _echo "$(msg magenta) =~=~=~=~=~=~=~=~=~=~=~=~=~=$(msg blue)" --name
+      sudo -H -u "${SSH_USERNAME}" bash -c 'echo "[Testing]: Hello, I am ${USER}, with uid ${UID}"'
+      _echo "$(msg magenta) =~=~=~=~=~=~=~=~=~=~=~=~=~=$(msg blue)" --name
+    fi
+
+    # TIP: To remove this non-sudo user we can do this:
+    # userdel -r "${SSH_USERNAME}" , where -r will also delete his home directory
+    if [[ "${HIDE_SENSITIVE_TEXT}" == "true" ]]; then
+      _echo "$(msg cyan)Creating .ssh home directory for a non-sudo user *hidden_username* to store SSH public key files ...$(msg end)" --name
+
+    else
+      _echo "$(msg cyan)Creating .ssh home directory for a non-sudo user ${SSH_USERNAME} to store SSH public key files ...$(msg end)" --name
+    fi
     sudo -H -u "${SSH_USERNAME}" bash -c "mkdir -p ~/.ssh"
-    echo "[${SCRIPT_NAME}]: Creating a file .ssh/authorized_keys in ${SSH_USERNAME}'s home directory ..." 2>&1 | tee -a "${REPORT_FILE}"
+    _echo "$(msg cyan)Creating an authorized key file ~/.ssh/authorized_keys ...$(msg end)" --name
     sudo -H -u "${SSH_USERNAME}" bash -c "touch ~/.ssh/authorized_keys"
-
-    echo "[${SCRIPT_NAME}]: Copying the public key into ~/.ssh/authorized_keys ..."
-
-    sudo -H -u "${SSH_USERNAME}" bash -c "echo ${rsa_public_key} >~/.ssh/authorized_keys"
-
-    echo "[${SCRIPT_NAME}]: Changing .ssh/authorized_keys permission to chmod 700 ..." 2>&1 | tee -a "${REPORT_FILE}"
+    _echo "$(msg cyan)Writing an RSA public key into ~/.ssh/authorized_keys ...$(msg end)" --name
+    sudo -H -u "${SSH_USERNAME}" bash -c "echo ${user_rsa_public_key} >~/.ssh/authorized_keys"
+    echo "[${SCRIPT_NAME}]: Changing ~/.ssh/authorized_keys permission to chmod 700 ..."
     sudo -H -u "${SSH_USERNAME}" bash -c "chmod 700 ~/.ssh/authorized_keys"
 
     #sed -i "/AllowUsers/c\AllowUsers ${SSH_USERNAME}" /etc/ssh/sshd_config
-    # For user
+    # For non-sudo user
     find_au=$(grep -w "AllowUsers ${SSH_USERNAME}" /etc/ssh/sshd_config)
     if [[ -n "${find_au}" ]]; then
-      _echo "$(msg yellow)[Skipped] user ${SSH_USERNAME} is already set as AllowUsers list in sshd_config ...$(msg end)" --name
+      if [[ "${HIDE_SENSITIVE_TEXT}" == "true" ]]; then
+        _echo "$(msg yellow)[Skipped] the non-sudo user *hidden_user* is already set as AllowUsers list in sshd_config ...$(msg end)" --name
+      else
+        _echo "$(msg yellow)[Skipped] the non-sudo user ${SSH_USERNAME} is already set as AllowUsers list in sshd_config ...$(msg end)" --name
+      fi
     else
       # Put at the bottom
-      _echo "$(msg yellow)Adding user ${SSH_USERNAME} to AllowUsers list in sshd_config ...$(msg end)" --name
+      if [[ "${HIDE_SENSITIVE_TEXT}" == "true" ]]; then
+        _echo "$(msg yellow)Adding a non-sudo user *hidden_user* to AllowUsers list in sshd_config ...$(msg end)" --name
+      else
+        _echo "$(msg yellow)Adding a non-sudo user ${SSH_USERNAME} to AllowUsers list in sshd_config ...$(msg end)" --name
+      fi
       echo "AllowUsers ${SSH_USERNAME}" >>/etc/ssh/sshd_config
-
     fi
-    # For root
+    echo ""
+    # For root user
     find_ar=$(grep -w "AllowUsers ${ROOT_USERNAME}" /etc/ssh/sshd_config)
     if [[ -n "${find_ar}" ]]; then
-      _echo "$(msg yellow)[Skipped] user ${ROOT_USERNAME} is already set as AllowUsers list in sshd_config ...$(msg end)" --name
+      if [[ "${HIDE_SENSITIVE_TEXT}" == "true" ]]; then
+        _echo "$(msg yellow)[Skipped] root user *hidden_user* is already set as AllowUsers list in sshd_config ...$(msg end)" --name
+      else
+        _echo "$(msg yellow)[Skipped] root user ${ROOT_USERNAME} is already set as AllowUsers list in sshd_config ...$(msg end)" --name
+      fi
     else
       # Put at the bottom
-      _echo "$(msg yellow)Adding user ${ROOT_USERNAME} to AllowUsers list in sshd_config ...$(msg end)" --name
+      if [[ "${HIDE_SENSITIVE_TEXT}" == "true" ]]; then
+        _echo "$(msg yellow)Adding root user *hidden_user* to AllowUsers list in sshd_config ...$(msg end)" --name
+      else
+        _echo "$(msg yellow)Adding root user ${ROOT_USERNAME} to AllowUsers list in sshd_config ...$(msg end)" --name
+      fi
       echo "AllowUsers ${ROOT_USERNAME}" >>/etc/ssh/sshd_config
+    fi
+    echo ""
+    # Note: Temporarily allow root login only with cert and with the setting of PermitRootLogin to prohibited-password in sshd_config during installation.
+    # Note: The operating system installation might have included the setting PermitRootLogin prohibited-password
+    # Note: After finished installation set PermitRootLogin to no
+    # This command is left for reference:
+    # echo "[${SCRIPT_NAME}]: Disabling root login via sshd_config ..." 2>&1 | tee -a "${REPORT_FILE}"
+    # sed -i '/^PermitRootLogin/s/yes/no/' /etc/ssh/sshd_config
 
+    _echo "$(msg cyan)Disabling Password authentication via sshd_config ...$(msg end)" --name
+    sed -i "s/^#PasswordAuthentication.*/PasswordAuthentication no/" /etc/ssh/sshd_config
+    echo ""
+    _echo "$(msg cyan)Disabling empty password login via sshd_config ...$(msg end)" --name
+    sed -i "s/^#PermitEmptyPasswords.*/PermitEmptyPasswords no/" /etc/ssh/sshd_config
+    echo ""
+
+    if [[ "${HIDE_SENSITIVE_TEXT}" == "true" ]]; then
+      _echo "$(msg cyan)Changing SSH default port from 22 to *hidden_port* ...$(msg end)" --name
+
+    else
+      _echo "$(msg cyan)Changing SSH default port from 22 to ${SSH_PORT} ...$(msg end)" --name
     fi
 
-    # Don't permit root login only after finish installation (use cert login only with prohibited-password)
-    # This one already enabled in operating system level ISO,
-    # but recommend to use prohibited-password during installation. When finish installation use PermitRootLogin no
-    #echo "[${SCRIPT_NAME}]: Disabling root login via sshd_config ..." 2>&1 | tee -a "${REPORT_FILE}"
-    #sed -i '/^PermitRootLogin/s/yes/no/' /etc/ssh/sshd_config
-    echo "[${SCRIPT_NAME}]: Disabling Password authentication via sshd_config ..." 2>&1 | tee -a "${REPORT_FILE}"
-    sed -i "s/^#PasswordAuthentication.*/PasswordAuthentication no/" /etc/ssh/sshd_config
-    echo "[${SCRIPT_NAME}]: Disabling empty password login via sshd_config ..." 2>&1 | tee -a "${REPORT_FILE}"
-    sed -i "s/^#PermitEmptyPasswords.*/PermitEmptyPasswords no/" /etc/ssh/sshd_config
-
-    echo "[${SCRIPT_NAME}]: Changing SSH default port from 22 to ${SSH_PORT} so CSF will automatically add this PORT during installation ..." 2>&1 | tee -a "${REPORT_FILE}"
+    _echo "$(msg yellow)Note, CSF will automatically add this port in allowed list during installation ...$(msg end)" --name
     sed -i "s/#Port 22/Port ${SSH_PORT}/" /etc/ssh/sshd_config
-    echo "[${SCRIPT_NAME}]: Changing SSH to listen only to IPv4 (disable IPv6 SSH login) ..." 2>&1 | tee -a "${REPORT_FILE}"
+    echo ""
+
+    _echo "$(msg yellow)Changing SSH to only listen to IPv4 (disable IPv6 SSH login) ...$(msg end)" --name
     sed -i "s/^#AddressFamily.*/AddressFamily inet/" /etc/ssh/sshd_config
+    echo ""
     # Adding login banner
     echo "[${SCRIPT_NAME}]: Setting login banner for issue and issue.net ..." 2>&1 | tee -a "${REPORT_FILE}"
+    create_file "ssh-banner1" "/etc/issue"
+    echo ""
+    create_file "ssh-banner1" "/etc/issue.net"
+    echo ""
 
-    {
-      echo "Legal Authentication Banner:"
-      echo "---------------------------"
-      echo "=~=~=~=~=~=~=~=~=~=~=~=~=~00000~=~=~=~=~=~=~=~=~+~=~=~=~=~+~="
-      echo "Welcome to ${COMPANY_ID}. This is the ${BOX_HOSTNAME^^} Server"
-      echo "The ${BOX_HOSTNAME^^} consists of ENERGY where it has been created"
-      echo "perfectly with a certain EQUATIONS from NOTHING. Human"
-      echo "beings have changed the original EQUATIONS to their own"
-      echo "EQUATIONS. The ENERGY consists of TIME where TIME is MONEY"
-      echo "and MONEY is part of the RESOURCES. If you need SOMETHING,"
-      echo "the most ethical way in the world of humanity is asking"
-      echo "for SOMETHING instead of manipulating the RESOURCES."
-      echo "Disconnect now if you are not one of the team at Sofibox"
-      echo "=~=~=~=~=~=~=~=~=~=~=~=~=~00000~=~=~=~=~=~=~=~=~+~=~=~=~=~+~="
-      echo "Do not waste your RESOURCES for NOTHING - MaXi32, 2001"
-      echo "=============== We turned on 1 LiGHT DaRK =============="
-      echo ""
-      echo "SECURE TAG: access, legal, law, connect, enforce, system"
-    } >/etc/issue
-    cp -p /etc/issue /etc/issue.net
-    echo "[${SCRIPT_NAME}]: Enabling login banner in sshd_config ..." 2>&1 | tee -a "${REPORT_FILE}"
+    _echo "$(msg cyan)Enabling login banner in sshd_config ...$(msg end)" --name
     sed -i "s/^#Banner none/Banner \/etc\/issue/" /etc/ssh/sshd_config
+    echo ""
+    # Initial firewall configuration
+    if [[ "${DISTRO_ID}" == "centos" || "${DISTRO_ID}" == "almalinux" ]]; then
+      if [[ "${HIDE_SENSITIVE_TEXT}" == "true" ]]; then
+        _echo "$(msg cyan)Adding SSH port *hidden_port*/tcp to firewalld ...$(msg end)" --name
+        sudo firewall-cmd --quiet --permanent --zone=public --add-port="${SSH_PORT}/tcp"
+        echo ""
+        _echo "$(msg cyan)Adding an IP address *hidden_ip* from config file in firewalld to prevent locked out during setup$(msg end)" --name
+        sudo firewall-cmd --quiet --permanent --add-source="${TEMP_ALLOW_IP}"
+        echo ""
+        _echo "$(msg cyan)Reloading firewall-cmd silently ...$(msg end)" --name
+        firewall-cmd --quiet --reload
+        echo ""
+      else
+        _echo "$(msg cyan)Adding SSH port ${SSH_PORT}/tcp to firewalld ...$(msg end)" --name
+        sudo firewall-cmd --permanent --zone=public --add-port="${SSH_PORT}/tcp"
+        echo ""
+        _echo "$(msg cyan)Adding an IP address ${TEMP_ALLOW_IP} from config file in firewalld to prevent locked out during setup$(msg end)" --name
+        sudo firewall-cmd --permanent --add-source="${TEMP_ALLOW_IP}"
+        echo ""
+        _echo "$(msg cyan)Reloading firewall-cmd ...$(msg end)" --name
+        firewall-cmd --reload
+        echo ""
+      fi
 
-    if [ "${DISTRO_ID}" == "centos" ]; then
-      echo "[${SCRIPT_NAME}]: Adding SSH port ${SSH_PORT}/tcp to firewalld ..." 2>&1 | tee -a "${REPORT_FILE}"
-      sudo firewall-cmd --permanent --zone=public --add-port="${SSH_PORT}/tcp" 2>&1 | tee -a "${REPORT_FILE}"
-      echo "[${SCRIPT_NAME}]: Adding an IP from ${TEMP_ALLOW_IP} in firewalld to prevent locked out during setup" 2>&1 | tee -a "${REPORT_FILE}"
-      sleep 1
-      sudo firewall-cmd --permanent --add-source="${TEMP_ALLOW_IP}" >&1 | tee -a "${REPORT_FILE}"
-      firewall-cmd --reload
     elif [ "${DISTRO_ID}" == "debian" ]; then
-      echo "[${SCRIPT_NAME}]: [Notice]: The default debian installation doesn't include firewall. Installing ufw to protect protect server during setup ..." 2>&1 | tee -a "${REPORT_FILE}"
-      apt install ufw 2>&1 | tee -a "${REPORT_FILE}"
-      echo "[${SCRIPT_NAME}]: Adding SSH port ${SSH_PORT}/tcp to ufw ..." 2>&1 | tee -a "${REPORT_FILE}"
-      sudo ufw allow "${SSH_PORT}/tcp" 2>&1 | tee -a "${REPORT_FILE}"
-      echo "[${SCRIPT_NAME}]: Adding an IP from ${TEMP_ALLOW_IP} in ufw to prevent locked out during setup" 2>&1 | tee -a "${REPORT_FILE}"
-      sleep 1
-      sudo ufw allow from "${TEMP_ALLOW_IP}" 2>&1 | tee -a "${REPORT_FILE}"
-      echo "[${SCRIPT_NAME}]: Enabling ufw firewall ..." 2>&1 | tee -a "${REPORT_FILE}"
-      sudo ufw --force enable 2>&1 | tee -a "${REPORT_FILE}"
+      _echo "$(msg yellow)Warning, the default debian installation doesn't include any firewalls. Debian will be installed automatically if it does not exist ...$(msg end)" --name
+      required "debian@@apt:ufw"
+      echo ""
+      if [[ "${HIDE_SENSITIVE_TEXT}" == "true" ]]; then
+        _echo "$(msg cyan)Adding SSH port *hidden_port*/tcp to ufw...$(msg end)" --name
+      else
+        _echo "$(msg cyan)Adding SSH port ${SSH_PORT}/tcp to ufw...$(msg end)" --name
+      fi
+      sudo ufw allow "${SSH_PORT}/tcp"
+      echo ""
+      if [[ "${HIDE_SENSITIVE_TEXT}" == "true" ]]; then
+        _echo "$(msg cyan)Adding an IP address *hidden_ip* from config file in ufw to prevent locked out during setup$(msg end)" --name
+      else
+        _echo "$(msg cyan)Adding an IP address ${TEMP_ALLOW_IP} from config file in ufw to prevent locked out during setup$(msg end)" --name
+      fi
+      sudo ufw allow from "${TEMP_ALLOW_IP}"
+      echo ""
+      _echo "$(msg cyan)Enabling ufw firewall ...$(msg end)" --name
+      sudo ufw --force enable
+      echo ""
     else
-      echo "[${SCRIPT_NAME}]: Error, unknown value for distribution ID ${DISTRO_ID}" 2>&1 | tee -a "${REPORT_FILE}"
+      _echo "$(msg red)Error, unknown value for distribution ID ${DISTRO_ID}. This distribution ID is not supported!$(msg end)" --name
       _exit 147
     fi
-    # Another SSHD tweaks
-    echo "[${SCRIPT_NAME}]: Hardening other settings for SSHD_CONFIG ..." 2>&1 | tee -a "${REPORT_FILE}"
-    # Recommended by lynis
-    echo "[${SCRIPT_NAME}]: Setting SSH LogLevel to VERBOSE ..." 2>&1 | tee -a "${REPORT_FILE}"
-    sed -i "s/^#LogLevel.*/LogLevel VERBOSE/" /etc/ssh/sshd_config
-    #sleep 1
-    # Recommended by lynis
-    echo "[${SCRIPT_NAME}]: Setting SSH MaxAuthTries to 5 ..." 2>&1 | tee -a "${REPORT_FILE}"
-    sed -i "s/^#MaxAuthTries.*/MaxAuthTries 5/" /etc/ssh/sshd_config
-    #sleep 1
-    # Recommended by lynis
-    echo "[${SCRIPT_NAME}]: Setting SSH MaxSessions to 10 ..." 2>&1 | tee -a "${REPORT_FILE}"
-    sed -i "s/^#MaxSessions.*/MaxSessions 10/" /etc/ssh/sshd_config
-    #sleep 1
-    # This one recommended by CSF security page:
-    echo "[${SCRIPT_NAME}]: Setting SSH UseDNS to no ..." 2>&1 | tee -a "${REPORT_FILE}"
-    sed -i "s/^#UseDNS.*/UseDNS no/" /etc/ssh/sshd_config
-    #sleep 1
 
+    # Hardening other settings for SSHD_CONFIG
+    # Recommended by lynis
+    _echo "$(msg cyan)Setting SSH LogLevel variable in sshd_config to VERBOSE ...$(msg end)" --name
+    sed -i "s/^#LogLevel.*/LogLevel VERBOSE/" /etc/ssh/sshd_config
+    echo ""
+    # Recommended by lynis
+    _echo "$(msg cyan)Setting SSH MaxAuthTries variable in sshd_config to 5 ...$(msg end)" --name
+    sed -i "s/^#MaxAuthTries.*/MaxAuthTries 5/" /etc/ssh/sshd_config
+    echo ""
+    # Recommended by lynis
+    _echo "$(msg cyan)Setting SSH MaxSessions variable in sshd_config to 10 ...$(msg end)" --name
+    sed -i "s/^#MaxSessions.*/MaxSessions 10/" /etc/ssh/sshd_config
+    echo ""
+    # This one recommended by CSF security page:
+    _echo "$(msg cyan)Setting SSH UseDNS variable in sshd_config to no ...$(msg end)" --name
+    sed -i "s/^#UseDNS.*/UseDNS no/" /etc/ssh/sshd_config
+    echo ""
     # Restart SSHD
-    echo "[${SCRIPT_NAME}]: Restarting sshd service ..." 2>&1 | tee -a "${REPORT_FILE}"
-    # This works with debian too
-    systemctl reload sshd 2>&1 | tee -a "${REPORT_FILE}"
-    echo "[${SCRIPT_NAME}]: [OK]: Now ${BOX_HOSTNAME_FQDN} is secured with SSH. You can login using new port: ${SSH_PORT}" 2>&1 | tee -a "${REPORT_FILE}"
-    check_finish_reboot "${FUNCNAME[0]}"
+    _echo "$(msg cyan)Restarting sshd service to apply new settings ...$(msg end)" --name
+    # This works with debian, ubuntu and centos
+    systemctl reload sshd
+    echo ""
+    _echo "$(msg green)[OK]: The host ${BOX_HOSTNAME_FQDN} is now secured with basic security hardening protection$(msg end)" --name
+    echo ""
+    check_finish_reboot "${func_name}"
+    exec_time total "${func_name}"
   else
-    echo "[${SCRIPT_NAME}]: [Skipped]: ${FUNCNAME[0]} has ran before" 2>&1 | tee -a "${REPORT_FILE}"
-    echo "=~=~=~=~=~=~=~=~=~" 2>&1 | tee -a "${REPORT_FILE}"
+    echo ""
+    _echo "$(msg red)=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=$(msg end)" --plain
+    _echo "$(msg yellow)[Skipped]: $(msg magenta)${func_name}()$(msg end) $(msg yellow)has ran before$(msg end)" --name
   fi
+
   if [[ "${option}" == "--run-force-exit" || "${option}" == "--run-exit" ]]; then
-    _echo "$(msg yellow)Warning, script terminated due to the supplied option ${option}$(msg end)" --name
-    exit 0
+    _echo "$(msg yellow)Note: this script is terminated due to the supplied option ${option} from function $(msg magenta)${func_name}()$(msg end) $(msg end)" --name
+    _exit 0
   fi
+  echo ""
 }
 
 # This one configuration hostname, network etc.
@@ -6843,7 +6983,7 @@ function configure_net() {
     # Download this from git better
     if [ -d "${DATA_PATH}/maxinet" ]; then
       # This is bind or bind setting called named.conf. If we put this first in /etc, when install bind it will use this setting
-      # Bind setting is the same config for centos, debian
+      # Bind setting is the same config for centos, almalinux, debian and ubuntu
       echo "[${SCRIPT_NAME}]: Copying modified named.conf from maxinet to /etc/named.conf ..." 2>&1 | tee -a "${REPORT_FILE}"
       cp "${DATA_PATH}/maxinet/storage/os/${DISTRO_ID}/etc/named.conf" /etc/named.conf
     else
@@ -6952,7 +7092,7 @@ function configure_net() {
         sleep 1
 
         echo "[${SCRIPT_NAME}]: Recompiling grub boot loader ..." 2>&1 | tee -a "${REPORT_FILE}"
-        if [ "${DISTRO_ID}" == "centos" ]; then
+        if [[ "${DISTRO_ID}" == "centos" || "${DISTRO_ID}" == "almalinux" ]]; then
           # Recompile grub centos command
           grub2-mkconfig -o /boot/grub2/grub.cfg 2>&1 | tee -a "${REPORT_FILE}"
           # Need to reboot here
@@ -7032,9 +7172,9 @@ function configure_net2() {
     echo "[${SCRIPT_NAME}]: Executing ${FUNCNAME[0]} ..." 2>&1 | tee -a "${REPORT_FILE}"
     local old_host lh_count
     # So, at this stage we know our LAN would be ${NIC_INTERFACE_NAME} then we can insert network information directly into ${NIC_INTERFACE_NAME}
-    if [ "${DISTRO_ID}" == "centos" ]; then
+    if [[ "${DISTRO_ID}" == "centos" || "${DISTRO_ID}" == "almalinux" ]]; then
       # Create network static IP configuration
-      echo "[${SCRIPT_NAME}]: Inserting CentOS static IP information for ${NIC_INTERFACE_NAME} at /etc/sysconfig/network-scripts/ifcfg-${NIC_INTERFACE_NAME} ..." 2>&1 | tee -a "${REPORT_FILE}"
+      echo "[${SCRIPT_NAME}]: Inserting static IP information for ${NIC_INTERFACE_NAME} at /etc/sysconfig/network-scripts/ifcfg-${NIC_INTERFACE_NAME} ..." 2>&1 | tee -a "${REPORT_FILE}"
       {
         echo "# ==============================================="
         echo "# This configuration file was generated by ${SCRIPT_NAME}"
@@ -7120,7 +7260,7 @@ function configure_net2() {
       _exit 147
     fi
 
-    # This insertion works for both centos and debian so there is no need to put OS condition
+    # This insertion works for both centos, almalinux, debian and ubuntu so there is no need to put OS condition
     echo "[${SCRIPT_NAME}]: Inserting name server information in /etc/resolv.conf ..." 2>&1 | tee -a "${REPORT_FILE}"
     {
       echo "# ==============================================="
@@ -7492,8 +7632,8 @@ function upgrade_os() {
   if [[ ! -f "${CONF_PATH}/${FUNCNAME[0]}_executed" && "${run}" == "yes" ]]; then
     echo "[${SCRIPT_NAME}]: Executing ${FUNCNAME[0]} ..." 2>&1 | tee -a "${REPORT_FILE}"
     # General OS upgrade
-    if [ "${DISTRO_ID}" == "centos" ]; then
-      echo "[${SCRIPT_NAME}]: Updating CentOS system ..." 2>&1 | tee -a "${REPORT_FILE}"
+    if [[ "${DISTRO_ID}" == "centos" ]]; then
+      echo "[${SCRIPT_NAME}]: Updating operating system ..." 2>&1 | tee -a "${REPORT_FILE}"
       sudo dnf -y update 2>&1 | tee -a "${REPORT_FILE}"
       sudo dnf -y install epel-release 2>&1 | tee -a "${REPORT_FILE}"
       # Remember now use powertools not PowerTools. This is bug found in CentOS repo 2 days ago: https://bugs.centos.org/view.php?id=17920
@@ -13927,9 +14067,10 @@ function setup() {
     # Note 1: Clone all setup script from git (recommend to run as --run-force instead of --run so we always get the latest security update)
     get_latest_code --run-force
     # Note 1: Get the latest security codes from maxicode (recommend to run as --run-force instead of --run so we always get the latest security update)
-    update_latest_maxicode --run-force-exit
+    update_latest_maxicode --run-force
     # Note 1: This call contains security hardening server
-    secure_box --run-exit
+    secure_box --run-force-exit
+    # TODO Test Debug from here
     # Note 1: This will configure grub such as setting up password for grub bootloader
     # Note 2: Grub bootloader password can also be used in preseed file, but having preseed file during installation is a bad idea.
     configure_grub --run
