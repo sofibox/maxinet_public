@@ -5,7 +5,7 @@
 # Author: Arafat Ali | Email: webmaster@sofibox.com | Website: sofibox.com
 _APP_SPECIFIC_NAME="Maxinet"
 # Note some minor versions are not published
-_APP_VERSION="0.5.4.5"
+_APP_VERSION="0.5.4.6"
 _APP_STATUS="alpha"
 _APP_VERSION_STATUS="${_APP_VERSION}-${_APP_STATUS}"
 
@@ -80,11 +80,11 @@ function trap_cleanup() {
     echo ""
     echo "Remember you can always resume installation with the following command:"
     echo "For local installation: ${SCRIPT_NAME} --setup 2>&1 | tee ${SCRIPT_NAME}.log"
-    echo "For remote installation: ${SCRIPT_NAME} --push-ssh-script --sp ${BOX_HOSTNAME_FQDN}:${SSH_PORT_LABEL} --gu root:${ROOT_USERNAME_LABEL} --push-maxinet-setup-script"
+    echo "For remote installation: ${SCRIPT_NAME} --push-ssh-script --sp ${BOX_HOSTNAME_FQDN}:${LABEL_SSH_PORT} --gu root:${LABEL_ROOT_USERNAME} --push-maxinet-setup-script"
     echo ""
     echo "SSH user login guide:"
-    echo "To login as root user: ${SCRIPT_NAME} --ssh-login ${ROOT_USERNAME_LABEL}"
-    echo "To login as SSH user: ${SCRIPT_NAME} --ssh-login ${SSH_USERNAME_LABEL}"
+    echo "To login as root user: ${SCRIPT_NAME} --ssh-login ${LABEL_ROOT_USERNAME}"
+    echo "To login as SSH user: ${SCRIPT_NAME} --ssh-login ${LABEL_SSH_USERNAME}"
     echo ""
     echo "Server LUKS unlock guide:"
     echo "To unlock LUKS Disk encryption: ${SCRIPT_NAME} --luks-unlock"
@@ -124,16 +124,16 @@ function help() {
   echo "To start/resume remote installation:"
   echo "Syntax: ${SCRIPT_NAME} --ssh-login <fqdn>:<ssh_port> <user_role>:<user_name> <local_script_to_push_for_installation>"
   echo "eg:"
-  echo "${SCRIPT_NAME} --ssh-login \"${BOX_HOSTNAME_FQDN}:${SSH_PORT}\" \"root:${ROOT_USERNAME_LABEL}\" \"${CODE_PATH}/ssh_scripts/maxinet_setup.sh\""
+  echo "${SCRIPT_NAME} --ssh-login \"${BOX_HOSTNAME_FQDN}:${LABEL_SSH_PORT}\" \"root:${LABEL_ROOT_USERNAME}\" \"${CODE_PATH}/ssh_scripts/maxinet_setup.sh\""
   echo ""
   echo "To unlock LUKS Disk encryption:"
   echo "Syntax: ${SCRIPT_NAME} --ssh-luks-unlock <DROP_BEAR_PORT> \"<LUKS_PASS>\""
   echo "eg:"
   echo "${SCRIPT_NAME} --ssh-luks-unlock ${DROP_BEAR_PORT} \"${LUKS_PASS}\""
   echo ""
-  echo "To login as root user: ${SCRIPT_NAME} --ssh-login \"${BOX_HOSTNAME_FQDN}:${SSH_PORT}\" \"user:root\""
+  echo "To login as root user: ${SCRIPT_NAME} --ssh-login \"${BOX_HOSTNAME_FQDN}:${LABEL_SSH_PORT}\" \"user:root\""
   echo ""
-  echo "To login as SSH user: ${SCRIPT_NAME} --ssh-login \"${BOX_HOSTNAME_FQDN}:${SSH_PORT}\" \"root:SSH_USERNAME\""
+  echo "To login as SSH user: ${SCRIPT_NAME} --ssh-login \"${BOX_HOSTNAME_FQDN}:${LABEL_SSH_PORT}\" \"root:${LABEL_SSH_USERNAME}\""
 
 }
 
@@ -696,7 +696,7 @@ function init_server() {
     # Boot into the new OS
     _echo "Booting into operating system (make sure to unlock LUKS)" --name
     linode_api_admin boot-linode --linode-label "${BOX_HOSTNAME_FQDN}" --linode-config-label "${LINODE_OS_CONFIG_LABEL}"
-    _echo "$(msg cyan)Checking if initial boot port ${DROP_BEAR_PORT_LABEL} is open from --server ${BOX_HOSTNAME_FQDN_LABEL} ...$(msg end)" --name
+    _echo "$(msg cyan)Checking if initial boot port ${DROP_BEAR_PORT_LABEL} is open from --server ${LABEL_BOX_HOSTNAME_FQDN} ...$(msg end)" --name
     count=0
     while :; do
       sleep 1
@@ -727,7 +727,7 @@ function init_server() {
       _echo "$(msg yellow)Note: The server will be turned off, if you want to continue remote setup, trigger the following commands: $(msg end)" --name
       _echo "$(msg magenta)1) Turn on the server: maxinet --start-server$(msg end)" --plain
       _echo "$(msg magenta)2) Unlock server LUKS disk encrypted: maxinet --luks-unlock$(msg end)" --plain
-      _echo "$(msg magenta)3) Automatically execute --setup on remote server: maxinet --ssh-api push-script --server-port ${BOX_HOSTNAME_FQDN_LABEL}:${SSH_PORT_LABEL} --group-user root:${SSH_USERNAME_LABEL} --push-maxinet-setup-script$(msg end)" --plain
+      _echo "$(msg magenta)3) Automatically execute --setup on remote server: maxinet --ssh-api push-script --server-port ${LABEL_BOX_HOSTNAME_FQDN}:${LABEL_SSH_PORT} --group-user root:${LABEL_SSH_USERNAME} --push-maxinet-setup-script$(msg end)" --plain
       echo ""
       _echo "OR login into remote server and manually run --setup with the following command:" --name
       _echo "$(msg magenta)1) Turn on server: maxinet --ssh-login root$(msg end)" --plain
@@ -1047,7 +1047,6 @@ function ssh_api() {
       _echo "$(msg cyan)Unlocking LUKS encrypted disk on boot via SSH port ${port} ...$(msg end)" --name
     fi
     if [ -f "${rsa_key}" ]; then
-
       # Do not use -q, need verbose for this connection to debug error
       ssh -o "StrictHostKeyChecking no" -oAddressFamily=inet -p "${port}" -i "${rsa_key}" "${linode_label}" "echo -ne \"${password}\" > /lib/cryptsetup/passfifo" 2> >(grep -v 'Permanently added' 1>&2)
       retval=$?
@@ -1071,11 +1070,11 @@ function ssh_api() {
       rsa_key="${private_key_file}"
 
       # This will check available port even if NO LUKS encrypted
-      _echo "$(msg cyan)Checking whether ${BOX_HOSTNAME_FQDN}'s port ${SSH_PORT} is online ...$(msg end)" --name
+      _echo "$(msg cyan)Checking whether ${BOX_HOSTNAME_FQDN}'s port ${LABEL_SSH_PORT} is online ...$(msg end)" --name
       if is_valid available_port "${BOX_HOSTNAME_FQDN}" "${SSH_PORT}"; then
-        _echo "$(msg green)OK, the port ${SSH_PORT_LABEL} is available at ${BOX_HOSTNAME_FQDN_LABEL} $(msg end)" --name
+        _echo "$(msg green)OK, the port ${LABEL_SSH_PORT} is available at ${LABEL_BOX_HOSTNAME_FQDN} $(msg end)" --name
       else
-        _echo "$(msg yelllow)Warning, the --server-port ${BOX_HOSTNAME_FQDN_LABEL}:${SSH_PORT_LABEL} is not available!$(msg end)" --name
+        _echo "$(msg yelllow)Warning, the --server-port ${LABEL_BOX_HOSTNAME_FQDN}:${LABEL_SSH_PORT} is not available!$(msg end)" --name
 
         _echo "$(msg cyan)Checking server ${BOX_HOSTNAME_FQDN}'s online status ...$(msg end)" --name
         linode_status=$(linode_api_admin get-linode-status --linode-label "${BOX_HOSTNAME_FQDN}" --scripting)
@@ -1086,13 +1085,13 @@ function ssh_api() {
         ssh_api luks-unlock --port "${DROP_BEAR_PORT}" --password "${LUKS_PASS}"
         sleep 7
         if is_valid available_port "${BOX_HOSTNAME_FQDN}" "${SSH_PORT}"; then
-          _echo "$(msg green)OK, the port ${SSH_PORT_LABEL} is available at ${BOX_HOSTNAME_FQDN_LABEL} $(msg end)" --name
+          _echo "$(msg green)OK, the port ${LABEL_SSH_PORT} is available at ${LABEL_BOX_HOSTNAME_FQDN} $(msg end)" --name
         else
-          _echo "$(msg red)Error, the --server-port ${BOX_HOSTNAME_FQDN_LABEL}:${SSH_PORT_LABEL} is not available (make sure server is online or port ${SSH_PORT} is available)$(msg end)" --name
+          _echo "$(msg red)Error, the --server-port ${LABEL_BOX_HOSTNAME_FQDN}:${LABEL_SSH_PORT} is not available (make sure server is online or port ${LABEL_SSH_PORT} is available)$(msg end)" --name
           _exit 147
         fi
       fi
-      _echo "$(msg cyan)Logging into SSH server at ${ROOT_USERNAME_LABEL}@${BOX_HOSTNAME_FQDN_LABEL}:${SSH_PORT_LABEL}... $(msg end)" --name
+      _echo "$(msg cyan)Logging into SSH server at ${LABEL_ROOT_USERNAME}@${LABEL_BOX_HOSTNAME_FQDN}:${LABEL_SSH_PORT}... $(msg end)" --name
       ssh -o "StrictHostKeyChecking no" -i "${rsa_key}" -p "${SSH_PORT}" "${ROOT_USERNAME}@${BOX_HOSTNAME_FQDN}"
     elif [ "${option}" == "${SSH_USERNAME}" ]; then
       private_key_name="user_${SSH_USERNAME}_${BOX_HOSTNAME_FQDN}.id_rsa"
@@ -1100,12 +1099,12 @@ function ssh_api() {
       rsa_key="${private_key_file}"
 
       # This will check available port even if NO LUKS encrypted
-      _echo "$(msg cyan)Checking whether ${BOX_HOSTNAME_FQDN}'s port ${SSH_PORT} is online ...$(msg end)" --name
+      _echo "$(msg cyan)Checking whether ${LABEL_BOX_HOSTNAME_FQDN}'s port ${LABEL_SSH_PORT} is online ...$(msg end)" --name
       if is_valid available_port "${BOX_HOSTNAME_FQDN}" "${SSH_PORT}"; then
-        _echo "$(msg green)OK, the port ${SSH_PORT} is available at ${BOX_HOSTNAME_FQDN} $(msg end)" --name
+        _echo "$(msg green)OK, the port ${LABEL_SSH_PORT} is available at ${LABEL_BOX_HOSTNAME_FQDN} $(msg end)" --name
       else
-        _echo "$(msg yelllow)Warning, the --server-port ${BOX_HOSTNAME_FQDN}:${SSH_PORT} is not available!$(msg end)" --name
-        _echo "$(msg cyan)Checking server ${BOX_HOSTNAME_FQDN}'s online status ...$(msg end)" --name
+        _echo "$(msg yelllow)Warning, the --server-port ${LABEL_BOX_HOSTNAME_FQDN}:${LABEL_SSH_PORT} is not available!$(msg end)" --name
+        _echo "$(msg cyan)Checking server ${LABEL_BOX_HOSTNAME_FQDN}'s online status ...$(msg end)" --name
         linode_status=$(linode_api_admin get-linode-status --linode-label "${BOX_HOSTNAME_FQDN}" --scripting)
         if [ "${linode_status}" == "offline" ]; then
           _echo "$(msg yelllow)Warning, linode is offline!$(msg end)" --name
@@ -1115,13 +1114,13 @@ function ssh_api() {
         ssh_api luks-unlock --port "${DROP_BEAR_PORT}" --password "${LUKS_PASS}"
         sleep 7
         if is_valid available_port "${BOX_HOSTNAME_FQDN}" "${SSH_PORT}"; then
-          _echo "$(msg green)OK, the port ${SSH_PORT_LABEL} is available at ${BOX_HOSTNAME_FQDN} $(msg end)" --name
+          _echo "$(msg green)OK, the port ${LABEL_SSH_PORT} is available at ${LABEL_BOX_HOSTNAME_FQDN} $(msg end)" --name
         else
-          _echo "$(msg red)Error, the --server-port ${BOX_HOSTNAME_FQDN}:${SSH_PORT_LABEL} is not available (make sure server is online or port ${SSH_PORT_LABEL} is available)$(msg end)" --name
+          _echo "$(msg red)Error, the --server-port ${LABEL_BOX_HOSTNAME_FQDN}:${LABEL_SSH_PORT} is not available (make sure server is online or port ${LABEL_SSH_PORT} is available)$(msg end)" --name
           _exit 147
         fi
       fi
-      _echo "$(msg cyan)Logging into SSH server at ${SSH_USERNAME_LABEL}@${BOX_HOSTNAME_FQDN}:${SSH_PORT_LABEL}... $(msg end)" --name
+      _echo "$(msg cyan)Logging into SSH server at ${LABEL_SSH_USERNAME}@${LABEL_BOX_HOSTNAME_FQDN}:${LABEL_SSH_PORT}... $(msg end)" --name
       _echo "$(msg yellow)Note: After successfully logged in as non-root user, use command [ sudo su - ] to login as root user$(msg end)" --name
       ssh -o "StrictHostKeyChecking no" -i "${rsa_key}" -p "${SSH_PORT}" "${SSH_USERNAME}@${BOX_HOSTNAME_FQDN}"
     else
@@ -2625,7 +2624,7 @@ function create_file() {
         echo "# This is the sensitive variable that hides its own value:"
         echo ""
       } >"${CONF_PATH}/sensitive_label"
-      grep -E '^[A-Za-z0-9_].+=.+$' "${CONFIG_FILE}" | awk -F'=' '{ print $1"_LABEL=\""$1"\""}' >>"${CONF_PATH}/sensitive_label"
+      grep -E '^[A-Za-z0-9_].+=.+$' "${CONFIG_FILE}" | awk -F'=' '{ print "LABEL_"$1"=\""$1"\""}' >>"${CONF_PATH}/sensitive_label"
 
     elif [[ "${create_action}" == "sensitive-label-show" || "${create_action}" == "sensitive_label_show" ]]; then
       {
@@ -2636,7 +2635,7 @@ function create_file() {
         echo "# This is the sensitive variable that shows its value from config file:"
         echo ""
       } >"${CONF_PATH}/sensitive_label"
-      grep -E '^[A-Za-z0-9_].+=.+$' "${CONFIG_FILE}" | awk -F'=' '{ print $1"_LABEL=\"${"$1"}\""}' >>"${CONF_PATH}/sensitive_label"
+      grep -E '^[A-Za-z0-9_].+=.+$' "${CONFIG_FILE}" | awk -F'=' '{ print "LABEL_"$1"=\"${"$1"}\""}' >>"${CONF_PATH}/sensitive_label"
 
     elif [[ "${create_action}" == "setup-readme" ]]; then
       {
@@ -3363,11 +3362,11 @@ function iso_api() {
         #chmod 555 ${ISODIR_WRITE}/preseed.cfg
         echo ""
 
-        _echo "$(msg cyan)Writing rsa public key (root) file into ${isodir_write_tmp}/root_${ROOT_USERNAME_LABEL}_${BOX_HOSTNAME_FQDN}.id_rsa.pub ...$(msg end)" --name
+        _echo "$(msg cyan)Writing rsa public key (root) file into ${isodir_write_tmp}/root_${LABEL_ROOT_USERNAME}_${LABEL_BOX_HOSTNAME_FQDN}.id_rsa.pub ...$(msg end)" --name
 
-        ssh_api get-public-key --group root --user "${ROOT_USERNAME}" --server "${BOX_HOSTNAME_FQDN}" >"${isodir_write_tmp}/root_${ROOT_USERNAME_LABEL}_${BOX_HOSTNAME_FQDN}.id_rsa.pub"
+        ssh_api get-public-key --group root --user "${ROOT_USERNAME}" --server "${BOX_HOSTNAME_FQDN}" >"${isodir_write_tmp}/root_${ROOT_USERNAME}_${BOX_HOSTNAME_FQDN}.id_rsa.pub"
         echo ""
-        _echo "$(msg cyan)Writing rsa public key (user) file into ${isodir_write_tmp}/user_${SSH_USERNAME_LABEL}_${BOX_HOSTNAME_FQDN}.id_rsa.pub ...$(msg end)" --name
+        _echo "$(msg cyan)Writing rsa public key (user) file into ${isodir_write_tmp}/user_${LABEL_SSH_USERNAME}_${LABEL_BOX_HOSTNAME_FQDN}.id_rsa.pub ...$(msg end)" --name
         ssh_api get-public-key --group user --user "${SSH_USERNAME}" --server "${BOX_HOSTNAME_FQDN}" >"${isodir_write_tmp}/user_${SSH_USERNAME}_${BOX_HOSTNAME_FQDN}.id_rsa.pub"
         echo ""
 
@@ -6655,7 +6654,7 @@ function secure_box() {
       _pause 15
       user_rsa_public_key="${SSH_PUBLIC_KEY}"
     else
-      _echo "$(msg cyan)Note: ${_APP_SPECIFIC_NAME} will use user RSA public key from /root/user_${SSH_USERNAME_LABEL}_${BOX_HOSTNAME_FQDN}.id_rsa.pub for ${SSH_USERNAME_LABEL} SSH login ..."
+      _echo "$(msg cyan)Note: ${_APP_SPECIFIC_NAME} will use user RSA public key from /root/user_${LABEL_SSH_USERNAME}_${LABEL_BOX_HOSTNAME_FQDN}.id_rsa.pub for ${LABEL_SSH_USERNAME} SSH login ..."
       # Reassign SSH_PUBLIC_KEY to the latest SSH key
       user_rsa_public_key=$(cat "${user_rsa_public_key}")
     fi
@@ -6670,7 +6669,7 @@ function secure_box() {
       _exit 147
     fi
     echo ""
-    _echo "$(msg cyan)Setting up server hostname to full qualified hostname (FQHN): ${BOX_HOSTNAME_FQDN} ...$(msg end)" --name
+    _echo "$(msg cyan)Setting up server hostname to full qualified hostname (FQHN): ${LABEL_BOX_HOSTNAME_FQDN} ...$(msg end)" --name
     hostnamectl set-hostname "${BOX_HOSTNAME_FQDN}"
     _echo "$(msg magenta)[Testing]: current hostname is $(hostname)$(msg end)" --name
     echo ""
@@ -6679,24 +6678,24 @@ function secure_box() {
     _echo "$(msg magenta)[Testing]: Current date is $(date)$(msg end)" --name
     echo ""
     if [[ "${DISTRO_ID}" == "centos" || "${DISTRO_ID}" == "almalinux" ]]; then
-      _echo "$(msg cyan)Creating a non-sudo username ${SSH_USERNAME_LABEL} ...$(msg end)" --name
+      _echo "$(msg cyan)Creating a non-sudo username ${LABEL_SSH_USERNAME} ...$(msg end)" --name
       adduser "${SSH_USERNAME}" 2>&1 | tee -a "${REPORT_FILE}"
       echo ""
-      _echo "$(msg cyan)Setting up password for non-sudo username ${SSH_USERNAME_LABEL} ...$(msg end)" --name
+      _echo "$(msg cyan)Setting up password for non-sudo username ${LABEL_SSH_USERNAME} ...$(msg end)" --name
       echo "${SSH_USERPASS}" | passwd --stdin "${SSH_USERNAME}"
       echo ""
-      _echo "$(msg cyan)Adding a non-sudo user ${SSH_USERNAME_LABEL} to the highest privilege group ...$(msg end)" --name
+      _echo "$(msg cyan)Adding a non-sudo user ${LABEL_SSH_USERNAME} to the highest privilege group ...$(msg end)" --name
 
       gpasswd -a "${SSH_USERNAME}" wheel 2>&1 | tee -a "${REPORT_FILE}"
       echo ""
     elif [ "${DISTRO_ID}" == "debian" ]; then
-      _echo "$(msg cyan)Creating a non-sudo username ${SSH_USERNAME_LABEL} ...$(msg end)" --name
+      _echo "$(msg cyan)Creating a non-sudo username ${LABEL_SSH_USERNAME} ...$(msg end)" --name
       useradd "${SSH_USERNAME}" -s /bin/bash -m
       echo ""
-      _echo "$(msg cyan)Setting up password for a non-sudo username for ${SSH_USERNAME_LABEL} ...$(msg end)" --name
+      _echo "$(msg cyan)Setting up password for a non-sudo username for ${LABEL_SSH_USERNAME} ...$(msg end)" --name
       echo "${SSH_USERNAME}:${SSH_USERPASS}" | chpasswd
       echo ""
-      _echo "$(msg cyan)Adding a non-sudo user ${SSH_USERNAME_LABEL} to the highest privilege group ...$(msg end)" --name
+      _echo "$(msg cyan)Adding a non-sudo user ${LABEL_SSH_USERNAME} to the highest privilege group ...$(msg end)" --name
       usermod -aG sudo "${SSH_USERNAME}"
       echo ""
     else
@@ -6705,7 +6704,7 @@ function secure_box() {
     fi
 
     # These works with ubuntu, debian, centos (will check more with other distro)
-    _echo "$(msg cyan) Testing login a non-sudo user ${SSH_USERNAME_LABEL} ...$(msg end)" --name
+    _echo "$(msg cyan) Testing login a non-sudo user ${LABEL_SSH_USERNAME} ...$(msg end)" --name
     if [[ "${HIDE_SENSITIVE_TEXT}" == "true" ]]; then
       _echo "$(msg magenta) =~=~=~=~=~=~=~=~=~=~=~=~=~=$(msg end)" --name
       sudo -H -u "${SSH_USERNAME}" bash -c 'echo "[Testing]: Hello, I am *hidden_username*, with uid *hidden_uuid*"'
@@ -6720,7 +6719,7 @@ function secure_box() {
 
     # TIP: To remove this non-sudo user we can do this:
     # userdel -r "${SSH_USERNAME}" , where -r will also delete his home directory
-    _echo "$(msg cyan)Creating .ssh home directory for a non-sudo user ${SSH_USERNAME_LABEL} to store SSH public key files ...$(msg end)" --name
+    _echo "$(msg cyan)Creating .ssh home directory for a non-sudo user ${LABEL_SSH_USERNAME} to store SSH public key files ...$(msg end)" --name
 
     sudo -H -u "${SSH_USERNAME}" bash -c "mkdir -p ~/.ssh"
     _echo "$(msg cyan)Creating an authorized key file ~/.ssh/authorized_keys ...$(msg end)" --name
@@ -6734,20 +6733,20 @@ function secure_box() {
     # For non-sudo user
     find_au=$(grep -w "AllowUsers ${SSH_USERNAME}" /etc/ssh/sshd_config)
     if [[ -n "${find_au}" ]]; then
-      _echo "$(msg yellow)[Skipped] the non-sudo user ${SSH_USERNAME_LABEL} is already set as AllowUsers list in sshd_config ...$(msg end)" --name
+      _echo "$(msg yellow)[Skipped] the non-sudo user ${LABEL_SSH_USERNAME} is already set as AllowUsers list in sshd_config ...$(msg end)" --name
     else
-      _echo "$(msg yellow)Adding a non-sudo user ${SSH_USERNAME_LABEL} to AllowUsers list in sshd_config ...$(msg end)" --name
+      _echo "$(msg yellow)Adding a non-sudo user ${LABEL_SSH_USERNAME} to AllowUsers list in sshd_config ...$(msg end)" --name
       echo "AllowUsers ${SSH_USERNAME}" >>/etc/ssh/sshd_config
     fi
     echo ""
     # For root user
     find_ar=$(grep -w "AllowUsers ${ROOT_USERNAME}" /etc/ssh/sshd_config)
     if [[ -n "${find_ar}" ]]; then
-      _echo "$(msg yellow)[Skipped] root user ${ROOT_USERNAME_LABEL} is already set as AllowUsers list in sshd_config ...$(msg end)" --name
+      _echo "$(msg yellow)[Skipped] root user ${LABEL_ROOT_USERNAME} is already set as AllowUsers list in sshd_config ...$(msg end)" --name
 
     else
       # Put at the bottom
-      _echo "$(msg cyan)Adding root user ${ROOT_USERNAME_LABEL} to AllowUsers list in sshd_config ...$(msg end)" --name
+      _echo "$(msg cyan)Adding root user ${LABEL_ROOT_USERNAME} to AllowUsers list in sshd_config ...$(msg end)" --name
 
       echo "AllowUsers ${ROOT_USERNAME}" >>/etc/ssh/sshd_config
     fi
@@ -6764,7 +6763,7 @@ function secure_box() {
     _echo "$(msg cyan)Disabling empty password login via sshd_config ...$(msg end)" --name
     sed -i "s/^#PermitEmptyPasswords.*/PermitEmptyPasswords no/" /etc/ssh/sshd_config
     echo ""
-    _echo "$(msg cyan)Changing SSH default port from 22 to ${SSH_PORT_LABEL} ...$(msg end)" --name
+    _echo "$(msg cyan)Changing SSH default port from 22 to ${LABEL_SSH_PORT} ...$(msg end)" --name
     _echo "$(msg yellow)Note, CSF will automatically add this port in allowed list during installation ...$(msg end)" --name
     sed -i "s/#Port 22/Port ${SSH_PORT}/" /etc/ssh/sshd_config
     echo ""
@@ -6782,7 +6781,7 @@ function secure_box() {
     echo ""
     # Initial firewall configuration
     if [[ "${DISTRO_ID}" == "centos" || "${DISTRO_ID}" == "almalinux" ]]; then
-      _echo "$(msg cyan)Adding SSH port ${SSH_PORT_LABEL}/tcp to firewalld ...$(msg end)" --name
+      _echo "$(msg cyan)Adding SSH port ${LABEL_SSH_PORT}/tcp to firewalld ...$(msg end)" --name
       if [[ "${HIDE_SENSITIVE_TEXT}" == "true" ]]; then
         sudo firewall-cmd --quiet --permanent --zone=public --add-port="${SSH_PORT}/tcp"
       else
@@ -6805,7 +6804,7 @@ function secure_box() {
       _echo "$(msg yellow)Warning, the default debian installation doesn't include any firewalls. Debian will be installed automatically if it does not exist ...$(msg end)" --name
       required "debian@@apt:ufw"
       echo ""
-      _echo "$(msg cyan)Adding SSH port ${SSH_PORT_LABEL}/tcp to ufw...$(msg end)" --name
+      _echo "$(msg cyan)Adding SSH port ${LABEL_SSH_PORT}/tcp to ufw...$(msg end)" --name
       sudo ufw allow "${SSH_PORT}/tcp"
       echo ""
       _echo "$(msg cyan)Adding an IP address ${TEMP_ALLOW_IP_LABEL} from config file in ufw to prevent locked out during setup$(msg end)" --name
@@ -6841,7 +6840,7 @@ function secure_box() {
     # This works with debian, ubuntu and centos
     systemctl reload sshd
     echo ""
-    _echo "$(msg green)[OK]: The host ${BOX_HOSTNAME_FQDN} is now secured with basic security hardening protection$(msg end)" --name
+    _echo "$(msg green)[OK]: The host ${LABEL_BOX_HOSTNAME_FQDN} is now secured with basic security hardening protection$(msg end)" --name
     echo ""
     check_finish_reboot "${func_name}"
     exec_time total "${func_name}"
@@ -7636,7 +7635,7 @@ configure_csf() {
         echo "[${SCRIPT_NAME}]: No CSF binary is found (CSF is not installed)" 2>&1 | tee -a "${REPORT_FILE}"
         sleep 2
         if [ "${INSTALL_TYPE}" == "general" ]; then
-          echo "[${SCRIPT_NAME}]: Script installation type is set to 'general'. Installing and Setting up CSF for ${BOX_HOSTNAME_FQDN} ..." 2>&1 | tee -a "${REPORT_FILE}"
+          echo "[${SCRIPT_NAME}]: Script installation type is set to 'general'. Installing and Setting up CSF for ${LABEL_BOX_HOSTNAME_FQDN} ..." 2>&1 | tee -a "${REPORT_FILE}"
           sleep 2
           echo "[${SCRIPT_NAME}]: Removing existing CSF if exist using built-in script ..." 2>&1 | tee -a "${REPORT_FILE}"
           sh /etc/csf/uninstall.sh
@@ -7675,7 +7674,7 @@ configure_csf() {
             echo "[${SCRIPT_NAME}]: [Skipped]: OK, No existing APF+BFD installation to remove" 2>&1 | tee -a "${REPORT_FILE}"
           fi
         elif [ "${INSTALL_TYPE}" == "directadmin" ]; then
-          echo "[${SCRIPT_NAME}]: Script installation type is set to DIRECTADMIN. Installing CSF on ${BOX_HOSTNAME_FQDN} using DA script by Poralix..." 2>&1 | tee -a "${REPORT_FILE}"
+          echo "[${SCRIPT_NAME}]: Script installation type is set to DIRECTADMIN. Installing CSF on ${LABEL_BOX_HOSTNAME_FQDN} using DA script by Poralix..." 2>&1 | tee -a "${REPORT_FILE}"
           sleep 2
           #wget http://files.directadmin.com/services/all/csf/csf_install.sh 2>&1 | tee -a "${REPORT_FILE}"
           cd_to_path "${INST_TEMP_DIR}"
@@ -7969,10 +7968,10 @@ function install_da() {
     echo "[${SCRIPT_NAME}]: Setup will install Directadmin within 30 seconds. It would take a long time, so please be patient" 2>&1 | tee -a "${REPORT_FILE}"
     echo "[${SCRIPT_NAME}]: If you don't want to install Directadmin now, press (ctrl+C) to exit and then you can re-run this script to resume at this stage" 2>&1 | tee -a "${REPORT_FILE}"
     _pause 30
-    echo "[${SCRIPT_NAME}]: Installing Directadmin on ${BOX_HOSTNAME_FQDN} using ${DA_INSTALL_TYPE} mode ... " 2>&1 | tee -a "${REPORT_FILE}"
+    echo "[${SCRIPT_NAME}]: Installing Directadmin on ${LABEL_BOX_HOSTNAME_FQDN} using ${DA_INSTALL_TYPE} mode ... " 2>&1 | tee -a "${REPORT_FILE}"
     if [[ "${DA_INSTALL_TYPE}" == "custom" || "${DA_INSTALL_TYPE}" == "ori" ]]; then
       # custom and ori depends on the options.conf (this won't ask question)
-      ./setup.sh "${DA_CLIENT_ID}" "${DA_LICENSE_ID}" "${BOX_HOSTNAME_FQDN}" "${NIC_INTERFACE_NAME}" "${IPV4_ADD0}" 2>&1 | tee -a "${REPORT_FILE}"
+      ./setup.sh "${DA_CLIENT_ID}" "${DA_LICENSE_ID}" "${BOX_HOSTNAME_FQDN}" "${NIC_INTERFACE_NAME}" "${IPV4_ADD0}"
     elif [[ "${DA_INSTALL_TYPE}" == "interactive" ]]; then
       # this will ask question
       bash <(curl -Ss https://www.directadmin.com/setup.sh)
@@ -8068,17 +8067,17 @@ function link_da_ipv6() {
         #echo $(basename $da_ipv6)
         base_da_ipv6=$(basename "${da_ipv6}")
         if [[ "${base_da_ipv6}" == "${ipv6_uncompress_add}" ]]; then
-          echo "[${SCRIPT_NAME}]: IP address ${IPV6_ADD0} is exist in [${da_ipv6}]" 2>&1 | tee -a "${REPORT_FILE}"
+          echo "[${SCRIPT_NAME}]: IP address ${LABEL_IPV6_ADD0} is exist in [${da_ipv6}]"
           #source "${da_ipv6}"
           linked_ips=$(sed -n 's/^linked_ips=//p' "${da_ipv6}")
           if [[ "${linked_ips}" == "" || -z "${linked_ips}" ]]; then
             echo "IPv6 linked_ip is empty: ${linked_ips}" 2>&1 | tee -a "${REPORT_FILE}"
             sleep 1
-            echo "[${SCRIPT_NAME}]: Linking IP address ${base_da_ipv6} with IP address ${IPV4_ADD0} using DA task.queue ..." 2>&1 | tee -a "${REPORT_FILE}"
+            echo "[${SCRIPT_NAME}]: Linking IP address ${base_da_ipv6} with IP address ${LABEL_IPV4_ADD0} using DA task.queue ..." 2>&1 | tee -a "${REPORT_FILE}"
             echo "action=linked_ips&ip_action=add&ip=${base_da_ipv6}&ip_to_link=${IPV4_ADD0}&apache=yes&dns=yes&apply=yes" >>/usr/local/directadmin/data/task.queue
             /usr/local/directadmin/dataskq d2000
             sleep 2
-            echo "[${SCRIPT_NAME}]: Linking IP address ${IPV4_ADD0} with IP address ${base_da_ipv6} using DA task.queue ..." 2>&1 | tee -a "${REPORT_FILE}"
+            echo "[${SCRIPT_NAME}]: Linking IP address ${LABEL_IPV4_ADD0} with IP address ${base_da_ipv6} using DA task.queue ..." 2>&1 | tee -a "${REPORT_FILE}"
             echo "action=linked_ips&ip_action=add&ip=${IPV4_ADD0}&ip_to_link=${base_da_ipv6}&apache=yes&dns=yes&apply=yes" >>/usr/local/directadmin/data/task.queue
             /usr/local/directadmin/dataskq d2000
             sleep 2
@@ -8097,14 +8096,14 @@ function link_da_ipv6() {
           fi
         else
           if [ "${AUTO_ADD_IPV6_ENTRY}" == "yes" ]; then
-            echo "[${SCRIPT_NAME}]: Warning, no IPv6 matched with ${IPV6_ADD0}. AUTO_ADD_IPV6_ENTRY is set to yes. Automatically adding DA IPv6 config file ..." 2>&1 | tee -a "${REPORT_FILE}"
+            echo "[${SCRIPT_NAME}]: Warning, no IPv6 matched with ${LABEL_IPV6_ADD0}. AUTO_ADD_IPV6_ENTRY is set to yes. Automatically adding DA IPv6 config file ..." 2>&1 | tee -a "${REPORT_FILE}"
             sleep 2
             add_da_ipv6_ip
             sleep 10
             link_da_ipv6
           else
             # This might not be executed but just in case if something goes wrong.
-            echo "[${SCRIPT_NAME}]: Warning, no IPv6 matched with ${IPV6_ADD0}. Please manually enter IPv6 from GUI (full form) then run this script again" 2>&1 | tee -a "${REPORT_FILE}"
+            echo "[${SCRIPT_NAME}]: Warning, no IPv6 matched with ${LABEL_IPV6_ADD0}. Please manually enter IPv6 from GUI (full form) then run this script again" 2>&1 | tee -a "${REPORT_FILE}"
             _exit 147
           fi
         fi
@@ -8121,14 +8120,14 @@ function link_da_ipv6() {
         # Enable the DA port in firewall only when pressing enter (good confirmation from user)
         read -r -s -n 1 -p "[${SCRIPT_NAME}]: Press any key to start adding TCP port ${DA_PORT}/tcp in ufw ..." 2>&1 | tee -a "${REPORT_FILE}"
         echo ""
-        echo "[${SCRIPT_NAME}]: Allowing TCP port ${DA_PORT}/tcp for accessing DA admin page ..." 2>&1 | tee -a "${REPORT_FILE}"
+        echo "[${SCRIPT_NAME}]: Allowing TCP port ${LABEL_DA_PORT}/tcp for accessing DA admin page ..." 2>&1 | tee -a "${REPORT_FILE}"
         sudo ufw allow "${DA_PORT}/tcp" 2>&1 | tee -a "${REPORT_FILE}"
         # Need to restart DA because we did change port from 2222 to new port before calling this function
         restart_da
         echo "[${SCRIPT_NAME}]: Use the following login information to enter into DA admin page and add IPv6. When done, re-run this script again:". 2>&1 | tee -a "${REPORT_FILE}"
         echo ""
         echo "=============="
-        echo "Directadmin now can be accessed through http://${IPV4_ADD0}:${DA_PORT}" 2>&1 | tee -a "${REPORT_FILE}"
+        echo "Directadmin now can be accessed through http://${LABEL_IPV4_ADD0}:${LABEL_DA_PORT}" 2>&1 | tee -a "${REPORT_FILE}"
         awk '{ print }' /usr/local/directadmin/scripts/setup.txt 2>&1 | tee -a "${REPORT_FILE}"
         echo "=============="
         echo ""
@@ -8257,10 +8256,10 @@ function install_da_post() {
     /usr/local/directadmin/directadmin set ipv6 1
     sleep 1
     # DA port should be secure don't use 2222 unless you have reason
-    echo "[${SCRIPT_NAME}]: Changing DA admin port from 2222 to ${DA_PORT}" 2>&1 | tee -a "${REPORT_FILE}"
+    echo "[${SCRIPT_NAME}]: Changing DA admin port from 2222 to ${LABEL_DA_PORT}" 2>&1 | tee -a "${REPORT_FILE}"
     /usr/local/directadmin/directadmin set port "${DA_PORT}"
     sleep 1
-    echo "[${SCRIPT_NAME}]: Changing DA login page redirection port from 2222 to ${DA_PORT}" 2>&1 | tee -a "${REPORT_FILE}"
+    echo "[${SCRIPT_NAME}]: Changing DA login page redirection port from 2222 to ${LABEL_DA_PORT}" 2>&1 | tee -a "${REPORT_FILE}"
     {
       echo "<?php"
       echo "header(\"Location: http://\".\$_SERVER['HTTP_HOST'].\":${DA_PORT}\");"
@@ -8268,13 +8267,13 @@ function install_da_post() {
     } >/var/www/html/redirect.php
     sleep 1
     if [ "${DISTRO_ID}" == "centos" ]; then
-      echo "[${SCRIPT_NAME}]: Adding DA new port ${DA_PORT}/tcp to firewalld ..." 2>&1 | tee -a "${REPORT_FILE}"
+      echo "[${SCRIPT_NAME}]: Adding DA new port ${LABEL_DA_PORT}/tcp to firewalld ..." 2>&1 | tee -a "${REPORT_FILE}"
       sudo firewall-cmd --permanent --zone=public --add-port="${DA_PORT}/tcp" 2>&1 | tee -a "${REPORT_FILE}"
     elif [ "${DISTRO_ID}" == "debian" ]; then
       echo "[${SCRIPT_NAME}]: Adding DA new port ${DA_PORT}/tcp to ufw ..." 2>&1 | tee -a "${REPORT_FILE}"
-      sudo ufw allow "${DA_PORT}/tcp" 2>&1 | tee -a "${REPORT_FILE}"
+      sudo ufw allow "${LABEL_DA_PORT}/tcp" 2>&1 | tee -a "${REPORT_FILE}"
     fi
-    echo "[${SCRIPT_NAME}]: Now directadmin can be login using a new port ${DA_PORT}" 2>&1 | tee -a "${REPORT_FILE}"
+    echo "[${SCRIPT_NAME}]: Now directadmin can be login using a new port ${LABEL_DA_PORT}" 2>&1 | tee -a "${REPORT_FILE}"
     sleep 2
     if [ "${ENABLE_DNSSEC}" == "yes" ]; then
       local bind_named="/etc/bind/named.conf.options"
@@ -8400,7 +8399,7 @@ function configure_da_ssl() {
       da_script_path="/usr/local/directadmin/scripts"
       echo "[${SCRIPT_NAME}]: Configuring Directadmin SSL Certificate ..." 2>&1 | tee -a "${REPORT_FILE}"
       #0) Set the ssl_redirect_host
-      echo "[${SCRIPT_NAME}]: Setting ssl_redirect_host to ${BOX_HOSTNAME_FQDN} in directadmin.conf config ..." 2>&1 | tee -a "${REPORT_FILE}"
+      echo "[${SCRIPT_NAME}]: Setting ssl_redirect_host to ${LABEL_BOX_HOSTNAME_FQDN} in directadmin.conf config ..." 2>&1 | tee -a "${REPORT_FILE}"
       ${da_bin} set ssl_redirect_host "${BOX_HOSTNAME_FQDN}" 2>&1 | tee -a "${REPORT_FILE}"
 
       echo "[${SCRIPT_NAME}]: Setting redirect_host_https no in Directadmin options.conf config ..." 2>&1 | tee -a "${REPORT_FILE}"
@@ -8432,7 +8431,7 @@ function configure_da_ssl() {
       echo "[${SCRIPT_NAME}]: Restarting directadmin after changing directadmin.conf ..." 2>&1 | tee -a "${REPORT_FILE}"
       restart_da
       #7) Now let's request
-      echo "[${SCRIPT_NAME}]: Requesting SSL certificate for ${BOX_HOSTNAME_FQDN} ..." 2>&1 | tee -a "${REPORT_FILE}"
+      echo "[${SCRIPT_NAME}]: Requesting SSL certificate for ${LABEL_BOX_HOSTNAME_FQDN} ..." 2>&1 | tee -a "${REPORT_FILE}"
       ${da_script_path}/letsencrypt.sh request_single "${BOX_HOSTNAME_FQDN}" 4096 2>&1 | tee -a "${REPORT_FILE}"
       retval=$?
       echo "Return status after request certificate is ${retval}"
@@ -9308,7 +9307,7 @@ function configure_da() {
     # eg: userdomain.com:2222 . Sometimes this user does not have valid certificate, thus this will cause security issue.
     # so, it is better to redirect to one hostname with a valid certificate:
     # Also explained in here: https://www.directadmin.com/features.php?id=917
-    echo "[${SCRIPT_NAME}]: Forcing Directadmin login url to usr ${BOX_HOSTNAME_FQDN} ..." 2>&1 | tee -a "${REPORT_FILE}"
+    echo "[${SCRIPT_NAME}]: Forcing Directadmin login url to usr ${LABEL_BOX_HOSTNAME_FQDN} ..." 2>&1 | tee -a "${REPORT_FILE}"
     maxida --da set force_hostname "${BOX_HOSTNAME_FQDN}"
 
     echo "[${SCRIPT_NAME}]: Securing all php installation ..." 2>&1 | tee -a "${REPORT_FILE}"
@@ -13940,7 +13939,7 @@ function setup() {
       START_OR_RESUME="Starting"
     fi
     echo ""
-    _echo "$(msg red)${START_OR_RESUME} $(msg cyan)Installation for ${BOX_HOSTNAME_FQDN} ...$(msg end)" --name
+    _echo "$(msg red)${START_OR_RESUME} $(msg cyan)Installation for ${LABEL_BOX_HOSTNAME_FQDN} ...$(msg end)" --name
     echo ""
 
     ############ Call function documentation ############
@@ -14077,7 +14076,7 @@ function setup() {
     if [ "${INSTALL_TYPE}" == "directadmin" ]; then
       echo "==============" 2>&1 | tee -a "${REPORT_FILE}"
       echo "Directadmin now can be accessed through this URL: " 2>&1 | tee -a "${REPORT_FILE}"
-      echo "http://${IPV4_ADD0}:${DA_PORT} or http://${BOX_HOSTNAME_FQDN}:${DA_PORT}" 2>&1 | tee -a "${REPORT_FILE}"
+      echo "http://${LABEL_IPV4_ADD0}:${LABEL_DA_PORT} or http://${LABEL_BOX_HOSTNAME_FQDN}:${LABEL_DA_PORT}" 2>&1 | tee -a "${REPORT_FILE}"
       echo "Username: DA_OWNER_USERNAME1" 2>&1 | tee -a "${REPORT_FILE}"
       echo "Password: *******" 2>&1 | tee -a "${REPORT_FILE}"
       echo "==============" 2>&1 | tee -a "${REPORT_FILE}"
@@ -14384,7 +14383,7 @@ while [ "$#" -gt 0 ]; do
     echo "Script executed"
     # sleep 30
     #exit 147
-    echo "Uploading ISO file into ~/ at ${IPV4_ADD0} using SCP protocol ..."
+    echo "Uploading ISO file into ~/ at ${LABEL_IPV4_ADD0} using SCP protocol ..."
     iso_file="${SCRIPT_PATH}/storage/os/debian/deb10mod-final.iso"
     scp "${iso_file}" root@"${IPV4_ADD0}":~/mini.iso
     echo "Cloning setup file mini.iso into /dev/sda"

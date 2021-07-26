@@ -10,7 +10,9 @@
     <select />
   </component>
   <component name="ChangeListManager">
-    <list default="true" id="113c828c-9a32-4b24-ab1e-978ce50c6320" name="Default Changelist" comment="New update and improvement" />
+    <list default="true" id="113c828c-9a32-4b24-ab1e-978ce50c6320" name="Default Changelist" comment="New update and improvement">
+      <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
+    </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
     <option name="HIGHLIGHT_NON_ACTIVE_CHANGELIST" value="false" />
@@ -55,13 +57,15 @@
     </key>
   </component>
   <component name="RunManager">
-    <configuration default="true" type="ArquillianJUnit" factoryName="" nameIsGenerated="true">
+    <configuration default="true" type="ArquillianTestNG" factoryName="" nameIsGenerated="true">
       <option name="arquillianRunConfiguration">
         <value>
           <option name="containerStateName" value="" />
         </value>
       </option>
-      <option name="TEST_OBJECT" value="class" />
+      <option name="TEST_OBJECT" value="CLASS" />
+      <properties />
+      <listeners />
       <method v="2">
         <option name="Make" enabled="true" />
       </method>
@@ -184,13 +188,7 @@
       <workItem from="1627146436150" duration="81000" />
       <workItem from="1627157743367" duration="166000" />
       <workItem from="1627193218756" duration="80000" />
-    </task>
-    <task id="LOCAL-00053" summary="Updated various codes in private repository in maxicode and directadmin custom scripts. One of the features is the ability to upgrade directadmin custom scripts, add more APIs in maxida and much more.&#10;&#10;Added new top TODO lists in maxisetup.&#10;&#10;Added new API to create dns record in DA&#10;&#10;Fixed firewall blacklisted_ip.html file permission&#10;&#10;Added extra variables for GIT authentication in maxida.conf&#10;&#10;Added new installation for maxipass&#10;&#10;Added DKIM signing policy record in both DA and linode DNS as best practice&#10;&#10;New planned variables (already have working test script):&#10;&#10;DA_LOGIN_METHOD=&quot;sign-as&quot;&#10;&#10;# This will use DA loginas mentioned in the API documentation&#10;# sign-as = you can login using this username &quot;admin|client&quot; to log as the client (benefit: no need to know DA client passwords)&#10;# direct-login = login directly using username and password (need to know DA client passwords)&#10;DA_LOGIN_METHOD=&quot;sign-as&quot;">
-      <created>1614785034062</created>
-      <option name="number" value="00053" />
-      <option name="presentableId" value="LOCAL-00053" />
-      <option name="project" value="LOCAL" />
-      <updated>1614785034062</updated>
+      <workItem from="1627231551399" duration="660000" />
     </task>
     <task id="LOCAL-00054" summary="Added new function configure_da_reseller_wildcard_domains() and configure_da_user_wildcard_domains()&#10;&#10;Fixed maxida source config file (private repo)&#10;&#10;Updated DA API&#10;&#10;New variable:&#10;&#10;DA_RESELLER_WILDCARD_DOMAIN[index]&#10;&#10;# Put wildcard record for this domain. To disable just let this variable empty with &quot;&quot;&#10;# Format &lt;domain.com&gt;:&lt;anotherdomain.com&gt;:&lt;anotheronedomain.com&gt;: ...&#10;DA_RESELLER_WILDCARD_DOMAIN1=(&quot;maxibi.com:anotherdomain.com&quot;)">
       <created>1614897205503</created>
@@ -528,7 +526,14 @@
       <option name="project" value="LOCAL" />
       <updated>1627193243088</updated>
     </task>
-    <option name="localTasksCounter" value="102" />
+    <task id="LOCAL-00102" summary="New update and improvement">
+      <created>1627231615591</created>
+      <option name="number" value="00102" />
+      <option name="presentableId" value="LOCAL-00102" />
+      <option name="project" value="LOCAL" />
+      <updated>1627231615591</updated>
+    </task>
+    <option name="localTasksCounter" value="103" />
     <servers />
   </component>
   <component name="TypeScriptGeneratedFilesManager">
