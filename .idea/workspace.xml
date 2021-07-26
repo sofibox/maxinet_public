@@ -57,15 +57,13 @@
     </key>
   </component>
   <component name="RunManager">
-    <configuration default="true" type="ArquillianTestNG" factoryName="" nameIsGenerated="true">
+    <configuration default="true" type="ArquillianJUnit" factoryName="" nameIsGenerated="true">
       <option name="arquillianRunConfiguration">
         <value>
           <option name="containerStateName" value="" />
         </value>
       </option>
-      <option name="TEST_OBJECT" value="CLASS" />
-      <properties />
-      <listeners />
+      <option name="TEST_OBJECT" value="class" />
       <method v="2">
         <option name="Make" enabled="true" />
       </method>
@@ -189,13 +187,8 @@
       <workItem from="1627157743367" duration="166000" />
       <workItem from="1627193218756" duration="80000" />
       <workItem from="1627231551399" duration="660000" />
-    </task>
-    <task id="LOCAL-00054" summary="Added new function configure_da_reseller_wildcard_domains() and configure_da_user_wildcard_domains()&#10;&#10;Fixed maxida source config file (private repo)&#10;&#10;Updated DA API&#10;&#10;New variable:&#10;&#10;DA_RESELLER_WILDCARD_DOMAIN[index]&#10;&#10;# Put wildcard record for this domain. To disable just let this variable empty with &quot;&quot;&#10;# Format &lt;domain.com&gt;:&lt;anotherdomain.com&gt;:&lt;anotheronedomain.com&gt;: ...&#10;DA_RESELLER_WILDCARD_DOMAIN1=(&quot;maxibi.com:anotherdomain.com&quot;)">
-      <created>1614897205503</created>
-      <option name="number" value="00054" />
-      <option name="presentableId" value="LOCAL-00054" />
-      <option name="project" value="LOCAL" />
-      <updated>1614897205503</updated>
+      <workItem from="1627268408161" duration="388000" />
+      <workItem from="1627309836318" duration="1232000" />
     </task>
     <task id="LOCAL-00055" summary="Fixed wildcard selectors and more">
       <created>1614958806218</created>
@@ -533,7 +526,14 @@
       <option name="project" value="LOCAL" />
       <updated>1627231615591</updated>
     </task>
-    <option name="localTasksCounter" value="103" />
+    <task id="LOCAL-00103" summary="New update and improvement">
+      <created>1627268437415</created>
+      <option name="number" value="00103" />
+      <option name="presentableId" value="LOCAL-00103" />
+      <option name="project" value="LOCAL" />
+      <updated>1627268437415</updated>
+    </task>
+    <option name="localTasksCounter" value="104" />
     <servers />
   </component>
   <component name="TypeScriptGeneratedFilesManager">

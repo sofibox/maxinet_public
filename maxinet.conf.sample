@@ -1,357 +1,563 @@
-# Config file for <script_name>.conf:
-# Author: Arafat Ali Email: arafat@sofibox.com
-# Fill appropriate variable before running setup. Make sure this file is in the same path with the script.
-# This file contains sensitive information, setup will auto destroy this file after finished installation.
-# So make sure you have the original backup / copy of your modified <script_name>.conf file
-# Default name should be <script_name>.conf. If you want to change this, modify the variable CONFIG_FILE="yourfileenv"
-# Remember password cannot contain # ! ' / \ $ & because u need to escape this if u want to use in bash.
-# Do not use this character in mysql or mariadb password: < > and ) because mysqltuner does not support this character
-# Warning Directadmin user password only accept the maximum of 64 characters. More than this will have problem with API
-# Directadmin cannot contains this character in password, it will not work with API -> '+'
-# ====================================
-# This is used to hide sensitive information on the terminal such as password.
-HIDE_SENSITIVE_TEXT="false"
-#([0]="emerg" [1]="alert" [2]="crit" [3]="err" [4]="warning" [5]="notice" [6]="info" [7]="debug" [8]="expert")
-# Use 7 for development
-# For advanced or expert logging, use LOG_VERBOSITY_LEVEL="8"
-LOG_VERBOSITY_LEVEL="7"
-# Global variable to hold progress spin character. Example #SPIN_PROGRESS=".oO@*"
-SPIN_PROGRESS="/-\|"
-# Use pip to always update before executing. For example use to update pip3 component for linode-cli once when script is running.
-PIP_ALWAYS_UPDATE="yes"
-# COMPANY_ID
-COMPANY_ID="sofibox"
-# USE_MULTI_LOG_FILE
-# yes = set to use multiple log files with different random date. eg: <script_name>-31-03-2020_11-56-16.12345-report.log
-# no = set to use one log file with only one name. eg: <script_name>-report.log
-USE_MULTI_LOG_FILE="yes"
-# Force script to download the latest version of Operating System
-USE_LATEST_ISO="yes"
-# Enable the DNS feature of DNSSEC
-ENABLE_DNSSEC="no"
-# Enable log timestamp
-LOG_TIMESTAMP="yes"
-# Start installation script automatically, yes or no
-PRE_AUTORUN_SETUP="yes"
-# Set number of processor for parallel processing
-HOST_MAX_PROCESSOR="2"
-# This is a temporary allowed IP during setup that will be ignored by firewall
-TEMP_ALLOW_IP="42.188.5.142"
-# "directadmin" - Install server directadmin (fully compatible with DA)
-# "general" - Install basic LEMP or LAMP stack (with security hardened)
-# "laravel" - coming soon (with security hardened)
-# "odoo" - coming soon (with security hardened)
-INSTALL_TYPE="directadmin"
-# This will use custom script called (websetup) for setting up specific website configuration.
+# Configuration file for <script_name>.conf:
+# Author: Arafat Ali | Email: arafat@sofibox.com | Web: sofibox.com
+# =~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~="
+# 1) Fill appropriate variable in config file <script_name>.conf before running setup. Make sure this file is in the same path within the script.
+# 2) The file <script_name>.conf contains sensitive information, setup will auto destroy this file after you have finished installation for security.
+#    Do not run this script if you are running multiple users in the system because the information data from the config file might be leaked to other users
+#    The main purpose of this script is to initialize server from scratch not to run it under a live system with multiple users.
+#    If you are intended to run some features from this script in a live system, make sure that you do not have other users logged in the same live system.
+# 3) Make sure you have the original backup / copy of this modified <script_name>.conf file, because setup will auto destory it at the end of the script.
+#    To disable auto destroy change this setting C_AUTO_DESTROY_CONFIG=false
+#    Make sure to secure this backup config file to avoid unauthorized use
+#    eg: you can backup this config file with gpg
+# 4) The default script name should be <script_name>.conf. If you want to change this config name, modify the variable inside the script:
+#   eg: CONFIG_FILE="YOUR_NEW_CONFIG_NAME.conf"
+# 5) The config file will be validated by the script at the beginning, if it contains error, it will halt the script and ask to correct it
+# 6) The config accepts the following variable patterns (same as bash variable name convention):
+#    eg: 1) abc=2 #OK variable name is valid and contains assignment 2) abc= #NOT-OK because missing assignment 3) abc #NOT-OK because missing assignment
+#        4) @ok=abc #NOT-OK because variable name contains invalid char 5) ok.=abc #NOT-OK because variable name contains invalid char
+#        6) _ok=abc #OK variable name is valid with underscore
+# 7) In addition of that, this config file also will be validated by the script using linux source command, and other regex patterns that exist in the script.
+# 8) It is recommend not to use password that contains the following character for specific function to avoid weird behaviour:
+#    eg: # ! ' / \ $ &
+#    If you still need this character in password, you need to escape the character before passing into the script for processing.
+# 9) Warning, do not use password that contains the following character in mysql or mariadb password because they do not support this character:
+#    eg: < > )
+# 10) Warning for Directadmin installation type, the user password only accept the maximum of 64 characters. More than this will have problem with API.
+#    The script can notify you if it contains more than this character for Directadmin
+#    In addition of that, Directadmin cannot use this character in password because it will not work with API
+#    eg: +
+# 11) Each of the variable name in this config should begin with the following characters to represent this variable is from config file: C_
+#    eg: C_ADMIN_NAME
+# 12) A new planned feature will be included in the script where you do not have to edit this config file to store variable information, you could configure this within the script
+# =~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~="
+
+# C_HIDE_SENSITIVE_TEXT:
+# This variable is used to hide sensitive information on the terminal such as username, password, port.
+# The script will create a new template file in <script_name>/conf/sensitive_label that contains all variables from this config files based on the value of true or false
+# The sensitive_label variable will have a new name beginning with the following characters: LABEL_
+# eg: LABEL_C_ADMIN_PASSWORD="C_ADMIN_PASSWORD" (if C_HIDE_SENSITIVE_TEXT=true)
+# eg2: LABEL_C_ADMIN_PASSWORD="${C_ADMIN_PASSWORD}" (if C_HIDE_SENSITIVE_TEXT=false)
+# After that it will source the template file to obtain the correct label information for hiding / showing sensitive information from variable inside config file
+# Some sensitive variables might came directly within the script (not from the config file). So, some hardcoded ifelse conditions also are included in the script to hide or show this information based on the value of C_HIDE_SENSITIVE_TEXT
+# This feature is useful for script demonstration to hide sensitive information from public
+# Possible values are: true, false
+C_HIDE_SENSITIVE_TEXT=false
+
+# C_LOG_VERBOSITY_LEVEL:
+# This variable is used to show logging level for each script command. This is normally used in _echo() function with the option --verbose passed
+# The logging feature will have the following display format when using with _echo() with --verbose 4:
+# eg: [log_label]<OTHERSTRING>: Other output
+# eg2: [warning][maxinet]: This file has been deleted without reason
+# Without an option --verbose the default log level is 6 (info)
+# For advanced or expert logging use 8 (expert) to display everything and use 7 (debug) for development.
+# Using 6 is the the default log level (this will ignore level 7 (debug) logging, so any debugging display will be hidden)
+# Some of their possible values are: ([0]="emerg" [1]="alert" [2]="crit" [3]="err" [4]="warning" [5]="notice" [6]="info" [7]="debug" [8]="expert")
+C_LOG_VERBOSITY_LEVEL="6"
+
+#C_AUTO_DESTROY_CONFIG:
+# This variable is used to destroy this main config file after it has finished installation at the end of the script.
+# By default the script will notify within 120 seconds that it will destroy the config file (you can cancel this operation within the terminal by pressing CTRL+C)
+# If no action is taken during 120 seconds, it will execute a low level deletion using shred command to completely destroy the file (unrecoverable).
+# Make sure that you have the backup config file in a secure place before it is being destroyed.
+# Possible values are: true, false
+C_AUTO_DESTROY_CONFIG=true
+
+# C_SPIN_PROGRESS:
+# This variable is used to display progress bar animation within the function _echo().
+# This variable is used too hold progress spin character, useful to display a long or delay statement.
+# Example of the progress spin: ".oO@*"
+C_SPIN_PROGRESS="/-\|"
+
+# C_PIP_ALWAYS_UPDATE:
+# This variable is use to enable update of the pip components once when executing a specific function for the first time that requires this pip command.
+# For example you can enable this setting to update pip3 component for linode-cli once when script is running. This will avoid pip warning message that there is a new version that needs upgrade
+# By enabling this option, you will always have the latest pip installation including the components before the script is executed the pip components.
+# Possible values are: true, false
+C_PIP_ALWAYS_UPDATE=true
+
+# C_COMPANY_ID:
+# This variable is used to store company ID that the script requires for display purpose.
+C_COMPANY_ID="codegix"
+
+# USE_MULTI_LOG_FILE:
+# This variable is used to enable mulple lof files or single log file
+# If you enable this option, the script will generate multiple log files with the datetime stamp including random string using following format:
+# eg: <script_name>-31-03-2020_11-56-16.12345-report.log
+# If this option is set to false, you will only have one single log file in /<script_path>/log/<script_name>-report.log
+# Possible values are: true, false
+C_USE_MULTI_LOG_FILE=true
+
+# C_USE_LATEST_ISO:
+# This variable is used to enable the --create-iso option to use latest ISO file from the web to create OS server automated installation.
+# Currently only Debian operating system is supported
+# Possible values are: true, false
+C_USE_LATEST_ISO=true
+
+# C_ENABLE_DNSSEC:
+# This option enable the DNS feature of DNSSEC for a server
+# Note that this feature is only tested in Directadmin. Default value is false
+# Possible values: true, false
+C_ENABLE_DNSSEC=false
+
+# C_PRE_AUTORUN_SETUP:
+# This variable is used to automatically continue server remote installation when it has finished installing Operating System
+# For example after finished installing operating system with automated installation method, it will run the installation script by executing --setup option
+# If this option is not enable, after finished installing operating system, it will shutdown the operating system and do nothing else
+# You can turn on the offline operating system by triggering the following command: <script_name> --start-server
+# After that you could run the following command in the terminal to continue the setup automatically:
+# <script_name> --push-ssh-script --sp ${BOX_HOSTNAME_FQDN}:${LABEL_SSH_PORT} --gu root:${LABEL_ROOT_USERNAME} --push-maxinet-setup-script"
+# You can obtain all the above variables from config files
+# possible values are: true, false
+C_PRE_AUTORUN_SETUP=true
+
+# C_HOST_MAX_PROCESSOR:
+# This variable is used to set the number of processor for parallel processing based on the total of processor core
+# For example, you could increase this value to the maximum of processor core to speedup creating ISO file that requires higher processing power
+# The possible value should not contain more than the maximum of the total processor cores, the script will validate this
+# For most modern processors, the minimum and default value is "2". If you set the value to "1", some functions might display warning that the process will run slower
+C_HOST_MAX_PROCESSOR="2"
+
+# C_HOST_PUBIC_IP:
+# This variable is used to store the current host public IP.
+# This IP address is useful for example to allow firewall to ignore this IP during setup
+# The possible values are any IPv4 or IPv6
+# If you leave this variable empty, it will automatically retrieve your current host public IP from the script.
+C_HOST_PUBLIC_IP=""
+
+# C_SERVER_TYPE:
+# This variable is used to set the server installation type
+# "directadmin" - Install directadmin server with security hardened feature (this server installation type is fully compatible with Directadmin)
+# "general" - Install basic server LEMP or LAMP stack (with security hardened feature)
+# "laravel" - Installation of a single server of laravel coming soon (with security hardened feature)
+# "magento" - Installation of a single server of magento coming soon (with security hardened feature)
+# "joomla" - Installation of a single server of joomla coming soon (with security hardened feature)
+# "wordpress" - Installation of a single server of wordpress coming soon (with security hardened feature)
+# "odoo" - Installation of a single server of odoo coming soon (with security hardened feature)
+# "prestashop" - Installation of a single server of prestashop coming soon (with security hardened feature)
+C_SERVER_TYPE="directadmin"
+
+# C_USE_CUSTOM_WEB_CONFIG:
+# This variable is used to set custom script called (websetup) for setting up specific website configuration.
 # For example, a prestashop website called test.com needs to have custom php config to match prestashop requirement
-# Disable this if you are not able to access private repo
-ENABLE_CUSTOM_WEB_SETUP="no"
-# If disk encryption is set, put the volume group name.
-# This name will be used by fstab, so putting the wrong group name you will be locked out from the system from booting.
-# Specify group of LVM
-LVM_VOLUME_GROUP="vg1"
-# DISK_ENCRYPTION variable is a temp variable, will deprecated in future
-# setup is now able to determine if disk is encrypted or not
-DISK_ENCRYPTION="yes"
-LUKS_PASS="luks*encryption*password"
-# Whether to secure the bootloader with password:
-# If use Debian preseed, don't enable this.
-SECURE_GRUB="yes"
-# Username to set for grub bootloader
-GRUB_UNAME="grub_user"
-# Password to set for grub bootloader
-GRUB_PASS="*grub_pasword*"
-# You don't want to change this because everything is begin with root
-ROOT_USERNAME="root"
-ROOT_USERPASS="*long-secured-password*"
-# Root email used by system and DA owner (will change DA owner email to this domain email instead of using hostname email owner@server.domain.com)
-ROOT_EMAIL="owner@sofibox.com"
-# Global name (Your full name eg: used in system and DA admin)
-ADMIN_NAME="Arafat Ali"
-# General admin email (eg. admin@sofibox.com)
-ADMIN_EMAIL="admin@sofibox.com"
-# This will use DA loginas mentioned in the API documentation
-# sign-as = you can login using this username "admin|client" to log as the client (benefit: no need to know DA client passwords)
-# direct-login = login directly using username and password (need to know DA client passwords)
-DA_LOGIN_METHOD="sign-as"
-# === DA owner start ===
-# Owner shouldn't have domain or web interfaces for security reason
-DA_OWNER_NAME1="System Owner"
-# Change default Directadmin username to secured one (default installation is admin which is not secured)
-DA_OWNER_USERNAME1="da_owner"
-# Be careful some characters are not accepted by phpMyAdmin. Bash has trouble with character #!.
-# DA_ADMIN_USERPASS is for DA admin dashboard password
-DA_OWNER_USERPASS1=*long-secured-password*"
-# DA owner email will use $ROOT_EMAIL variable above but we can declare here too for future reference
-DA_OWNER_SYSTEM_EMAIL1="owner@sofibox.com"
-DA_OWNER_SECURITY_Q1=("What is the spiritual vibration movement?" "What do they call you?")
-DA_OWNER_SECURITY_A1=("xxx" "MaXi32")
-# == DA owner end ===
+# By enabling this feature, this website test.com will have its own configuration.
+# Currently, this feature only compatible with private repo
+# Possible values are: true, false
+C_USE_CUSTOM_WEB_CONFIG=true
 
-# === DA admin start ===
-# Admin shouldn't have domain or web interfaces for security reason
-# This email also will be used by the main admin account
-DA_ADMIN_NAME1="System Admin"
-DA_ADMIN_USERNAME1=*put-directadmin-new-username-here*"
-# Admin username cannot contain character '+' it will trigger invalid password (DA bug?)
-DA_ADMIN_USERPASS1="*long-secured-password*"
-DA_ADMIN_SYSTEM_EMAIL1="admin@sofibox.com"
-DA_ADMIN_SECURITY_Q1=("What is the spiritual movement?" "What do they call you?")
-DA_ADMIN_SECURITY_A1=("xxx" "MaXi32")
-# === DA admin end ===
+# C_DISK_ENCRYPTION:
+# This variable is used to create full disk encryption or use normal partition during OS installation.
+# The encryption will use LUKS method. This option should be enabled for VPS that support full disk encryption such as linode
+# Possible values are: true, false
+C_DISK_ENCRYPTION=true
 
-# === DA reseller start ===
-# This is DA main reseller. Create at least one reseller here (cannot use '+' for password)
-DA_RESELLER_NAME1="Sofibox CH"
-DA_RESELLER_USERNAME1="da_reseller"
-DA_RESELLER_USERPASS1=*long-secured-password*"
-DA_RESELLER_SYSTEM_EMAIL1="webmaster@sofibox.com"
-DA_RESELLER_MAIL_USER1=("webmaster@sofibox.com" "info@sofibox.com")
-DA_RESELLER_MAIL_PASSWORD1=("A*longemailpass" "BlongemailPass*")
-# This is the main reseller package
-DA_RESELLER_PACKAGE_NAME1="RESELLER_UNLIMITED"
-# This is different from BOX_DOMAIN
-DA_RESELLER_DOMAIN1=("sofibox.com" "domain2.com")
-# Put wildcard record for this domain. To disable just let this variable empty with ""
-# Format <domain.com>:<anotherdomain.com>:<anotheronedomain.com>: ...
-DA_RESELLER_WILDCARD_DOMAIN1=("sofibox.com:anotherdomain.com:anotherone.com")
-# Required at least one subdomain for now
-DA_RESELLER_SUBDOMAIN1=("sofibox.com:sales+login+secure" "domain2.com:dashboard" "test.com:abc+def")
-# shared or assign - If shared, domain will use the server's main ip. assign will use one of the reseller's ips
-DA_RESELLER_IP_TYPE1="shared"
-DA_RESELLER_ENABLE_DOMAIN_SSL1="yes"
-DA_RESELLER_SSL_SUB_NAME1=("letsencrypt:sofibox.com:www+ftp+mail+pop+smtp+sales+secure+login+svn")
-# Security question and answers
-# Can be empty with ""
-DA_RESELLER_SECURITY_Q1=("What is the spiritual movement?" "What do they call you?")
-DA_RESELLER_SECURITY_A1=("xxx" "MaXi32")
-# <domain>:<platform_name>:<platform_version>
-#DA_RESELLER_ROOT_WEB_TYPE1=("sofibox.com:wordpress:5.6")
-#<domain_name>:<db_name>:<db_user>:<db_password>
-DA_RESELLER_DB1=("sofibox.com:db_name:db_user:*db-password*" "sofibox.com:db_name2:db_user2:*db-password*" "sofibox.com:db_name2:abcd:*db-password*")
-# Whether to enable or disable modesecurity for the subdomain
-DA_RESELLER_MODSEC1=("sofibox.com:sales+OFF:login+ON")
-# === DA reseller end ===
+# C_LVM_GROUP_NAME:
+# This variable is used to give the volume group name for Logical Volumn Manager.
+# This name will be used by fstab, such as to configure secure mount option that is required for security
+# Leave this as default, and do not change this variable between OS installation and server installation.
+# WARNING, putting different values between OS installation and server installation will cause the fstab to be corrupted because it could not detect proper LVM group name
+# Possible values are any valid name for a LVM group name
+C_LVM_GROUP_NAME="box1"
 
-# === DA user start ===
-# user name, where the main username variable should have variable postfix of 1
-DA_USER_NAME1="Maxibi ICT Solutions"
-DA_USER_USERNAME1="da_user"
-# user password, must be maximum of 64 characters and doesn't contain the plus character '+'
-DA_USER_USERPASS1="*long-secured-password*"
-# user system email, where is used for DA to send email, system email should only have 1 email
-DA_USER_SYSTEM_EMAIL1="webmaster@maxibi.com"
-# user mail account, where array index must match between mail_account and mail_password
-# If one mail. eg: DA_USER_MAIL_USER1=("test@test.com")
-DA_USER_MAIL_USER1=("email1@maxibi.com" "email2@maxibi.com")
-# user mail password, where array index must match between mail_account and mail_password:
-# TODO test asterik password
-DA_USER_MAIL_PASSWORD1=("*mailpassword1" "*mailpassword2")
-# user domain, can declare multiple domains here
-DA_USER_DOMAIN1=("maxibi.com")
-# Put wildcard record for this domain. To disable just let this variable empty with ""
-# Format <domain.com>:<anotherdomain.com>:<anotheronedomain.com>: ...
-DA_RESELLER_WILDCARD_DOMAIN1=("maxibi.com")
-# Format: <rootdomain>:<subdomain1.subdomain2>+<anothersubdomain>+ ...
-# Use plus '+' instead of dot '.'
-# because there is no easy way to determine root domain when it has long subdomains due to huge number of TLD
-# and those TLD names need to be maintained frequently especially from https://publicsuffix.org/
-# you can declare multi subdomains like maxibi.com:sub1.sub2.sub3.sub4.sub5
-DA_USER_SUBDOMAIN1=("maxibi.com:sales+login+sub1.sub2.sub3")
-# user package name, make sure this package name is created first by reseller (the code will check for you)
-DA_USER_PACKAGE_NAME1="USER_UNLIMITED"
-# enable/disable ssl certificate for all domains for this user enable="yes", disable="no"
-DA_USER_ENABLE_DOMAIN_SSL1="yes"
-# Define SSL provider for each domain here
-# <ssl_provider>:<root_domain>:subdomain1.subdomain2+subdomain2.subdomain3+subdomainx
-# ssl_provider such as letsencrypt, digicert etc:
-# The root domain should be ssled by default
-DA_USER_SSL_SUB_NAME1=("letsencrypt:maxibi.com:www+ftp+mail+pop+smtp+sales")
-# Security question and answers
-DA_USER_SECURITY_Q1=("What is the spiritual movement?" "What do they call you?")
-DA_USER_SECURITY_A1=("xxx" "MaXi32")
-# <domain>:<platform_name>:<platform_version>
-DA_USER_ROOT_WEB_TYPE1=("maxibi.com:odoo:14")
-# <domain_name>:<db_name>:<db_user>:<db_password>
-DA_USER_DB1=("maxibi.com:db_name:db_usr:*db-password*")
-# Add more user from here (using the same format above):
-# Can add multiple domains, and emails
-# Add more user from here (using the same format above and add postfix index):
-# Can add multiple domains, and emails: eg:
-# Remember that mailuser and password must have the same array length (script will check this)
-#DA_USER_MAIL_USER2=
-#DA_USER_USERPASS2=
-#DA_USER_SYSTEM_EMAIL2=
-#DA_USER_MAIL_USER2=
-#DA_USER_MAIL_PASSWORD2=
-#DA_USER_DOMAIN2=
-DA_RESELLER_WILDCARD_DOMAIN2=
-#DA_USER_SUBDOMAIN2=
-#DA_USER_PACKAGE_NAME2=
-#DA_USER_ENABLE_DOMAIN_SSL2=
-#DA_USER_SSL_SUB_NAME2=
-#DA_USER_SECURITY_Q2=
-#DA_USER_SECURITY_A2=
-#DA_USER_ROOT_WEB_TYPE2=
-#DA_USER_DB2=
 
-#Add more users here:
+# C_LUKS_PASS:
+# This variable is used to store LUKS disk encryption password
+# If C_DISK_ENCRYPTION is set, it will use this password to encrypt disk partition during OS installation
+C_LUKS_PASS="arafatx_the_ripper"
 
-# === DA user end ===
+# SECURE_GRUB:
+# This variable is used whether to secure the bootloader with password during boot:
+# Note this feature might also available in some OS preseed files such as Debian preseed file but it is recommend to use this variable instead of changing the preseed file.
+# Note by default this feature is temporarily disable because we do not yet have the ability to remote unlock grub-bootloader for automatic installation when the option C_PRE_AUTORUN_SETUP is set
+# If you want to enable this option, set C_PRE_AUTORUN_SETUP=false. You need to manually unlock the server bootloader password if you want to continue managing the server
+# Possible values are: true, false
+C_SECURE_GRUB=false
 
-DA_MAX_UNAME_LENGTH="30"
-# DA_ADMIN_SQLPASS is for DA sql password (eg: phpmyadmin login) Password cannot contains this character [ ] <> and )
-DA_ADMIN_SQLPASS=*long-secured-password*"
-# Remember cannot contains this character & for DA_ROOT_SQL_PASS
-DA_ROOT_SQL_PASS="*long-secured-password*"
-DA_ROUNDCUBE_SQL_PASS="*long-secured-password*"
+# C_GRUB_UNAME:
+# This variable is used to specify username to set for grub bootloader user
+C_GRUB_UNAME="GRUB_USERNAME"
+
+# C_GRUB_PASS:
+# This variable is used to specify password to set for grub bootloader password
+C_GRUB_PASS="GRUB_PASSWORD"
+
+# C_ROOT_USERNAME:
+# This variable is used to specify the root username
+# Warning, you do not want to change this root username to something else because everything should begin with root
+# This option is left here for technical reason
+C_ROOT_USERNAME="root"
+
+# C_INITIAL_ROOT_PASSWORD:
+# This variable is used to specify the root password temporarily during operating system installation
+# The password should not be used for deployment or login purpose
+C_INITIAL_ROOT_PASSWORD="INITIAL_ROOT_PASSWORD"
+
+C_INITIAL_ROOT_RESCUE_PASSWORD="INITIAL_RESCUE_PASSWORD"
+
+# C_ROOT_USERPASS:
+# This variable is used to specify the main root password
+# The password should secure and it will be used for deployment
+# The script will change the operating system root password from C_INITIAL_ROOT_PASSWORD into this password
+# You might need to update this value if you changed root password manually in the system and you are intended to use this script for managing server
+# eg: <script_name> --ssh-login root , this will login into the server using C_ROOT_USERPASS
+C_ROOT_USERPASS="ROOT_USERPASS"
+
+# C_ROOT_EMAIL:
+# This variable is used to specify email used by both root operating system and directadmin server owner
+C_ROOT_EMAIL="user@domain.com"
+
+# C_ADMIN_NAME:
+# This variable is used to specify admin global full name.
+# The purpose of this is for display purpose in system or various function in the scripts
+# By default, for directadmin installation, it will use this name as the owner of the system
+C_ADMIN_NAME="Arafat Ali"
+
+# C_ADMIN_EMAIL:
+# This varialbe is used to specify admin global email.
+# Various script functions will use this email such as for displaying script header, sending email in CSF, GPG key identifier and directadmin ticket notification
+C_ADMIN_EMAIL="user@domain.com"
+
+
+
+# =========================== Start directadmin related configuration ===========================
+# ===============================================================================================
 # If INSTALL TYPE for DA:
 # custom = use your own setting during DA installation (provide options.conf and php_extensions.conf),
 # ori = let DA decide what to install default things prividing some details using auto
 # interactive = ask question what to install
-# auto = Automated everything by DA (include auto CSF installation) -- AUTO is under testing
-DA_INSTALL_TYPE="custom"
+# auto = Automated everything by DA (include auto CSF installation) -- Warning, AUTO is under testing (might have conflict with maxinet)
+C_DA_INSTALL_TYPE="custom"
 #This is Directadmin client/user ID
-DA_CLIENT_ID="12345"
+C_DA_CLIENT_ID="12345"
 #This is Directadmin license ID
-DA_LICENSE_ID="123456"
+C_DA_LICENSE_ID="123456"
 # Use custom port for Directadmin (Default one is not secure but using this custom port you will lose the ability to use one click sign in feature because that works only with 2222)
-DA_PORT="1192"
-DA_MODSECURITY_RULESET="comodo" # or owasp
-DA_HELP_DOMAIN="help.sofibox.com"
-CB_WEB_SERVER_SOFTWARE="nginx_apache"
+C_DA_PORT="8132"
+C_DA_MODSECURITY_RULESET="comodo" # or owasp
+C_DA_HELP_DOMAIN="help.sofibox.com/directadmin"
+C_DA_WEB_SERVER_SOFTWARE="nginx_apache"
+
 # Server cache configuration
-CB_INSTALL_REDIS="yes"
-CB_INSTALL_MEMCACHED="yes"
-# or mysql-8.0
+# Planned variable
+C_DA_INSTALL_REDIS=true
+C_DA_INSTALL_MEMCACHED=true
+
 # Format <sql_type>-<sql_version>
-CB_MYSQL_INS="mariadb-10.5"
-SETUP_DA_HOST_SSL="yes" # or "no"
+# or mysql-8.0
+C_DA_MYSQL_SOFTWARE="mariadb-10.5"
+C_ENABLE_DA_HOST_SSL=true
+
+# This is a new testing feature to add automatically ipv6 config (official and manual way)
+# when supplying true , meaning no need to add through GUI manually, system will will do it automatically
+C_DA_AUTO_ADD_IPV6_ENTRY=true
+
+# C_DA_LOGIN_METHOD: NOTE this is a planned feature (this setting has no effect yet)
+# This variable is used as login style method in directadmin. This login method is mentioned in the directadmin API documentation
+# Possible values are:
+# sign-as = This will use da login method with piping: "admin|client". Using this sign-as method, this will log as the client from admin by just by reffering the username (benefit: no need to know the client passwords)
+# direct-login = login directly using username and password (disadvantage: need to know directadmin client username and password)
+C_DA_LOGIN_METHOD="sign-as"
+
+C_DA_MAX_UNAME_LENGTH="30"
+# DA_ADMIN_SQLPASS is for DA sql password (eg: phpmyadmin login) Password cannot contains this character [ ] <> and )
+C_DA_ADMIN_SQLPASS="ADMIN_SQL_PASSWORD"
+# Remember cannot contains this character & for DA_ROOT_SQL_PASS
+C_DA_ROOT_SQLPASS="ROOT_SQL_PASSWORD"
+C_DA_ROUNDCUBE_SQLPASS="ROUNDCUBE_SQL_PASSWORD"
+
+# ==== Start directadmin OWNER information ====
+# C_DA_OWNER_NAMEN:
+# This variable defined the directadmin owner full name. The owner full name is the initial admin installation created during directadmin istallation
+# The last character of N from the variable C_DA_OWNER_NAMEN is the total number of user as owner. For example to define the second owner's full name the next variable will be: C_DA_OWNER_NAME2
+# However, you are not supposed to declare more than 1 owner user. Currently owner should only have 1 user in the directadmin system but admin and user should can have multiple users
+C_DA_OWNER_NAME1="Arafat Ali"
+
+# C_DA_OWNER_USERNAMEN:
+# This variable defined directadmin owner username.
+# The default username in directadmin is admin which is not secure. Setup will change the default directadmin username from admin into this value.
+# You must set this variable other than admin, so directadmin will not contains any admin username for security reason
+C_DA_OWNER_USERNAME1="arafatx"
+
+# Be careful some characters are not accepted by phpMyAdmin. Bash has trouble with character #!.
+# DA_ADMIN_USERPASS is for DA admin dashboard password
+C_DA_OWNER_USERPASS1="arafathensem"
+
+# DA owner email will use $ROOT_EMAIL variable above but we can declare here too for future reference
+C_DA_OWNER_SYSTEM_EMAIL1="test@codegix.com"
+
+C_DA_OWNER_SECURITY_Q1=("What is the owner spiritual vibration movement?" "What do they call owner?")
+
+C_DA_OWNER_SECURITY_A1=("answer 1 here" "answer 2 here")
+
+# Note: Currently owner should not have domain or web interfaces for directadmin security reason
+# ==== End directadmin OWNER information ====
+
+# === DA admin start ===
+# Admin should not have domain or web interfaces for security reason
+# This email also will be used by the main admin account
+C_DA_ADMIN_NAME1="First Admin"
+C_DA_ADMIN_USERNAME1="firstadmin"
+# Admin username cannot contain character [+] it will trigger invalid password (DA bug?)
+C_DA_ADMIN_USERPASS1="PASSWORD"
+C_DA_ADMIN_SYSTEM_EMAIL1="admin@test.com"
+C_DA_ADMIN_SECURITY_Q1=("What is the spiritual movement?" "What do they call admin?")
+C_DA_ADMIN_SECURITY_A1=("answer 1 here" "answer 2 here")
+# === DA admin end ===
+
+# === DA reseller start ===
+# This is DA main reseller. Create at least one reseller here (cannot use [+] for password)
+C_DA_RESELLER_NAME1="The Reseller"
+C_DA_RESELLER_USERNAME1="thereseller1"
+C_DA_RESELLER_USERPASS1="PASSWORD"
+C_DA_RESELLER_SYSTEM_EMAIL1="webmaster@testreseller.com"
+C_DA_RESELLER_MAIL_USER1=("webmaster@testreseller.com" "info@test.com")
+C_DA_RESELLER_MAIL_PASSWORD1=("mail 1 password" "mail 2 password")
+# This is the main reseller package
+C_DA_RESELLER_PACKAGE_NAME1="RESELLER_UNLIMITED"
+# This is different from BOX_DOMAIN
+C_DA_RESELLER_DOMAIN1=("testreseller.com")
+# Put wildcard record for this domain. To disable just let this variable empty with ""
+# Format <domain.com>:<anotherdomain.com>:<anotheronedomain.com>: ...
+C_DA_RESELLER_WILDCARD_DOMAIN1=("testreseller.com")
+# Required at least one subdomain for now
+C_DA_RESELLER_SUBDOMAIN1=("testreseller.com:sales+login+secure+svn+api+help+dashboard")
+# shared or assign - If shared, domain will use the main ip from the server. Whereas for assign, it will use one of the ips from resellers
+C_DA_RESELLER_IP_TYPE1="shared"
+C_DA_RESELLER_ENABLE_DOMAIN_SSL1="yes"
+C_DA_RESELLER_SSL_SUB_NAME1=("letsencrypt:testreseller.com:www+ftp+mail+pop+smtp+sales+secure+login+svn+api+help+dashboard")
+# Security question and answers
+# Can be empty with ""
+C_DA_RESELLER_SECURITY_Q1=("Kau sekolah kat mana?" "Masuk U kat mana?")
+C_DA_RESELLER_SECURITY_A1=("STHAM" "MMU")
+# <domain>:<platform_name>:<platform_version>
+#DA_RESELLER_ROOT_WEB_TYPE1=("testreseller.com:wordpress:5.6")
+#<domain_name>:<db_name>:<db_user>:<db_password>
+C_DA_RESELLER_DB1=("testreseller.com:wwwdb:wwwusr:password_here" "testreseller.com:wwwdb2:wwwusr:password_here" "testreseller.com:testdb:testusr:password_here")
+# Whether to enable or disable modesecurity for the subdomain
+C_DA_RESELLER_MODSEC1=("testreseller.com:sales+OFF:login+ON")
+# === DA reseller end ===
+
+# === DA user start ===
+# user name, where the main username variable should have variable postfix of 1
+C_DA_USER_NAME1="Maxibi"
+C_C_DA_USER_USERNAME1="testuser"
+# user password, must be maximum of 64 characters and does not contain the plus character [+]
+C_DA_USER_USERPASS1="PASSWORD"
+# user system email, where is used for DA to send email, system email should only have 1 email
+C_DA_USER_SYSTEM_EMAIL1="webmaster@testuser.com"
+# user mail account, where array index must match between mail_account and mail_password
+# If one mail. eg: DA_USER_MAIL_USER1=("test@testuser.com")
+C_DA_USER_MAIL_USER1=("webmaster@testuser.com" "info@testuser.com" "sales@testuser.com")
+# user mail password, where array index must match between mail_account and mail_password:
+# TODO test asterik password
+C_DA_USER_MAIL_PASSWORD1=("MAIL1_PASSWORD" "MAIL2_PASSWORD" "MAIL3_PASSWORD")
+# user domain, can declare multiple domains here
+C_DA_USER_DOMAIN1=("testuser.com")
+# Put wildcard record for this domain. To disable just let this variable empty with ""
+# Format <domain.com>:<anotherdomain.com>:<anotheronedomain.com>: ...
+C_DA_USER_WILDCARD_DOMAIN1=("testuser.com")
+# Format: <rootdomain>:<subdomain1.subdomain2>+<anothersubdomain>+ ...
+# Use plus [+] instead of dot [.]
+# because there is no easy way to determine root domain when it has long subdomains due to huge number of TLD
+# and those TLD names need to be maintained frequently especially from https://publicsuffix.org/
+# you can declare multi subdomains like maxibi.com:sub1.sub2.sub3.sub4.sub5
+C_DA_USER_SUBDOMAIN1=("testuser.com:sales+login")
+# user package name, make sure this package name is created first by reseller (the code will check for you)
+C_DA_USER_PACKAGE_NAME1="USER_UNLIMITED"
+# enable/disable ssl certificate for all domains for this user enable="yes", disable="no"
+C_DA_USER_ENABLE_DOMAIN_SSL1="yes"
+# Define SSL provider for each domain here
+# <ssl_provider>:<root_domain>:subdomain1.subdomain2+subdomain2.subdomain3+subdomainx
+# ssl_provider such as letsencrypt, digicert etc:
+# The root domain should be ssled by default
+C_DA_USER_SSL_SUB_NAME1=("letsencrypt:testuser.com:www+ftp+mail+pop+smtp+sales")
+# Security question and answers
+C_DA_USER_SECURITY_Q1=("Pehal PKP lama sangat?" "Ok ke?" "Kaupehal")
+C_DA_USER_SECURITY_A1=("entah" "ok je" "tak ada ape")
+# <domain>:<platform_name>:<platform_version>
+# Testing new feature
+#DA_USER_ROOT_WEB_TYPE1=("testuser.com:wordpress:5.6")
+# <domain_name>:<db_name>:<db_user>:<db_password>
+C_DA_USER_DB1=("testuser.com:wwwdb:wwwusr:DB_PASSWORD_HERE")
+# New planned feature enable or disable MOD SECURITY
+C_DA_USER_MODSEC1=("testuser.com:sales+OFF:login+ON")
+# Add more user from here (using the same format above):
+# Can add multiple domains, and emails
+
+To create another N users use the following template (you can have unlimited DA users based on your license:
+
+C_DA_USER_NAME2=
+C_C_DA_USER_USERNAME2=
+C_DA_USER_USERPASS2=
+C_DA_USER_SYSTEM_EMAIL2=
+C_DA_USER_MAIL_USER2=
+C_DA_USER_MAIL_PASSWORD2=
+C_DA_USER_DOMAIN2=
+C_DA_USER_WILDCARD_DOMAIN2=
+C_DA_USER_SUBDOMAIN2=
+C_DA_USER_PACKAGE_NAME2=
+C_DA_USER_ENABLE_DOMAIN_SSL2=
+C_DA_USER_SSL_SUB_NAME2=
+C_DA_USER_SECURITY_Q2=
+C_DA_USER_SECURITY_A2=
+C_DA_USER_DB2=
+C_DA_USER_MODSEC2=
+
+
+C_DA_USER_NAME[N]=
+C_C_DA_USER_USERNAME[N]=
+C_DA_USER_USERPASS[N]=
+C_DA_USER_SYSTEM_EMAIL[N]=
+C_DA_USER_MAIL_USER[N]=
+C_DA_USER_MAIL_PASSWORD[N]=
+C_DA_USER_DOMAIN[N]=
+C_DA_USER_WILDCARD_DOMAIN[N]=
+C_DA_USER_SUBDOMAIN[N]=
+C_DA_USER_PACKAGE_NAME[N]=
+C_DA_USER_ENABLE_DOMAIN_SSL[N]=
+C_DA_USER_SSL_SUB_NAME[N]=
+C_DA_USER_SECURITY_Q[N]=
+C_DA_USER_SECURITY_A[N]=
+C_DA_USER_DB[N]=
+C_DA_USER_MODSEC[N]=
+
+# === DA user END ===
+
+
 # When enable secure the custom directory with password
-SECURE_HTTPASSWD_LOGIN_ROUTE="yes"
+C_SECURE_LOGIN_ROUTE=true
 # Create phpmyadmin custom route here instead of using /pma, begin with /: eg /dbx123a.
-PHPMYADMIN_CUSTOM_NAME="MY Awesome Database"
-PHPMYADMIN_LOGIN_ROUTE="/dbarea51"
-HTTPASSWD_PHPMYADMIN_USERNAME="dbagent007"
-HTTPASSWD_PHPMYADMIN_PASS="*long-secured-password*"
+C_PHPMYADMIN_CUSTOM_NAME="MY Awesome Database"
+C_PHPMYADMIN_LOGIN_ROUTE="/dbarea51"
+C_HTTPASSWD_PHPMYADMIN_USERNAME="dbagent007"
+C_HTTPASSWD_PHPMYADMIN_PASS="*long-secured-password*"
 # Create roundcube custom route here instead of using /roundcube, begin with /: eg /mailx123
-ROUNDCUBE_CUSTOM_NAME="My Awesome Mail"
-ROUNDCUBE_LOGIN_ROUTE="/mailarea51"
-HTTPASSWD_ROUNDCUBE_USERNAME="mailagent007"
-HTTPASSWD_ROUNDCUBE_PASS="*long-secured-password*"
+C_ROUNDCUBE_CUSTOM_NAME="My Awesome Mail"
+C_ROUNDCUBE_LOGIN_ROUTE="/mailarea51"
+C_HTTPASSWD_ROUNDCUBE_USERNAME="mailagent007"
+C_HTTPASSWD_ROUNDCUBE_PASS="*long-secured-password*"
 # This is a private repository URL (PM me for more info because you need TOKEN key access)
-SETUP_GIT_URL="https://token@github.com/sofibox/maxinet.git"
-GIT_TOKEN="*git-token-key*"
+C_SETUP_GIT_URL="https://token@github.com/sofibox/maxinet.git"
+C_GIT_TOKEN="GIT_TOKEN_HERE"
 # To reduce server bot attack on SSH, you must change this SSH PORT
-RESCUE_SSH_PORT="823"
-SSH_PORT="928"
-DROP_BEAR_PORT="8221"
-SSH_USERNAME="ssh-uname"
-SSH_USERPASS="*long-secured-password*"
-# SSH_PUBLIC_KEY is deprecated
+C_RESCUE_SSH_PORT="999"
+C_SSH_PORT="922"
+C_DROP_BEAR_PORT="7622"
+C_SSH_USERNAME="ssh-uname"
+C_SSH_USERPASS="*long-secured-password*"
 # This one for SSH Public Key. I generate this from puttygen
-# SSH_PUBLIC_KEY is deprecated leave it for reference
-SSH_PUBLIC_KEY="ssh-rsa AAAAB3N***AAAQE***nsAQENik/Al***G/8***Y sofibox-auth-test.sofibox.com-v1"
-SSH_PASSPHRASE="**SSH_PASSPHRASE***"
-# vps | dedicated
-BOX_ISO_OS_TYPE="debian"
+# You can leave this empty, or do anything because the script has its own ssh key, if script has trouble finding key file then it will use this:
+C_SSH_PUBLIC_KEY="ssh-rsa AAAAB3N***AAAQE***nsAQENik/Al***G/8***Y sofibox-auth-test.sofibox.com-v1"
+# Planned feature
+C_SSH_PASSPHRASE="**SSH_PASSPHRASE***"
+C_BOX_ISO_OS_TYPE="debian"
 # values: custom, normal, console | do not use console if system support GUI, else you will see blank UI
 # only use console for system that does not support graphic display, for example linode lish without glish.
-BOX_OS_INSTALL_UI="normal"
-BOX_TYPE="dedicated"
-BOX_MAIN_DISK="/dev/sda"
+# This feature has been removed temporarily from the script (will leave this variable for technical reason)
+C_BOX_OS_INSTALL_UI="normal"
+# Possible values: vps, dedicated, colocation
+C_BOX_TYPE="vps"
+# Specify the main disk
+C_BOX_MAIN_DISK="/dev/sda"
 # Partition size information
-BOX_MAIN_DISK_RAW_SIZE="size-in-MB"
-BOX_RESCUE_DISK_RAW_SIZE="size-in-MB"
-BOX_BOOT_DISK_RAW_SIZE="size-in-MB"
+C_BOX_MAIN_DISK_RAW_SIZE="size-in-MB"
+C_BOX_RESCUE_DISK_RAW_SIZE="size-in-MB"
+C_BOX_BOOT_DISK_RAW_SIZE="size-in-MB"
 # Partition scheme
-BOX_BOOT_SIZE="size-in-MB"
-BOX_ROOT_SIZE="size-in-MB"
-BOX_TMP_SIZE="size-in-MB"
-BOX_SWAP_SIZE="size-in-MB"
-# -1 = largest available size (put last so can expand easier)
-BOX_HOME_SIZE="-1"
-BOX_RAM="32GB"
-BOX_SWAP="4GB"
-BOX_HOSTNAME="test"
-BOX_DOMAIN="sofibox.com"
-BOX_HOSTNAME_FQDN="test.sofibox.com"
-BOX_TIMEZONE="Asia/Kuala_Lumpur"
-BOX_COUNTRY_NAME="Malaysia"
-BOX_COUNTRY_CODE="MY"
-BOX_LANGUAGE_CODE="en"
-BOX_LOCALE="en_US.UTF-8"
-BOX_KEYBOARD="us"
+C_BOX_BOOT_SIZE="size-in-MB"
+C_BOX_ROOT_SIZE="size-in-MB"
+C_BOX_TMP_SIZE="size-in-MB"
+C_BOX_SWAP_SIZE="size-in-MB"
+# -1 = largest available size (put last so can expand easier), -1 means infinity
+C_BOX_HOME_SIZE="size-in-MB" # or put -1 for infinity
+C_BOX_RAM="32GB"
+C_BOX_DOMAIN="test.com"
+C_BOX_HOSTNAME_FQHN="server.test.com"
+# OPTIONAL variable, if not specified it will take the host name from C_BOX_HOSTNAME_FQHN (this is sensitive variable) must be declared as empty even it is autogenerate value
+C_BOX_HOSTNAME=""
+C_BOX_TIMEZONE="Asia/Kuala_Lumpur"
+C_BOX_COUNTRY_NAME="Malaysia"
+C_BOX_COUNTRY_CODE="MY"
+C_BOX_LANGUAGE_CODE="en"
+C_BOX_LOCALE="en_US.UTF-8"
+C_BOX_KEYBOARD="us"
 
 # Name servers up to 4
-BOX_NS1="ns1.sofibox.com"
-BOX_NS2="ns2.sofibox.com"
-BOX_NS3="ns3.sofibox.com"
-BOX_NS4="ns4.sofibox.com"
+C_BOX_NS1="ns1.sofibox.com"
+C_BOX_NS2="ns2.sofibox.com"
+C_BOX_NS3="ns3.sofibox.com"
+C_BOX_NS4="ns4.sofibox.com"
 
 # or auto = let the naming convention decide
-NIC_INTERFACE_NAME="eth0"
-IPV4_ADD0="123.111.50.185"
-IPV4_DEF_GATEWAY0="123.111.50.1"
-IPV4_NETMASK0="/24"
-IPV4_NETMASK_IP0="255.255.255.0"
-IPV6_ADD0="2400:8902::a02d:91ee:fe05:4db2"
-IPV6_DEF_GATEWAY0="fe80::1"
-IPV6_NETMASK0="/64"
-AUTO_LINK_DA_IP="yes" # or no - link or not link IP from
+C_NIC_INTERFACE_NAME="eth0"
+# 172.104.50.185/24
+C_IPV4_ADD0="IPV4_ADDRESS" #eg: "123.111.50.185"
+C_IPV4_DEF_GATEWAY0="IPV4_DEFAULT_GATEWAY" #eg: "123.111.50.1"
+C_IPV4_NETMASK0="/24"
+C_IPV4_NETMASK_IP0="255.255.255.0"
+C_IPV6_ADD0="IPV6_ADDRESS" #eg: "2400:8902::a02d:91ee:fe05:4db2"
+C_IPV6_DEF_GATEWAY0="fe80::1"
+C_IPV6_NETMASK0="/64"
+C_DA_AUTO_LINK_IP="true"
 # For /etc/resolv.conf
-NAME_SERVER1="123.11.11.5"
-NAME_SERVER2="123.11.14.5"
-NAME_SERVER3="112.33.21.5"
-#interactive=user need to press enter, auto=forced reboot (no user interaction), disable - no reboot
-ENABLE_SETUP_REBOOT="interactive"
+C_NAME_SERVER1="123.11.11.5"
+C_NAME_SERVER2="123.11.14.5"
+C_NAME_SERVER3="112.33.21.5"
+#interactive=user need to press enter, auto=forced reboot (no user interaction), disabled - no reboot
+C_ENABLE_SETUP_REBOOT="interactive"
 #OSSEC_INS_TYPE="agent" #or local or hybrid
 # ====== CSF SETTING ==========
 # CSF port setting: Remember, no space. This variable can be empty string
 # 11211 - required by memcached, 8080 and 5060 required by speedtest.net
 # Range example-- 30000:44444
-CSF_EXTRA_ALLOW_PORTS="30000:35999,11211,8080,5060"
+C_CSF_EXTRA_ALLOW_PORTS="30000:35999,11211,8080,5060"
 #CONNLIMIT="22;5,80;20,443;20"
 #PORTFLOOD="22;tcp;5;300,80;tcp;20;5,443;tcp;20;5"
-CSF_SYSLOG_CHECK="600"
-CSF_DENY_IP_LIMIT="2500"
+C_CSF_SYSLOG_CHECK="600"
+C_CSF_DENY_IP_LIMIT="2500"
 #Google Recaptcha useful to setting up messenger v1 for Directadmin
-GOOGLE_RECAPTCHA_SITE_V2="*recaptcha-v2-site-key*"
-GOOGLE_RECAPTCHA_SECRET_V2="*recaptcha-v2-secret-key*"
-GOOGLE_RECAPTCHA_SITE_V3="*recaptcha-v3-site-key*"
-GOOGLE_RECAPTCHA_SECRET_V3="*recaptcha-v3-secret-key*"
-ENABLE_ROUNDCUBE_RCGUARD="yes"
-# This is a new testing feature to add automatically ipv6 config (official and manual way)
-# when supplying yes , meaning no need to add through GUI manually, system will will do it automatically
-AUTO_ADD_IPV6_ENTRY="yes"
-GPG_PASSPHRASE="*your-gpg-passphrase*"
-GPG_USE_EXISTING_KEY="yes"
+C_GOOGLE_RECAPTCHA_SITE_V2="*recaptcha-v2-site-key*"
+C_GOOGLE_RECAPTCHA_SECRET_V2="*recaptcha-v2-secret-key*"
+C_GOOGLE_RECAPTCHA_SITE_V3="*recaptcha-v3-site-key*"
+C_GOOGLE_RECAPTCHA_SECRET_V3="*recaptcha-v3-secret-key*"
+
+# Roundcube setting #
+C_ENABLE_ROUNDCUBE_RCGUARD=true
+
+C_GPG_PASSPHRASE="GPG_PASSWORD_HERE"
+C_GPG_USE_EXISTING_KEY=true
 
 # =~=~ For maxiwall / suricata =~=~#
 # The URL. Need to modify this if they change this URL like the v2 to v3
 # Select version for suricata. Best is to use version 6+ because version 6 has new different packages need to include:
-# Tested working with 6.0.1 and 6.0.2
-SURICATA_SELECT_VERSION="6.0.2"
-MAXIWALL_AIPDB_CHECK_URL="https://api.abuseipdb.com/api/v2/check"
-MAXIWALL_AIPDB_REPORT_URL="https://api.abuseipdb.com/api/v2/report"
+# Working = 6.0.1 | version 6.0.2 (both version required rustup. current rustup version has bug with Debian). Using backport temporarily
+# SURICATA_SELECT_VERSION=backport: This will use the latest backport version which is easier to maintain (especially for debian)
+C_SURICATA_SELECT_VERSION="6.0.2"
+C_MAXIWALL_AIPDB_CHECK_URL="https://api.abuseipdb.com/api/v2/check"
+C_MAXIWALL_AIPDB_REPORT_URL="https://api.abuseipdb.com/api/v2/report"
 # The main abuseAIPDB key
-MAXIWALL_AIPDB_API_KEY="strong*63161ec_covid19f****63ex742*x***85xaMaXi32xax41*****"
+C_MAXIWALL_AIPDB_API_KEY="AIPDB_API_HERE"
 # =~=~ End maxiwall =~=~#
 
 # External/Internal DNS provider
-# provider can be linode, digitalocean, amazonaws and more, put value [local] to disable this feature and use internal DNS#EXTERNAL_DNS_PROVIDER="linode"
-# DNS_PROVIDER_USER="sofibox"
+
+# provider can be linode, digitalocean, amazonaws and more, put value [local] to disable this feature and use internal DNS
+# Leave this variable empty for technical reason
+C_DNS_PROVIDER_NAME=""
+# Leave this variable empty for technical reason
+C_DNS_PROVIDER_USER=""
+
 # Format <provider_name>:<provider_username>:<api_key>
-DNS_PROVIDER_API1="*API-KEY"
-DNS_PROVIDER_TERMINAL_SERVER="lish-singapore.linode.com"
+C_DNS_PROVIDER_API1="linode:maxibi:LINODE_API_HERE"
+C_DNS_PROVIDER_TERMINAL_SERVER="lish-usa1.linode.com"
 
 # For linode configuration
-LINODE_OS_CONFIG_LABEL="OS_Config"
-LINODE_BOOT_CONFIG_LABEL="Boot_Config"
-LINODE_RESCUE_CONFIG_LABEL="Rescue_Config"
-LINODE_OS_DISK_LABEL="OS_Disk"
-LINODE_BOOT_DISK_LABEL="Boot_Disk"
-LINODE_RESCUE_DISK_LABEL="Rescue_Disk"
+C_LINODE_OS_CONFIG_LABEL="OS_Config"
+C_LINODE_BOOT_CONFIG_LABEL="Boot_Config"
+C_LINODE_RESCUE_CONFIG_LABEL="Rescue_Config"
+C_LINODE_OS_DISK_LABEL="OS_Disk"
+C_LINODE_BOOT_DISK_LABEL="Boot_Disk"
+C_LINODE_RESCUE_DISK_LABEL="Rescue_Disk"
 
 # For amazonaws configuration
 
@@ -360,10 +566,4 @@ LINODE_RESCUE_DISK_LABEL="Rescue_Disk"
 # For OVH configuration
 
 # Alternative packages version
-INSTALL_RUSTC_VERSION="1.52.0"
-
-# Temporary variable used for initial values
-
-ROOT_RESCUE_INITIAL="12321aa"
-SSH_USERPASS_INITIAL="12321aa"
-#ROOT_USERPASS_INITIAL="12321aa"
+C_INSTALL_RUSTC_VERSION="1.52.0"
