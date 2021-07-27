@@ -10,8 +10,9 @@
     <select />
   </component>
   <component name="ChangeListManager">
-    <list default="true" id="113c828c-9a32-4b24-ab1e-978ce50c6320" name="Default Changelist" comment="New update and improvement">
+    <list default="true" id="113c828c-9a32-4b24-ab1e-978ce50c6320" name="Default Changelist" comment="Huge update and improvement. Added code comments especially on the Config File">
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/maxinet" beforeDir="false" afterPath="$PROJECT_DIR$/maxinet" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -188,14 +189,8 @@
       <workItem from="1627193218756" duration="80000" />
       <workItem from="1627231551399" duration="660000" />
       <workItem from="1627268408161" duration="388000" />
-      <workItem from="1627309836318" duration="1232000" />
-    </task>
-    <task id="LOCAL-00055" summary="Fixed wildcard selectors and more">
-      <created>1614958806218</created>
-      <option name="number" value="00055" />
-      <option name="presentableId" value="LOCAL-00055" />
-      <option name="project" value="LOCAL" />
-      <updated>1614958806218</updated>
+      <workItem from="1627309836318" duration="2635000" />
+      <workItem from="1627320299029" duration="15000" />
     </task>
     <task id="LOCAL-00056" summary="Added bash options&#10;Added app specific variable name&#10;Updated TODO lists&#10;Added new linode APIs&#10;Added condition, to only secure GRUB partition if it's set in config file&#10;And many more ...">
       <created>1615239559420</created>
@@ -533,7 +528,14 @@
       <option name="project" value="LOCAL" />
       <updated>1627268437415</updated>
     </task>
-    <option name="localTasksCounter" value="104" />
+    <task id="LOCAL-00104" summary="Huge update and improvement. Added code comments especially on the Config File">
+      <created>1627311975129</created>
+      <option name="number" value="00104" />
+      <option name="presentableId" value="LOCAL-00104" />
+      <option name="project" value="LOCAL" />
+      <updated>1627311975129</updated>
+    </task>
+    <option name="localTasksCounter" value="105" />
     <servers />
   </component>
   <component name="TypeScriptGeneratedFilesManager">
@@ -552,7 +554,6 @@
     <option name="oldMeFiltersMigrated" value="true" />
   </component>
   <component name="VcsManagerConfiguration">
-    <MESSAGE value="Improved ssh_key_manager() function&#10;&#10;Improved ssh_login() funciton&#10;&#10;Added new function ssh_transfer() to transfer file via SSH using scp protocol&#10;&#10;Added user ssh key, to disable root login and use user to login in preseed config and save public key directly in ISO file to auto copy.&#10;&#10;Fixed extra curly bracket on line 1135 (might be due to hand shaking)&#10;&#10;Added new remote script maxisetup_ssh.sh&#10;&#10;New variables in maxisetup.conf.sample&#10;&#10;DROP_BEAR_PORT=&quot;1234&quot;&#10;DNS_PROVIDER_TERMINAL_SERVER=&quot;lish-singapore.linode.com&quot;" />
     <MESSAGE value="Improved ssh_login code&#10;Added documentation in the terminal to resume remote installation (in the case setup needs to restart remotely). This will display when SSH is terminated.&#10;Improved check_finish_reboot function&#10;Added the ability to detect if OS is encrypted. Hence, the variable DISK_ENCRYPTION used to specify OS encryption status manually is now deprecated.&#10;Renamed variable disk_uuid to local disk_uuid_boot because this uuid is only for boot partition&#10;Extra ports specification config for variable CSF_EXTRA_ALLOW_PORTS now doesn't need to specify comma at the beginning.&#10;Added new variable CSF_DENY_IP_LIMIT to increase DENY_IP_LIMIT from 200 (default) to any values. This one was missing feature.&#10;Added speedtest.net installation in post_setup()&#10;Added the ability to automatically unlock LUKS encryption remotely and run maxisetup automatically.&#10;Other changes ... especially in maxida, maxiwall, websetup .. other extra things" />
     <MESSAGE value="Update small changes, add debug line to debug new version of DA 1.62 (some API has changed as reported)" />
     <MESSAGE value="Add shutdown function to turn off current server&#10;&#10;Added new variable:&#10;&#10;PRE_AUTORUN_SETUP=&quot;no&quot;&#10;&#10;This will determine if setup need to run automatically after build ISO and auto login into the SSH server. If use 'no' means, it will not run setup and need to manually do that, when specifying no, the system will not execute --setup argument but instead it will execute this:&#10;&#10;ssh_login &quot;${BOX_HOSTNAME_FQDN}:${SSH_PORT}&quot; &quot;root:${ROOT_USERNAME}&quot; &quot;${SCRIPT_PATH}/reboot_ssh.sh&quot;&#10;&#10;The content of the reboot_ssh.sh is as follow:&#10;&#10;--&#10;#!/bin/bash&#10;# TODO will make the name of the script dynamic. Do not use 'maxisetup'&#10;# This script will only shutdown the current server that has script in it&#10;cd /root || exit 1&#10;chmod +x maxisetup&#10;touch maxisetup.log&#10;./maxisetup --shutdown-server 2&gt;&amp;1 | tee maxisetup.log&#10;echo &quot;&quot;&#10;--" />
@@ -577,6 +578,7 @@
     <MESSAGE value="Added ability to download remote file installation log by triggering this simple command:&#10;&#10;maxinet --get-remote-log&#10;&#10;By default this log file is stored at &lt;script_path&gt;/log/" />
     <MESSAGE value="Update and improvement&#10;&#10;Improved required() function to be portable&#10;&#10;Example of the call:&#10;&#10;required &quot;ubuntu@@apt:dos2unix,htop,nano+make:xxx,test,ok&quot; \&#10;  &quot;centos@@dnf:dos2unix,nano&quot; &quot;debian@@apt:dos2unix,htop&quot;&#10;&#10;required &quot;ubuntu@@apt:nano,htop,vim&quot; \&#10;  &quot;centos@@dnf:dos2unix,nano&quot; &quot;debian@@apt:dos2unix,htop,git,x&quot;" />
     <MESSAGE value="New update and improvement" />
-    <option name="LAST_COMMIT_MESSAGE" value="New update and improvement" />
+    <MESSAGE value="Huge update and improvement. Added code comments especially on the Config File" />
+    <option name="LAST_COMMIT_MESSAGE" value="Huge update and improvement. Added code comments especially on the Config File" />
   </component>
 </project>

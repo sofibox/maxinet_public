@@ -5,7 +5,7 @@
 # Author: Arafat Ali | Email: webmaster@sofibox.com | Website: sofibox.com
 _APP_SPECIFIC_NAME="Maxinet"
 # Note some minor versions are not published
-_APP_VERSION="0.5.4.7"
+_APP_VERSION="0.5.4.8"
 _APP_STATUS="alpha"
 _APP_VERSION_STATUS="${_APP_VERSION}-${_APP_STATUS}"
 
@@ -2676,7 +2676,7 @@ function create_file() {
         echo "exit"
         echo "exit"
       } >"${ssh_scripts_path}/test_script.sh"
-
+      chmod +x "${ssh_scripts_path}/test_script.sh"
       # reboot_command.sh
       {
         echo "#!/bin/bash"
@@ -2690,7 +2690,7 @@ function create_file() {
         echo "exit"
         echo "exit"
       } >"${ssh_scripts_path}/reboot_command.sh"
-
+      chmod +x "${ssh_scripts_path}/reboot_command.sh"
       # shutdown_command.sh
       {
         echo "#!/bin/bash"
@@ -2704,7 +2704,7 @@ function create_file() {
         echo "exit"
         echo "exit"
       } >"${ssh_scripts_path}/shutdown_command.sh"
-
+      chmod +x "${ssh_scripts_path}/shutdown_command.sh"
       #maxinet_setup.sh
       {
         echo "#!/bin/bash"
@@ -2721,6 +2721,7 @@ function create_file() {
         echo "exit"
         echo "exit"
       } >"${ssh_scripts_path}/maxinet_setup.sh"
+      chmod +x "${ssh_scripts_path}/maxinet_setup.sh"
     # SSH banner
     elif [[ ${create_action} == "ssh-banner1" || ${create_action} == "ssh_banner1" ]]; then
       {
@@ -6745,7 +6746,7 @@ function secure_box() {
     sudo -H -u "${C_SSH_USERNAME}" bash -c "touch ~/.ssh/authorized_keys"
     _echo "$(msg cyan)Writing an RSA public key into ~/.ssh/authorized_keys ...$(msg end)" --name
     sudo -H -u "${C_SSH_USERNAME}" bash -c "echo ${user_rsa_public_key} >~/.ssh/authorized_keys"
-    echo "[${SCRIPT_NAME}]: Changing ~/.ssh/authorized_keys permission to chmod 700 ..."
+    _echo "$(msg cyan) Changing ~/.ssh/authorized_keys permission to chmod 700  ...$(msg end)" --name
     sudo -H -u "${C_SSH_USERNAME}" bash -c "chmod 700 ~/.ssh/authorized_keys"
 
     #sed -i "/AllowUsers/c\AllowUsers ${C_SSH_USERNAME}" /etc/ssh/sshd_config
@@ -6877,10 +6878,11 @@ function secure_box() {
 }
 
 function configure_grub() {
-  local option executed_function run
+  local option executed_function run func_name
   option="$1"
   run="no"
-  executed_function="${CONF_PATH}/${FUNCNAME[0]}_executed"
+  func_name="${FUNCNAME[0]}"
+  executed_function="${CONF_PATH}/${func_name}_executed"
   if [ "${option}" == "--skip-mark" ]; then
     cat /dev/null >"${executed_function}"
     #run="no"
@@ -6895,55 +6897,64 @@ function configure_grub() {
   elif [[ -z "${option}" || "${option}" == "--run" || "${option}" == "--run-exit" ]]; then
     run="yes"
   fi
-  if [[ ! -f "${CONF_PATH}/${FUNCNAME[0]}_executed" && "${run}" == "yes" ]]; then
-    local gr grub_hash pfile
-    echo "[${SCRIPT_NAME}]: Executing ${FUNCNAME[0]} ..." 2>&1 | tee -a "${REPORT_FILE}"
+  if [[ ! -f "${CONF_PATH}/${func_name}_executed" && "${run}" == "yes" ]]; then
+    exec_time start "${func_name}"
+    local grep_existing grub_hash_password grub_make_pass_bin retval
+    _echo "$(msg cyan)Executing $(msg magenta)${func_name}()$(msg end) $(msg cyan)...$(msg end)" --name
+    _echo "$(msg red)=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=$(msg end)" --plain
+    echo ""
+
     if [ "${C_SECURE_GRUB}" == "true" ]; then
-      echo "[${SCRIPT_NAME}]: C_SECURE_GRUB is set" 2>&1 | tee -a "${REPORT_FILE}"
-      pfile="${TEMP_PATH}/pfile.$(get_rnd_alpha 10)"
-      cat <<EOF >"${pfile}"
-${C_GRUB_PASS}
-${C_GRUB_PASS}
-EOF
-      grub_hash=$(cat "${pfile}" | grub-mkpasswd-pbkdf2 | awk '/grub.pbkdf/{print$NF}')
-      shred -uvz "${pfile}"
-      gr=$(grep -i "password_pbkdf2" /etc/grub.d/00_header)
-      if [[ -z ${gr} ]]; then
-        echo "[${SCRIPT_NAME}]: Writing grub username and password in /etc/grub.d/00_header ... " 2>&1 | tee -a "${REPORT_FILE}"
+      _echo "$(msg cyan)Notice, C_SECURE_GRUB is set in config file. Configuring Grub password protection bootloader ...$(msg end)" --name
+      grub_make_pass_bin=$(command -v grub-mkpasswd-pbkdf2)
+      grub_hash_password=$(echo -e "${C_GRUB_PASS}\n${C_GRUB_PASS}" | ${grub_make_pass_bin} | awk '/grub.pbkdf/{print$NF}')
+      grep_existing=$(grep -i "password_pbkdf2" /etc/grub.d/00_header)
+      if [[ -z "${grep_existing}" ]]; then
+        _echo "$(msg cyan)Writing grub username and password inside /etc/grub.d/00_header ...$(msg end)" --name
         {
           echo "cat << EOF"
           echo "set superusers=\"${C_GRUB_UNAME}\""
-          echo "password_pbkdf2 ${C_GRUB_UNAME} ${grub_hash}"
+          echo "password_pbkdf2 ${C_GRUB_UNAME} ${grub_hash_password}"
           echo "EOF"
         } >>/etc/grub.d/00_header
+        echo ""
+        _echo "$(msg cyan)Updating grub loader ...$(msg end)" --name
         grub-mkconfig -o /boot/grub/grub.cfg
-        #sudo update-grub
+        retval=$?
+        if [ "${retval}" -ne 0 ]; then
+          _echo "$(msg red)Error, there was a problem when compiling new grub config$(msg end)" --name
+          _exit 147
+        fi
+        #or use this: sudo update-grub
       else
-        echo "[${SCRIPT_NAME}]: Warning, there is already a grub password set in /etc/grub.d/00_header. It shouldn't be there. Inspect why" 2>&1 | tee -a "${REPORT_FILE}"
-        _exit 147
+        _echo "$(msg yellow)Warning, failed to configure grub password because there is already a grub password setting configured in /etc/grub.d/00_header.$(msg end)" --name
       fi
     else
-      echo "[${SCRIPT_NAME}]: Warning, C_SECURE_GRUB is not set" 2>&1 | tee -a "${REPORT_FILE}"
-
+      _echo "$(msg yellow)[Skipped]: Notice, grub password protection C_SECURE_GRUB is not set, setup will skip enabling GRUB bootloader password protection!$(msg end)" --name
     fi
-    check_finish_reboot "${FUNCNAME[0]}"
+    echo ""
+    check_finish_reboot "${func_name}"
+    exec_time total "${func_name}"
   else
-    echo "[${SCRIPT_NAME}]: [Skipped]: ${FUNCNAME[0]} has ran before" 2>&1 | tee -a "${REPORT_FILE}"
-    echo "=~=~=~=~=~=~=~=~=~" 2>&1 | tee -a "${REPORT_FILE}"
+    echo ""
+    _echo "$(msg red)=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=$(msg end)" --plain
+    _echo "$(msg yellow)[Skipped]: $(msg magenta)${func_name}()$(msg end) $(msg yellow)has ran before$(msg end)" --name
   fi
 
   if [[ "${option}" == "--run-force-exit" || "${option}" == "--run-exit" ]]; then
-    _echo "$(msg yellow)Warning, script terminated due to the supplied option ${option}$(msg end)" --name
-    exit 0
+    _echo "$(msg yellow)Note: this script is terminated due to the supplied option ${option} from function $(msg magenta)${func_name}()$(msg end) $(msg end)" --name
+    _exit 0
   fi
+  echo ""
 }
 
 # This one configuration hostname, network etc.
 function configure_net() {
-  local option executed_function run
+  local option executed_function run func_name
   option="$1"
   run="no"
-  executed_function="${CONF_PATH}/${FUNCNAME[0]}_executed"
+  func_name="${FUNCNAME[0]}"
+  executed_function="${CONF_PATH}/${func_name}_executed"
   if [ "${option}" == "--skip-mark" ]; then
     cat /dev/null >"${executed_function}"
     #run="no"
@@ -6958,174 +6969,212 @@ function configure_net() {
   elif [[ -z "${option}" || "${option}" == "--run" || "${option}" == "--run-exit" ]]; then
     run="yes"
   fi
-  if [[ ! -f "${CONF_PATH}/${FUNCNAME[0]}_executed" && "${run}" == "yes" ]]; then
-    echo "[${SCRIPT_NAME}]: Executing ${FUNCNAME[0]} ..." 2>&1 | tee -a "${REPORT_FILE}"
-    local current_lan grub_count
+  if [[ ! -f "${CONF_PATH}/${func_name}_executed" && "${run}" == "yes" ]]; then
+    exec_time start "${func_name}"
+    local current_active_lan grub_search
+    _echo "$(msg cyan)Executing $(msg magenta)${func_name}()$(msg end) $(msg cyan)...$(msg end)" --name
+    _echo "$(msg red)=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=$(msg end)" --plain
+    echo ""
     # Download this from git better
-    if [ -d "${DATA_PATH}/maxinet" ]; then
+    if [[ -f "${LATEST_OS_CODE_PATH}/etc/named.conf" ]]; then
       # This is bind or bind setting called named.conf. If we put this first in /etc, when install bind it will use this setting
       # Bind setting is the same config for centos, almalinux, debian and ubuntu
-      echo "[${SCRIPT_NAME}]: Copying modified named.conf from maxinet to /etc/named.conf ..." 2>&1 | tee -a "${REPORT_FILE}"
-      cp "${DATA_PATH}/maxinet/storage/os/${DISTRO_ID}/etc/named.conf" /etc/named.conf
+      _echo "$(msg cyan)Copying custom named.conf config from ${LATEST_OS_CODE_PATH}/etc/named.conf into /etc/named.conf ...$(msg end)" --name
+      cp "${LATEST_OS_CODE_PATH}/etc/named.conf" /etc/named.conf
     else
       # This is weird error and should exit
-      echo "[${SCRIPT_NAME}]: Warning no file named.conf found in maxinet folder. Check maxinet clone folder." 2>&1 | tee -a "${REPORT_FILE}"
+      _echo "$(msg yellow)Warning, file named.conf does not exist in ${LATEST_OS_CODE_PATH}/etc/named.conf! Please inspect because the file should be there!$(msg end)" --name
       _exit 147
     fi
-    echo "[${SCRIPT_NAME}]: Configuring DA system email ..." 2>&1 | tee -a "${REPORT_FILE}"
-    echo "${C_ROOT_EMAIL}" >/root/.email.txt #Root email will use this one
-    echo "${C_ADMIN_EMAIL}" >/root/.forward  #Forward all email to admin (webmaster)
-    echo "[${SCRIPT_NAME}]: Configuring network interface ..." 2>&1 | tee -a "${REPORT_FILE}"
-    #sleep 2
-    # Warning, LAN can have one or more
-    current_lan=$(ip link | awk -F: '$0 !~ "lo|vir|wl|^[^0-9]"{print $2}' | sed 's/ //g')
-    if [ "${current_lan}" != "${C_NIC_INTERFACE_NAME}" ]; then
-      echo "[${SCRIPT_NAME}]: [Warning]: Current LAN interface is emulated with ${current_lan} but it was set as: ${LABEL_C_NIC_INTERFACE_NAME}" 2>&1 | tee -a "${REPORT_FILE}"
-      if [ "${C_NIC_INTERFACE_NAME}" == "eth0" ]; then
-        echo "[${SCRIPT_NAME}]: Modifying grub file to disable interface name convention ..." 2>&1 | tee -a "${REPORT_FILE}"
-        #sed -i 's/rhgb quiet/net.ifnames=0 biosdevname=0/' /etc/default/grub
-        # This will not run if values exist
-        grub_count=$(grep -Ec 'GRUB_CMDLINE_LINUX=.*net.ifnames|GRUB_CMDLINE_LINUX_DEFAULT=.*net.ifnames' /etc/default/grub)
-        if [ "${grub_count}" -eq 0 ]; then
-          grub_count=$(grep -Ec 'GRUB_CMDLINE_LINUX=""' /etc/default/grub)
-          if [ "${grub_count}" -eq 0 ]; then
-            echo "[${SCRIPT_NAME}]: Appending net.ifnames=0 for GRUB_CMDLINE_LINUX in /etc/default/grub ..." 2>&1 | tee -a "${REPORT_FILE}"
+    echo ""
+
+    _echo "$(msg cyan)Writing email ${LABEL_C_ROOT_EMAIL} into /root/.email.txt to override system email ...$(msg end)" --name
+    #Root email will use this one
+    echo "${C_ROOT_EMAIL}" >/root/.email.txt
+    echo ""
+    #Forward all email to admin (webmaster)
+    _echo "$(msg cyan)Writing email ${LABEL_C_ADMIN_EMAIL} into /root/.forward to override directadmin admin email ...$(msg end)" --name
+    echo "${C_ADMIN_EMAIL}" >/root/.forward
+    echo ""
+    _echo "$(msg cyan)Obtaining current active LAN interface ...$(msg end)" --name
+    # LAN can have one or more
+    current_active_lan=$(ip route get 1.1.1.1 | grep -Po '(?<=dev\s)\w+' | cut -f1 -d ' ')
+    # ip addr | awk '/state UP/ {print $2}' | sed 's/.$//'
+    if [ "${current_active_lan}" == "${C_NIC_INTERFACE_NAME}" ]; then
+      _echo "$(msg cyan)[Skipped]: OK, the current LAN interface name is equal with the value of C_NIC_INTERFACE_NAME from config file$(msg end)" --name
+    else
+      _echo "$(msg yellow)Warning, the current LAN interface is emulated with ${current_active_lan} but the config variable C_NIC_INTERFACE_NAME is set to use interface ${C_NIC_INTERFACE_NAME}$(msg end)" --name
+      if [[ "${C_NIC_INTERFACE_NAME}" == "eth0" ]]; then
+        _echo "$(msg cyan)Modifying grub file to disable interface name convention (revert to default name as eth0) ...$(msg end)" --name
+        # sed -i 's/rhgb quiet/net.ifnames=0 biosdevname=0/' /etc/default/grub
+        grub_search=$(grep -Ec 'GRUB_CMDLINE_LINUX=.*net.ifnames|GRUB_CMDLINE_LINUX_DEFAULT=.*net.ifnames' /etc/default/grub)
+        if [ "${grub_search}" -eq 0 ]; then
+          grub_search=$(grep -Ec 'GRUB_CMDLINE_LINUX=""' /etc/default/grub)
+          if [ "${grub_search}" -eq 0 ]; then
+            _echo "$(msg cyan)Appending net.ifnames=0 for GRUB_CMDLINE_LINUX in /etc/default/grub ...$(msg end)" --name
             sed -i 's/GRUB_CMDLINE_LINUX="[^"]*/& net.ifnames=0/' /etc/default/grub
           else
             # Adding new value (not appending)
-            echo "[${SCRIPT_NAME}]: Adding new value net.ifnames=0 for GRUB_CMDLINE_LINUX in /etc/default/grub ..." 2>&1 | tee -a "${REPORT_FILE}"
+            _echo "$(msg cyan)Adding new value net.ifnames=0 for GRUB_CMDLINE_LINUX in /etc/default/grub ...$(msg end)" --name
             sed -i 's/GRUB_CMDLINE_LINUX=""/GRUB_CMDLINE_LINUX="net.ifnames=0"/g' /etc/default/grub
           fi
         else
-          echo "[${SCRIPT_NAME}]: [Skipped]: The value 'biosdevname' has already set for GRUB_CMDLINE_LINUX or GRUB_CMDLINE_LINUX_DEFAULT in /etc/default/grub ..." 2>&1 | tee -a "${REPORT_FILE}"
+          _echo "$(msg yellow)[Skipped]: The value 'biosdevname' has been set previously for GRUB_CMDLINE_LINUX or GRUB_CMDLINE_LINUX_DEFAULT in /etc/default/grub ...$(msg end)" --name
         fi
-        grub_count=$(grep -Ec 'GRUB_CMDLINE_LINUX=.*biosdevname|GRUB_CMDLINE_LINUX_DEFAULT=.*biosdevname' /etc/default/grub)
-        if [ "${grub_count}" -eq 0 ]; then
-          grub_count=$(grep -Ec 'GRUB_CMDLINE_LINUX=""' /etc/default/grub)
-          if [ "${grub_count}" -eq 0 ]; then
-            echo "[${SCRIPT_NAME}]: Appending biosdevname=0 for GRUB_CMDLINE_LINUX in /etc/default/grub ..." 2>&1 | tee -a "${REPORT_FILE}"
+
+        grub_search=$(grep -Ec 'GRUB_CMDLINE_LINUX=.*biosdevname|GRUB_CMDLINE_LINUX_DEFAULT=.*biosdevname' /etc/default/grub)
+        if [ "${grub_search}" -eq 0 ]; then
+          grub_search=$(grep -Ec 'GRUB_CMDLINE_LINUX=""' /etc/default/grub)
+          if [ "${grub_search}" -eq 0 ]; then
+            _echo "$(msg cyan)Appending biosdevname=0 for GRUB_CMDLINE_LINUX in /etc/default/grub ...$(msg end)" --name
             sed -i 's/GRUB_CMDLINE_LINUX="[^"]*/& biosdevname=0/' /etc/default/grub
           else
             # Adding new value (not appending)
-            echo "[${SCRIPT_NAME}]: Adding new value biosdevname=0 for GRUB_CMDLINE_LINUX in /etc/default/grub ..." 2>&1 | tee -a "${REPORT_FILE}"
+            _echo "$(msg cyan)Adding new value biosdevname=0 for GRUB_CMDLINE_LINUX in /etc/default/grub ...$(msg end)" --name
             sed -i 's/GRUB_CMDLINE_LINUX=""/GRUB_CMDLINE_LINUX="biosdevname=0"/g' /etc/default/grub
           fi
         else
-          echo "[${SCRIPT_NAME}]: [Skipped]: The value 'biosdevname' has already set for GRUB_CMDLINE_LINUX or GRUB_CMDLINE_LINUX_DEFAULT in /etc/default/grub ..." 2>&1 | tee -a "${REPORT_FILE}"
+          _echo "$(msg yellow)[Skipped]: The value 'biosdevname' has been set previously for GRUB_CMDLINE_LINUX or GRUB_CMDLINE_LINUX_DEFAULT in /etc/default/grub ...$(msg end)" --name
         fi
-        sleep 1
 
         # Enabling serial terminal
-        grub_count=$(grep -Ec 'GRUB_CMDLINE_LINUX=.*console|GRUB_CMDLINE_LINUX_DEFAULT=.*console' /etc/default/grub)
-        if [ "${grub_count}" -eq 0 ]; then
-          grub_count=$(grep -Ec 'GRUB_CMDLINE_LINUX=""' /etc/default/grub)
-          if [ "${grub_count}" -eq 0 ]; then
-            echo "[${SCRIPT_NAME}]: Appending console=ttyS0,19200n8 for GRUB_CMDLINE_LINUX in /etc/default/grub ..." 2>&1 | tee -a "${REPORT_FILE}"
+        grub_search=$(grep -Ec 'GRUB_CMDLINE_LINUX=.*console|GRUB_CMDLINE_LINUX_DEFAULT=.*console' /etc/default/grub)
+        if [ "${grub_search}" -eq 0 ]; then
+          grub_search=$(grep -Ec 'GRUB_CMDLINE_LINUX=""' /etc/default/grub)
+          if [ "${grub_search}" -eq 0 ]; then
+            _echo "$(msg cyan)Appending console=ttyS0,19200n8 for GRUB_CMDLINE_LINUX in /etc/default/grub ...$(msg end)" --name
             sed -i 's/GRUB_CMDLINE_LINUX="[^"]*/& console=ttyS0,19200n8/' /etc/default/grub
           else
             # Adding new value (not appending)
-            echo "[${SCRIPT_NAME}]: Adding new value console=ttyS0,19200n8 for GRUB_CMDLINE_LINUX in /etc/default/grub ..." 2>&1 | tee -a "${REPORT_FILE}"
+            _echo "$(msg cyan)Adding new value console=ttyS0,19200n8 for GRUB_CMDLINE_LINUX in /etc/default/grub ...$(msg end)" --name
             sed -i 's/GRUB_CMDLINE_LINUX=""/GRUB_CMDLINE_LINUX="console=ttyS0,19200n8"/g' /etc/default/grub
           fi
         else
-          echo "[${SCRIPT_NAME}]: [Skipped]: The value 'console' has already set for GRUB_CMDLINE_LINUX or GRUB_CMDLINE_LINUX_DEFAULT in /etc/default/grub ..." 2>&1 | tee -a "${REPORT_FILE}"
+          _echo "$(msg yellow)[Skipped]: The value 'console' has been set previously for GRUB_CMDLINE_LINUX or GRUB_CMDLINE_LINUX_DEFAULT in /etc/default/grub ...$(msg end)" --name
         fi
-        sleep 1
+
+        echo ""
 
         # Enabling serial terminal 1
-        grub_count=$(grep -Ec '^GRUB_SERIAL_COMMAND=' /etc/default/grub)
-        if [ "${grub_count}" -eq 0 ]; then
-          echo "[${SCRIPT_NAME}]: No variable GRUB_SERIAL_COMMAND found in /etc/default/grub. Creating empty variable GRUB_SERIAL_COMMAND= ..." 2>&1 | tee -a "${REPORT_FILE}"
+        _echo "$(msg cyan)Enabling GRUB serial terminal 1 ...$(msg end)" --name
+        grub_search=$(grep -Ec '^GRUB_SERIAL_COMMAND=' /etc/default/grub)
+        if [ "${grub_search}" -eq 0 ]; then
+          _echo "$(msg cyan)Creating empty variable GRUB_SERIAL_COMMAND= ...$(msg end)" --name
           echo "GRUB_SERIAL_COMMAND=\"\"" >>/etc/default/grub
         fi
-        grub_count=$(grep -Ec 'GRUB_SERIAL_COMMAND=.*serial' /etc/default/grub)
-        if [ "${grub_count}" -eq 0 ]; then
-          grub_count=$(grep -Ec 'GRUB_SERIAL_COMMAND=""' /etc/default/grub)
-          if [ "${grub_count}" -eq 0 ]; then
+        grub_search=$(grep -Ec 'GRUB_SERIAL_COMMAND=.*serial' /etc/default/grub)
+        if [ "${grub_search}" -eq 0 ]; then
+          grub_search=$(grep -Ec 'GRUB_SERIAL_COMMAND=""' /etc/default/grub)
+          if [ "${grub_search}" -eq 0 ]; then
             # In case if this option need appending
-            echo "[${SCRIPT_NAME}]: Appending serial --speed=19200 --unit=0 --word=8 --parity=no --stop=1 for GRUB_SERIAL_COMMAND in /etc/default/grub ..." 2>&1 | tee -a "${REPORT_FILE}"
+            _echo "$(msg cyan)Appending serial --speed=19200 --unit=0 --word=8 --parity=no --stop=1 for GRUB_SERIAL_COMMAND in /etc/default/grub ...$(msg end)" --name
             sed -i 's/GRUB_SERIAL_COMMAND="[^"]*/& serial --speed=19200 --unit=0 --word=8 --parity=no --stop=1/' /etc/default/grub
           else
             # Adding new value (not appending)
-            echo "[${SCRIPT_NAME}]: Adding new value serial --speed=19200 --unit=0 --word=8 --parity=no --stop=1 for GRUB_SERIAL_COMMAND in /etc/default/grub ..." 2>&1 | tee -a "${REPORT_FILE}"
+            _echo "$(msg cyan)Adding new value serial --speed=19200 --unit=0 --word=8 --parity=no --stop=1 for GRUB_SERIAL_COMMAND in /etc/default/grub ...$(msg end)" --name
             sed -i 's/GRUB_SERIAL_COMMAND=""/GRUB_SERIAL_COMMAND="serial --speed=19200 --unit=0 --word=8 --parity=no --stop=1"/g' /etc/default/grub
           fi
         else
-          echo "[${SCRIPT_NAME}]: [Skipped]: The value 'serial' has already set for GRUB_SERIAL_COMMAND in /etc/default/grub ..." 2>&1 | tee -a "${REPORT_FILE}"
+          _echo "$(msg yellow)[Skipped]: The value 'serial' has been set previously for GRUB_SERIAL_COMMAND in /etc/default/grub ...$(msg end)" --name
         fi
 
-        sleep 1
-
+        echo ""
         # Enabling serial terminal 2
-        grub_count=$(grep -Ec '^GRUB_TERMINAL=' /etc/default/grub)
-        if [ "${grub_count}" -eq 0 ]; then
-          echo "[${SCRIPT_NAME}]: No variable GRUB_TERMINAL found in /etc/default/grub. Creating empty variable GRUB_TERMINAL= ..." 2>&1 | tee -a "${REPORT_FILE}"
+        _echo "$(msg cyan)Enabling GRUB serial terminal 2 ...$(msg end)" --name
+        grub_search=$(grep -Ec '^GRUB_TERMINAL=' /etc/default/grub)
+        if [ "${grub_search}" -eq 0 ]; then
+          echo "$(msg cyan)Creating empty variable GRUB_TERMINAL= ...$(msg end)" --name
           echo "GRUB_TERMINAL=" >>/etc/default/grub
         fi
-        grub_count=$(grep -Ec 'GRUB_TERMINAL=serial' /etc/default/grub)
-        if [ "${grub_count}" -eq 0 ]; then
+        grub_search=$(grep -Ec 'GRUB_TERMINAL=serial' /etc/default/grub)
+        if [ "${grub_search}" -eq 0 ]; then
           # Adding new value (not appending)
-          echo "[${SCRIPT_NAME}]: Adding new value GRUB_TERMINAL=serial for GRUB_TERMINAL in /etc/default/grub ..." 2>&1 | tee -a "${REPORT_FILE}"
+          _echo "$(msg cyan)Adding new value GRUB_TERMINAL=serial for GRUB_TERMINAL in /etc/default/grub ...$(msg end)" --name
           sed -i 's/GRUB_TERMINAL=/GRUB_TERMINAL=serial/g' /etc/default/grub
         else
-          echo "[${SCRIPT_NAME}]: [Skipped]: The value 'serial' has already set for GRUB_TERMINAL in /etc/default/grub ..." 2>&1 | tee -a "${REPORT_FILE}"
+          _echo "$(msg yellow)[Skipped]: The value 'serial' has been set previously for GRUB_TERMINAL in /etc/default/grub ...$(msg end)" --name
         fi
-        sleep 1
-
-        echo "[${SCRIPT_NAME}]: Recompiling grub boot loader ..." 2>&1 | tee -a "${REPORT_FILE}"
+        echo ""
+        _echo "$(msg cyan)Recompiling grub boot loader for new config ...$(msg end)" --name
         if [[ "${DISTRO_ID}" == "centos" || "${DISTRO_ID}" == "almalinux" ]]; then
           # Recompile grub centos command
-          grub2-mkconfig -o /boot/grub2/grub.cfg 2>&1 | tee -a "${REPORT_FILE}"
+          grub2-mkconfig -o /boot/grub2/grub.cfg
           # Need to reboot here
         elif [ "${DISTRO_ID}" == "debian" ]; then
           # Recompile grub debian command
-          grub-mkconfig -o /boot/grub/grub.cfg 2>&1 | tee -a "${REPORT_FILE}"
+          grub-mkconfig -o /boot/grub/grub.cfg
         else
-          echo "[${SCRIPT_NAME}]: Error, unknown value for distribution ID ${DISTRO_ID}" 2>&1 | tee -a "${REPORT_FILE}"
+          _echo "$(msg red)Error, unknown value for distribution ID ${DISTRO_ID}. This distribution ID is not supported$(msg end)" --name
           _exit 147
         fi
       else
-        # Rename other interfaces here
-        echo "[${SCRIPT_NAME}]: The new LAN interface is set to ${LABEL_C_NIC_INTERFACE_NAME}" 2>&1 | tee -a "${REPORT_FILE}"
+        # Rename interface other than eth0
+        _echo "$(msg yellow)Notice, the new LAN interface is set to ${LABEL_C_NIC_INTERFACE_NAME} in config file$(msg end)" --name
         # Or recommend to use screen
-        echo "[${SCRIPT_NAME}]: Turning off current LAN interface for renaming ${current_lan} ..." 2>&1 | tee -a "${REPORT_FILE}"
-        echo "[${SCRIPT_NAME}]: Warning, the network needs to be turned off in order to be able to rename to new LAN interface" 2>&1 | tee -a "${REPORT_FILE}"
-        echo "[${SCRIPT_NAME}]: ** Warning, If you are on SSH, you will be disconnected from SSH" 2>&1 | tee -a "${REPORT_FILE}"
-        echo "[${SCRIPT_NAME}]: *** Warning, you will not see the following operations and system will reboot automatically. You can re-run this script again to continue setup" 2>&1 | tee -a "${REPORT_FILE}"
+        _echo "$(msg cyan)Executing configure_net2 with --run-force option to setup system network interface to ${LABEL_C_NIC_INTERFACE_NAME} before rebooting to prevent locked out ...$(msg end)" --name
+        configure_net2 --run-force
+        echo ""
+
+        _echo "$(msg cyan)Creating background script ${CODE_PATH}/ssh_scripts/lan_interface_rename.sh to rename LAN interface when the SSH disconnected ...$(msg end)" --name
+
+        mkdir -p "${CODE_PATH}/ssh_scripts"
+        {
+          echo "#!/bin/bash"
+          echo "echo \"Turning off current LAN ${current_active_lan} interface ...\""
+          echo "ip link set \"${current_active_lan}\" down"
+          echo "echo \"Renaming ${current_active_lan} to ${LABEL_C_NIC_INTERFACE_NAME} ...\""
+          echo "ip link set \"${current_active_lan}\" name \"${C_NIC_INTERFACE_NAME}\""
+          echo "echo \"Renaming interface file ifcfg-${current_active_lan} to ifcfg-${LABEL_C_NIC_INTERFACE_NAME} ...\""
+          echo "mv /etc/sysconfig/network-scripts/ifcfg-{\"${current_active_lan}\",\"${C_NIC_INTERFACE_NAME}\"}"
+          echo "echo \"Turning on the new LAN interface ${LABEL_C_NIC_INTERFACE_NAME} ...\""
+          echo "ip link set \"${C_NIC_INTERFACE_NAME}\" up"
+          echo "echo \"Rebooting ...\""
+          echo "reboot --force"
+          echo ""
+        } >"${CODE_PATH}/ssh_scripts/lan_interface_rename.sh"
+        echo ""
+        _echo "$(msg cyan)Allowing execution permission for background script ${CODE_PATH}/ssh_scripts/lan_interface_rename.sh ...$(msg end)" --name
+        chmod +x "${CODE_PATH}/ssh_scripts/lan_interface_rename.sh"
+        echo ""
+
+        _echo "$(msg red)*Warning$(msg yellow), background script will be executed to rename network interface to ${LABEL_C_NIC_INTERFACE_NAME} ...$(msg end)" --name
+        _echo "$(msg red)**Warning$(msg yellow), active LAN interface ${current_active_lan} will be disconnected ...$(msg end)" --name
+        _echo "$(msg red)***Warning$(msg yellow), the current active network needs to be turned off in order to be able to rename a new LAN interface$(msg end)" --name
+        sleep 2
+        _echo "$(msg red)****Warning$(msg yellow), If you are on SSH connection, you will be disconnected from SSH but the background script will run$(msg end)" --name
+        sleep 2
+        _echo "$(msg red)*****Warning$(msg yellow), you will not see any output of the background process, but when it has finished running, the system will reboot automatically.$(msg end)" --name
+        _echo "$(msg yellow)You can re-run this script again with option --setup to recheck whether the interface is configured correctly before proceeding to the next step$(msg end)" --name
         # Because the script reboot, we need to re-run this function to check if interface is already set like in the config file
-        # TODO fix this with background process
-        _pause
-        ip link set "${current_lan}" down
-        echo "[${SCRIPT_NAME}]: Renaming ${current_lan} to ${LABEL_C_NIC_INTERFACE_NAME} ..." 2>&1 | tee -a "${REPORT_FILE}"
-        sleep 1
-        ip link set "${current_lan}" name "${C_NIC_INTERFACE_NAME}"
-        echo "[${SCRIPT_NAME}]: Turning on the new LAN interface ${LABEL_C_NIC_INTERFACE_NAME} ..." 2>&1 | tee -a "${REPORT_FILE}"
-        sleep 1
-        ip link set "${C_NIC_INTERFACE_NAME}" up
-        echo "[${SCRIPT_NAME}]: Renaming interface file ifcfg-${current_lan} to ifcfg-${LABEL_C_NIC_INTERFACE_NAME} ..." 2>&1 | tee -a "${REPORT_FILE}"
-        sleep 1
-        mv /etc/sysconfig/network-scripts/ifcfg-{"${current_lan}","${C_NIC_INTERFACE_NAME}"}
-        _reboot
+        _pause 30
+        _echo "$(msg cyan)Executing background script ${CODE_PATH}/ssh_scripts/lan_interface_rename.sh to rename interface via ip link command and rebooting system automatically ...$(msg end)" --name
+        nohup sh "${CODE_PATH}/ssh_scripts/lan_interface_rename.sh" &
+        while :; do
+          # This will display until it reboots itself,
+          sleep 1
+          _echo "$(msg yellow)Waiting for the system to reboot itself [Do not turn off the server] ...$(msg end)" --start-spin --name
+        done
+        # Use return to stop other statements because we only want the script to manage the reboot and other stuff
+        return 0
       fi
-      # Changing this would require restart. So let's restart
-      # Before restart we need to configure network first:
-      configure_net2
-      echo "[${SCRIPT_NAME}]: Creating required reboot flag for network interface to revert back to eth0 automatically after reboot ..." 2>&1 | tee -a "${REPORT_FILE}"
+      echo ""
+      _echo "$(msg yellow)Creating required reboot flag for network interface to revert back to eth0 automatically after reboot ...$(msg end)" --name
       cat /dev/null >/var/run/reboot-required
-      sleep 1
-    else
-      echo "[${SCRIPT_NAME}]: [Skipped]: OK, current LAN interface name is same with the value of C_NIC_INTERFACE_NAME from config file" 2>&1 | tee -a "${REPORT_FILE}"
     fi
-    check_finish_reboot "${FUNCNAME[0]}"
+    echo ""
+    check_finish_reboot "${func_name}"
+    exec_time total "${func_name}"
   else
-    echo "[${SCRIPT_NAME}]: [Skipped]: ${FUNCNAME[0]} has ran before" 2>&1 | tee -a "${REPORT_FILE}"
-    echo "=~=~=~=~=~=~=~=~=~"
+    echo ""
+    _echo "$(msg red)=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=$(msg end)" --plain
+    _echo "$(msg yellow)[Skipped]: $(msg magenta)${func_name}()$(msg end) $(msg yellow)has ran before$(msg end)" --name
   fi
 
   if [[ "${option}" == "--run-force-exit" || "${option}" == "--run-exit" ]]; then
-    _echo "$(msg yellow)Warning, script terminated due to the supplied option ${option}$(msg end)" --name
-    exit 0
+    _echo "$(msg yellow)Note: this script is terminated due to the supplied option ${option} from function $(msg magenta)${func_name}()$(msg end) $(msg end)" --name
+    _exit 0
   fi
+  echo ""
 }
 
 # This would change like static IP, resolv.conf etc ...
@@ -13987,14 +14036,18 @@ function setup() {
     # Note 1: Get the latest security codes from maxicode (recommend to run as --run-force instead of --run so we always get the latest security update)
     update_latest_maxicode --run-force
     # Note 1: This call contains security hardening server
-    secure_box --run-force-exit
-    # TODO Test Debug from here
+    secure_box --run
     # Note 1: This will configure grub such as setting up password for grub bootloader
     # Note 2: Grub bootloader password can also be used in preseed file, but having preseed file during installation is a bad idea.
     configure_grub --run
+    # Note 1: This will configure the basic network such as the LAN interface
+    # Note 2: Special note: When this function is executed, when it detects the current LAN interface is not eth0, and C_NIC_INTERFACE_NAME value is not eth0 then
+    # the script will use the background script to rename LAN interface using ip link command. In this case, before the background script is executed, it will first
+    # call the next function configure_net2 to configure the network files that use network interface based $C_NIC_INTERFACE_NAME value from config file
+    # The reason is to prevent the system from network locked out due to unfinished configuration files between network files by using ip link down command.
+    # Note 3: That means, configure_net2 will only run once if that is the case. If you still need configure_net2 to run for technical reason, use the option --run-force
+    configure_net --run-force-exit
     # TODO continue writing next documentation
-    # Configure basic network 1
-    configure_net --run
     # Must run configure_net first before running configure_net2 because we need interface to be ${C_NIC_INTERFACE_NAME} first #OK
     configure_net2 --run
     # This is where we can configure mount option for disk
@@ -14208,6 +14261,7 @@ EXECUTION_ENV="${SCRIPT_PATH}/execution_env"
 if [ -s "${EXECUTION_ENV}" ]; then
   EXECUTION_ENV="$(cat "${EXECUTION_ENV}")"
 else
+  echo "remote" >"${EXECUTION_ENV}"
   EXECUTION_ENV="remote"
 fi
 
