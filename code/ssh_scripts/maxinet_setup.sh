@@ -9,5 +9,5 @@ chmod +x maxinet
 touch maxinet.log
 ./maxinet --setup 2>&1 | tee maxinet.log
 # Put 2 times exit below to safely exit the script if the first exit is not executed
-exit
-exit
+return 0
+return 0

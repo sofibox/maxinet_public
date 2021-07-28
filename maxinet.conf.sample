@@ -488,8 +488,11 @@ C_BOX_NS2="ns2.sofibox.com"
 C_BOX_NS3="ns3.sofibox.com"
 C_BOX_NS4="ns4.sofibox.com"
 
-# or auto = let the naming convention decide
+
 C_USE_DEFAULT_ETH0=true
+# This variable is used to change the OS network interface name.
+# Using eth0 is the default. It is recommend to use the default name convention eth0
+# use auto = let the naming convention decide (planned feature)
 C_NIC_INTERFACE_NAME="eth0"
 # 172.104.50.185/24
 C_IPV4_ADD0="IPV4_ADDRESS" #eg: "123.111.50.185"

@@ -5,7 +5,7 @@
 # Author: Arafat Ali | Email: webmaster@sofibox.com | Website: sofibox.com
 _APP_SPECIFIC_NAME="Maxinet"
 # Note some minor versions are not published
-_APP_VERSION="0.5.4.8"
+_APP_VERSION="0.5.4.9"
 _APP_STATUS="alpha"
 _APP_VERSION_STATUS="${_APP_VERSION}-${_APP_STATUS}"
 
@@ -1073,16 +1073,16 @@ function ssh_api() {
       rsa_key="${private_key_file}"
 
       # This will check available port even if NO LUKS encrypted
-      _echo "$(msg cyan)Checking whether ${C_BOX_HOSTNAME_FQHN}'s port ${LABEL_C_SSH_PORT} is online ...$(msg end)" --name
+      _echo "$(msg cyan)Checking whether ${LABEL_C_BOX_HOSTNAME_FQHN}'s port ${LABEL_C_SSH_PORT} is online ...$(msg end)" --name
       if is_valid available_port "${C_BOX_HOSTNAME_FQHN}" "${C_SSH_PORT}"; then
-        _echo "$(msg green)OK, the port ${LABEL_C_SSH_PORT} is available at ${LABEL_C_BOX_HOSTNAME_FQHN} $(msg end)" --name
+        _echo "$(msg green)OK, the port ${LABEL_C_SSH_PORT} is available at ${LABEL_C_BOX_HOSTNAME_FQHN}$(msg end)" --name
       else
-        _echo "$(msg yelllow)Warning, the --server-port ${LABEL_C_BOX_HOSTNAME_FQHN}:${LABEL_C_SSH_PORT} is not available!$(msg end)" --name
+        _echo "$(msg yellow)Warning, the --server-port ${LABEL_C_BOX_HOSTNAME_FQHN}:${LABEL_C_SSH_PORT} is not available!$(msg end)" --name
 
         _echo "$(msg cyan)Checking server ${C_BOX_HOSTNAME_FQHN}'s online status ...$(msg end)" --name
         linode_status=$(linode_api_admin get-linode-status --linode-label "${C_BOX_HOSTNAME_FQHN}" --scripting)
         if [ "${linode_status}" == "offline" ]; then
-          _echo "$(msg yelllow)Warning, linode is offline!$(msg end)" --name
+          _echo "$(msg yellow)Warning, linode is offline!$(msg end)" --name
           linode_api_admin boot-linode --linode-label "${C_BOX_HOSTNAME_FQHN}" --linode-config-label "${C_LINODE_OS_CONFIG_LABEL}" --scripting
         fi
         ssh_api luks-unlock --port "${C_DROP_BEAR_PORT}" --password "${C_LUKS_PASS}"
@@ -1106,11 +1106,11 @@ function ssh_api() {
       if is_valid available_port "${C_BOX_HOSTNAME_FQHN}" "${C_SSH_PORT}"; then
         _echo "$(msg green)OK, the port ${LABEL_C_SSH_PORT} is available at ${LABEL_C_BOX_HOSTNAME_FQHN} $(msg end)" --name
       else
-        _echo "$(msg yelllow)Warning, the --server-port ${LABEL_C_BOX_HOSTNAME_FQHN}:${LABEL_C_SSH_PORT} is not available!$(msg end)" --name
+        _echo "$(msg yellow)Warning, the --server-port ${LABEL_C_BOX_HOSTNAME_FQHN}:${LABEL_C_SSH_PORT} is not available!$(msg end)" --name
         _echo "$(msg cyan)Checking server ${LABEL_C_BOX_HOSTNAME_FQHN}'s online status ...$(msg end)" --name
         linode_status=$(linode_api_admin get-linode-status --linode-label "${C_BOX_HOSTNAME_FQHN}" --scripting)
         if [ "${linode_status}" == "offline" ]; then
-          _echo "$(msg yelllow)Warning, linode is offline!$(msg end)" --name
+          _echo "$(msg yellow)Warning, linode is offline!$(msg end)" --name
           linode_api_admin boot-linode --linode-label "${C_BOX_HOSTNAME_FQHN}" --linode-config-label "${C_LINODE_OS_CONFIG_LABEL}" --scripting
         fi
 
@@ -1146,11 +1146,11 @@ function ssh_api() {
       if is_valid available_port "${server}" "${port}"; then
         _echo "$(msg green)OK, the port ${port} is available at ${server} $(msg end)" --name
       else
-        _echo "$(msg yelllow)Warning, the --server-port ${server}:${port} is not available!$(msg end)" --name
+        _echo "$(msg yellow)Warning, the --server-port ${server}:${port} is not available!$(msg end)" --name
         _echo "$(msg cyan)Checking server ${server}'s online status ...$(msg end)" --name
         linode_status=$(linode_api_admin get-linode-status --linode-label "${server}" --scripting)
         if [ "${linode_status}" == "offline" ]; then
-          _echo "$(msg yelllow)Warning, linode is offline!$(msg end)" --name
+          _echo "$(msg yellow)Warning, linode is offline!$(msg end)" --name
           linode_api_admin boot-linode --linode-label "${server}" --linode-config-label "${C_LINODE_OS_CONFIG_LABEL}" --scripting
         fi
         ssh_api luks-unlock --port "${C_DROP_BEAR_PORT}" --password "${C_LUKS_PASS}"
@@ -1358,7 +1358,7 @@ function ssh_api() {
 
     if [[ "${silent}" == "true" || "${C_HIDE_SENSITIVE_TEXT}" == "true" ]]; then
       _echo "$(msg cyan)Creating private and public key RSA SSH key authentication ...$(msg end)" --name
-      ssh-keygen -q -f "${key_path}/${private_key_name}" -t rsa -b 4096 -P "" -C "${comment}" <<<y
+      ssh-keygen -f "${key_path}/${private_key_name}" -t rsa -b 4096 -P "" -C "${comment}" <<<y >/dev/null 2>&1
     else
       _echo "$(msg cyan)Creating private and public key RSA SSH key authentication at ${key_path}/${private_key_name} ...$(msg end)" --name
       ssh-keygen -f "${key_path}/${private_key_name}" -t rsa -b 4096 -P "" -C "${comment}" <<<y
@@ -2633,7 +2633,6 @@ function create_file() {
         echo ""
       } >"${CONF_PATH}/sensitive_label"
       grep -E '^[A-Za-z0-9_].+=.+$' "${CONFIG_FILE}" | awk -F'=' '{ print "LABEL_"$1"=\""$1"\""}' >>"${CONF_PATH}/sensitive_label"
-
     elif [[ "${create_action}" == "sensitive-label-show" || "${create_action}" == "sensitive_label_show" ]]; then
       {
         echo "# ==============================================="
@@ -2644,7 +2643,6 @@ function create_file() {
         echo ""
       } >"${CONF_PATH}/sensitive_label"
       grep -E '^[A-Za-z0-9_].+=.+$' "${CONFIG_FILE}" | awk -F'=' '{ print "LABEL_"$1"=\"${"$1"}\""}' >>"${CONF_PATH}/sensitive_label"
-
     elif [[ "${create_action}" == "setup-readme" ]]; then
       {
         echo "# ==============================================="
@@ -2718,8 +2716,8 @@ function create_file() {
         echo "touch maxinet.log"
         echo "./maxinet --setup 2>&1 | tee maxinet.log"
         echo "# Put 2 times exit below to safely exit the script if the first exit is not executed"
-        echo "exit"
-        echo "exit"
+        echo "return 0"
+        echo "return 0"
       } >"${ssh_scripts_path}/maxinet_setup.sh"
       chmod +x "${ssh_scripts_path}/maxinet_setup.sh"
     # SSH banner
@@ -7148,7 +7146,7 @@ function configure_net() {
         # Because the script reboot, we need to re-run this function to check if interface is already set like in the config file
         _pause 30
         _echo "$(msg cyan)Executing background script ${CODE_PATH}/ssh_scripts/lan_interface_rename.sh to rename interface via ip link command and rebooting system automatically ...$(msg end)" --name
-        nohup sh "${CODE_PATH}/ssh_scripts/lan_interface_rename.sh" &
+        nohup sh "${CODE_PATH}/ssh_scripts/lan_interface_rename.sh" >/dev/null 2>&1 &
         while :; do
           # This will display until it reboots itself,
           sleep 1
@@ -7180,10 +7178,11 @@ function configure_net() {
 # This would change like static IP, resolv.conf etc ...
 # I prefer to use eth0 than a strange name like epn${x} but now this script can rename whatever interface you want
 function configure_net2() {
-  local option executed_function run
+  local option executed_function run func_name
   option="$1"
   run="no"
-  executed_function="${CONF_PATH}/${FUNCNAME[0]}_executed"
+  func_name="${FUNCNAME[0]}"
+  executed_function="${CONF_PATH}/${func_name}_executed"
   if [ "${option}" == "--skip-mark" ]; then
     cat /dev/null >"${executed_function}"
     #run="no"
@@ -7198,13 +7197,17 @@ function configure_net2() {
   elif [[ -z "${option}" || "${option}" == "--run" || "${option}" == "--run-exit" ]]; then
     run="yes"
   fi
-  if [[ ! -f "${CONF_PATH}/${FUNCNAME[0]}_executed" && "${run}" == "yes" ]]; then
-    echo "[${SCRIPT_NAME}]: Executing ${FUNCNAME[0]} ..." 2>&1 | tee -a "${REPORT_FILE}"
-    local old_host lh_count
+  if [[ ! -f "${CONF_PATH}/${func_name}_executed" && "${run}" == "yes" ]]; then
+    exec_time start "${func_name}"
+    local current_host host_count
+    _echo "$(msg cyan)Executing $(msg magenta)${func_name}()$(msg end) $(msg cyan)...$(msg end)" --name
+    _echo "$(msg red)=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=$(msg end)" --plain
+    echo ""
+
     # So, at this stage we know our LAN would be ${C_NIC_INTERFACE_NAME} then we can insert network information directly into ${C_NIC_INTERFACE_NAME}
     if [[ "${DISTRO_ID}" == "centos" || "${DISTRO_ID}" == "almalinux" ]]; then
       # Create network static IP configuration
-      echo "[${SCRIPT_NAME}]: Inserting static IP information for ${LABEL_C_NIC_INTERFACE_NAME} at /etc/sysconfig/network-scripts/ifcfg-${LABEL_C_NIC_INTERFACE_NAME} ..." 2>&1 | tee -a "${REPORT_FILE}"
+      _echo "$(msg cyan)Inserting static IP information for ${LABEL_C_NIC_INTERFACE_NAME} at /etc/sysconfig/network-scripts/ifcfg-${LABEL_C_NIC_INTERFACE_NAME} ...$(msg end)" --name
       {
         echo "# ==============================================="
         echo "# This configuration file was generated by ${SCRIPT_NAME}"
@@ -7249,7 +7252,7 @@ function configure_net2() {
         echo "DNS3=${C_NAME_SERVER3}"
       } >"/etc/sysconfig/network-scripts/ifcfg-${C_NIC_INTERFACE_NAME}"
     elif [ "${DISTRO_ID}" == "debian" ]; then
-      echo "[${SCRIPT_NAME}]: Inserting Debian static IP information for ${LABEL_C_NIC_INTERFACE_NAME} at /etc/network/interfaces ..." 2>&1 | tee -a "${REPORT_FILE}"
+      _echo "$(msg cyan)Inserting static IP information for ${LABEL_C_NIC_INTERFACE_NAME} at /etc/network/interfaces ...$(msg end)" --name
       {
         echo "# ==============================================="
         echo "# This configuration file was generated by ${SCRIPT_NAME}"
@@ -7276,6 +7279,7 @@ function configure_net2() {
         echo "address ${C_IPV6_ADD0}/64"
         echo "gateway ${C_IPV6_DEF_GATEWAY0}"
       } >/etc/network/interfaces
+      _echo "$(msg cyan)Disabling IPv6 Duplicate Address Detection ...$(msg end)" --name
       # Disabling Ipv6 DAD: https://www.agwa.name/blog/post/beware_the_ipv6_dad_race_condition
       # Another way is to use this sysctl -w net.ipv6.conf.eth0.dad_transmits=0 or put in /etc/sysctl for permanent
       # Why disable? Because nginx sometimes cannot start with ipv6 unless system is restarted
@@ -7286,12 +7290,12 @@ function configure_net2() {
         } >>/etc/network/interfaces
       fi
     else
-      echo "[${SCRIPT_NAME}]: Error, unknown value for distribution ID ${DISTRO_ID}" 2>&1 | tee -a "${REPORT_FILE}"
+      _echo "$(msg red)Error, unknown value for distribution ID ${DISTRO_ID}. This distribution ID is not supported$(msg end)" --name
       _exit 147
     fi
 
     # This insertion works for both centos, almalinux, debian and ubuntu so there is no need to put OS condition
-    echo "[${SCRIPT_NAME}]: Inserting name server information in /etc/resolv.conf ..." 2>&1 | tee -a "${REPORT_FILE}"
+    _echo "$(msg cyan)Inserting name server information in /etc/resolv.conf ...$(msg end)" --name
     {
       echo "# ==============================================="
       echo "# This configuration file was generated by ${SCRIPT_NAME}"
@@ -7300,21 +7304,26 @@ function configure_net2() {
       echo "search ${C_BOX_DOMAIN}"
       echo "domains ${C_BOX_HOSTNAME_FQHN}"
       echo "options rotate"
+      # Only up to 3 name servers are allowed in /etc/resolv.conf: https://linux.die.net/man/5/resolv.conf
       echo "nameserver ${C_NAME_SERVER1}"
       echo "nameserver ${C_NAME_SERVER2}"
       echo "nameserver ${C_NAME_SERVER3}"
     } >/etc/resolv.conf
 
-    echo "[${SCRIPT_NAME}]: Configuring DNS IPs in /etc/hosts ..." 2>&1 | tee -a "${REPORT_FILE}"
-    sleep 1
-    old_host=$(hostname --fqdn)
-    if [ "${old_host}" = "" ]; then
-      old_host=old.host.com
-      echo "[${SCRIPT_NAME}]: old hostname was blank. This is a placeholder value ${old_host}"
+    _echo "$(msg cyan)Getting the current hostname ...$(msg end)" --name
+    # if it is empty, put a placeholder as old.host.com
+    current_host=$(hostname --fqdn)
+    if [ "${current_host}" = "" ]; then
+      current_host=old.host.com
+      _echo "$(msg yellow)Warning, the current hostname is blank$(msg end)" --name
     fi
+    echo ""
     #remove any previous hostnames.
-    grep -Fv "${C_BOX_HOSTNAME}" /etc/hosts | grep -Fv ${old_host} | grep -v '#' >/etc/hosts.tmp
+    _echo "$(msg cyan)Removing any previous hostnames and store in /etc/hosts.tmp ...$(msg end)" --name
+    grep -Fv "${C_BOX_HOSTNAME}" /etc/hosts | grep -Fv ${current_host} | grep -v '#' >/etc/hosts.tmp
+    echo ""
 
+    _echo "$(msg cyan)Rewrite a new host contents based on /etc/hosts.tmp ...$(msg end)" --name
     #start the file over
     {
       echo "# ==============================================="
@@ -7325,11 +7334,12 @@ function configure_net2() {
       echo "# that require network functionality will fail."
     } >/etc/hosts
 
-    lh_count=$(grep -c localhost /etc/hosts.tmp)
-    if [ "${lh_count}" -lt 1 ]; then
+    host_count=$(grep -c localhost /etc/hosts.tmp)
+    if [ "${host_count}" -lt 1 ]; then
       echo -e "127.0.0.1\t\tlocalhost localhost.localdomain" >>/etc/hosts
     fi
-    echo "[${SCRIPT_NAME}]: Adding IP (IPv4) and (IPv6) and entries in /etc/hosts ..." 2>&1 | tee -a "${REPORT_FILE}"
+    echo ""
+    _echo "$(msg cyan)Adding IP (IPv4) and (IPv6) and entries in /etc/hosts ...$(msg end)" --name
     {
       cat /etc/hosts.tmp
       echo ""
@@ -7338,28 +7348,35 @@ function configure_net2() {
       printf '%s\t%s\t%s\n' "${C_IPV6_ADD0}" "${C_BOX_HOSTNAME_FQHN}" "${C_BOX_HOSTNAME}"
     } >>/etc/hosts
     chmod 644 /etc/hosts
-    # When using a VPS that use auto network manager, it will keep replacing this hosts file.
+
+    _echo "$(msg cyan)Preventing /etc/hosts from being modified by other processes using chattr +i immutable$(msg end)" --name
+    # When using a VPS, managed dedicated server that use auto network manager provided by registrar, it will keep replacing this hosts file.
     # So, we don't want anyone to disturb this beautiful written host file by using chattr +i on this file
     # Note directadmin setup also trying to modify this /etc/hosts file during setup using its script called: /usr/local/directadmin/scripts/hostname.sh
-    # It will get an error operation not permitted but do not worry because /etc/hosts is correctly configured now.
-    echo "[${SCRIPT_NAME}]: Preventing /etc/hosts modification by setting chattr +i immutable" 2>&1 | tee -a "${REPORT_FILE}"
+    # It will get an error operation not permitted but do not worry because /etc/hosts is correctly configured now. The file is perfect and should be readonly mode
     chattr +i /etc/hosts
-    check_finish_reboot "${FUNCNAME[0]}"
+    echo ""
+    check_finish_reboot "${func_name}"
+    exec_time total "${func_name}"
   else
-    echo "[${SCRIPT_NAME}]: [Skipped]: ${FUNCNAME[0]} has ran before" 2>&1 | tee -a "${REPORT_FILE}"
-    echo "=~=~=~=~=~=~=~=~=~" 2>&1 | tee -a "${REPORT_FILE}"
+    echo ""
+    _echo "$(msg red)=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=$(msg end)" --plain
+    _echo "$(msg yellow)[Skipped]: $(msg magenta)${func_name}()$(msg end) $(msg yellow)has ran before$(msg end)" --name
   fi
+
   if [[ "${option}" == "--run-force-exit" || "${option}" == "--run-exit" ]]; then
-    _echo "$(msg yellow)Warning, script terminated due to the supplied option ${option}$(msg end)" --name
-    exit 0
+    _echo "$(msg yellow)Note: this script is terminated due to the supplied option ${option} from function $(msg magenta)${func_name}()$(msg end) $(msg end)" --name
+    _exit 0
   fi
+  echo ""
 }
 
 function configure_fstab() {
-  local option executed_function run
+  local option executed_function run func_name
   option="$1"
   run="no"
-  executed_function="${CONF_PATH}/${FUNCNAME[0]}_executed"
+  func_name="${FUNCNAME[0]}"
+  executed_function="${CONF_PATH}/${func_name}_executed"
   if [ "${option}" == "--skip-mark" ]; then
     cat /dev/null >"${executed_function}"
     #run="no"
@@ -7374,15 +7391,16 @@ function configure_fstab() {
   elif [[ -z "${option}" || "${option}" == "--run" || "${option}" == "--run-exit" ]]; then
     run="yes"
   fi
-  if [[ ! -f "${CONF_PATH}/${FUNCNAME[0]}_executed" && "${run}" == "yes" ]]; then
-
+  if [[ ! -f "${CONF_PATH}/${func_name}_executed" && "${run}" == "yes" ]]; then
+    exec_time start "${func_name}"
+    local is_encrypted disk_uuid_boot
+    _echo "$(msg cyan)Executing $(msg magenta)${func_name}()$(msg end) $(msg cyan)...$(msg end)" --name
+    _echo "$(msg red)=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=$(msg end)" --plain
+    echo ""
     # if C_DISK_ENCRYPTION is set, we must have this value crypt
     is_encrypted=$(lsblk | grep 'crypt')
     if [ -n "${is_encrypted}" ]; then
-      echo "Found disk encryption is set: ${is_encrypted}"
-
-      local disk_uuid_boot
-      echo "[${SCRIPT_NAME}]: Executing ${FUNCNAME[0]} ..." 2>&1 | tee -a "${REPORT_FILE}"
+      _echo "$(msg cyan)Found disk encryption is set: ${is_encrypted}. Writing new fstab contents at /etc/fstab ...$(msg end)" --name
       # Boot must always be sda 1  (beginning of the drive)
       disk_uuid_boot=$(blkid -o value -s UUID "/dev/sda1")
       {
@@ -7404,27 +7422,33 @@ function configure_fstab() {
         printf "/dev/mapper/%s-tmp\t/tmp\text4\tnodev,nosuid,noexec,x-systemd.device-timeout=0\t0\t2\n" "${C_LVM_GROUP_NAME}"
         printf "/dev/mapper/%s-swap\tnone\tswap\tsw,x-systemd.device-timeout=0\t0\t0\n" "${C_LVM_GROUP_NAME}"
       } >/etc/fstab
-      check_finish_reboot "${FUNCNAME[0]}"
     else
       _echo "$(msg yellow)[Skipped]: Warning, no disk partition encryption is found$(msg end)" --name
-      echo "=~=~=~=~=~=~=~=~=~" 2>&1 | tee -a "${REPORT_FILE}"
     fi
+
+    echo ""
+    check_finish_reboot "${func_name}"
+    exec_time total "${func_name}"
   else
-    echo "[${SCRIPT_NAME}]: [Skipped]: ${FUNCNAME[0]} has ran before" 2>&1 | tee -a "${REPORT_FILE}"
-    echo "=~=~=~=~=~=~=~=~=~" 2>&1 | tee -a "${REPORT_FILE}"
+    echo ""
+    _echo "$(msg red)=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=$(msg end)" --plain
+    _echo "$(msg yellow)[Skipped]: $(msg magenta)${func_name}()$(msg end) $(msg yellow)has ran before$(msg end)" --name
   fi
+
   if [[ "${option}" == "--run-force-exit" || "${option}" == "--run-exit" ]]; then
-    _echo "$(msg yellow)Warning, script terminated due to the supplied option ${option}$(msg end)" --name
-    exit 0
+    _echo "$(msg yellow)Note: this script is terminated due to the supplied option ${option} from function $(msg magenta)${func_name}()$(msg end) $(msg end)" --name
+    _exit 0
   fi
+  echo ""
 }
 
 # Tweaking swap for production
 function configure_sysctl_swap() {
-  local option executed_function run
+  local option executed_function run func_name
   option="$1"
   run="no"
-  executed_function="${CONF_PATH}/${FUNCNAME[0]}_executed"
+  func_name="${FUNCNAME[0]}"
+  executed_function="${CONF_PATH}/${func_name}_executed"
   if [ "${option}" == "--skip-mark" ]; then
     cat /dev/null >"${executed_function}"
     #run="no"
@@ -7439,32 +7463,42 @@ function configure_sysctl_swap() {
   elif [[ -z "${option}" || "${option}" == "--run" || "${option}" == "--run-exit" ]]; then
     run="yes"
   fi
-  if [[ ! -f "${CONF_PATH}/${FUNCNAME[0]}_executed" && "${run}" == "yes" ]]; then
-    echo "[${SCRIPT_NAME}]: Executing ${FUNCNAME[0]} ..." 2>&1 | tee -a "${REPORT_FILE}"
-    echo "[${SCRIPT_NAME}]: Configuring disk swap information in sysctl ..." 2>&1 | tee -a "${REPORT_FILE}"
-    sleep 1
+  if [[ ! -f "${CONF_PATH}/${func_name}_executed" && "${run}" == "yes" ]]; then
+    exec_time start "${func_name}"
+    _echo "$(msg cyan)Executing $(msg magenta)${func_name}()$(msg end) $(msg cyan)...$(msg end)" --name
+    _echo "$(msg red)=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=$(msg end)" --plain
+
+    _echo "$(msg cyan)Writing disk swap information in /etc/sysctl.conf ...$(msg end)" --name
     # Swap configuration
     {
       echo "vm.swappiness = 10"
       echo "vm.vfs_cache_pressure = 50"
     } >>/etc/sysctl.conf
+    _echo "$(msg cyan)Compiling sysctl config /etc/sysctl.conf ...$(msg end)" --name
     sysctl -p /etc/sysctl.conf
-    check_finish_reboot "${FUNCNAME[0]}"
+
+    echo ""
+    check_finish_reboot "${func_name}"
+    exec_time total "${func_name}"
   else
-    echo "[${SCRIPT_NAME}]: [Skipped]: ${FUNCNAME[0]} has ran before" 2>&1 | tee -a "${REPORT_FILE}"
-    echo "=~=~=~=~=~=~=~=~=~" 2>&1 | tee -a "${REPORT_FILE}"
+    echo ""
+    _echo "$(msg red)=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=$(msg end)" --plain
+    _echo "$(msg yellow)[Skipped]: $(msg magenta)${func_name}()$(msg end) $(msg yellow)has ran before$(msg end)" --name
   fi
+
   if [[ "${option}" == "--run-force-exit" || "${option}" == "--run-exit" ]]; then
-    _echo "$(msg yellow)Warning, script terminated due to the supplied option ${option}$(msg end)" --name
-    exit 0
+    _echo "$(msg yellow)Note: this script is terminated due to the supplied option ${option} from function $(msg magenta)${func_name}()$(msg end) $(msg end)" --name
+    _exit 0
   fi
+  echo ""
 }
 
 function configure_sysctl_kernel_fs() {
-  local option executed_function run
+  local option executed_function run func_name
   option="$1"
   run="no"
-  executed_function="${CONF_PATH}/${FUNCNAME[0]}_executed"
+  func_name="${FUNCNAME[0]}"
+  executed_function="${CONF_PATH}/${func_name}_executed"
   if [ "${option}" == "--skip-mark" ]; then
     cat /dev/null >"${executed_function}"
     #run="no"
@@ -7479,9 +7513,11 @@ function configure_sysctl_kernel_fs() {
   elif [[ -z "${option}" || "${option}" == "--run" || "${option}" == "--run-exit" ]]; then
     run="yes"
   fi
-  if [[ ! -f "${CONF_PATH}/${FUNCNAME[0]}_executed" && "${run}" == "yes" ]]; then
-    echo "[${SCRIPT_NAME}]: Executing ${FUNCNAME[0]} ..." 2>&1 | tee -a "${REPORT_FILE}"
-    echo "[${SCRIPT_NAME}]: Configuring kernel and file system information in sysctl ..." 2>&1 | tee -a "${REPORT_FILE}"
+  if [[ ! -f "${CONF_PATH}/${func_name}_executed" && "${run}" == "yes" ]]; then
+    exec_time start "${func_name}"
+    _echo "$(msg cyan)Executing $(msg magenta)${func_name}()$(msg end) $(msg cyan)...$(msg end)" --name
+    _echo "$(msg red)=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=$(msg end)" --plain
+    _echo "$(msg cyan)Writing kernel and file system information in /etc/sysctl.conf ...$(msg end)" --name
     sleep 1
     {
       # Disable core dumps
@@ -7492,23 +7528,31 @@ function configure_sysctl_kernel_fs() {
       # Hide kernel pointers
       echo "kernel.kptr_restrict = 2"
     } >>/etc/sysctl.conf
+
+    _echo "$(msg cyan)Compiling sysctl config /etc/sysctl.conf ...$(msg end)" --name
     sysctl -p /etc/sysctl.conf
-    check_finish_reboot "${FUNCNAME[0]}"
+    echo ""
+    check_finish_reboot "${func_name}"
+    exec_time total "${func_name}"
   else
-    echo "[${SCRIPT_NAME}]: [Skipped]: ${FUNCNAME[0]} has ran before" 2>&1 | tee -a "${REPORT_FILE}"
-    echo "=~=~=~=~=~=~=~=~=~" 2>&1 | tee -a "${REPORT_FILE}"
+    echo ""
+    _echo "$(msg red)=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=$(msg end)" --plain
+    _echo "$(msg yellow)[Skipped]: $(msg magenta)${func_name}()$(msg end) $(msg yellow)has ran before$(msg end)" --name
   fi
+
   if [[ "${option}" == "--run-force-exit" || "${option}" == "--run-exit" ]]; then
-    _echo "$(msg yellow)Warning, script terminated due to the supplied option ${option}$(msg end)" --name
-    exit 0
+    _echo "$(msg yellow)Note: this script is terminated due to the supplied option ${option} from function $(msg magenta)${func_name}()$(msg end) $(msg end)" --name
+    _exit 0
   fi
+  echo ""
 }
 
 function configure_sysctl_ips() {
-  local option executed_function run
+  local option executed_function run func_name
   option="$1"
   run="no"
-  executed_function="${CONF_PATH}/${FUNCNAME[0]}_executed"
+  func_name="${FUNCNAME[0]}"
+  executed_function="${CONF_PATH}/${func_name}_executed"
   if [ "${option}" == "--skip-mark" ]; then
     cat /dev/null >"${executed_function}"
     #run="no"
@@ -7523,10 +7567,11 @@ function configure_sysctl_ips() {
   elif [[ -z "${option}" || "${option}" == "--run" || "${option}" == "--run-exit" ]]; then
     run="yes"
   fi
-  if [[ ! -f "${CONF_PATH}/${FUNCNAME[0]}_executed" && "${run}" == "yes" ]]; then
-    echo "[${SCRIPT_NAME}]: Executing ${FUNCNAME[0]} ..." 2>&1 | tee -a "${REPORT_FILE}"
-    echo "[${SCRIPT_NAME}]: Configuring ipv4 and ipv6 information in sysctl ..." 2>&1 | tee -a "${REPORT_FILE}"
-    sleep 1
+  if [[ ! -f "${CONF_PATH}/${func_name}_executed" && "${run}" == "yes" ]]; then
+    exec_time start "${func_name}"
+    _echo "$(msg cyan)Executing $(msg magenta)${func_name}()$(msg end) $(msg cyan)...$(msg end)" --name
+    _echo "$(msg red)=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=$(msg end)" --plain
+    _echo "$(msg cyan)Writing ipv4 and ipv6 information in /etc/sysctl.conf ..." --name
     {
       echo "# IPV4 & IPv6 configuration"
       echo "# IPV6"
@@ -7546,34 +7591,457 @@ function configure_sysctl_ips() {
       echo "net.ipv4.conf.default.log_martians = 1"
       echo "#net.ipv6.tcp_timestamps = 0"
 
-      echo "# Enable TCP SYN cookie protection"
+      echo "#Enable TCP SYN cookie protection"
       echo "net.ipv4.tcp_syncookies = 1"
 
-      echo "# Turn off the tcp_sack"
+      echo "#Turn off the tcp_sack"
       echo "#net.ipv4.tcp_sack = 0"
 
-      echo "# Turn off the tcp_window_scaling"
+      echo "#Turn off the tcp_window_scaling"
       echo "#net.ipv4.tcp_window_scaling = 0"
 
       echo "### Enable this when DDOS attack occur ###"
       echo "# Decrease the time default value for tcp_fin_timeout connection"
       echo "#net.ipv4.tcp_fin_timeout = 3"
     } >>/etc/sysctl.conf
+
+    _echo "$(msg cyan)Compiling sysctl config /etc/sysctl.conf ...$(msg end)" --name
     sysctl -p /etc/sysctl.conf
-    check_finish_reboot "${FUNCNAME[0]}"
-    # No need to reboot. Just run sysctl -p is enough
-    # echo "[${SCRIPT_NAME}]: Finished configuring network profile. You may reboot the system then re-run this script again for next setup ..." 2>&1 | tee -a "${REPORT_FILE}"
+    echo ""
+    check_finish_reboot "${func_name}"
+    exec_time total "${func_name}"
   else
-    echo "[${SCRIPT_NAME}]: [Skipped]: ${FUNCNAME[0]} has ran before" 2>&1 | tee -a "${REPORT_FILE}"
-    echo "=~=~=~=~=~=~=~=~=~" 2>&1 | tee -a "${REPORT_FILE}"
+    echo ""
+    _echo "$(msg red)=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=$(msg end)" --plain
+    _echo "$(msg yellow)[Skipped]: $(msg magenta)${func_name}()$(msg end) $(msg yellow)has ran before$(msg end)" --name
   fi
+
   if [[ "${option}" == "--run-force-exit" || "${option}" == "--run-exit" ]]; then
-    _echo "$(msg yellow)Warning, script terminated due to the supplied option ${option}$(msg end)" --name
-    exit 0
+    _echo "$(msg yellow)Note: this script is terminated due to the supplied option ${option} from function $(msg magenta)${func_name}()$(msg end) $(msg end)" --name
+    _exit 0
   fi
+  echo ""
 }
 # Install missing os requirement, such as sendmail
 function upgrade_os() {
+  local option executed_function run func_name
+  option="$1"
+  run="no"
+  func_name="${FUNCNAME[0]}"
+  executed_function="${CONF_PATH}/${func_name}_executed"
+  if [ "${option}" == "--skip-mark" ]; then
+    cat /dev/null >"${executed_function}"
+    #run="no"
+    return 0
+  elif [ "${option}" == "--skip" ]; then
+    #run="no"
+    return 0
+  fi
+  if [[ "${option}" == "--run-force" || "${option}" == "--run-force-exit" ]]; then
+    rm -rf "${executed_function}"
+    run="yes"
+  elif [[ -z "${option}" || "${option}" == "--run" || "${option}" == "--run-exit" ]]; then
+    run="yes"
+  fi
+  if [[ ! -f "${CONF_PATH}/${func_name}_executed" && "${run}" == "yes" ]]; then
+    exec_time start "${func_name}"
+    _echo "$(msg cyan)Executing $(msg magenta)${func_name}()$(msg end) $(msg cyan)...$(msg end)" --name
+    _echo "$(msg red)=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=$(msg end)" --plain
+
+    # General OS upgrade
+    if [[ "${DISTRO_ID}" == "centos" ]]; then
+      _echo "$(msg cyan)Updating operating CentOS system ...$(msg end)" --name
+      sudo dnf -y update
+      sudo dnf -y install epel-release
+      # Remember now use powertools not PowerTools. This is bug found in CentOS repo 2 days ago: https://bugs.centos.org/view.php?id=17920
+      dnf config-manager --set-enabled powertools
+    elif [ "${DISTRO_ID}" == "debian" ]; then
+      # Known usability bug from Debian installer with old grub-pc
+      # Fixed grub-pc appear interactive GUI when running dist-upgrade https://github.com/hashicorp/vagrant/issues/289
+      # This is the Debian usability bug for grub as explained in here:
+      # https://askubuntu.com/questions/23418/what-do-i-select-for-grub-install-devices-after-an-update#comment837055_23418
+      # This only show when you have kernel set to GRUB 2
+      _echo "$(msg cyan)Updating Debian operating system ...$(msg end)" --name
+      apt-get -y update
+      apt-get -y dist-upgrade
+      apt-get -y autoremove
+      apt clean
+    else
+      _echo "$(msg red)Error, unknown value for distribution ID ${DISTRO_ID}. This distribution ID is not supported!$(msg end)" --name
+      _exit 147
+    fi
+
+    # Install other components based on installation type and distribution:
+    if [ "${C_SERVER_TYPE}" == "general" ]; then
+      if [ "${DISTRO_ID}" == "centos" ]; then
+        _echo "$(msg cyan)Installing system required components for CentOS General setup ...$(msg end)" --name
+        # Separate this installation because they are categorized in requirement
+        sudo dnf -y install sendmail tar bind-utils git curl gcc make libevent-devel zlib-devel openssl-devel pcre2-devel wget
+        sudo dnf -y install bc htop ncdu
+        echo ""
+        _echo "$(msg cyan)Installing perl dependencies ...$(msg end)" --name
+        sudo dnf -y install @perl perl-libwww-perl net-tools perl-LWP-Protocol-https 2>&1 | tee -a "${REPORT_FILE}"
+      elif [ "${DISTRO_ID}" == "debian" ]; then
+        _echo "$(msg cyan)Installing system required components for Debian General setup ...$(msg end)" --name
+        # Separate this installation because they are categorized in requirement
+        # curl is needed especially to download lynis latest version
+        apt-get -y install curl
+        # by default no sudo is installed. sudo is needed
+        apt-get -y install sudo
+      else
+        _echo "$(msg red)Error, unknown value for distribution ID ${DISTRO_ID}. The distribution ID is not supported!$(msg end)" --name
+        _exit 147
+      fi
+    elif [ "${C_SERVER_TYPE}" == "directadmin" ]; then
+      if [ "${DISTRO_ID}" == "centos" ]; then
+        #_echo "$(msg cyan)Installing system required components for CentOS Directadmin setup ...$(msg end)" --name
+        : # will determine (but RIP CentOS)
+      elif [ "${DISTRO_ID}" == "debian" ]; then
+        _echo "$(msg cyan)Installing system required components for Debian Directadmin setup ...$(msg end)" --name
+        # Separate this installation because they are categorized in requirement
+        apt-get -y install wget
+        apt-get -y install ipv6calc
+        apt-get -y install curl
+        apt-get -y install sudo
+      else
+        _echo "$(msg red)Error, unknown value for distribution ID ${DISTRO_ID}. The distribution ID is not supported!$(msg end)" --name
+        _exit 147
+      fi
+    elif [ "${C_SERVER_TYPE}" == "laravel" ]; then
+      :
+      # install laravel requirement here
+    elif [ "${C_SERVER_TYPE}" == "magento" ]; then
+      :
+      # install magento requirement here
+    elif [ "${C_SERVER_TYPE}" == "joomla" ]; then
+      :
+      # install joomla requirement here
+    elif [ "${C_SERVER_TYPE}" == "odoo" ]; then
+      :
+      # install odoo requirement here
+    elif [ "${C_SERVER_TYPE}" == "prestashop" ]; then
+      :
+      # install prestashop requirement here
+    else
+      _echo "$(msg red)Error, unknown server installation type ${C_SERVER_TYPE}. The server installation type is not supported!$(msg end)" --name
+      _exit 147
+    fi
+    echo ""
+    check_finish_reboot "${func_name}"
+    exec_time total "${func_name}"
+  else
+    echo ""
+    _echo "$(msg red)=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=$(msg end)" --plain
+    _echo "$(msg yellow)[Skipped]: $(msg magenta)${func_name}()$(msg end) $(msg yellow)has ran before$(msg end)" --name
+  fi
+
+  if [[ "${option}" == "--run-force-exit" || "${option}" == "--run-exit" ]]; then
+    _echo "$(msg yellow)Note: this script is terminated due to the supplied option ${option} from function $(msg magenta)${func_name}()$(msg end) $(msg end)" --name
+    _exit 0
+  fi
+  echo ""
+}
+
+function install_da_pre() {
+  local option executed_function run func_name
+  option="$1"
+  run="no"
+  func_name="${FUNCNAME[0]}"
+  executed_function="${CONF_PATH}/${func_name}_executed"
+  if [ "${option}" == "--skip-mark" ]; then
+    cat /dev/null >"${executed_function}"
+    #run="no"
+    return 0
+  elif [ "${option}" == "--skip" ]; then
+    #run="no"
+    return 0
+  fi
+  if [[ "${option}" == "--run-force" || "${option}" == "--run-force-exit" ]]; then
+    rm -rf "${executed_function}"
+    run="yes"
+  elif [[ -z "${option}" || "${option}" == "--run" || "${option}" == "--run-exit" ]]; then
+    run="yes"
+  fi
+  if [[ ! -f "${CONF_PATH}/${func_name}_executed" && "${run}" == "yes" ]]; then
+    exec_time start "${func_name}"
+    local da_latest_version
+    _echo "$(msg cyan)Executing $(msg magenta)${func_name}()$(msg end) $(msg cyan)...$(msg end)" --name
+    _echo "$(msg red)=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=$(msg end)" --plain
+
+    da_latest_version=$(curl -s https://www.directadmin.com/version.php | grep -Eo "[0-9]+\.[0-9]+")
+    _echo "$(msg cyan)The latest version of Directadmin is ${da_latest_version}$(msg end)" --name
+    _pause 15
+
+    _echo "$(msg cyan)Configuring directadmin custombuild version ...$(msg end)" --name
+    echo "${C_DA_CUSTOMBUILD_VERSION}" >/root/.custombuild
+    echo ""
+    # This will make sure preinstall command is going to be executed when starting DA installation
+    _echo "$(msg cyan)Configuring directadmin to to run pre-install command ...$(msg end)" --name
+    echo 1 >/root/.preinstall
+    # Here I can set options.conf and php_extensions.conf to custom install.
+    mkdir -p /usr/local/directadmin/custombuild
+    if [ "${C_DA_INSTALL_TYPE}" == "custom" ]; then
+      _echo "$(msg cyan)Directadmin installation type is C_DA_INSTALL_TYPE set to custom. The installation will use previous custom config options.conf and php_extensions.conf without questions$(msg end)" --name
+      if [ "${DISTRO_ID}" == "centos" ]; then
+        :
+      elif [ "${DISTRO_ID}" == "debian" ]; then
+        # This one needed if clamav is included
+        # https://forum.directadmin.com/threads/configure-error-libcurl-not-found-libcurl-e-g-libcurl-devel-is-required-in-order-to-build-freshclam-and-clamsubmit.62869/
+        # No need to install libcurl now, it's working without installing libcurl. I have updated the post.
+        :
+        #echo "[${SCRIPT_NAME}]: Installing Debian libcurl ..." 2>&1 | tee -a "${REPORT_FILE}"
+        #sudo apt-get -y install libcurl4-openssl-dev 2>&1 | tee -a "${REPORT_FILE}"
+      else
+        _echo "$(msg red)Error, unknown value for distribution ID ${DISTRO_ID}. The distribution ID is not supported!$(msg end)" --name
+        _exit 147
+      fi
+      if [[ -d "${LATEST_OS_CODE_PATH}/usr/local/directadmin/custombuild" ]]; then
+        _echo "$(msg cyan)Copying the latest custombuild custom options.conf into /usr/local/directadmin/custombuild/options.conf ...$(msg end)" --name
+        cp "${LATEST_OS_CODE_PATH}/usr/local/directadmin/custombuild/options.conf" "/usr/local/directadmin/custombuild/options.conf"
+        echo ""
+
+        _echo "$(msg cyan)Changing the value redirect_host= into redirect_host=${LABEL_C_BOX_HOSTNAME_FQHN} from options.conf ...$(msg end)" --name
+        sed -i "s|^redirect_host=.*|redirect_host=${C_BOX_HOSTNAME_FQHN}|" /usr/local/directadmin/custombuild/options.conf
+        echo ""
+        _echo "$(msg cyan)Changing the value email= into email=${LABEL_C_ADMIN_EMAIL} from options.conf ...$(msg end)" --name
+        sed -i "s|^email=.*|email=${C_ADMIN_EMAIL}|" /usr/local/directadmin/custombuild/options.conf
+        echo ""
+        _echo "$(msg cyan)Changing the value php_timezone= into php_timezone=${LABEL_C_BOX_TIMEZONE} from options.conf ...$(msg end)" --name
+        sed -i "s|^php_timezone=.*|php_timezone=${C_BOX_TIMEZONE}|" /usr/local/directadmin/custombuild/options.conf
+        echo ""
+        _echo "$(msg cyan)Copying the latest custombuild custom php_extensions.conf into /usr/local/directadmin/custombuild/php_extensions.conf ...$(msg end)" --name
+        cp "${LATEST_OS_CODE_PATH}/usr/local/directadmin/custombuild/php_extensions.conf" /usr/local/directadmin/custombuild/php_extensions.conf
+      else
+        # This is weird error and should exit, we should had this at the beginning.
+        _echo "$(msg red)Error, the directory ${LATEST_OS_CODE_PATH}/usr/local/directadmin/custombuild does not exist. Please inspect because the directory should be there!$(msg end)" --name
+        _exit 147
+      fi
+
+    elif [[ "${C_DA_INSTALL_TYPE}" == "ori" || "${C_DA_INSTALL_TYPE}" == "original" ]]; then
+      _echo "$(msg cyan)Directadmin installation type is C_DA_INSTALL_TYPE set to ori or original. This will make the installation of directadmin using its default options might have few questions$(msg end)" --name
+      C_DA_INSTALL_TYPE="original"
+    elif [[ "${C_DA_INSTALL_TYPE}" == "int" || "${C_DA_INSTALL_TYPE}" == "interactive" ]]; then
+      _echo "$(msg cyan)Directadmin installation type is C_DA_INSTALL_TYPE set to int or interactive. This will make the installation of directadmin using more questions$(msg end)" --name
+       C_DA_INSTALL_TYPE="interactive"
+    elif [[ "${C_DA_INSTALL_TYPE}" == "auto" || "${C_DA_INSTALL_TYPE}" == "automatic" ]]; then
+      _echo "$(msg cyan)Directadmin installation type is C_DA_INSTALL_TYPE set to auto or automatic. This will make the installation of directadmin using its common default components including CSF without any questions$(msg end)" --name
+     C_DA_INSTALL_TYPE="automatic"
+    else
+      _echo "$(msg red)Error, invalid installation type C_DA_INSTALL_TYPE set for directadmin in config file.$(msg end)" --name
+      _exit 147
+    fi
+    echo ""
+    check_finish_reboot "${func_name}"
+    exec_time total "${func_name}"
+  else
+    echo ""
+    _echo "$(msg red)=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=$(msg end)" --plain
+    _echo "$(msg yellow)[Skipped]: $(msg magenta)${func_name}()$(msg end) $(msg yellow)has ran before$(msg end)" --name
+  fi
+
+  if [[ "${option}" == "--run-force-exit" || "${option}" == "--run-exit" ]]; then
+    _echo "$(msg yellow)Note: this script is terminated due to the supplied option ${option} from function $(msg magenta)${func_name}()$(msg end) $(msg end)" --name
+    _exit 0
+  fi
+  echo ""
+}
+
+function install_da() {
+  # After da is installed, we still need to open the port for default firewall. To achieve this, we can run install_da_post() function
+  local option executed_function run func_name
+  option="$1"
+  run="no"
+  func_name="${FUNCNAME[0]}"
+  executed_function="${CONF_PATH}/${func_name}_executed"
+  if [ "${option}" == "--skip-mark" ]; then
+    cat /dev/null >"${executed_function}"
+    #run="no"
+    return 0
+  elif [ "${option}" == "--skip" ]; then
+    #run="no"
+    return 0
+  fi
+  if [[ "${option}" == "--run-force" || "${option}" == "--run-force-exit" ]]; then
+    rm -rf "${executed_function}"
+    run="yes"
+  elif [[ -z "${option}" || "${option}" == "--run" || "${option}" == "--run-exit" ]]; then
+    run="yes"
+  fi
+  if [[ ! -f "${CONF_PATH}/${func_name}_executed" && "${run}" == "yes" ]]; then
+    exec_time start "${func_name}"
+    _echo "$(msg cyan)Executing $(msg magenta)${func_name}()$(msg end) $(msg cyan)...$(msg end)" --name
+    _echo "$(msg red)=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=$(msg end)" --plain
+
+    _echo "$(msg cyan)Downloading directadmin setup script ...$(msg end)" --name
+    cd_to_path "${INST_TEMP_DIR}"
+    wget -O setup.sh http://www.directadmin.com/setup.sh
+    echo ""
+     _echo "$(msg cyan)Setting execution permission for setup.sh ...$(msg end)" --name
+    chmod 755 setup.sh
+    echo ""
+    _echo "$(msg cyan)Setup will install Directadmin within 30 seconds. This would take a long time depending on the package selection or directadmin installation type, so please be patient$(msg end)" --name
+    _echo "$(msg yellow)If you don't want to install Directadmin now, press (CTRL+C) to exit and then you can re-run this script to resume at this stage$(msg end)" --name
+    _pause 30
+    _echo "$(msg cyan)Installing Directadmin on ${LABEL_C_BOX_HOSTNAME_FQHN} using ${C_DA_INSTALL_TYPE} mode ... $(msg end)" --name
+    if [[ "${C_DA_INSTALL_TYPE}" == "custom" || "${C_DA_INSTALL_TYPE}" == "original" ]]; then
+      # If provided options.conf, it means we use custom else we use original
+      ./setup.sh "${C_DA_CLIENT_ID}" "${C_DA_LICENSE_ID}" "${C_BOX_HOSTNAME_FQHN}" "${C_NIC_INTERFACE_NAME}" "${C_IPV4_ADD0}"
+    elif [[ "${C_DA_INSTALL_TYPE}" == "interactive" ]]; then
+      # This will ask questions
+      bash <(curl -Ss https://www.directadmin.com/setup.sh)
+    elif [[ "${C_DA_INSTALL_TYPE}" == "automatic" ]]; then
+      # This will not ask question and everything will be installed as default including CSF
+      bash <(curl -Ss https://www.directadmin.com/setup.sh) auto
+    fi
+    check_finish_reboot "${func_name}"
+    exec_time total "${func_name}"
+  else
+    echo ""
+    _echo "$(msg red)=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=$(msg end)" --plain
+    _echo "$(msg yellow)[Skipped]: $(msg magenta)${func_name}()$(msg end) $(msg yellow)has ran before$(msg end)" --name
+  fi
+
+  if [[ "${option}" == "--run-force-exit" || "${option}" == "--run-exit" ]]; then
+    _echo "$(msg yellow)Note: this script is terminated due to the supplied option ${option} from function $(msg magenta)${func_name}()$(msg end) $(msg end)" --name
+    _exit 0
+  fi
+  echo ""
+
+}
+
+function rebuild_da_package() {
+  # Here I can rebuild any missing or change package in DA
+  # This to rebuild DA package that cause error like nginx_apache wont start for new install (bug)
+  local option executed_function run func_name
+  option="$1"
+  run="no"
+  func_name="${FUNCNAME[0]}"
+  executed_function="${CONF_PATH}/${func_name}_executed"
+  if [ "${option}" == "--skip-mark" ]; then
+    cat /dev/null >"${executed_function}"
+    #run="no"
+    return 0
+  elif [ "${option}" == "--skip" ]; then
+    #run="no"
+    return 0
+  fi
+  if [[ "${option}" == "--run-force" || "${option}" == "--run-force-exit" ]]; then
+    rm -rf "${executed_function}"
+    run="yes"
+  elif [[ -z "${option}" || "${option}" == "--run" || "${option}" == "--run-exit" ]]; then
+    run="yes"
+  fi
+  if [[ ! -f "${CONF_PATH}/${func_name}_executed" && "${run}" == "yes" ]]; then
+    exec_time start "${func_name}"
+    local da_sql_type da_sql_version
+    _echo "$(msg cyan)Executing $(msg magenta)${func_name}()$(msg end) $(msg cyan)...$(msg end)" --name
+    _echo "$(msg red)=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=$(msg end)" --plain
+
+    # TODO check if this is fixed in the latest Directadmin version (or do ifelse check only rebuild when it has error)
+    # Need to rebuild nginx_apache because it cannot be started after installation due to modsecurity directive. See this:
+    # https://forum.directadmin.com/threads/nginx-and-apache-nginix-wont-start-due-to-mod_security.61427/
+    cd_to_path "/usr/local/directadmin/custombuild"
+    echo ""
+    # Rebuilding DA packages to fix some issues .
+    _echo "$(msg cyan)Updating custombuild to the new version...$(msg end)" --name
+    ./build update
+    echo ""
+    # ClamAV and exim rebuild
+    _echo "$(msg cyan)Rebuilding ClamAV and exim ...$(msg end)" --name
+    #sleep 2
+    ./build set clamav yes
+    ./build set clamav_exim yes
+    ./build set exim yes
+    ./build set eximconf yes
+    ./build set eximconf_release 4.5
+    ./build clamav
+    ./build exim
+    ./build exim_conf
+    echo ""
+    # Mod security rebuild
+    # TODO test this, modsecurity might be enabled by default in new Directadmin version
+    _echo "$(msg cyan)Rebuilding modsecurity with ruleset of ${C_DA_MODSECURITY_RULESET} ...$(msg end)" --name
+    ./build set modsecurity yes
+    ./build set modsecurity_ruleset "${C_DA_MODSECURITY_RULESET}"
+    ./build modsecurity
+    ./build modsecurity_rules
+    echo ""
+    # Web server setting rebuild
+    echo "[${SCRIPT_NAME}]: Rebuilding ${C_DA_WEB_SERVER_SOFTWARE} web server ..." 2>&1 | tee -a "${REPORT_FILE}"
+    #sleep 2
+    ./build set webserver "${C_DA_WEB_SERVER_SOFTWARE}" 2>&1 | tee -a "${REPORT_FILE}"
+    ./build "${C_DA_WEB_SERVER_SOFTWARE}" 2>&1 | tee -a "${REPORT_FILE}"
+    ./build rewrite_confs 2>&1 | tee -a "${REPORT_FILE}"
+
+    da_sql_type=$(echo "${C_DA_MYSQL_SOFTWARE}" | awk -F'-' '{ print $1 }')
+    da_sql_version=$(echo "${C_DA_MYSQL_SOFTWARE}" | awk -F'-' '{ print $2 }')
+
+    echo "[${SCRIPT_NAME}]: Rebuilding ${da_sql_type} web server to version ${da_sql_version} ..." 2>&1 | tee -a "${REPORT_FILE}"
+    #sleep 2
+    ./build set "${da_sql_type}" "${da_sql_version}"
+    ./build set mysql_inst "${da_sql_type}"
+    ./build set mysql_backup yes
+    ./build "${da_sql_type}"
+
+    check_finish_reboot "${func_name}"
+    exec_time total "${func_name}"
+  else
+    echo ""
+    _echo "$(msg red)=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=$(msg end)" --plain
+    _echo "$(msg yellow)[Skipped]: $(msg magenta)${func_name}()$(msg end) $(msg yellow)has ran before$(msg end)" --name
+  fi
+
+  if [[ "${option}" == "--run-force-exit" || "${option}" == "--run-exit" ]]; then
+    _echo "$(msg yellow)Note: this script is terminated due to the supplied option ${option} from function $(msg magenta)${func_name}()$(msg end) $(msg end)" --name
+    _exit 0
+  fi
+  echo ""
+}
+
+
+# This function adds ipv6 IP in DA file via API or manually (if API failed to modify the IP file)
+# This function does not have exit function
+function add_da_ipv6_ip() {
+  # Nice info about this: https://forum.directadmin.com/threads/how-to-add-ip-to-server-using-api.37227/
+  local ipv6_uncompress_add grep_result ipv6_da_file
+  ipv6_uncompress_add=$(ipv6calc --addr2uncompaddr "${C_IPV6_ADD0}")
+  ipv6_da_file="/usr/local/directadmin/data/admin/ips/${ipv6_uncompress_add}"
+  # 2 ways: a) Using API or b) Manually create ipv6 file
+  #a) Using API
+  echo "[${SCRIPT_NAME}]: Adding ipv6 file config using the API method ..." 2>&1 | tee -a "${REPORT_FILE}"
+  sleep 1
+  da_api_admin "add-ip" "${ipv6_uncompress_add}" "/64"
+  #sleep 2
+  #b) Manually create ipv6 file (alternative way) if the above method API doesn't produce the IP file (just in case)
+  if [ ! -f "${ipv6_da_file}" ]; then
+    # Normally API will not fail, but just in case if ipv6 file is still not created,
+    # we can use this unofficial method created by me here:
+    # https://forum.directadmin.com/threads/how-to-add-ip6-address-in-da-via-terminal-not-through-gui.62752/
+    echo "[${SCRIPT_NAME}]: Creating ipv6 file config using manual file creation (alternative method if API failed) ..." 2>&1 | tee -a "${REPORT_FILE}"
+    #_exit 147
+    touch "${ipv6_da_file}"
+    {
+      echo "gateway="
+      echo "global=no"
+      echo "linked_ips="
+      echo "netmask=/64"
+      echo "ns="
+      echo "reseller="
+      echo "status=free"
+      echo "value="
+    } >"/usr/local/directadmin/data/admin/ips/${ipv6_uncompress_add}"
+    chmod 600 "/usr/local/directadmin/data/admin/ips/${ipv6_uncompress_add}"
+    chown diradmin:diradmin "/usr/local/directadmin/data/admin/ips/${ipv6_uncompress_add}"
+    grep_result=$(grep -c "${ipv6_uncompress_add}" /usr/local/directadmin/data/admin/ip.list)
+    if [ "${grep_result}" = 0 ]; then
+      echo "${ipv6_uncompress_add}" >>/usr/local/directadmin/data/admin/ip.list
+    fi
+    echo "[${SCRIPT_NAME}]: Rebuilding httpd config files for new IPv6 and linked IPs..." 2>&1 | tee -a "${REPORT_FILE}"
+    /usr/local/directadmin/custombuild/build rewrite_confs
+  fi
+}
+
+function link_da_ipv6() {
   local option executed_function run
   option="$1"
   run="no"
@@ -7593,74 +8061,94 @@ function upgrade_os() {
     run="yes"
   fi
   if [[ ! -f "${CONF_PATH}/${FUNCNAME[0]}_executed" && "${run}" == "yes" ]]; then
+    exec_time start "${FUNCNAME[0]}"
     echo "[${SCRIPT_NAME}]: Executing ${FUNCNAME[0]} ..." 2>&1 | tee -a "${REPORT_FILE}"
-    # General OS upgrade
-    if [[ "${DISTRO_ID}" == "centos" ]]; then
-      echo "[${SCRIPT_NAME}]: Updating operating system ..." 2>&1 | tee -a "${REPORT_FILE}"
-      sudo dnf -y update 2>&1 | tee -a "${REPORT_FILE}"
-      sudo dnf -y install epel-release 2>&1 | tee -a "${REPORT_FILE}"
-      # Remember now use powertools not PowerTools. This is bug found in CentOS repo 2 days ago: https://bugs.centos.org/view.php?id=17920
-      dnf config-manager --set-enabled powertools 2>&1 | tee -a "${REPORT_FILE}"
-    elif [ "${DISTRO_ID}" == "debian" ]; then
-
-      # Known usability bug from Debian installer with old grub-pc
-      # Fixed grub-pc appear interactive GUI when running dist-upgrade https://github.com/hashicorp/vagrant/issues/289
-      # This is the Debian usability bug for grub as explained in here:
-      # https://askubuntu.com/questions/23418/what-do-i-select-for-grub-install-devices-after-an-update#comment837055_23418
-      # This only show when you have kernel set to GRUB 2
-
-      echo "[${SCRIPT_NAME}]: Updating Debian system ..." 2>&1 | tee -a "${REPORT_FILE}"
-
-      apt-get -y update
-      apt-get -y dist-upgrade
-      apt-get -y autoremove
-      apt clean
+    local da_ipv6_adds base_da_ipv6 ipv6_uncompress_add linked_ips
+    echo "[${SCRIPT_NAME}]: Checking Directadmin IPv6 configuration file ..." 2>&1 | tee -a "${REPORT_FILE}"
+    da_ipv6_adds=$(ls /usr/local/directadmin/data/admin/ips/*:* 2>/dev/null)
+    #apt-get -y install ipv6calc 2>&1 | tee -a "${REPORT_FILE}"
+    ipv6_uncompress_add=$(ipv6calc --addr2uncompaddr "${C_IPV6_ADD0}")
+    # DA IP file use this form 1234:1234:0:0:1234:1234 so we need to convert into this form using ipv6calc
+    if [[ -n "${da_ipv6_adds}" && "${C_DA_AUTO_LINK_IP}" == "true" ]]; then
+      # Change this to for loop instead of ls (best practice mentioned here: https://github.com/koalaman/shellcheck/wiki/SC2010)
+      for da_ipv6 in $(echo "${da_ipv6_adds}" | tr ' ' '\n'); do
+        #echo $(basename $da_ipv6)
+        base_da_ipv6=$(basename "${da_ipv6}")
+        if [[ "${base_da_ipv6}" == "${ipv6_uncompress_add}" ]]; then
+          echo "[${SCRIPT_NAME}]: IP address ${LABEL_IPV6_ADD0} is exist in [${da_ipv6}]"
+          #source "${da_ipv6}"
+          linked_ips=$(sed -n 's/^linked_ips=//p' "${da_ipv6}")
+          if [[ "${linked_ips}" == "" || -z "${linked_ips}" ]]; then
+            echo "IPv6 linked_ip is empty: ${linked_ips}" 2>&1 | tee -a "${REPORT_FILE}"
+            sleep 1
+            echo "[${SCRIPT_NAME}]: Linking IP address ${base_da_ipv6} with IP address ${LABEL_C_IPV4_ADD0} using DA task.queue ..." 2>&1 | tee -a "${REPORT_FILE}"
+            echo "action=linked_ips&ip_action=add&ip=${base_da_ipv6}&ip_to_link=${C_IPV4_ADD0}&apache=yes&dns=yes&apply=yes" >>/usr/local/directadmin/data/task.queue
+            /usr/local/directadmin/dataskq d2000
+            sleep 2
+            echo "[${SCRIPT_NAME}]: Linking IP address ${LABEL_C_IPV4_ADD0} with IP address ${base_da_ipv6} using DA task.queue ..." 2>&1 | tee -a "${REPORT_FILE}"
+            echo "action=linked_ips&ip_action=add&ip=${C_IPV4_ADD0}&ip_to_link=${base_da_ipv6}&apache=yes&dns=yes&apply=yes" >>/usr/local/directadmin/data/task.queue
+            /usr/local/directadmin/dataskq d2000
+            sleep 2
+            # Normally DA task.queue completes in 1 minute but sometimes it left than 10 seconds, so we reduce the check in seconds
+            echo "[${SCRIPT_NAME}]: Linking is set to task.queue. Let's wait for the linking to complete in 10 seconds ..." 2>&1 | tee -a "${REPORT_FILE}"
+            sleep 10
+            # Recheck by calling again link_da_ipv6 if still not proceed by task.queue, then sleep 10 seconds .. again and again until success
+            link_da_ipv6
+          else
+            echo "Found IPv6 linked_ips with value: ${linked_ips}" 2>&1 | tee -a "${REPORT_FILE}"
+            sleep 1
+            # This is when success, we create that executed flag file and break the loop.
+            echo "[${SCRIPT_NAME}]: Success, found IP linking entry for IPv6. Continuing setup ..." 2>&1 | tee -a "${REPORT_FILE}"
+            check_finish_reboot "${FUNCNAME[0]}"
+            break # Good idea to break we only need first match. no reason to loop again.
+          fi
+        else
+          if [ "${C_DA_AUTO_ADD_IPV6_ENTRY}" == "true" ]; then
+            echo "[${SCRIPT_NAME}]: Warning, no IPv6 matched with ${LABEL_C_IPV6_ADD0}. C_DA_AUTO_ADD_IPV6_ENTRY is set to yes. Automatically adding DA IPv6 config file ..." 2>&1 | tee -a "${REPORT_FILE}"
+            sleep 2
+            add_da_ipv6_ip
+            sleep 10
+            link_da_ipv6
+          else
+            # This might not be executed but just in case if something goes wrong.
+            echo "[${SCRIPT_NAME}]: Warning, no IPv6 matched with ${LABEL_C_IPV6_ADD0}. Please manually enter IPv6 from GUI (full form) then run this script again" 2>&1 | tee -a "${REPORT_FILE}"
+            _exit 147
+          fi
+        fi
+      done
     else
-      echo "[${SCRIPT_NAME}]: Error, unknown value for distribution ID ${DISTRO_ID}" 2>&1 | tee -a "${REPORT_FILE}"
-      _exit 147
-    fi
-
-    # Install other components based on installation type and distribution:
-    if [ "${C_SERVER_TYPE}" == "general" ]; then
-      if [ "${DISTRO_ID}" == "centos" ]; then
-        echo "[${SCRIPT_NAME}]: Installing system required components for CentOS General setup ..." 2>&1 | tee -a "${REPORT_FILE}"
-
-        sudo dnf -y install sendmail tar bind-utils git curl gcc make libevent-devel zlib-devel openssl-devel pcre2-devel wget 2>&1 | tee -a "${REPORT_FILE}"
-        sudo dnf -y install bc htop ncdu 2>&1 | tee -a "${REPORT_FILE}"
-        echo "[${SCRIPT_NAME}]: Installing perl dependencies ..." 2>&1 | tee -a "${REPORT_FILE}"
-        sudo dnf -y install @perl perl-libwww-perl net-tools perl-LWP-Protocol-https 2>&1 | tee -a "${REPORT_FILE}"
-
-      elif [ "${DISTRO_ID}" == "debian" ]; then
-        echo "[${SCRIPT_NAME}]: Installing system required components for Debian General setup ..." 2>&1 | tee -a "${REPORT_FILE}"
-        apt-get -y install curl 2>&1 | tee -a "${REPORT_FILE}" # Needed especially to download lynis latest version
-        apt-get -y install sudo 2>&1 | tee -a "${REPORT_FILE}" # By default no sudo is installed
+      if [ "${C_DA_AUTO_ADD_IPV6_ENTRY}" == "true" ]; then
+        echo "[${SCRIPT_NAME}]: Warning, IPv6 has not been setup through Directadmin. C_DA_AUTO_ADD_IPV6_ENTRY is set to yes. Automatically adding DA IPv6 config file ..." 2>&1 | tee -a "${REPORT_FILE}"
+        sleep 2
+        add_da_ipv6_ip
+        link_da_ipv6
       else
-        echo "[${SCRIPT_NAME}]: Error, unknown value for distribution ID ${DISTRO_ID}" 2>&1 | tee -a "${REPORT_FILE}"
+        echo "[${SCRIPT_NAME}]: Warning, IPv6 has not been setup through Directadmin. Please manually enter IPv6 from GUI (full form) then run this script again" 2>&1 | tee -a "${REPORT_FILE}"
+        sleep 5
+        # Enable the DA port in firewall only when pressing enter (good confirmation from user)
+        read -r -s -n 1 -p "[${SCRIPT_NAME}]: Press any key to start adding TCP port ${C_DA_PORT}/tcp in ufw ..." 2>&1 | tee -a "${REPORT_FILE}"
+        echo ""
+        echo "[${SCRIPT_NAME}]: Allowing TCP port ${LABEL_C_DA_PORT}/tcp for accessing DA admin page ..." 2>&1 | tee -a "${REPORT_FILE}"
+        sudo ufw allow "${C_DA_PORT}/tcp" 2>&1 | tee -a "${REPORT_FILE}"
+        # Need to restart DA because we did change port from 2222 to new port before calling this function
+        restart_da
+        echo "[${SCRIPT_NAME}]: Use the following login information to enter into DA admin page and add IPv6. When done, re-run this script again:". 2>&1 | tee -a "${REPORT_FILE}"
+        echo ""
+        echo "=============="
+        echo "Directadmin now can be accessed through http://${LABEL_C_IPV4_ADD0}:${LABEL_C_DA_PORT}" 2>&1 | tee -a "${REPORT_FILE}"
+        awk '{ print }' /usr/local/directadmin/scripts/setup.txt 2>&1 | tee -a "${REPORT_FILE}"
+        echo "=============="
+        echo ""
+        sleep 5
         _exit 147
       fi
-    elif [ "${C_SERVER_TYPE}" == "directadmin" ]; then
-      if [ "${DISTRO_ID}" == "centos" ]; then
-        echo "[${SCRIPT_NAME}]: Installing system required components for CentOS Directadmin setup ..." 2>&1 | tee -a "${REPORT_FILE}"
-        : # will determine (but RIP CentOS)
-      elif [ "${DISTRO_ID}" == "debian" ]; then
-        echo "[${SCRIPT_NAME}]: Installing system required components for Debian Directadmin setup ..." 2>&1 | tee -a "${REPORT_FILE}"
-        echo "[${SCRIPT_NAME}]: Installing wget on Debian ... " 2>&1 | tee -a "${REPORT_FILE}"
-        apt-get -y install wget 2>&1 | tee -a "${REPORT_FILE}"
-        echo "[${SCRIPT_NAME}]: Installing ipv6calc for IPv6 conversion on Debian ..." 2>&1 | tee -a "${REPORT_FILE}"
-        apt-get -y install ipv6calc 2>&1 | tee -a "${REPORT_FILE}"
-        apt-get -y install curl 2>&1 | tee -a "${REPORT_FILE}" # Needed especially to download lynis latest version
-        apt-get -y install sudo 2>&1 | tee -a "${REPORT_FILE}" # By default no sudo is installed
-      else
-        echo "[${SCRIPT_NAME}]: Error, unknown value for distribution ID ${DISTRO_ID}" 2>&1 | tee -a "${REPORT_FILE}"
-        _exit 147
-      fi
-
     fi
-    check_finish_reboot "${FUNCNAME[0]}"
+    exec_time end "${FUNCNAME[0]}"
   else
     echo "[${SCRIPT_NAME}]: [Skipped]: ${FUNCNAME[0]} has ran before" 2>&1 | tee -a "${REPORT_FILE}"
     echo "=~=~=~=~=~=~=~=~=~" 2>&1 | tee -a "${REPORT_FILE}"
   fi
+
   if [[ "${option}" == "--run-force-exit" || "${option}" == "--run-exit" ]]; then
     _echo "$(msg yellow)Warning, script terminated due to the supplied option ${option}$(msg end)" --name
     exit 0
@@ -7668,7 +8156,7 @@ function upgrade_os() {
 }
 
 # Install CSF Firewall
-configure_csf() {
+function configure_csf() {
   local option executed_function run
   option="$1"
   run="no"
@@ -7919,378 +8407,7 @@ configure_csf() {
   fi
 }
 
-function install_da_pre() {
-  local option executed_function run
-  option="$1"
-  run="no"
-  executed_function="${CONF_PATH}/${FUNCNAME[0]}_executed"
-  if [ "${option}" == "--skip-mark" ]; then
-    cat /dev/null >"${executed_function}"
-    #run="no"
-    return 0
-  elif [ "${option}" == "--skip" ]; then
-    #run="no"
-    return 0
-  fi
-  if [[ "${option}" == "--run-force" || "${option}" == "--run-force-exit" ]]; then
-    rm -rf "${executed_function}"
-    run="yes"
-  elif [[ -z "${option}" || "${option}" == "--run" || "${option}" == "--run-exit" ]]; then
-    run="yes"
-  fi
-  if [[ ! -f "${CONF_PATH}/${FUNCNAME[0]}_executed" && "${run}" == "yes" ]]; then
-    exec_time start "${FUNCNAME[0]}"
-    echo "[${SCRIPT_NAME}]: Executing ${FUNCNAME[0]} ..." 2>&1 | tee -a "${REPORT_FILE}"
-    da_latest_version=$(curl -s https://www.directadmin.com/version.php | grep -Eo "[0-9]+\.[0-9]+")
-    echo "[${SCRIPT_NAME}]: The latest version of Directadmin is ${da_latest_version}" 2>&1 | tee -a "${REPORT_FILE}"
-    _pause 30
-    echo "[${SCRIPT_NAME}]: Installing required components to execute DA pre-install ... " 2>&1 | tee -a "${REPORT_FILE}"
-    echo "[${SCRIPT_NAME}]: Setting up DA to run pre-install command ... " 2>&1 | tee -a "${REPORT_FILE}"
-    echo 2.0 >/root/.custombuild
-    # This will make sure preinstall command is going to be executed when starting DA installation
-    echo 1 >/root/.preinstall
-    # Here I can set options.conf and php_extensions.conf to custom install.
-    mkdir -p /usr/local/directadmin/custombuild
-    if [ "${C_DA_INSTALL_TYPE}" == "custom" ]; then
-      echo "[${SCRIPT_NAME}]: [Notice]: Directadmin installation type is custom. Setting up custom options.conf and php_extensions.conf ... " 2>&1 | tee -a "${REPORT_FILE}"
-      if [ "${DISTRO_ID}" == "centos" ]; then
-        :
-      elif [ "${DISTRO_ID}" == "debian" ]; then
-        # This one needed if clamav is included
-        # https://forum.directadmin.com/threads/configure-error-libcurl-not-found-libcurl-e-g-libcurl-devel-is-required-in-order-to-build-freshclam-and-clamsubmit.62869/
-        # No need to install libcurl now, it's working without installing libcurl. I have updated the post.
-        :
-        #echo "[${SCRIPT_NAME}]: Installing Debian libcurl ..." 2>&1 | tee -a "${REPORT_FILE}"
-        #sudo apt-get -y install libcurl4-openssl-dev 2>&1 | tee -a "${REPORT_FILE}"
-      else
-        echo "[${SCRIPT_NAME}]: Error, unknown value for distribution ID ${DISTRO_ID}" 2>&1 | tee -a "${REPORT_FILE}"
-        _exit 147
-      fi
-      if [ -d "${DATA_PATH}/maxinet" ]; then
-        echo "[${SCRIPT_NAME}]: Copying Custombuild options.conf ..." 2>&1 | tee -a "${REPORT_FILE}"
-        cp "${DATA_PATH}/maxinet/storage/os/${DISTRO_ID}/usr/local/directadmin/custombuild/options.conf" "/usr/local/directadmin/custombuild/options.conf"
-        sed -i "s|^redirect_host=.*|redirect_host=${C_BOX_HOSTNAME_FQHN}|" /usr/local/directadmin/custombuild/options.conf
-        sed -i "s|^email=.*|email=${C_ADMIN_EMAIL}|" /usr/local/directadmin/custombuild/options.conf
-        sed -i "s|^php_timezone=.*|php_timezone=${C_BOX_TIMEZONE}|" /usr/local/directadmin/custombuild/options.conf
-        echo "[${SCRIPT_NAME}]: Copying Custombuild php_extensions.conf..." 2>&1 | tee -a "${REPORT_FILE}"
-        cp "${DATA_PATH}/maxinet/storage/os/${DISTRO_ID}/usr/local/directadmin/custombuild/php_extensions.conf" /usr/local/directadmin/custombuild/php_extensions.conf
-      else
-        echo "[${SCRIPT_NAME}]: Error, directory not exist. Check maxinet clone folder." 2>&1 | tee -a "${REPORT_FILE}"
-        _exit 147 #Just exit because this is weird error if this folder is missing
-      fi
-    elif [ "${C_DA_INSTALL_TYPE}" == "ori" ]; then
-      echo "[${SCRIPT_NAME}]: [Notice]: Directadmin installation type is set to ori. Directadmin will install using default options" 2>&1 | tee -a "${REPORT_FILE}"
-    elif [ "${C_DA_INSTALL_TYPE}" == "interactive" ]; then
-      echo "[${SCRIPT_NAME}]: [Notice]: Directadmin installation type is set to interactive. Directadmin will install with some questions" 2>&1 | tee -a "${REPORT_FILE}"
-    elif [ "${C_DA_INSTALL_TYPE}" == "auto" ]; then
-      echo "[${SCRIPT_NAME}]: [Notice]: Directadmin installation type is set to auto. Directadmin will install all default options including CSF" 2>&1 | tee -a "${REPORT_FILE}"
-    else
-      echo "[${SCRIPT_NAME}]: Error, invalid installation type set for Directadmin in config file." 2>&1 | tee -a "${REPORT_FILE}"
-      _exit 147
-    fi
-    check_finish_reboot "${FUNCNAME[0]}"
-    exec_time end "${FUNCNAME[0]}"
-  else
-    echo "[${SCRIPT_NAME}]: [Skipped]: ${FUNCNAME[0]} has ran before" 2>&1 | tee -a "${REPORT_FILE}"
-    echo "=~=~=~=~=~=~=~=~=~" 2>&1 | tee -a "${REPORT_FILE}"
-  fi
-  if [[ "${option}" == "--run-force-exit" || "${option}" == "--run-exit" ]]; then
-    _echo "$(msg yellow)Warning, script terminated due to the supplied option ${option}$(msg end)" --name
-    exit 0
-  fi
 
-}
-
-function install_da() {
-  # After da is installed, we still need to open the port for default firewall. To achieve this, we can run install_da_post() function
-  local option executed_function run
-  option="$1"
-  run="no"
-  executed_function="${CONF_PATH}/${FUNCNAME[0]}_executed"
-  if [ "${option}" == "--skip-mark" ]; then
-    cat /dev/null >"${executed_function}"
-    #run="no"
-    return 0
-  elif [ "${option}" == "--skip" ]; then
-    #run="no"
-    return 0
-  fi
-  if [[ "${option}" == "--run-force" || "${option}" == "--run-force-exit" ]]; then
-    rm -rf "${executed_function}"
-    run="yes"
-  elif [[ -z "${option}" || "${option}" == "--run" || "${option}" == "--run-exit" ]]; then
-    run="yes"
-  fi
-  if [[ ! -f "${CONF_PATH}/${FUNCNAME[0]}_executed" && "${run}" == "yes" ]]; then
-    exec_time start "${FUNCNAME[0]}"
-    echo "[${SCRIPT_NAME}]: Executing ${FUNCNAME[0]} ..." 2>&1 | tee -a "${REPORT_FILE}"
-    echo "[${SCRIPT_NAME}]: Downloading Directadmin setup script ... " 2>&1 | tee -a "${REPORT_FILE}"
-    cd_to_path "${INST_TEMP_DIR}"
-    wget -O setup.sh http://www.directadmin.com/setup.sh
-    chmod 755 setup.sh
-    echo "[${SCRIPT_NAME}]: Setup will install Directadmin within 30 seconds. It would take a long time, so please be patient" 2>&1 | tee -a "${REPORT_FILE}"
-    echo "[${SCRIPT_NAME}]: If you don't want to install Directadmin now, press (ctrl+C) to exit and then you can re-run this script to resume at this stage" 2>&1 | tee -a "${REPORT_FILE}"
-    _pause 30
-    echo "[${SCRIPT_NAME}]: Installing Directadmin on ${LABEL_C_BOX_HOSTNAME_FQHN} using ${C_DA_INSTALL_TYPE} mode ... " 2>&1 | tee -a "${REPORT_FILE}"
-    if [[ "${C_DA_INSTALL_TYPE}" == "custom" || "${C_DA_INSTALL_TYPE}" == "ori" ]]; then
-      # custom and ori depends on the options.conf (this won't ask question)
-      ./setup.sh "${C_DA_CLIENT_ID}" "${C_DA_LICENSE_ID}" "${C_BOX_HOSTNAME_FQHN}" "${C_NIC_INTERFACE_NAME}" "${C_IPV4_ADD0}"
-    elif [[ "${C_DA_INSTALL_TYPE}" == "interactive" ]]; then
-      # this will ask question
-      bash <(curl -Ss https://www.directadmin.com/setup.sh)
-    elif [[ "${C_DA_INSTALL_TYPE}" == "auto" ]]; then
-      # This will not ask question and everything will be installed as default including CSF
-      bash <(curl -Ss https://www.directadmin.com/setup.sh) auto
-    fi
-    check_finish_reboot "${FUNCNAME[0]}"
-    exec_time end "${FUNCNAME[0]}"
-  else
-    echo "[${SCRIPT_NAME}]: [Skipped]: ${FUNCNAME[0]} has ran before" 2>&1 | tee -a "${REPORT_FILE}"
-    echo "=~=~=~=~=~=~=~=~=~" 2>&1 | tee -a "${REPORT_FILE}"
-  fi
-  if [[ "${option}" == "--run-force-exit" || "${option}" == "--run-exit" ]]; then
-    _echo "$(msg yellow)Warning, script terminated due to the supplied option ${option}$(msg end)" --name
-    exit 0
-  fi
-
-}
-# This function adds ipv6 IP in DA file via API or manually (if API failed to modify the IP file)
-# This function does not have exit function
-function add_da_ipv6_ip() {
-  # Nice info about this: https://forum.directadmin.com/threads/how-to-add-ip-to-server-using-api.37227/
-  local ipv6_uncompress_add grep_result ipv6_da_file
-  ipv6_uncompress_add=$(ipv6calc --addr2uncompaddr "${C_IPV6_ADD0}")
-  ipv6_da_file="/usr/local/directadmin/data/admin/ips/${ipv6_uncompress_add}"
-  # 2 ways: a) Using API or b) Manually create ipv6 file
-  #a) Using API
-  echo "[${SCRIPT_NAME}]: Adding ipv6 file config using the API method ..." 2>&1 | tee -a "${REPORT_FILE}"
-  sleep 1
-  da_api_admin "add-ip" "${ipv6_uncompress_add}" "/64"
-  #sleep 2
-  #b) Manually create ipv6 file (alternative way) if the above method API doesn't produce the IP file (just in case)
-  if [ ! -f "${ipv6_da_file}" ]; then
-    # Normally API will not fail, but just in case if ipv6 file is still not created,
-    # we can use this unofficial method created by me here:
-    # https://forum.directadmin.com/threads/how-to-add-ip6-address-in-da-via-terminal-not-through-gui.62752/
-    echo "[${SCRIPT_NAME}]: Creating ipv6 file config using manual file creation (alternative method if API failed) ..." 2>&1 | tee -a "${REPORT_FILE}"
-    #_exit 147
-    touch "${ipv6_da_file}"
-    {
-      echo "gateway="
-      echo "global=no"
-      echo "linked_ips="
-      echo "netmask=/64"
-      echo "ns="
-      echo "reseller="
-      echo "status=free"
-      echo "value="
-    } >"/usr/local/directadmin/data/admin/ips/${ipv6_uncompress_add}"
-    chmod 600 "/usr/local/directadmin/data/admin/ips/${ipv6_uncompress_add}"
-    chown diradmin:diradmin "/usr/local/directadmin/data/admin/ips/${ipv6_uncompress_add}"
-    grep_result=$(grep -c "${ipv6_uncompress_add}" /usr/local/directadmin/data/admin/ip.list)
-    if [ "${grep_result}" = 0 ]; then
-      echo "${ipv6_uncompress_add}" >>/usr/local/directadmin/data/admin/ip.list
-    fi
-    echo "[${SCRIPT_NAME}]: Rebuilding httpd config files for new IPv6 and linked IPs..." 2>&1 | tee -a "${REPORT_FILE}"
-    /usr/local/directadmin/custombuild/build rewrite_confs
-  fi
-}
-
-function link_da_ipv6() {
-  local option executed_function run
-  option="$1"
-  run="no"
-  executed_function="${CONF_PATH}/${FUNCNAME[0]}_executed"
-  if [ "${option}" == "--skip-mark" ]; then
-    cat /dev/null >"${executed_function}"
-    #run="no"
-    return 0
-  elif [ "${option}" == "--skip" ]; then
-    #run="no"
-    return 0
-  fi
-  if [[ "${option}" == "--run-force" || "${option}" == "--run-force-exit" ]]; then
-    rm -rf "${executed_function}"
-    run="yes"
-  elif [[ -z "${option}" || "${option}" == "--run" || "${option}" == "--run-exit" ]]; then
-    run="yes"
-  fi
-  if [[ ! -f "${CONF_PATH}/${FUNCNAME[0]}_executed" && "${run}" == "yes" ]]; then
-    exec_time start "${FUNCNAME[0]}"
-    echo "[${SCRIPT_NAME}]: Executing ${FUNCNAME[0]} ..." 2>&1 | tee -a "${REPORT_FILE}"
-    local da_ipv6_adds base_da_ipv6 ipv6_uncompress_add linked_ips
-    echo "[${SCRIPT_NAME}]: Checking Directadmin IPv6 configuration file ..." 2>&1 | tee -a "${REPORT_FILE}"
-    da_ipv6_adds=$(ls /usr/local/directadmin/data/admin/ips/*:* 2>/dev/null)
-    #apt-get -y install ipv6calc 2>&1 | tee -a "${REPORT_FILE}"
-    ipv6_uncompress_add=$(ipv6calc --addr2uncompaddr "${C_IPV6_ADD0}")
-    # DA IP file use this form 1234:1234:0:0:1234:1234 so we need to convert into this form using ipv6calc
-    if [[ -n "${da_ipv6_adds}" && "${C_DA_AUTO_LINK_IP}" == "true" ]]; then
-      # Change this to for loop instead of ls (best practice mentioned here: https://github.com/koalaman/shellcheck/wiki/SC2010)
-      for da_ipv6 in $(echo "${da_ipv6_adds}" | tr ' ' '\n'); do
-        #echo $(basename $da_ipv6)
-        base_da_ipv6=$(basename "${da_ipv6}")
-        if [[ "${base_da_ipv6}" == "${ipv6_uncompress_add}" ]]; then
-          echo "[${SCRIPT_NAME}]: IP address ${LABEL_IPV6_ADD0} is exist in [${da_ipv6}]"
-          #source "${da_ipv6}"
-          linked_ips=$(sed -n 's/^linked_ips=//p' "${da_ipv6}")
-          if [[ "${linked_ips}" == "" || -z "${linked_ips}" ]]; then
-            echo "IPv6 linked_ip is empty: ${linked_ips}" 2>&1 | tee -a "${REPORT_FILE}"
-            sleep 1
-            echo "[${SCRIPT_NAME}]: Linking IP address ${base_da_ipv6} with IP address ${LABEL_C_IPV4_ADD0} using DA task.queue ..." 2>&1 | tee -a "${REPORT_FILE}"
-            echo "action=linked_ips&ip_action=add&ip=${base_da_ipv6}&ip_to_link=${C_IPV4_ADD0}&apache=yes&dns=yes&apply=yes" >>/usr/local/directadmin/data/task.queue
-            /usr/local/directadmin/dataskq d2000
-            sleep 2
-            echo "[${SCRIPT_NAME}]: Linking IP address ${LABEL_C_IPV4_ADD0} with IP address ${base_da_ipv6} using DA task.queue ..." 2>&1 | tee -a "${REPORT_FILE}"
-            echo "action=linked_ips&ip_action=add&ip=${C_IPV4_ADD0}&ip_to_link=${base_da_ipv6}&apache=yes&dns=yes&apply=yes" >>/usr/local/directadmin/data/task.queue
-            /usr/local/directadmin/dataskq d2000
-            sleep 2
-            # Normally DA task.queue completes in 1 minute but sometimes it left than 10 seconds, so we reduce the check in seconds
-            echo "[${SCRIPT_NAME}]: Linking is set to task.queue. Let's wait for the linking to complete in 10 seconds ..." 2>&1 | tee -a "${REPORT_FILE}"
-            sleep 10
-            # Recheck by calling again link_da_ipv6 if still not proceed by task.queue, then sleep 10 seconds .. again and again until success
-            link_da_ipv6
-          else
-            echo "Found IPv6 linked_ips with value: ${linked_ips}" 2>&1 | tee -a "${REPORT_FILE}"
-            sleep 1
-            # This is when success, we create that executed flag file and break the loop.
-            echo "[${SCRIPT_NAME}]: Success, found IP linking entry for IPv6. Continuing setup ..." 2>&1 | tee -a "${REPORT_FILE}"
-            check_finish_reboot "${FUNCNAME[0]}"
-            break # Good idea to break we only need first match. no reason to loop again.
-          fi
-        else
-          if [ "${C_DA_AUTO_ADD_IPV6_ENTRY}" == "true" ]; then
-            echo "[${SCRIPT_NAME}]: Warning, no IPv6 matched with ${LABEL_C_IPV6_ADD0}. C_DA_AUTO_ADD_IPV6_ENTRY is set to yes. Automatically adding DA IPv6 config file ..." 2>&1 | tee -a "${REPORT_FILE}"
-            sleep 2
-            add_da_ipv6_ip
-            sleep 10
-            link_da_ipv6
-          else
-            # This might not be executed but just in case if something goes wrong.
-            echo "[${SCRIPT_NAME}]: Warning, no IPv6 matched with ${LABEL_C_IPV6_ADD0}. Please manually enter IPv6 from GUI (full form) then run this script again" 2>&1 | tee -a "${REPORT_FILE}"
-            _exit 147
-          fi
-        fi
-      done
-    else
-      if [ "${C_DA_AUTO_ADD_IPV6_ENTRY}" == "true" ]; then
-        echo "[${SCRIPT_NAME}]: Warning, IPv6 has not been setup through Directadmin. C_DA_AUTO_ADD_IPV6_ENTRY is set to yes. Automatically adding DA IPv6 config file ..." 2>&1 | tee -a "${REPORT_FILE}"
-        sleep 2
-        add_da_ipv6_ip
-        link_da_ipv6
-      else
-        echo "[${SCRIPT_NAME}]: Warning, IPv6 has not been setup through Directadmin. Please manually enter IPv6 from GUI (full form) then run this script again" 2>&1 | tee -a "${REPORT_FILE}"
-        sleep 5
-        # Enable the DA port in firewall only when pressing enter (good confirmation from user)
-        read -r -s -n 1 -p "[${SCRIPT_NAME}]: Press any key to start adding TCP port ${C_DA_PORT}/tcp in ufw ..." 2>&1 | tee -a "${REPORT_FILE}"
-        echo ""
-        echo "[${SCRIPT_NAME}]: Allowing TCP port ${LABEL_C_DA_PORT}/tcp for accessing DA admin page ..." 2>&1 | tee -a "${REPORT_FILE}"
-        sudo ufw allow "${C_DA_PORT}/tcp" 2>&1 | tee -a "${REPORT_FILE}"
-        # Need to restart DA because we did change port from 2222 to new port before calling this function
-        restart_da
-        echo "[${SCRIPT_NAME}]: Use the following login information to enter into DA admin page and add IPv6. When done, re-run this script again:". 2>&1 | tee -a "${REPORT_FILE}"
-        echo ""
-        echo "=============="
-        echo "Directadmin now can be accessed through http://${LABEL_C_IPV4_ADD0}:${LABEL_C_DA_PORT}" 2>&1 | tee -a "${REPORT_FILE}"
-        awk '{ print }' /usr/local/directadmin/scripts/setup.txt 2>&1 | tee -a "${REPORT_FILE}"
-        echo "=============="
-        echo ""
-        sleep 5
-        _exit 147
-      fi
-    fi
-    exec_time end "${FUNCNAME[0]}"
-  else
-    echo "[${SCRIPT_NAME}]: [Skipped]: ${FUNCNAME[0]} has ran before" 2>&1 | tee -a "${REPORT_FILE}"
-    echo "=~=~=~=~=~=~=~=~=~" 2>&1 | tee -a "${REPORT_FILE}"
-  fi
-
-  if [[ "${option}" == "--run-force-exit" || "${option}" == "--run-exit" ]]; then
-    _echo "$(msg yellow)Warning, script terminated due to the supplied option ${option}$(msg end)" --name
-    exit 0
-  fi
-}
-function rebuild_da_package() {
-  # Here I can rebuild any missing or change package in DA
-  # This to rebuild DA package that cause error like nginx_apache wont start for new install (bug)
-  local option executed_function run
-  option="$1"
-  run="no"
-  executed_function="${CONF_PATH}/${FUNCNAME[0]}_executed"
-  if [ "${option}" == "--skip-mark" ]; then
-    cat /dev/null >"${executed_function}"
-    #run="no"
-    return 0
-  elif [ "${option}" == "--skip" ]; then
-    #run="no"
-    return 0
-  fi
-  if [[ "${option}" == "--run-force" || "${option}" == "--run-force-exit" ]]; then
-    rm -rf "${executed_function}"
-    run="yes"
-  elif [[ -z "${option}" || "${option}" == "--run" || "${option}" == "--run-exit" ]]; then
-    run="yes"
-  fi
-  if [[ ! -f "${CONF_PATH}/${FUNCNAME[0]}_executed" && "${run}" == "yes" ]]; then
-    exec_time start "${FUNCNAME[0]}"
-    echo "[${SCRIPT_NAME}]: Executing ${FUNCNAME[0]} ..." 2>&1 | tee -a "${REPORT_FILE}"
-    local da_sql_type da_sql_version
-    # Need to rebuild nginx_apache because it cannot be started after installation due to modsecurity directive. See this:
-    # https://forum.directadmin.com/threads/nginx-and-apache-nginix-wont-start-due-to-mod_security.61427/
-    cd_to_path "/usr/local/directadmin/custombuild"
-    echo ""
-    # Rebuilding DA packages to fix some issues .
-    _echo "$(msg cyan)Updating custombuild to the new version...$(msg end)" --name
-    ./build update
-    echo ""
-    # ClamAV and exim rebuild
-    _echo "$(msg cyan)Rebuilding ClamAV and exim ...$(msg end)" --name
-    #sleep 2
-    ./build set clamav yes
-    ./build set clamav_exim yes
-    ./build set exim yes
-    ./build set eximconf yes
-    ./build set eximconf_release 4.5
-    ./build clamav
-    ./build exim
-    ./build exim_conf
-    echo ""
-    # Mod security rebuild
-    # TODO test this, modsecurity might be enabled by default in new Directadmin version
-    _echo "$(msg cyan)Rebuilding modsecurity with ruleset of ${C_DA_MODSECURITY_RULESET} ...$(msg end)" --name
-    ./build set modsecurity yes
-    ./build set modsecurity_ruleset "${C_DA_MODSECURITY_RULESET}"
-    ./build modsecurity
-    ./build modsecurity_rules
-    echo ""
-    # Web server setting rebuild
-    echo "[${SCRIPT_NAME}]: Rebuilding ${C_DA_WEB_SERVER_SOFTWARE} web server ..." 2>&1 | tee -a "${REPORT_FILE}"
-    #sleep 2
-    ./build set webserver "${C_DA_WEB_SERVER_SOFTWARE}" 2>&1 | tee -a "${REPORT_FILE}"
-    ./build "${C_DA_WEB_SERVER_SOFTWARE}" 2>&1 | tee -a "${REPORT_FILE}"
-    ./build rewrite_confs 2>&1 | tee -a "${REPORT_FILE}"
-
-    da_sql_type=$(echo "${C_DA_MYSQL_SOFTWARE}" | awk -F'-' '{ print $1 }')
-    da_sql_version=$(echo "${C_DA_MYSQL_SOFTWARE}" | awk -F'-' '{ print $2 }')
-
-    echo "[${SCRIPT_NAME}]: Rebuilding ${da_sql_type} web server to version ${da_sql_version} ..." 2>&1 | tee -a "${REPORT_FILE}"
-    #sleep 2
-    ./build set "${da_sql_type}" "${da_sql_version}"
-    ./build set mysql_inst "${da_sql_type}"
-    ./build set mysql_backup yes
-    ./build "${da_sql_type}"
-
-    check_finish_reboot "${FUNCNAME[0]}"
-    exec_time end "${FUNCNAME[0]}"
-  else
-    echo "[${SCRIPT_NAME}]: [Skipped]: ${FUNCNAME[0]} has ran before" 2>&1 | tee -a "${REPORT_FILE}"
-    echo "=~=~=~=~=~=~=~=~=~" 2>&1 | tee -a "${REPORT_FILE}"
-  fi
-
-  if [[ "${option}" == "--run-force-exit" || "${option}" == "--run-exit" ]]; then
-    _echo "$(msg yellow)Warning, script terminated due to the supplied option ${option}$(msg end)" --name
-    exit 0
-  fi
-}
 function install_da_post() {
   local option executed_function run
   option="$1"
@@ -14046,8 +14163,7 @@ function setup() {
     # call the next function configure_net2 to configure the network files that use network interface based $C_NIC_INTERFACE_NAME value from config file
     # The reason is to prevent the system from network locked out due to unfinished configuration files between network files by using ip link down command.
     # Note 3: That means, configure_net2 will only run once if that is the case. If you still need configure_net2 to run for technical reason, use the option --run-force
-    configure_net --run-force-exit
-    # TODO continue writing next documentation
+    configure_net --run
     # Must run configure_net first before running configure_net2 because we need interface to be ${C_NIC_INTERFACE_NAME} first #OK
     configure_net2 --run
     # This is where we can configure mount option for disk
@@ -14063,9 +14179,10 @@ function setup() {
     #exit 0
     if [ "${C_SERVER_TYPE}" == "directadmin" ]; then
       install_da_pre --run
-      install_da --run
-      # Must run this after install_da and before install_da_post because install_da_post requires valid nginx directive which is fixed at rebuild_da_package
+      install_da --run-exit
+      # TODO test rebuild_da_package on the new Directadmin version
       rebuild_da_package --run
+      # Run this install_da_post after rebuild_da_package because install_da_post requires valid nginx directive which is fixed at rebuild_da_package
       install_da_post --run
       change_da_auth --run
       # Linking da ipv6 with ipv4 and vice versa
@@ -14345,9 +14462,11 @@ create_file "ssh-push-scripts setup-readme"
 if [ "${C_HIDE_SENSITIVE_TEXT}" == "true" ]; then
   # This will create a source file that will hide the sensitive variable value to equal to its own variable
   create_file "sensitive-label-hide"
+  _echo "$(msg cyan)Note, sensitive labels are hidden from terminal$(msg end)" --name
 else
   # this will create a source file that will show the sensitive variable value to equal to the value in the config file
   create_file "sensitive-label-show"
+  _echo "$(msg yellow)Warning, sensitive labels will be shown on terminal because C_HIDE_SENSITIVE_TEXT is not set to true$(msg end)" --name
 fi
 # Source the sensitive label whether to hide data or not
 source "${CONF_PATH}/sensitive_label"
@@ -14360,7 +14479,15 @@ DNS_PROVIDER_API_KEY=$(echo "${C_DNS_PROVIDER_API1}" | awk -F':' '{ print $3 }')
 # if C_HOST_PUBLIC_IP is not set in config file, we retrieve this host IP automatically
 
 if [ -z "${C_HOST_PUBLIC_IP}" ]; then
+  required "debian@@apt:dnsutils" "ubuntu@@apt:dnsutils"
+
   C_HOST_PUBLIC_IP=$(dig TXT +short o-o.myaddr.l.google.com @ns1.google.com | awk -F'"' '{ print $2}')
+  if [[ "${C_HIDE_SENSITIVE_TEXT}" == "true" ]]; then
+    LABEL_C_HOST_PUBLIC_IP="C_HOST_PUBLIC_IP"
+  else
+    LABEL_C_HOST_PUBLIC_IP="${C_HOST_PUBLIC_IP}"
+  fi
+  _echo "$(msg magenta)Current host public IP is: ${LABEL_C_HOST_PUBLIC_IP}$(msg end)" --name
 fi
 
 C_BOX_HOSTNAME=$(echo "${C_BOX_HOSTNAME_FQHN}" | awk -F'.' '{ print $1 }')
