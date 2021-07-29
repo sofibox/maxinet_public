@@ -5,7 +5,7 @@
 # Author: Arafat Ali | Email: webmaster@sofibox.com | Website: sofibox.com
 _APP_SPECIFIC_NAME="Maxinet"
 # Note some minor versions are not published
-_APP_VERSION="0.5.4.9"
+_APP_VERSION="0.5.5.0"
 _APP_STATUS="alpha"
 _APP_VERSION_STATUS="${_APP_VERSION}-${_APP_STATUS}"
 
@@ -3899,46 +3899,6 @@ function iso_api() {
 
 }
 
-# This function allows Directadmin to restart quickly but we don't take priority on other pending tasks.
-# Better to restart DA with task.queue (this is what most documentation do) because DA needs to respect task.queue process
-function restart_da() {
-  echo "" 2>&1 | tee -a "${REPORT_FILE}"
-  local wait_duration task_queue_file
-  wait_duration=10
-  # Directadmin recommends 60 seconds (or 1 minute). Longer than this something wrong with the task.queue
-  max_wait=240
-  task_queue_file="/usr/local/directadmin/data/task.queue"
-  if [ -s ${task_queue_file} ]; then
-    echo "[${SCRIPT_NAME}]: Warning, Directadmin task.queue still has pending task(s) to be executed with the following contents:" 2>&1 | tee -a "${REPORT_FILE}"
-    echo ""
-    echo "--"
-    cat "${task_queue_file}"
-    echo "--"
-    echo "Waiting ${wait_duration} seconds to finish the pending task(s) ..." 2>&1 | tee -a "${REPORT_FILE}"
-    sleep ${wait_duration}
-    ((HOLD_SECONDS = HOLD_SECONDS + wait_duration))
-    echo "Total sleep time in second: ${HOLD_SECONDS}"
-    if [ "${HOLD_SECONDS}" -gt ${max_wait} ]; then
-      # Force restart if waiting time is longer than 1 minute because task.queue maximum execution time is only 1 minute based on DA documentation
-      # https://docs.directadmin.com/directadmin/general-usage/task-queue-processor/
-      echo "[${SCRIPT_NAME}]: Warning, task.queue has not finished executing task(s) for more than ${max_wait} seconds. Forcing restart ..."
-      echo "[${SCRIPT_NAME}]: Restarting Directadmin ..." 2>&1 | tee -a "${REPORT_FILE}"
-      echo "action=directadmin&value=restart" >>/usr/local/directadmin/data/task.queue
-      /usr/local/directadmin/dataskq d2000
-    else
-      # recursive function call again to recheck the task.queue content until condition satisfied and Directadmin will restart in clean mode
-      restart_da
-    fi
-  else
-    echo "[${SCRIPT_NAME}]: Restarting Directadmin ..." 2>&1 | tee -a "${REPORT_FILE}"
-    # Writing restart query in task.queue
-    echo "action=directadmin&value=restart" >>/usr/local/directadmin/data/task.queue
-    # Force restart with debugging level d2000
-    # this is optional because we knew no other pending tasks will be running at this condition
-    /usr/local/directadmin/dataskq d2000
-  fi
-  echo "" 2>&1 | tee -a "${REPORT_FILE}"
-}
 # This is a linode API admin function used to manage linode server
 # Use <script_name> --linode-api --help for more information
 function linode_api_admin() {
@@ -7741,6 +7701,46 @@ function upgrade_os() {
   fi
   echo ""
 }
+## Start Directadmin related function ###
+# This function allows Directadmin to restart quickly but we don't take priority on other pending tasks.
+# Better to restart DA with task.queue (this is what most documentation do) because DA needs to respect task.queue process
+# Without using task.queue, we can restart directadmin using systemctl restart directadmin
+function restart_da() {
+  local wait_duration task_queue_file
+  # Directadmin recommends 60 seconds (or 1 minute). Longer than this something wrong with the task.queue
+  max_wait=180
+  task_queue_file="/usr/local/directadmin/data/task.queue"
+  if [ -s ${task_queue_file} ]; then
+    while :; do
+      _echo "$(msg yellow)Warning, Directadmin task.queue still has pending task(s) to be executed:$(msg end)" --name
+      echo ""
+      _echo "$(msg magenta)=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=$(msg end)" --plain
+      cat "$(msg yellow)${task_queue_file}$(msg end)"
+      _echo "$(msg magenta)=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=$(msg end)" --plain
+      _echo "$(msg cyan)Waiting for pending task(s) to finish executing with maximum wait of ${max_wait} seconds ...$(msg end)" --name
+      sleep 1
+
+      ((HOLD_SECONDS = HOLD_SECONDS + wait_duration))
+
+      if [ "${HOLD_SECONDS}" -gt ${max_wait} ]; then
+        # Force restart if waiting time is longer than max_wait. Normally this is too much time given because task.queue maximum execution time is only 1 minute based on directadmin documentation
+        # Another condition that can be force to restart is, if the task.queue contains more than 2 lines, it means it is not running. So we can force restart it.
+        # https://docs.directadmin.com/directadmin/general-usage/task-queue-processor/
+        _echo "$(msg yellow)Warning, task.queue has not finished executing task(s) for more than ${max_wait} seconds. Forcing directadmin to restart ...$(msg end)" --name
+        echo "action=directadmin&value=restart" >>/usr/local/directadmin/data/task.queue
+        /usr/local/directadmin/dataskq d2000 >/dev/null
+        break
+      fi
+    done
+  else
+    _echo "$(msg cyan)Restarting Directadmin using task.queue mode ...$(msg end)" --name
+    # Writing restart query in task.queue to restart directadmin in queue mode
+    echo "action=directadmin&value=restart" >>/usr/local/directadmin/data/task.queue
+    # Force restart with debugging level d2000
+    # this option force reboot if we still have pending tasks. This is optional because at this condition we know there must be no other pending tasks.
+    /usr/local/directadmin/dataskq d2000 >/dev/null
+  fi
+}
 
 function install_da_pre() {
   local option executed_function run func_name
@@ -7822,10 +7822,10 @@ function install_da_pre() {
       C_DA_INSTALL_TYPE="original"
     elif [[ "${C_DA_INSTALL_TYPE}" == "int" || "${C_DA_INSTALL_TYPE}" == "interactive" ]]; then
       _echo "$(msg cyan)Directadmin installation type is C_DA_INSTALL_TYPE set to int or interactive. This will make the installation of directadmin using more questions$(msg end)" --name
-       C_DA_INSTALL_TYPE="interactive"
+      C_DA_INSTALL_TYPE="interactive"
     elif [[ "${C_DA_INSTALL_TYPE}" == "auto" || "${C_DA_INSTALL_TYPE}" == "automatic" ]]; then
       _echo "$(msg cyan)Directadmin installation type is C_DA_INSTALL_TYPE set to auto or automatic. This will make the installation of directadmin using its common default components including CSF without any questions$(msg end)" --name
-     C_DA_INSTALL_TYPE="automatic"
+      C_DA_INSTALL_TYPE="automatic"
     else
       _echo "$(msg red)Error, invalid installation type C_DA_INSTALL_TYPE set for directadmin in config file.$(msg end)" --name
       _exit 147
@@ -7868,6 +7868,9 @@ function install_da() {
     run="yes"
   fi
   if [[ ! -f "${CONF_PATH}/${func_name}_executed" && "${run}" == "yes" ]]; then
+    local da_install_log
+    da_install_log="${LOG_PATH}/da-install.log"
+    touch "${da_install_log}"
     exec_time start "${func_name}"
     _echo "$(msg cyan)Executing $(msg magenta)${func_name}()$(msg end) $(msg cyan)...$(msg end)" --name
     _echo "$(msg red)=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=$(msg end)" --plain
@@ -7876,7 +7879,7 @@ function install_da() {
     cd_to_path "${INST_TEMP_DIR}"
     wget -O setup.sh http://www.directadmin.com/setup.sh
     echo ""
-     _echo "$(msg cyan)Setting execution permission for setup.sh ...$(msg end)" --name
+    _echo "$(msg cyan)Setting execution permission for setup.sh ...$(msg end)" --name
     chmod 755 setup.sh
     echo ""
     _echo "$(msg cyan)Setup will install Directadmin within 30 seconds. This would take a long time depending on the package selection or directadmin installation type, so please be patient$(msg end)" --name
@@ -7885,13 +7888,13 @@ function install_da() {
     _echo "$(msg cyan)Installing Directadmin on ${LABEL_C_BOX_HOSTNAME_FQHN} using ${C_DA_INSTALL_TYPE} mode ... $(msg end)" --name
     if [[ "${C_DA_INSTALL_TYPE}" == "custom" || "${C_DA_INSTALL_TYPE}" == "original" ]]; then
       # If provided options.conf, it means we use custom else we use original
-      ./setup.sh "${C_DA_CLIENT_ID}" "${C_DA_LICENSE_ID}" "${C_BOX_HOSTNAME_FQHN}" "${C_NIC_INTERFACE_NAME}" "${C_IPV4_ADD0}"
+      ./setup.sh "${C_DA_CLIENT_ID}" "${C_DA_LICENSE_ID}" "${C_BOX_HOSTNAME_FQHN}" "${C_NIC_INTERFACE_NAME}" "${C_IPV4_ADD0}" >>"${da_install_log}"
     elif [[ "${C_DA_INSTALL_TYPE}" == "interactive" ]]; then
       # This will ask questions
-      bash <(curl -Ss https://www.directadmin.com/setup.sh)
+      bash <(curl -Ss https://www.directadmin.com/setup.sh) >>"${da_install_log}"
     elif [[ "${C_DA_INSTALL_TYPE}" == "automatic" ]]; then
       # This will not ask question and everything will be installed as default including CSF
-      bash <(curl -Ss https://www.directadmin.com/setup.sh) auto
+      bash <(curl -Ss https://www.directadmin.com/setup.sh) auto >>"${da_install_log}"
     fi
     check_finish_reboot "${func_name}"
     exec_time total "${func_name}"
@@ -7909,7 +7912,7 @@ function install_da() {
 
 }
 
-function rebuild_da_package() {
+function install_da_post() {
   # Here I can rebuild any missing or change package in DA
   # This to rebuild DA package that cause error like nginx_apache wont start for new install (bug)
   local option executed_function run func_name
@@ -7932,57 +7935,162 @@ function rebuild_da_package() {
     run="yes"
   fi
   if [[ ! -f "${CONF_PATH}/${func_name}_executed" && "${run}" == "yes" ]]; then
+
     exec_time start "${func_name}"
-    local da_sql_type da_sql_version
+    local da_sql_type da_sql_version da_install_log da_bin da_cb_bin da_script_path
+    da_bin="/usr/local/directadmin/directadmin"
+    da_cb_bin="/usr/local/directadmin/custombuild/build"
+    da_script_path="/usr/local/directadmin/scripts"
     _echo "$(msg cyan)Executing $(msg magenta)${func_name}()$(msg end) $(msg cyan)...$(msg end)" --name
     _echo "$(msg red)=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=$(msg end)" --plain
+    da_install_log="${LOG_PATH}/da-install.log"
+    touch "${da_install_log}"
+    if [ ! -f "${da_bin}" ]; then
+      _echo "$(msg red)Error, directadmin binary file does not exist in the system. Make sure directadmin is installed properly!$(msg end)" --name
+      _exit 147
+    fi
 
+    if [ ! -f "${da_cb_bin}" ]; then
+      _echo "$(msg red)Error, directadmin custombuild binary file does not exist in the system. Make sure directadmin custombuild is installed properly!$(msg end)" --name
+      _exit 147
+    fi
+
+    if [ ! -d "${da_script_path}" ]; then
+      _echo "$(msg red)Error, directadmin script path does not exist in the system. Make sure directadmin is installed properly!$(msg end)" --name
+      _exit 147
+    fi
+
+    echo ""
+    # Rebuilding DA packages to fix some issues .
+    _echo "$(msg cyan)Updating directadmin custombuild to the new version...$(msg end)" --name
+    ${da_cb_bin} update
+    echo ""
+    # ClamAV and exim rebuild
+    _echo "$(msg cyan)Configuring directadmin custombuild to install ClamAV and exim ...$(msg end)" --name
+    ${da_cb_bin} set clamav yes
+    ${da_cb_bin}set clamav_exim yes
+    ${da_cb_bin} set exim yes
+    ${da_cb_bin} set eximconf yes
+    ${da_cb_bin} set eximconf_release 4.5
+    echo ""
+    _echo "$(msg cyan)Rebuilding ClamAV and exim ...$(msg end)" --name
+    {
+      ${da_cb_bin} clamav
+      ${da_cb_bin} exim
+      ${da_cb_bin} exim_conf
+    } >>"${da_install_log}"
+    echo ""
+    # Mod security rebuild
+    _echo "$(msg cyan)Configuring custombuild to rebuild modsecurity with ruleset of ${LABEL_C_DA_MODSECURITY_RULESET} ...$(msg end)" --name
+    ${da_cb_bin} set modsecurity yes
+    ${da_cb_bin} set modsecurity_ruleset "${C_DA_MODSECURITY_RULESET}"
+    echo ""
+    _echo "$(msg cyan)Rebuilding modsecurity with ruleset of ${C_DA_MODSECURITY_RULESET} ...$(msg end)" --name
+    {
+      ${da_cb_bin} modsecurity
+      ${da_cb_bin} modsecurity_rules
+      ${da_cb_bin} rewrite_confs
+    } >>"${da_install_log}"
+
+    echo ""
     # TODO check if this is fixed in the latest Directadmin version (or do ifelse check only rebuild when it has error)
     # Need to rebuild nginx_apache because it cannot be started after installation due to modsecurity directive. See this:
     # https://forum.directadmin.com/threads/nginx-and-apache-nginix-wont-start-due-to-mod_security.61427/
-    cd_to_path "/usr/local/directadmin/custombuild"
-    echo ""
-    # Rebuilding DA packages to fix some issues .
-    _echo "$(msg cyan)Updating custombuild to the new version...$(msg end)" --name
-    ./build update
-    echo ""
-    # ClamAV and exim rebuild
-    _echo "$(msg cyan)Rebuilding ClamAV and exim ...$(msg end)" --name
-    #sleep 2
-    ./build set clamav yes
-    ./build set clamav_exim yes
-    ./build set exim yes
-    ./build set eximconf yes
-    ./build set eximconf_release 4.5
-    ./build clamav
-    ./build exim
-    ./build exim_conf
-    echo ""
-    # Mod security rebuild
-    # TODO test this, modsecurity might be enabled by default in new Directadmin version
-    _echo "$(msg cyan)Rebuilding modsecurity with ruleset of ${C_DA_MODSECURITY_RULESET} ...$(msg end)" --name
-    ./build set modsecurity yes
-    ./build set modsecurity_ruleset "${C_DA_MODSECURITY_RULESET}"
-    ./build modsecurity
-    ./build modsecurity_rules
-    echo ""
     # Web server setting rebuild
-    echo "[${SCRIPT_NAME}]: Rebuilding ${C_DA_WEB_SERVER_SOFTWARE} web server ..." 2>&1 | tee -a "${REPORT_FILE}"
+    _echo "$(msg cyan)Configuring custombuild to rebuild ${C_DA_WEB_SERVER_SOFTWARE} web server ...$(msg end)" --name
+    ${da_cb_bin} set webserver "${C_DA_WEB_SERVER_SOFTWARE}"
+    echo ""
+    _echo "$(msg cyan)Rebuilding ${C_DA_WEB_SERVER_SOFTWARE} web server ...$(msg end)" --name
+    {
+      ${da_cb_bin} "${C_DA_WEB_SERVER_SOFTWARE}"
+      ${da_cb_bin} rewrite_confs
+    } >>"${da_install_log}"
+    echo ""
+    _echo "$(msg cyan)Configuring custombuild to rebuild ${da_sql_type} web server to version ${da_sql_version} ...$(msg end)" --name
     #sleep 2
-    ./build set webserver "${C_DA_WEB_SERVER_SOFTWARE}" 2>&1 | tee -a "${REPORT_FILE}"
-    ./build "${C_DA_WEB_SERVER_SOFTWARE}" 2>&1 | tee -a "${REPORT_FILE}"
-    ./build rewrite_confs 2>&1 | tee -a "${REPORT_FILE}"
-
     da_sql_type=$(echo "${C_DA_MYSQL_SOFTWARE}" | awk -F'-' '{ print $1 }')
     da_sql_version=$(echo "${C_DA_MYSQL_SOFTWARE}" | awk -F'-' '{ print $2 }')
+    _echo "$(msg magenta)SQL type is set to: ${da_sql_type} from config file$(msg end)" --name
+    _echo "$(msg magenta)SQL version is set to: ${da_sql_version} from config file$(msg end)" --name
+    ${da_cb_bin} set "${da_sql_type}" "${da_sql_version}"
+    ${da_cb_bin} set mysql_inst "${da_sql_type}"
+    ${da_cb_bin} set mysql_backup yes
+    echo ""
+    _echo "$(msg cyan)Rebuilding ${da_sql_type} web server to version ${da_sql_version} ...$(msg end)" --name
+    {
+      ${da_cb_bin} "${da_sql_type}"
+      ${da_cb_bin} rewrite_confs
+    } >>"${da_install_log}"
+    echo ""
+    # Need this before changing or adding directadmin username
+    _echo "$(msg cyan)Setting directadmin max username to ${LABEL_C_DA_MAX_UNAME_LENGTH} ...$(msg end)" --name
+    ${da_bin} set max_username_length "${C_DA_MAX_UNAME_LENGTH}"
+    echo ""
+    # Need to enable ipv6 after install by default DA don't do anything about ipv6
+    _echo "$(msg cyan)Enabling ipv6 in directadmin.conf config ...$(msg end)" --name
+    ${da_bin} set ipv6 1
+    echo ""
+    # DA port should be secure don't use 2222 unless you have reason
+    _echo "$(msg cyan)Changing directadmin admin login port from default port 2222 to port ${LABEL_C_DA_PORT}$(msg end)" --name
+    ${da_bin} set port "${C_DA_PORT}"
+    echo ""
+    _echo "$(msg cyan)Changing directadmin login page redirection port from default port 2222 to port ${LABEL_C_DA_PORT}$(msg end)" --name
+    {
+      echo "<?php"
+      echo "header(\"Location: http://\".\$_SERVER['HTTP_HOST'].\":${C_DA_PORT}\");"
+      echo "?>"
+    } >/var/www/html/redirect.php
+    echo ""
+    if [ "${DISTRO_ID}" == "centos" ]; then
+      _echo "$(msg cyan)Adding directadmin new port ${LABEL_C_DA_PORT}/tcp to firewalld ...$(msg end)" --name
+      if [[ "${C_HIDE_SENSITIVE_TEXT}" == "true" ]]; then
+        sudo firewall-cmd --quiet --permanent --zone=public --add-port="${C_DA_PORT}/tcp"
+      else
+        sudo firewall-cmd --permanent --zone=public --add-port="${C_DA_PORT}/tcp"
+      fi
 
-    echo "[${SCRIPT_NAME}]: Rebuilding ${da_sql_type} web server to version ${da_sql_version} ..." 2>&1 | tee -a "${REPORT_FILE}"
-    #sleep 2
-    ./build set "${da_sql_type}" "${da_sql_version}"
-    ./build set mysql_inst "${da_sql_type}"
-    ./build set mysql_backup yes
-    ./build "${da_sql_type}"
+    elif [ "${DISTRO_ID}" == "debian" ]; then
+      _echo "$(msg cyan)Adding directadmin new port ${LABEL_C_DA_PORT}/tcp to ufw ...$(msg end)" --name
+      sudo ufw allow "${C_DA_PORT}/tcp"
+    fi
+    echo ""
+    # At this moment directadmin can be login using a new port ${LABEL_C_DA_PORT}"
 
+    # Enable DNSSEC if supported
+    if [ "${C_ENABLE_DNSSEC}" == "true" ]; then
+      local bind_named grep_found
+      bind_named="/etc/bind/named.conf.options"
+      _echo "$(msg cyan)Installing DNSSEC using directadmin script (dnssec.sh) ...$(msg end)" --name
+      if [[ "${DNS_PROVIDER}" == "linode" ]]; then
+        _echo "$(msg yellow)[Skipped]: Warning, the DNS provider ${DNS_PROVIDER} does not support DNSSEC$(msg end)" --name
+        _exit 147
+      fi
+      ${da_script_path}/dnssec.sh install
+      echo ""
+      _echo "$(msg cyan)Adding the following strings into the 'options { .... }' section at ${bind_named}$(msg end)" --name
+      if [ -f "${bind_named}" ]; then
+        grep_found=$(grep -ic 'bindkeys-file \"\/etc\/bind\/named.iscdlv.key\";' "${bind_named}")
+        if [ "${grep_found}" = 0 ]; then
+          sed -i "s|\options {|&\n\tbindkeys-file \"\/etc\/bind\/named.iscdlv.key\";|" "${bind_named}"
+        fi
+        grep_found=$(grep -ic 'dnssec-lookaside auto;' "${bind_named}")
+        if [ "${grep_found}" = 0 ]; then
+          sed -i "s|\options {|&\n\tdnssec-lookaside auto;|" "${bind_named}"
+        fi
+        grep_found=$(grep -ic 'dnssec-enable yes;' "${bind_named}")
+        if [ "${grep_found}" = 0 ]; then
+          sed -i "s|\options {|&\n\tdnssec-enable yes;|" "${bind_named}"
+        fi
+      else
+        _echo "$(msg red)Error,the file ${bind_named} does not exist! Make sure bind is installed first!$(msg end)" --name
+        _exit 147
+      fi
+    else
+      _echo "$(msg yellow)[Skipped]: The setting C_ENABLE_DNSSEC is not set to true. DNSSEC is disabled$(msg end)" --name
+    fi
+    echo ""
+    _echo "$(msg cyan)Requesting directadmin to restart ...${bind_named}$(msg end)" --name
+    restart_da
     check_finish_reboot "${func_name}"
     exec_time total "${func_name}"
   else
@@ -7997,7 +8105,6 @@ function rebuild_da_package() {
   fi
   echo ""
 }
-
 
 # This function adds ipv6 IP in DA file via API or manually (if API failed to modify the IP file)
 # This function does not have exit function
@@ -8401,99 +8508,6 @@ function configure_csf() {
   fi
   # TIPS. CSF can be removed with this command:
   #sh /etc/csf/uninstall.sh
-  if [[ "${option}" == "--run-force-exit" || "${option}" == "--run-exit" ]]; then
-    _echo "$(msg yellow)Warning, script terminated due to the supplied option ${option}$(msg end)" --name
-    exit 0
-  fi
-}
-
-
-function install_da_post() {
-  local option executed_function run
-  option="$1"
-  run="no"
-  executed_function="${CONF_PATH}/${FUNCNAME[0]}_executed"
-  if [ "${option}" == "--skip-mark" ]; then
-    cat /dev/null >"${executed_function}"
-    #run="no"
-    return 0
-  elif [ "${option}" == "--skip" ]; then
-    #run="no"
-    return 0
-  fi
-  if [[ "${option}" == "--run-force" || "${option}" == "--run-force-exit" ]]; then
-    rm -rf "${executed_function}"
-    run="yes"
-  elif [[ -z "${option}" || "${option}" == "--run" || "${option}" == "--run-exit" ]]; then
-    run="yes"
-  fi
-  if [[ ! -f "${CONF_PATH}/${FUNCNAME[0]}_executed" && "${run}" == "yes" ]]; then
-    exec_time start "${FUNCNAME[0]}"
-    echo "[${SCRIPT_NAME}]: Executing ${FUNCNAME[0]} ..." 2>&1 | tee -a "${REPORT_FILE}"
-    echo "[${SCRIPT_NAME}]: Running DA post installation function ..." 2>&1 | tee -a "${REPORT_FILE}"
-    sleep 1
-    # Need this before changing or adding directadmin username
-    echo "[${SCRIPT_NAME}]: Setting Directadmin max username to ${C_DA_MAX_UNAME_LENGTH} ..." 2>&1 | tee -a "${REPORT_FILE}"
-    /usr/local/directadmin/directadmin set max_username_length "${C_DA_MAX_UNAME_LENGTH}"
-    # Need to enable ipv6 after install by default DA don't do anything about ipv6
-    echo "[${SCRIPT_NAME}]: Enabling ipv6 in directadmin.conf config ..." 2>&1 | tee -a "${REPORT_FILE}"
-    /usr/local/directadmin/directadmin set ipv6 1
-    sleep 1
-    # DA port should be secure don't use 2222 unless you have reason
-    echo "[${SCRIPT_NAME}]: Changing DA admin port from 2222 to ${LABEL_DA_PORT}" 2>&1 | tee -a "${REPORT_FILE}"
-    /usr/local/directadmin/directadmin set port "${C_DA_PORT}"
-    sleep 1
-    echo "[${SCRIPT_NAME}]: Changing DA login page redirection port from 2222 to ${LABEL_DA_PORT}" 2>&1 | tee -a "${REPORT_FILE}"
-    {
-      echo "<?php"
-      echo "header(\"Location: http://\".\$_SERVER['HTTP_HOST'].\":${C_DA_PORT}\");"
-      echo "?>"
-    } >/var/www/html/redirect.php
-    sleep 1
-    if [ "${DISTRO_ID}" == "centos" ]; then
-      echo "[${SCRIPT_NAME}]: Adding DA new port ${LABEL_DA_PORT}/tcp to firewalld ..." 2>&1 | tee -a "${REPORT_FILE}"
-      sudo firewall-cmd --permanent --zone=public --add-port="${C_DA_PORT}/tcp" 2>&1 | tee -a "${REPORT_FILE}"
-    elif [ "${DISTRO_ID}" == "debian" ]; then
-      echo "[${SCRIPT_NAME}]: Adding DA new port ${LABEL_C_DA_PORT}/tcp to ufw ..." 2>&1 | tee -a "${REPORT_FILE}"
-      sudo ufw allow "${LABEL_DA_PORT}/tcp" 2>&1 | tee -a "${REPORT_FILE}"
-    fi
-    echo "[${SCRIPT_NAME}]: Now directadmin can be login using a new port ${LABEL_DA_PORT}" 2>&1 | tee -a "${REPORT_FILE}"
-    sleep 2
-    if [ "${C_ENABLE_DNSSEC}" == "true" ]; then
-      local bind_named="/etc/bind/named.conf.options"
-      # Installation is OK, but just need to add name.conf.options
-      cd_to_path "/usr/local/directadmin/scripts"
-      ./dnssec.sh install
-      if [ -f "${bind_named}" ]; then
-        gc=$(grep -ic 'bindkeys-file \"\/etc\/bind\/named.iscdlv.key\";' "${bind_named}")
-        if [ "${gc}" = 0 ]; then
-          sed -i "s|\options {|&\n\tbindkeys-file \"\/etc\/bind\/named.iscdlv.key\";|" "${bind_named}"
-        fi
-        gc=$(grep -ic 'dnssec-lookaside auto;' "${bind_named}")
-        if [ "${gc}" = 0 ]; then
-          sed -i "s|\options {|&\n\tdnssec-lookaside auto;|" "${bind_named}"
-        fi
-        gc=$(grep -ic 'dnssec-enable yes;' "${bind_named}")
-        if [ "${gc}" = 0 ]; then
-          sed -i "s|\options {|&\n\tdnssec-enable yes;|" "${bind_named}"
-        fi
-      else
-        _echo "Warning, the file ${bind_named} does not exist!"
-        _exit 147
-      fi
-    else
-      _echo "Skipped installing DNSSEC (not set in config)"
-    fi
-
-    restart_da
-    echo "[${SCRIPT_NAME}]: DA post installation has completed!" 2>&1 | tee -a "${REPORT_FILE}"
-    check_finish_reboot "${FUNCNAME[0]}"
-    exec_time end "${FUNCNAME[0]}"
-  else
-    echo "[${SCRIPT_NAME}]: [Skipped]: ${FUNCNAME[0]} has ran before" 2>&1 | tee -a "${REPORT_FILE}"
-    echo "=~=~=~=~=~=~=~=~=~" 2>&1 | tee -a "${REPORT_FILE}"
-  fi
-
   if [[ "${option}" == "--run-force-exit" || "${option}" == "--run-exit" ]]; then
     _echo "$(msg yellow)Warning, script terminated due to the supplied option ${option}$(msg end)" --name
     exit 0
@@ -14180,9 +14194,7 @@ function setup() {
     if [ "${C_SERVER_TYPE}" == "directadmin" ]; then
       install_da_pre --run
       install_da --run-exit
-      # TODO test rebuild_da_package on the new Directadmin version
-      rebuild_da_package --run
-      # Run this install_da_post after rebuild_da_package because install_da_post requires valid nginx directive which is fixed at rebuild_da_package
+      # TODO Testing new Directadmin version. After install_da disable firewall and try accessing directadmin using port 2222, if ok we remove some rebuild options that had bug before
       install_da_post --run
       change_da_auth --run
       # Linking da ipv6 with ipv4 and vice versa
@@ -14264,7 +14276,7 @@ function setup() {
     if [ "${C_SERVER_TYPE}" == "directadmin" ]; then
       echo "==============" 2>&1 | tee -a "${REPORT_FILE}"
       echo "Directadmin now can be accessed through this URL: " 2>&1 | tee -a "${REPORT_FILE}"
-      echo "http://${LABEL_C_IPV4_ADD0}:${LABEL_DA_PORT} or http://${LABEL_C_BOX_HOSTNAME_FQHN}:${LABEL_DA_PORT}" 2>&1 | tee -a "${REPORT_FILE}"
+      echo "http://${LABEL_C_IPV4_ADD0}:${LABEL_C_DA_PORT} or http://${LABEL_C_BOX_HOSTNAME_FQHN}:${LABEL_C_DA_PORT}"
       echo "Username: ${LABEL_C_DA_OWNER_USERNAME1}"
       echo "Password: *******"
       echo "=============="
@@ -14390,6 +14402,8 @@ else
   REPORT_FILE="${LOG_PATH}/${SCRIPT_NAME}-report.log"
 fi
 
+# TODO Logging start here with exec after the REPORT_FILE is created
+
 # This report path is for storing error report
 # REPORT_FILE_ERROR="${LOG_PATH}/${SCRIPT_NAME}-${DATE_TIME_RANDSTR}-error-report.log"
 
@@ -14467,6 +14481,7 @@ else
   # this will create a source file that will show the sensitive variable value to equal to the value in the config file
   create_file "sensitive-label-show"
   _echo "$(msg yellow)Warning, sensitive labels will be shown on terminal because C_HIDE_SENSITIVE_TEXT is not set to true$(msg end)" --name
+  _pause 10
 fi
 # Source the sensitive label whether to hide data or not
 source "${CONF_PATH}/sensitive_label"
@@ -14721,6 +14736,8 @@ ENDSSH
     break
     ;;
   -t | --test)
+    restart_da
+    exit 1
     echo "Provider: ${DNS_PROVIDER_NAME}"
     echo "Provider type: ${LABEL_C_BOX_TYPE^^}"
     echo "IPv4 address: ${LABEL_C_IPV4_ADD0}"

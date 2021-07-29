@@ -97,6 +97,8 @@ C_USE_LATEST_ISO=true
 # C_ENABLE_DNSSEC:
 # This option enable the DNS feature of DNSSEC for a server
 # Note that this feature is only tested in Directadmin. Default value is false
+# Some DNS provider does not support DNSSEC. Before enabling this option, check the compatibility.
+# This option is turned off by default
 # Possible values: true, false
 C_ENABLE_DNSSEC=false
 

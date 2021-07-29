@@ -10,7 +10,10 @@
     <select />
   </component>
   <component name="ChangeListManager">
-    <list default="true" id="113c828c-9a32-4b24-ab1e-978ce50c6320" name="Default Changelist" comment="Updated configure_grub and configure_net (Fixed old bug)&#10;&#10;Other updates and improvements" />
+    <list default="true" id="113c828c-9a32-4b24-ab1e-978ce50c6320" name="Default Changelist" comment="New update and improvement">
+      <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/maxinet" beforeDir="false" afterPath="$PROJECT_DIR$/maxinet" afterDir="false" />
+    </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
     <option name="HIGHLIGHT_NON_ACTIVE_CHANGELIST" value="false" />
@@ -191,13 +194,9 @@
       <workItem from="1627309836318" duration="2635000" />
       <workItem from="1627320299029" duration="15000" />
       <workItem from="1627362031644" duration="68000" />
-    </task>
-    <task id="LOCAL-00057" summary="Updated linode API for initializing disks. (there is no way to access rescue mode through API to install Debian through command line). Use manual way using linode built-in terminal.">
-      <created>1615293524405</created>
-      <option name="number" value="00057" />
-      <option name="presentableId" value="LOCAL-00057" />
-      <option name="project" value="LOCAL" />
-      <updated>1615293524405</updated>
+      <workItem from="1627434169974" duration="172000" />
+      <workItem from="1627466137882" duration="1551000" />
+      <workItem from="1627492616869" duration="2730000" />
     </task>
     <task id="LOCAL-00058" summary="Changed variable name DA_RESELLER_DOMAIN_ENABLE_SSL to:&#10;&#10;DA_RESELLER_ENABLE_DOMAIN_SSL to avoid pattern bug.&#10;&#10;Updated maxipass installation&#10;&#10;Updated da_dns_templates&#10;&#10;Added new 2 functions to configure root domain:&#10;&#10;configure_da_reseller_root_domains()&#10;and&#10;configure_da_user_root_domains()">
       <created>1615389570295</created>
@@ -535,7 +534,14 @@
       <option name="project" value="LOCAL" />
       <updated>1627362087346</updated>
     </task>
-    <option name="localTasksCounter" value="106" />
+    <task id="LOCAL-00106" summary="New update and improvement">
+      <created>1627434332932</created>
+      <option name="number" value="00106" />
+      <option name="presentableId" value="LOCAL-00106" />
+      <option name="project" value="LOCAL" />
+      <updated>1627434332932</updated>
+    </task>
+    <option name="localTasksCounter" value="107" />
     <servers />
   </component>
   <component name="TypeScriptGeneratedFilesManager">
@@ -576,9 +582,9 @@
     <MESSAGE value="Update and improvement" />
     <MESSAGE value="Added ability to download remote file installation log by triggering this simple command:&#10;&#10;maxinet --get-remote-log&#10;&#10;By default this log file is stored at &lt;script_path&gt;/log/" />
     <MESSAGE value="Update and improvement&#10;&#10;Improved required() function to be portable&#10;&#10;Example of the call:&#10;&#10;required &quot;ubuntu@@apt:dos2unix,htop,nano+make:xxx,test,ok&quot; \&#10;  &quot;centos@@dnf:dos2unix,nano&quot; &quot;debian@@apt:dos2unix,htop&quot;&#10;&#10;required &quot;ubuntu@@apt:nano,htop,vim&quot; \&#10;  &quot;centos@@dnf:dos2unix,nano&quot; &quot;debian@@apt:dos2unix,htop,git,x&quot;" />
-    <MESSAGE value="New update and improvement" />
     <MESSAGE value="Huge update and improvement. Added code comments especially on the Config File" />
     <MESSAGE value="Updated configure_grub and configure_net (Fixed old bug)&#10;&#10;Other updates and improvements" />
-    <option name="LAST_COMMIT_MESSAGE" value="Updated configure_grub and configure_net (Fixed old bug)&#10;&#10;Other updates and improvements" />
+    <MESSAGE value="New update and improvement" />
+    <option name="LAST_COMMIT_MESSAGE" value="New update and improvement" />
   </component>
 </project>
