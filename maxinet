@@ -5,7 +5,7 @@
 # Author: Arafat Ali | Email: webmaster@sofibox.com | Website: sofibox.com
 _APP_SPECIFIC_NAME="Maxinet"
 # Note some minor versions are not published
-_APP_VERSION="0.5.5.0"
+_APP_VERSION="0.5.5.2"
 _APP_STATUS="alpha"
 _APP_VERSION_STATUS="${_APP_VERSION}-${_APP_STATUS}"
 
@@ -83,7 +83,7 @@ function trap_cleanup() {
     echo "For remote installation: ${SCRIPT_NAME} --push-ssh-script --sp ${LABEL_C_BOX_HOSTNAME_FQHN}:${LABEL_C_SSH_PORT} --gu root:${LABEL_C_ROOT_USERNAME} --push-maxinet-setup-script"
     echo ""
     echo "SSH user login guide:"
-    echo "To login as root user: ${SCRIPT_NAME} --ssh-login ${LABEL_C_ROOT_USERNAME}"
+    echo "To login as root user: ${SCRIPT_NAME} --ssh-login ${LABEL_C_ROOT_USERNAME} or ${SCRIPT_NAME} login"
     echo "To login as SSH user: ${SCRIPT_NAME} --ssh-login ${LABEL_C_SSH_USERNAME}"
     echo ""
     echo "Server LUKS unlock guide:"
@@ -1495,7 +1495,7 @@ function lish_console() {
 # This function will validate if config is valid, if one of the variables missing, it will complain and exit
 function validate_config() {
   local count_user total_valid_user this_da_owner_uname
-  echo "[${SCRIPT_NAME}]: Checking DA users configuration ... " 2>&1 | tee -a "${REPORT_FILE}"
+  _echo "$(msg cyan)Checking directadmin user configuration variables ...$(msg end)" --name --verbose 7
   total_valid_user=0
   # Owner not support multiple users yet so checking is simple without loop
   typeset -n "this_da_owner_uname"="C_DA_OWNER_USERNAME1"
@@ -1812,7 +1812,7 @@ function validate_config() {
     ((count_user++))
   done
 
-  echo "[${SCRIPT_NAME}]: Total user with valid config is: ${total_valid_user}" 2>&1 | tee -a "${REPORT_FILE}"
+  _echo "$(msg green)Total user with valid config is: ${total_valid_user}$(msg end)" --name --verbose 7
   #exit 1
 }
 
@@ -6396,7 +6396,7 @@ function setup_pre() {
   fi
   if [[ ! -f "${CONF_PATH}/${func_name}_executed" && "${run}" == "yes" ]]; then
     exec_time start "${func_name}"
-    _echo "$(msg cyan)Executing $(msg magenta)${func_name}()$(msg end) $(msg cyan)...$(msg end)" --name
+    _echo "$(msg cyan)Executing $(msg magenta)${func_name}()$(msg end) $(msg cyan)with option ${option} ...$(msg end)" --name
     _echo "$(msg red)=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=$(msg end)" --plain
     echo ""
     if [ "${DISTRO_ID}" == "centos" ]; then
@@ -6477,7 +6477,7 @@ function get_latest_code() {
   if [[ ! -f "${CONF_PATH}/${func_name}_executed" && "${run}" == "yes" ]]; then
     exec_time start "${func_name}"
     local code_version
-    _echo "$(msg cyan)Executing $(msg magenta)${func_name}()$(msg end) $(msg cyan)...$(msg end)" --name
+    _echo "$(msg cyan)Executing $(msg magenta)${func_name}()$(msg end) $(msg cyan)with option ${option} ...$(msg end)" --name
     _echo "$(msg red)=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=$(msg end)" --plain
     echo ""
 
@@ -6557,7 +6557,7 @@ function update_latest_maxicode() {
     # This always copied the correct version of the distribution automatically
     maxicode_latest_path="${LATEST_OS_CODE_PATH}/usr/local/maxicode"
 
-    _echo "$(msg cyan)Executing $(msg magenta)${func_name}()$(msg end) $(msg cyan)...$(msg end)" --name
+    _echo "$(msg cyan)Executing $(msg magenta)${func_name}()$(msg end) $(msg cyan)with option ${option} ...$(msg end)" --name
     _echo "$(msg red)=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=$(msg end)" --plain
     echo ""
     if [ ! -d "${maxicode_latest_path}" ]; then
@@ -6617,7 +6617,7 @@ function secure_box() {
   if [[ ! -f "${CONF_PATH}/${func_name}_executed" && "${run}" == "yes" ]]; then
     exec_time start "${func_name}"
     local code_version find_au find_ar user_rsa_public_key
-    _echo "$(msg cyan)Executing $(msg magenta)${func_name}()$(msg end) $(msg cyan)...$(msg end)" --name
+    _echo "$(msg cyan)Executing $(msg magenta)${func_name}()$(msg end) $(msg cyan)with option ${option} ...$(msg end)" --name
     _echo "$(msg red)=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=$(msg end)" --plain
     echo ""
     # This file should exist in the root file after OS has finished installation (preseed file put this file)
@@ -6858,7 +6858,7 @@ function configure_grub() {
   if [[ ! -f "${CONF_PATH}/${func_name}_executed" && "${run}" == "yes" ]]; then
     exec_time start "${func_name}"
     local grep_existing grub_hash_password grub_make_pass_bin retval
-    _echo "$(msg cyan)Executing $(msg magenta)${func_name}()$(msg end) $(msg cyan)...$(msg end)" --name
+    _echo "$(msg cyan)Executing $(msg magenta)${func_name}()$(msg end) $(msg cyan)with option ${option} ...$(msg end)" --name
     _echo "$(msg red)=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=$(msg end)" --plain
     echo ""
 
@@ -6930,7 +6930,7 @@ function configure_net() {
   if [[ ! -f "${CONF_PATH}/${func_name}_executed" && "${run}" == "yes" ]]; then
     exec_time start "${func_name}"
     local current_active_lan grub_search
-    _echo "$(msg cyan)Executing $(msg magenta)${func_name}()$(msg end) $(msg cyan)...$(msg end)" --name
+    _echo "$(msg cyan)Executing $(msg magenta)${func_name}()$(msg end) $(msg cyan)with option ${option} ...$(msg end)" --name
     _echo "$(msg red)=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=$(msg end)" --plain
     echo ""
     # Download this from git better
@@ -7160,7 +7160,7 @@ function configure_net2() {
   if [[ ! -f "${CONF_PATH}/${func_name}_executed" && "${run}" == "yes" ]]; then
     exec_time start "${func_name}"
     local current_host host_count
-    _echo "$(msg cyan)Executing $(msg magenta)${func_name}()$(msg end) $(msg cyan)...$(msg end)" --name
+    _echo "$(msg cyan)Executing $(msg magenta)${func_name}()$(msg end) $(msg cyan)with option ${option} ...$(msg end)" --name
     _echo "$(msg red)=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=$(msg end)" --plain
     echo ""
 
@@ -7354,7 +7354,7 @@ function configure_fstab() {
   if [[ ! -f "${CONF_PATH}/${func_name}_executed" && "${run}" == "yes" ]]; then
     exec_time start "${func_name}"
     local is_encrypted disk_uuid_boot
-    _echo "$(msg cyan)Executing $(msg magenta)${func_name}()$(msg end) $(msg cyan)...$(msg end)" --name
+    _echo "$(msg cyan)Executing $(msg magenta)${func_name}()$(msg end) $(msg cyan)with option ${option} ...$(msg end)" --name
     _echo "$(msg red)=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=$(msg end)" --plain
     echo ""
     # if C_DISK_ENCRYPTION is set, we must have this value crypt
@@ -7425,7 +7425,7 @@ function configure_sysctl_swap() {
   fi
   if [[ ! -f "${CONF_PATH}/${func_name}_executed" && "${run}" == "yes" ]]; then
     exec_time start "${func_name}"
-    _echo "$(msg cyan)Executing $(msg magenta)${func_name}()$(msg end) $(msg cyan)...$(msg end)" --name
+    _echo "$(msg cyan)Executing $(msg magenta)${func_name}()$(msg end) $(msg cyan)with option ${option} ...$(msg end)" --name
     _echo "$(msg red)=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=$(msg end)" --plain
 
     _echo "$(msg cyan)Writing disk swap information in /etc/sysctl.conf ...$(msg end)" --name
@@ -7475,7 +7475,7 @@ function configure_sysctl_kernel_fs() {
   fi
   if [[ ! -f "${CONF_PATH}/${func_name}_executed" && "${run}" == "yes" ]]; then
     exec_time start "${func_name}"
-    _echo "$(msg cyan)Executing $(msg magenta)${func_name}()$(msg end) $(msg cyan)...$(msg end)" --name
+    _echo "$(msg cyan)Executing $(msg magenta)${func_name}()$(msg end) $(msg cyan)with option ${option} ...$(msg end)" --name
     _echo "$(msg red)=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=$(msg end)" --plain
     _echo "$(msg cyan)Writing kernel and file system information in /etc/sysctl.conf ...$(msg end)" --name
     sleep 1
@@ -7529,7 +7529,7 @@ function configure_sysctl_ips() {
   fi
   if [[ ! -f "${CONF_PATH}/${func_name}_executed" && "${run}" == "yes" ]]; then
     exec_time start "${func_name}"
-    _echo "$(msg cyan)Executing $(msg magenta)${func_name}()$(msg end) $(msg cyan)...$(msg end)" --name
+    _echo "$(msg cyan)Executing $(msg magenta)${func_name}()$(msg end) $(msg cyan)with option ${option} ...$(msg end)" --name
     _echo "$(msg red)=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=$(msg end)" --plain
     _echo "$(msg cyan)Writing ipv4 and ipv6 information in /etc/sysctl.conf ..." --name
     {
@@ -7605,7 +7605,7 @@ function upgrade_os() {
   fi
   if [[ ! -f "${CONF_PATH}/${func_name}_executed" && "${run}" == "yes" ]]; then
     exec_time start "${func_name}"
-    _echo "$(msg cyan)Executing $(msg magenta)${func_name}()$(msg end) $(msg cyan)...$(msg end)" --name
+    _echo "$(msg cyan)Executing $(msg magenta)${func_name}()$(msg end) $(msg cyan)with option ${option} ...$(msg end)" --name
     _echo "$(msg red)=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=$(msg end)" --plain
 
     # General OS upgrade
@@ -7706,40 +7706,36 @@ function upgrade_os() {
 # Better to restart DA with task.queue (this is what most documentation do) because DA needs to respect task.queue process
 # Without using task.queue, we can restart directadmin using systemctl restart directadmin
 function restart_da() {
-  local wait_duration task_queue_file
+  local max_wait wait_step task_queue_file
   # Directadmin recommends 60 seconds (or 1 minute). Longer than this something wrong with the task.queue
-  max_wait=180
+  max_wait=100
+  wait_step=1
   task_queue_file="/usr/local/directadmin/data/task.queue"
-  if [ -s ${task_queue_file} ]; then
-    while :; do
-      _echo "$(msg yellow)Warning, Directadmin task.queue still has pending task(s) to be executed:$(msg end)" --name
-      echo ""
-      _echo "$(msg magenta)=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=$(msg end)" --plain
-      cat "$(msg yellow)${task_queue_file}$(msg end)"
-      _echo "$(msg magenta)=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=$(msg end)" --plain
-      _echo "$(msg cyan)Waiting for pending task(s) to finish executing with maximum wait of ${max_wait} seconds ...$(msg end)" --name
-      sleep 1
-
-      ((HOLD_SECONDS = HOLD_SECONDS + wait_duration))
-
+  while :; do
+    ((HOLD_SECONDS = HOLD_SECONDS + 1))
+    sleep ${wait_step}
+    if [[ -s "${task_queue_file}" && -f "${task_queue_file}" ]]; then
+      _echo "$(msg cyan)Waiting for pending task(s) to finish executing. Maximum wait of ${HOLD_SECONDS}/${max_wait} seconds ...$(msg end)" --start-spin --name
       if [ "${HOLD_SECONDS}" -gt ${max_wait} ]; then
-        # Force restart if waiting time is longer than max_wait. Normally this is too much time given because task.queue maximum execution time is only 1 minute based on directadmin documentation
+        # Force restart if waiting time is longer than max_wait. The maximum task.queue execution time is only 1 minute based on directadmin documentation
         # Another condition that can be force to restart is, if the task.queue contains more than 2 lines, it means it is not running. So we can force restart it.
         # https://docs.directadmin.com/directadmin/general-usage/task-queue-processor/
-        _echo "$(msg yellow)Warning, task.queue has not finished executing task(s) for more than ${max_wait} seconds. Forcing directadmin to restart ...$(msg end)" --name
+        _echo "$(msg yellow)Warning, task.queue has not finished executing task(s) for more than ${max_wait} seconds. Forcing directadmin to restart ...$(msg end)" --stop-spin --name
         echo "action=directadmin&value=restart" >>/usr/local/directadmin/data/task.queue
         /usr/local/directadmin/dataskq d2000 >/dev/null
         break
       fi
-    done
-  else
-    _echo "$(msg cyan)Restarting Directadmin using task.queue mode ...$(msg end)" --name
-    # Writing restart query in task.queue to restart directadmin in queue mode
-    echo "action=directadmin&value=restart" >>/usr/local/directadmin/data/task.queue
-    # Force restart with debugging level d2000
-    # this option force reboot if we still have pending tasks. This is optional because at this condition we know there must be no other pending tasks.
-    /usr/local/directadmin/dataskq d2000 >/dev/null
-  fi
+    else
+      _echo "$(msg cyan)Restarting Directadmin using task.queue mode ...$(msg end)" --stop-spin --name
+      # Writing restart query in task.queue to restart directadmin in queue mode
+      echo "action=directadmin&value=restart" >>/usr/local/directadmin/data/task.queue
+      # Force restart with debugging level d2000
+      # this option force reboot if we still have pending tasks. This is optional because at this condition we know there must be no other pending tasks.
+      /usr/local/directadmin/dataskq d2000 >/dev/null
+      break
+    fi
+  done
+
 }
 
 function install_da_pre() {
@@ -7765,7 +7761,7 @@ function install_da_pre() {
   if [[ ! -f "${CONF_PATH}/${func_name}_executed" && "${run}" == "yes" ]]; then
     exec_time start "${func_name}"
     local da_latest_version
-    _echo "$(msg cyan)Executing $(msg magenta)${func_name}()$(msg end) $(msg cyan)...$(msg end)" --name
+    _echo "$(msg cyan)Executing $(msg magenta)${func_name}()$(msg end) $(msg cyan)with option ${option} ...$(msg end)" --name
     _echo "$(msg red)=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=$(msg end)" --plain
 
     da_latest_version=$(curl -s https://www.directadmin.com/version.php | grep -Eo "[0-9]+\.[0-9]+")
@@ -7868,11 +7864,12 @@ function install_da() {
     run="yes"
   fi
   if [[ ! -f "${CONF_PATH}/${func_name}_executed" && "${run}" == "yes" ]]; then
-    local da_install_log
+    local da_install_log da_cb_bin
+    da_cb_bin="/usr/local/directadmin/custombuild/build"
     da_install_log="${LOG_PATH}/da-install.log"
     touch "${da_install_log}"
     exec_time start "${func_name}"
-    _echo "$(msg cyan)Executing $(msg magenta)${func_name}()$(msg end) $(msg cyan)...$(msg end)" --name
+    _echo "$(msg cyan)Executing $(msg magenta)${func_name}()$(msg end) $(msg cyan)with option ${option} ...$(msg end)" --name
     _echo "$(msg red)=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=$(msg end)" --plain
 
     _echo "$(msg cyan)Downloading directadmin setup script ...$(msg end)" --name
@@ -7896,6 +7893,19 @@ function install_da() {
       # This will not ask question and everything will be installed as default including CSF
       bash <(curl -Ss https://www.directadmin.com/setup.sh) auto >>"${da_install_log}"
     fi
+    # At this point, after you have installed directadmin, when you check your nginx status you will get the following error (especially if you use nginx_apache)
+
+    # ... 23:19:06 test.server.com systemd[1]: Starting The nginx HTTP and reverse proxy server...
+    # ... 23:19:06 test.server.com nginx[889]: nginx: [emerg] invalid parameter "127.0.0.1:80" in /etc/nginx/nginx-vhosts.conf:3
+    # ... 23:19:06 test.server.com nginx[889]: nginx: configuration file /etc/nginx/nginx.conf test failed
+    # ... 23:19:06 test.server.com systemd[1]: nginx.service: Control process exited, code=exited, status=1/FAILURE
+    # ... 23:19:06 test.server.com systemd[1]: nginx.service: Failed with result 'exit-code'.
+    # ... 23:19:06 test.server.com systemd[1]: Failed to start The nginx HTTP and reverse proxy server.
+    # After finished installation do this to fix above:
+    echo ""
+    _echo "$(msg cyan)Rewriting virtual host files ... $(msg end)" --name
+    ${da_cb_bin} rewrite_confs
+    echo ""
     check_finish_reboot "${func_name}"
     exec_time total "${func_name}"
   else
@@ -7935,13 +7945,12 @@ function install_da_post() {
     run="yes"
   fi
   if [[ ! -f "${CONF_PATH}/${func_name}_executed" && "${run}" == "yes" ]]; then
-
     exec_time start "${func_name}"
     local da_sql_type da_sql_version da_install_log da_bin da_cb_bin da_script_path
     da_bin="/usr/local/directadmin/directadmin"
     da_cb_bin="/usr/local/directadmin/custombuild/build"
     da_script_path="/usr/local/directadmin/scripts"
-    _echo "$(msg cyan)Executing $(msg magenta)${func_name}()$(msg end) $(msg cyan)...$(msg end)" --name
+    _echo "$(msg cyan)Executing $(msg magenta)${func_name}()$(msg end) $(msg cyan)with option ${option} ...$(msg end)" --name
     _echo "$(msg red)=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=$(msg end)" --plain
     da_install_log="${LOG_PATH}/da-install.log"
     touch "${da_install_log}"
@@ -7968,7 +7977,7 @@ function install_da_post() {
     # ClamAV and exim rebuild
     _echo "$(msg cyan)Configuring directadmin custombuild to install ClamAV and exim ...$(msg end)" --name
     ${da_cb_bin} set clamav yes
-    ${da_cb_bin}set clamav_exim yes
+    ${da_cb_bin} set clamav_exim yes
     ${da_cb_bin} set exim yes
     ${da_cb_bin} set eximconf yes
     ${da_cb_bin} set eximconf_release 4.5
@@ -7993,8 +8002,7 @@ function install_da_post() {
     } >>"${da_install_log}"
 
     echo ""
-    # TODO check if this is fixed in the latest Directadmin version (or do ifelse check only rebuild when it has error)
-    # Need to rebuild nginx_apache because it cannot be started after installation due to modsecurity directive. See this:
+    # If I install modsecurity, I need to rebuild nginx_apache because it cannot be started due to modsecurity directive issue. See this:
     # https://forum.directadmin.com/threads/nginx-and-apache-nginix-wont-start-due-to-mod_security.61427/
     # Web server setting rebuild
     _echo "$(msg cyan)Configuring custombuild to rebuild ${C_DA_WEB_SERVER_SOFTWARE} web server ...$(msg end)" --name
@@ -8106,53 +8114,14 @@ function install_da_post() {
   echo ""
 }
 
-# This function adds ipv6 IP in DA file via API or manually (if API failed to modify the IP file)
-# This function does not have exit function
-function add_da_ipv6_ip() {
-  # Nice info about this: https://forum.directadmin.com/threads/how-to-add-ip-to-server-using-api.37227/
-  local ipv6_uncompress_add grep_result ipv6_da_file
-  ipv6_uncompress_add=$(ipv6calc --addr2uncompaddr "${C_IPV6_ADD0}")
-  ipv6_da_file="/usr/local/directadmin/data/admin/ips/${ipv6_uncompress_add}"
-  # 2 ways: a) Using API or b) Manually create ipv6 file
-  #a) Using API
-  echo "[${SCRIPT_NAME}]: Adding ipv6 file config using the API method ..." 2>&1 | tee -a "${REPORT_FILE}"
-  sleep 1
-  da_api_admin "add-ip" "${ipv6_uncompress_add}" "/64"
-  #sleep 2
-  #b) Manually create ipv6 file (alternative way) if the above method API doesn't produce the IP file (just in case)
-  if [ ! -f "${ipv6_da_file}" ]; then
-    # Normally API will not fail, but just in case if ipv6 file is still not created,
-    # we can use this unofficial method created by me here:
-    # https://forum.directadmin.com/threads/how-to-add-ip6-address-in-da-via-terminal-not-through-gui.62752/
-    echo "[${SCRIPT_NAME}]: Creating ipv6 file config using manual file creation (alternative method if API failed) ..." 2>&1 | tee -a "${REPORT_FILE}"
-    #_exit 147
-    touch "${ipv6_da_file}"
-    {
-      echo "gateway="
-      echo "global=no"
-      echo "linked_ips="
-      echo "netmask=/64"
-      echo "ns="
-      echo "reseller="
-      echo "status=free"
-      echo "value="
-    } >"/usr/local/directadmin/data/admin/ips/${ipv6_uncompress_add}"
-    chmod 600 "/usr/local/directadmin/data/admin/ips/${ipv6_uncompress_add}"
-    chown diradmin:diradmin "/usr/local/directadmin/data/admin/ips/${ipv6_uncompress_add}"
-    grep_result=$(grep -c "${ipv6_uncompress_add}" /usr/local/directadmin/data/admin/ip.list)
-    if [ "${grep_result}" = 0 ]; then
-      echo "${ipv6_uncompress_add}" >>/usr/local/directadmin/data/admin/ip.list
-    fi
-    echo "[${SCRIPT_NAME}]: Rebuilding httpd config files for new IPv6 and linked IPs..." 2>&1 | tee -a "${REPORT_FILE}"
-    /usr/local/directadmin/custombuild/build rewrite_confs
-  fi
-}
-
-function link_da_ipv6() {
-  local option executed_function run
+function secure_da_auth() {
+  # This function change the directadmin username and password from default to yours (based on config file)
+  # It also has more options to secure DA installation. Example maybe this one we can create 2 step authentication
+  local option executed_function run func_name
   option="$1"
   run="no"
-  executed_function="${CONF_PATH}/${FUNCNAME[0]}_executed"
+  func_name="${FUNCNAME[0]}"
+  executed_function="${CONF_PATH}/${func_name}_executed"
   if [ "${option}" == "--skip-mark" ]; then
     cat /dev/null >"${executed_function}"
     #run="no"
@@ -8167,99 +8136,309 @@ function link_da_ipv6() {
   elif [[ -z "${option}" || "${option}" == "--run" || "${option}" == "--run-exit" ]]; then
     run="yes"
   fi
-  if [[ ! -f "${CONF_PATH}/${FUNCNAME[0]}_executed" && "${run}" == "yes" ]]; then
-    exec_time start "${FUNCNAME[0]}"
-    echo "[${SCRIPT_NAME}]: Executing ${FUNCNAME[0]} ..." 2>&1 | tee -a "${REPORT_FILE}"
-    local da_ipv6_adds base_da_ipv6 ipv6_uncompress_add linked_ips
-    echo "[${SCRIPT_NAME}]: Checking Directadmin IPv6 configuration file ..." 2>&1 | tee -a "${REPORT_FILE}"
-    da_ipv6_adds=$(ls /usr/local/directadmin/data/admin/ips/*:* 2>/dev/null)
-    #apt-get -y install ipv6calc 2>&1 | tee -a "${REPORT_FILE}"
-    ipv6_uncompress_add=$(ipv6calc --addr2uncompaddr "${C_IPV6_ADD0}")
-    # DA IP file use this form 1234:1234:0:0:1234:1234 so we need to convert into this form using ipv6calc
-    if [[ -n "${da_ipv6_adds}" && "${C_DA_AUTO_LINK_IP}" == "true" ]]; then
-      # Change this to for loop instead of ls (best practice mentioned here: https://github.com/koalaman/shellcheck/wiki/SC2010)
-      for da_ipv6 in $(echo "${da_ipv6_adds}" | tr ' ' '\n'); do
-        #echo $(basename $da_ipv6)
-        base_da_ipv6=$(basename "${da_ipv6}")
-        if [[ "${base_da_ipv6}" == "${ipv6_uncompress_add}" ]]; then
-          echo "[${SCRIPT_NAME}]: IP address ${LABEL_IPV6_ADD0} is exist in [${da_ipv6}]"
-          #source "${da_ipv6}"
-          linked_ips=$(sed -n 's/^linked_ips=//p' "${da_ipv6}")
-          if [[ "${linked_ips}" == "" || -z "${linked_ips}" ]]; then
-            echo "IPv6 linked_ip is empty: ${linked_ips}" 2>&1 | tee -a "${REPORT_FILE}"
-            sleep 1
-            echo "[${SCRIPT_NAME}]: Linking IP address ${base_da_ipv6} with IP address ${LABEL_C_IPV4_ADD0} using DA task.queue ..." 2>&1 | tee -a "${REPORT_FILE}"
-            echo "action=linked_ips&ip_action=add&ip=${base_da_ipv6}&ip_to_link=${C_IPV4_ADD0}&apache=yes&dns=yes&apply=yes" >>/usr/local/directadmin/data/task.queue
-            /usr/local/directadmin/dataskq d2000
-            sleep 2
-            echo "[${SCRIPT_NAME}]: Linking IP address ${LABEL_C_IPV4_ADD0} with IP address ${base_da_ipv6} using DA task.queue ..." 2>&1 | tee -a "${REPORT_FILE}"
-            echo "action=linked_ips&ip_action=add&ip=${C_IPV4_ADD0}&ip_to_link=${base_da_ipv6}&apache=yes&dns=yes&apply=yes" >>/usr/local/directadmin/data/task.queue
-            /usr/local/directadmin/dataskq d2000
-            sleep 2
-            # Normally DA task.queue completes in 1 minute but sometimes it left than 10 seconds, so we reduce the check in seconds
-            echo "[${SCRIPT_NAME}]: Linking is set to task.queue. Let's wait for the linking to complete in 10 seconds ..." 2>&1 | tee -a "${REPORT_FILE}"
-            sleep 10
-            # Recheck by calling again link_da_ipv6 if still not proceed by task.queue, then sleep 10 seconds .. again and again until success
-            link_da_ipv6
-          else
-            echo "Found IPv6 linked_ips with value: ${linked_ips}" 2>&1 | tee -a "${REPORT_FILE}"
-            sleep 1
-            # This is when success, we create that executed flag file and break the loop.
-            echo "[${SCRIPT_NAME}]: Success, found IP linking entry for IPv6. Continuing setup ..." 2>&1 | tee -a "${REPORT_FILE}"
-            check_finish_reboot "${FUNCNAME[0]}"
-            break # Good idea to break we only need first match. no reason to loop again.
-          fi
-        else
-          if [ "${C_DA_AUTO_ADD_IPV6_ENTRY}" == "true" ]; then
-            echo "[${SCRIPT_NAME}]: Warning, no IPv6 matched with ${LABEL_C_IPV6_ADD0}. C_DA_AUTO_ADD_IPV6_ENTRY is set to yes. Automatically adding DA IPv6 config file ..." 2>&1 | tee -a "${REPORT_FILE}"
-            sleep 2
-            add_da_ipv6_ip
-            sleep 10
-            link_da_ipv6
-          else
-            # This might not be executed but just in case if something goes wrong.
-            echo "[${SCRIPT_NAME}]: Warning, no IPv6 matched with ${LABEL_C_IPV6_ADD0}. Please manually enter IPv6 from GUI (full form) then run this script again" 2>&1 | tee -a "${REPORT_FILE}"
-            _exit 147
-          fi
-        fi
-      done
+  if [[ ! -f "${CONF_PATH}/${func_name}_executed" && "${run}" == "yes" ]]; then
+    local da_scripts_path id_bin default_da_admin_username retval
+    da_scripts_path="/usr/local/directadmin/scripts"
+    id_bin=$(command -v id)
+    default_da_admin_username="admin"
+    exec_time start "${func_name}"
+    _echo "$(msg cyan)Executing $(msg magenta)${func_name}()$(msg end) $(msg cyan)with option ${option} ...$(msg end)" --name
+    _echo "$(msg red)=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=$(msg end)" --plain
+    _echo "$(msg cyan)Checking if directadmin admin username exist in the system ...$(msg end)" --name
+    # Directadmin script on changing username required username argument, but when username does not exist, it could not handle the script return status (bug). So using below fixed it:
+    ${id_bin} "${default_da_admin_username}" &>/dev/null
+    retval=$?
+    if [ "${retval}" -ne 0 ]; then
+      _echo "$(msg yellow)[Skipped]: Warning, cannot find the user ${default_da_admin_username}. The username might have been changed to other username previously$(msg end)" --name
     else
-      if [ "${C_DA_AUTO_ADD_IPV6_ENTRY}" == "true" ]; then
-        echo "[${SCRIPT_NAME}]: Warning, IPv6 has not been setup through Directadmin. C_DA_AUTO_ADD_IPV6_ENTRY is set to yes. Automatically adding DA IPv6 config file ..." 2>&1 | tee -a "${REPORT_FILE}"
-        sleep 2
-        add_da_ipv6_ip
-        link_da_ipv6
-      else
-        echo "[${SCRIPT_NAME}]: Warning, IPv6 has not been setup through Directadmin. Please manually enter IPv6 from GUI (full form) then run this script again" 2>&1 | tee -a "${REPORT_FILE}"
-        sleep 5
-        # Enable the DA port in firewall only when pressing enter (good confirmation from user)
-        read -r -s -n 1 -p "[${SCRIPT_NAME}]: Press any key to start adding TCP port ${C_DA_PORT}/tcp in ufw ..." 2>&1 | tee -a "${REPORT_FILE}"
-        echo ""
-        echo "[${SCRIPT_NAME}]: Allowing TCP port ${LABEL_C_DA_PORT}/tcp for accessing DA admin page ..." 2>&1 | tee -a "${REPORT_FILE}"
-        sudo ufw allow "${C_DA_PORT}/tcp" 2>&1 | tee -a "${REPORT_FILE}"
-        # Need to restart DA because we did change port from 2222 to new port before calling this function
-        restart_da
-        echo "[${SCRIPT_NAME}]: Use the following login information to enter into DA admin page and add IPv6. When done, re-run this script again:". 2>&1 | tee -a "${REPORT_FILE}"
-        echo ""
-        echo "=============="
-        echo "Directadmin now can be accessed through http://${LABEL_C_IPV4_ADD0}:${LABEL_C_DA_PORT}" 2>&1 | tee -a "${REPORT_FILE}"
-        awk '{ print }' /usr/local/directadmin/scripts/setup.txt 2>&1 | tee -a "${REPORT_FILE}"
-        echo "=============="
-        echo ""
-        sleep 5
-        _exit 147
-      fi
+      # This will change Directadmin admin account:
+      _echo "$(msg cyan)Changing the first directadmin admin username from default admin username to ${LABEL_C_DA_OWNER_USERNAME1} ...$(msg end)" --name
+      ${da_scripts_path}/change_username.sh "${default_da_admin_username}" "${C_DA_OWNER_USERNAME1}"
     fi
-    exec_time end "${FUNCNAME[0]}"
+    echo ""
+    # By default, directadmin installation uses a short password which is not secured. Change it here
+    _echo "$(msg cyan)Changing the first admin (${LABEL_C_DA_OWNER_USERNAME1})'s password ...$(msg end)" --name
+    echo "${C_DA_OWNER_USERNAME1}:${C_DA_OWNER_USERPASS1}" | chpasswd
+    echo ""
+    # Create htpasswd for phpmyadmin URL: (only create user information but not enabled it)
+    _echo "$(msg cyan)Creating httpasswd for restricting phpMyAdmin URL route ... $(msg end)" --name
+    # Supply -c for first user, this will produce sensitive output with standard error, hide with 2>
+    htpasswd -b -c /etc/httpd/.htpasswd "${C_HTTPASSWD_PHPMYADMIN_USERNAME}" "${C_HTTPASSWD_PHPMYADMIN_PASS}" 2>/dev/null
+    echo ""
+    #only create user information but not enabled it
+    _echo "$(msg cyan)Creating httpasswd for restricting roundcube URL route ... $(msg end)" --name
+    # Don't supply -c for next user (if supply -c, it will replace the previous one), this will produce sensitive output with standard error, hide with 2>
+    htpasswd -b /etc/httpd/.htpasswd "${C_HTTPASSWD_ROUNDCUBE_USERNAME}" "${C_HTTPASSWD_ROUNDCUBE_PASS}" 2>/dev/null
+    echo ""
+    _echo "$(msg cyan)Correcting the permission of /etc/httpd/.htpasswd ... $(msg end)" --name
+    chown apache:apache /etc/httpd/.htpasswd
+    chmod +r /etc/httpd/.htpasswd
+    echo ""
+    # It might be best to restart directadmin after changing admin username because admin has so many configs
+    _echo "$(msg cyan)Requesting directadmin to restart ...${bind_named}$(msg end)" --name
+    restart_da
+    check_finish_reboot "${func_name}"
+    exec_time total "${func_name}"
   else
-    echo "[${SCRIPT_NAME}]: [Skipped]: ${FUNCNAME[0]} has ran before" 2>&1 | tee -a "${REPORT_FILE}"
-    echo "=~=~=~=~=~=~=~=~=~" 2>&1 | tee -a "${REPORT_FILE}"
+    echo ""
+    _echo "$(msg red)=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=$(msg end)" --plain
+    _echo "$(msg yellow)[Skipped]: $(msg magenta)${func_name}()$(msg end) $(msg yellow)has ran before$(msg end)" --name
   fi
 
   if [[ "${option}" == "--run-force-exit" || "${option}" == "--run-exit" ]]; then
-    _echo "$(msg yellow)Warning, script terminated due to the supplied option ${option}$(msg end)" --name
-    exit 0
+    _echo "$(msg yellow)Note: this script is terminated due to the supplied option ${option} from function $(msg magenta)${func_name}()$(msg end) $(msg end)" --name
+    _exit 0
   fi
+  echo ""
+}
+
+# This will configure both ipv4 and ipv6 (add ipv4 or ipv6) and link them together only based on the IP from config files
+function configure_da_ips() {
+  local option executed_function run func_name
+  option="$1"
+  run="no"
+  func_name="${FUNCNAME[0]}"
+  executed_function="${CONF_PATH}/${func_name}_executed"
+  if [ "${option}" == "--skip-mark" ]; then
+    cat /dev/null >"${executed_function}"
+    #run="no"
+    return 0
+  elif [ "${option}" == "--skip" ]; then
+    #run="no"
+    return 0
+  fi
+  if [[ "${option}" == "--run-force" || "${option}" == "--run-force-exit" ]]; then
+    rm -rf "${executed_function}"
+    run="yes"
+  elif [[ -z "${option}" || "${option}" == "--run" || "${option}" == "--run-exit" ]]; then
+    run="yes"
+  fi
+  if [[ ! -f "${CONF_PATH}/${func_name}_executed" && "${run}" == "yes" ]]; then
+    exec_time start "${func_name}"
+
+    _echo "$(msg cyan)Executing $(msg magenta)${func_name}()$(msg end) $(msg cyan)with option ${option} ...$(msg end)" --name
+    _echo "$(msg red)=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=$(msg end)" --plain
+
+    local da_ip_list da_cb_bin \
+      da_ipv4_adds da_ipv4 c_da_ipv4 da_ipv4_file ipv4_found \
+      da_ipv6_adds da_ipv6 c_da_ipv6 da_ipv6_file ipv6_found linked_ips
+
+    da_cb_bin="/usr/local/directadmin/custombuild/build"
+    da_ip_list="/usr/local/directadmin/data/admin/ip.list"
+
+    da_ipv4_adds=$(ls /usr/local/directadmin/data/admin/ips/*.* 2>/dev/null)
+    da_ipv6_adds=$(ls /usr/local/directadmin/data/admin/ips/*:* 2>/dev/null)
+
+    # From config file
+    c_da_ipv4="${C_IPV4_ADD0}"
+    # Directadmin IP file use this form 1234:1234:0:0:1234:1234 so we need to convert ipv6 from config file into this form using ipv6calc
+    required "debian@@apt:ipv6calc" "ubuntu@@apt:ipv6calc"
+    c_da_ipv6=$(ipv6calc --addr2uncompaddr "${C_IPV6_ADD0}")
+
+    ipv6_da_file="/usr/local/directadmin/data/admin/ips/${c_da_ipv6}"
+    # This is not required at this moment
+    #ipv4_da_file="/usr/local/directadmin/data/admin/ips/${c_da_ipv4}"
+
+    # Configure IPv4 address (Check existing)
+    _echo "$(msg cyan)Checking if there is any directadmin IPv4 files exist inside /usr/local/directadmin/data/admin/ips/ ...$(msg end)" --name
+
+    if [ -z "${da_ipv4_adds}" ]; then
+      # Display error instead of warning because ipv4 address based on config should exist in directadmin as default IP. If it does not exist, that means, something wrong with the DA installation
+      # For Ipv6, we don't display error and exit, we auto add the IP based on the config file
+      _echo "$(msg red)Error, there is no IPv4 IP address file is found inside /usr/local/directadmin/data/admin/ips/. There must be an IPv4 address ${LABEL_C_IPV4_ADD0} exist in the location!$(msg end)" --name
+      _exit 147
+      # Below is not required at this moment
+      #_echo "$(msg yellow)Warning, there is no IPv4 IP address file is found inside /usr/local/directadmin/data/admin/ips/ $(msg end)" --name
+      #if [ "${C_DA_AUTO_ADD_IPV46_ENTRY}" == "true" ]; then
+      #  _echo "$(msg cyan)Automatically added missing IPv4 IP address using directadmin API ... $(msg end)" --name
+      #  da_api_admin "add-ip" "${C_IPV4_ADD0}" "${C_IPV4_NETMASK_IP0}"
+      #else
+      #  _echo "$(msg yellow)Warning, C_DA_AUTO_ADD_IPV46_ENTRY is not set. Please manually add missing IPv4 IP address via GUI$(msg end)" --name
+      #  # Give details how to login and add here
+      #  _exit 147
+      #fi
+    fi
+
+    for da_ipv4_file in $(echo "${da_ipv4_adds}" | tr ' ' '\n'); do
+      # From da ip file
+      da_ipv4=$(basename "${da_ipv4_file}")
+      _echo "da_ipv4 is ${da_ipv4}" --verbose 7
+      if [[ "${da_ipv4}" == "${c_da_ipv4}" ]]; then
+        _echo "$(msg green)OK, found the IPv4 address ${LABEL_C_IPV4_ADD0} that matches with the IP file in [${da_ipv4_file}]$(msg end)" --name
+        # We should break this and ignore others because we only want the IP that match in the config file
+        ipv4_found=true
+        break
+      else
+        _echo "$(msg yellow)[Ignored]: Warning, the IPv4 address ${LABEL_C_IPV4_ADD0} does not match with the IP file in [${da_ipv4_file}]$(msg end)" --name
+        ipv4_found=false
+      fi
+    done
+
+    if [[ "${ipv4_found}" == "false" ]]; then
+      _echo "$(msg red)Error, no IPv4 matching found between config file and directadmin IP files. At least one IP should be there. Something is wrong, please inspect$(msg end)" --name
+      _exit 147
+    fi
+
+    echo ""
+    # IPV6 start here
+
+    _echo "$(msg cyan)Checking if there is any directadmin Ipv6 files exist inside /usr/local/directadmin/data/admin/ips/ ...$(msg end)" --name
+    if [ -z "${da_ipv6_adds}" ]; then
+      # For Ipv6, we don't display error and exit, we auto add the IP based on the config file
+      _echo "$(msg yellow)Warning, there is no IPv6 IP address file is found inside /usr/local/directadmin/data/admin/ips/ $(msg end)" --name
+      if [ "${C_DA_AUTO_ADD_IPV46_ENTRY}" == "true" ]; then
+        _echo "$(msg cyan)Automatically adding missing IPv6 IP address using directadmin API ... $(msg end)" --name
+        #1) First method: Create ipv6 file using directadmin API
+        da_api_admin "add-ip" "${C_IPV6_ADD0}" "${C_IPV6_NETMASK0}"
+        #2) Second method: Manually create ipv6 file (alternative way) if the above method API doesn't produce the IP file (just in case)
+        if [ ! -f "${ipv6_da_file}" ]; then
+          # Normally API will not fail, but just in case if ipv6 file is still not created,
+          # we can use this unofficial method created by me here:
+          # https://forum.directadmin.com/threads/how-to-add-ip6-address-in-da-via-terminal-not-through-gui.62752/
+          _echo "$(msg cyan)Automatically adding missing IPv6 IP address using manual file creation ...$(msg end)" --name
+          touch "${ipv6_da_file}"
+          {
+            echo "gateway="
+            echo "global=no"
+            echo "linked_ips="
+            echo "netmask=/64"
+            echo "ns="
+            echo "reseller="
+            echo "status=free"
+            echo "value="
+          } >"${ipv6_da_file}"
+          chmod 600 "${ipv6_da_file}"
+          chown diradmin:diradmin "${ipv6_da_file}"
+          grep_result=$(grep -c "${c_da_ipv6}" "${da_ip_list}")
+          if [ "${grep_result}" -ne 0 ]; then
+            echo "${c_da_ipv6}" >>"${da_ip_list}"
+          fi
+          _echo "$(msg cyan)Rebuilding server config files for new IPv6 ...$(msg end)" --name
+          ${da_cb_bin} rewrite_confs >/dev/null
+        fi
+        # Update new variable to read IPv6
+        da_ipv6_adds=$(ls /usr/local/directadmin/data/admin/ips/*:* 2>/dev/null)
+      else
+        # TODO below contain sensitive information, hide this later
+        _echo "$(msg yellow)Warning, IPv6 has not been setup through Directadmin and C_DA_AUTO_ADD_IPV46_ENTRY is not set to true. Please manually enter IPv6 from GUI (full form) then run this script again$(msg end)" --name
+        # Enable the DA port in firewall only when pressing enter (good confirmation from user)
+        read -r -s -n 1 -p "[${SCRIPT_NAME}]: Press any key to start adding TCP port ${LABEL_C_DA_PORT}/tcp in ufw to allow directadmin login ..."
+        echo ""
+        _echo "$(msg cyan)Allowing TCP port ${LABEL_C_DA_PORT}/tcp for accessing directadmin admin login page ...$(msg end)" --name
+        sudo ufw allow "${C_DA_PORT}/tcp"
+        echo ""
+        # Need to restart directadmin because we did change port from 2222 to new port before calling this function
+        _echo "$(msg cyan)Requesting directadmin to restart$(msg end)" --name
+        restart_da
+        _echo "$(msg green)Use the following login information to enter into directadmin login admin page and then add IPv6 IP address. When you are done, re-run this script again:$(msg end)" --name
+        echo ""
+        _echo "$(msg magenta)=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=$(msg end)" --plain
+        echo "Directadmin admin login page can be accessed through http://${LABEL_C_IPV4_ADD0}:${LABEL_C_DA_PORT}"
+        echo "username: ${LABEL_C_DA_OWNER_USERNAME1}"
+        echo "password: ${LABEL_C_DA_OWNER_USERPASS1}"
+        echo ""
+        echo "Directadmin default setup.txt information:"
+        awk '{ print }' /usr/local/directadmin/scripts/setup.txt
+        _echo "$(msg magenta)=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=$(msg end)" --plain
+        echo ""
+        # Need to exit this because we need to re-run this script before mark it as executed
+        _exit 147
+      fi
+    fi
+
+    for da_ipv6_file in $(echo "${da_ipv6_adds}" | tr ' ' '\n'); do
+      # From da ip file
+      da_ipv6=$(basename "${da_ipv6_file}")
+      _echo "da_ipv6 is ${da_ipv6}" --verbose 7
+      if [[ "${da_ipv6}" == "${c_da_ipv6}" ]]; then
+        _echo "$(msg green)OK, found the IPv6 address ${LABEL_C_IPV6_ADD0} that matches with the IP file in [${da_ipv6_file}]$(msg end)" --name
+        # We should break this and ignore others because we only want the IP that match in the config file
+        ipv6_found=true
+        echo ""
+        echo "Linking Ipv4 and Ipv6 ..."
+        echo ""
+        _echo "$(msg green)Checking if IPs are linked based on IPv6 IP file ...$(msg end)" --name
+        linked_ips=$(sed -n 's/^linked_ips=//p' "${da_ipv6_file}")
+        if [[ "${linked_ips}" == "" || -z "${linked_ips}" ]]; then
+
+          _echo "$(msg yellow)Warning, the IPv6 address linked_ip data is empty in file ${da_ipv6_file}!$(msg end)" --name
+          echo ""
+          if [ "${C_DA_AUTO_LINK_IP}" == "true" ]; then
+            _echo "$(msg cyan)Linking IPv6 address ${da_ipv6} with IPv4 address ${LABEL_C_IPV4_ADD0} using directadmin task.queue ...$(msg end)" --name
+            echo "action=linked_ips&ip_action=add&ip=${da_ipv6}&ip_to_link=${C_IPV4_ADD0}&apache=yes&dns=yes&apply=yes" >>/usr/local/directadmin/data/task.queue
+            /usr/local/directadmin/dataskq d2000 >/dev/null
+            echo ""
+            _echo "$(msg cyan)Linking IPv4 address ${LABEL_C_IPV4_ADD0} with IPv6 address ${da_ipv6} using directadmin task.queue ...$(msg end)" --name
+            echo "action=linked_ips&ip_action=add&ip=${C_IPV4_ADD0}&ip_to_link=${da_ipv6}&apache=yes&dns=yes&apply=yes" >>/usr/local/directadmin/data/task.queue
+            /usr/local/directadmin/dataskq d2000 >/dev/null
+            echo ""
+            # Here we check if the linking progress is success, if success, break the loop
+            while :; do
+              # Normally directadmin task.queue completes in 1 minute but sometimes it is less than 10 seconds, so we reduce the check in seconds
+              _echo "$(msg yellow)Waiting for the IPv4 address and IPv6 address are linked together from task.queue ....$(msg end)" --start-spin --name
+              linked_ips=$(sed -n 's/^linked_ips=//p' "${da_ipv6_file}")
+              if [[ -n "${linked_ips}" ]]; then
+                _echo "$(msg green)OK, found IPv6 linked_ips with value: ${linked_ips}$(msg end)" --stop-spin --name
+                # This is when success, we create that executed flag file and break the loop.
+                # Good idea to break we only need first match. no reason to loop again.
+                break
+              fi
+              sleep 5
+            done
+          else
+            _echo "$(msg yellow)Warning C_DA_AUTO_LINK_IP is not set to true. Please manually link the IPv4 address and IPv6 address via directadmin and run this script again!$(msg end)" --start-spin --name
+            # TODO below contain sensitive information, hide this later
+            # Enable the DA port in firewall only when pressing enter (good confirmation from user)
+            read -r -s -n 1 -p "[${SCRIPT_NAME}]: Press any key to start adding TCP port ${LABEL_C_DA_PORT}/tcp in ufw to allow directadmin login ..."
+            echo ""
+            _echo "$(msg cyan)Allowing TCP port ${LABEL_C_DA_PORT}/tcp for accessing directadmin admin login page ...$(msg end)" --name
+            sudo ufw allow "${C_DA_PORT}/tcp"
+            echo ""
+            # Need to restart directadmin because we did change port from 2222 to new port before calling this function
+            _echo "$(msg cyan)Requesting directadmin to restart$(msg end)" --name
+            restart_da
+            _echo "$(msg green)Use the following login information to enter into directadmin login admin page and then link the IPv4 IP address with IPv6 IP address. When you are done, re-run this script again:$(msg end)" --name
+            echo ""
+            _echo "$(msg magenta)=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=$(msg end)" --plain
+            echo "Directadmin admin login page can be accessed through http://${LABEL_C_IPV4_ADD0}:${LABEL_C_DA_PORT}"
+            echo "username: ${LABEL_C_DA_OWNER_USERNAME1}"
+            echo "password: ${LABEL_C_DA_OWNER_USERPASS1}"
+            echo ""
+            echo "Directadmin default setup.txt information:"
+            awk '{ print }' /usr/local/directadmin/scripts/setup.txt
+            _echo "$(msg magenta)=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=$(msg end)" --plain
+            echo ""
+            # Need to exit this because we need to re-run this script before mark it as executed
+            _exit 147
+          fi
+        else
+          _echo "$(msg green)OK, already found IPv6 linked_ips with value: ${linked_ips}$(msg end)" --name
+        fi
+        break
+      else
+        _echo "$(msg yellow)[Ignored]: Warning, the IPv6 address ${LABEL_C_IPV6_ADD0} does not match with the IP file in [${da_ipv6_file}]$(msg end)" --name
+        ipv6_found=false
+      fi
+    done
+
+    if [[ "${ipv6_found}" == "false" ]]; then
+      _echo "$(msg red)Error, no IPv6 matching found between config file and directadmin IP files. At least one IP should be there. Something is wrong, please inspect$(msg end)" --name
+      _exit 147
+    fi
+
+    check_finish_reboot "${func_name}"
+    exec_time total "${func_name}"
+  else
+    echo ""
+    _echo "$(msg red)=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=$(msg end)" --plain
+    _echo "$(msg yellow)[Skipped]: $(msg magenta)${func_name}()$(msg end) $(msg yellow)has ran before$(msg end)" --name
+  fi
+
+  if [[ "${option}" == "--run-force-exit" || "${option}" == "--run-exit" ]]; then
+    _echo "$(msg yellow)Note: this script is terminated due to the supplied option ${option} from function $(msg magenta)${func_name}()$(msg end) $(msg end)" --name
+    _exit 0
+  fi
+  echo ""
 }
 
 # Install CSF Firewall
@@ -8485,7 +8664,7 @@ function configure_csf() {
         # After that, the next step is requesting SSL and seems like the box need to restart
         # The reason it needs to restart here because if I don't restart at this point, the front page is not accessible (seems like port 80 is blocked)
         # If I don't restart at this point, I will not be able to renew cert (letsencrypt will produce error like firewall problem but it's not).
-        # This is related to Ipv6 DAD. Look at function link_da_ipv6() for more information
+        # This is related to Ipv6 DAD. Look at function configure_da_ips() for more information
         # DAD disable is not working. Still need to restart system. Just restart it and resume later.
         #echo "[${SCRIPT_NAME}]: Creating reboot flag to restart system after installing CSF ..." 2>&1 | tee -a "${REPORT_FILE}"
         #cat /dev/null >/var/run/reboot-required
@@ -8655,69 +8834,6 @@ function configure_da_ssl() {
   fi
 }
 
-function change_da_auth() {
-  # This function change the directadmin username and password from default to yours (based on config file)
-  # It also has more options to secure DA installation. Example maybe this one we can create 2 step authentication
-  local option executed_function run
-  option="$1"
-  run="no"
-  executed_function="${CONF_PATH}/${FUNCNAME[0]}_executed"
-  if [ "${option}" == "--skip-mark" ]; then
-    cat /dev/null >"${executed_function}"
-    #run="no"
-    return 0
-  elif [ "${option}" == "--skip" ]; then
-    #run="no"
-    return 0
-  fi
-  if [[ "${option}" == "--run-force" || "${option}" == "--run-force-exit" ]]; then
-    rm -rf "${executed_function}"
-    run="yes"
-  elif [[ -z "${option}" || "${option}" == "--run" || "${option}" == "--run-exit" ]]; then
-    run="yes"
-  fi
-  if [[ ! -f "${CONF_PATH}/${FUNCNAME[0]}_executed" && "${run}" == "yes" ]]; then
-    echo "[${SCRIPT_NAME}]: Executing ${FUNCNAME[0]} ..." 2>&1 | tee -a "${REPORT_FILE}"
-    local da_scripts_path
-    da_scripts_path="/usr/local/directadmin/scripts"
-
-    # This will change Directadmin admin account:
-    echo "[${SCRIPT_NAME}]: Changing Directadmin admin username from admin to ${LABEL_C_DA_OWNER_USERNAME1} ... " 2>&1 | tee -a "${REPORT_FILE}"
-    sleep 1
-    ${da_scripts_path}/change_username.sh "admin" "${C_DA_OWNER_USERNAME1}" 2>&1 | tee -a "${REPORT_FILE}"
-    # Now on just focus on debian command RIP CentOS
-    echo "[${SCRIPT_NAME}]: Changing Directadmin's admin (${LABEL_C_DA_OWNER_USERNAME1}) password ..." 2>&1 | tee -a "${REPORT_FILE}"
-    sleep 1
-    echo "${C_DA_OWNER_USERNAME1}:${C_DA_OWNER_USERPASS1}" | chpasswd
-    echo "" 2>&1 | tee -a "${REPORT_FILE}"
-
-    # Create htpasswd for phpmyadmin URL: (only create user information but not enabled it)
-    echo "[${SCRIPT_NAME}]: Creating httpasswd for restricting phpMyAdmin URL route ... " 2>&1 | tee -a "${REPORT_FILE}"
-    sleep 1
-    # Supply -c for first user
-    htpasswd -b -c /etc/httpd/.htpasswd "${C_HTTPASSWD_PHPMYADMIN_USERNAME}" "${C_HTTPASSWD_PHPMYADMIN_PASS}"
-
-    #only create user information but not enabled it
-    echo "[${SCRIPT_NAME}]: Creating httpasswd for restricting roundcube URL route ... " 2>&1 | tee -a "${REPORT_FILE}"
-    sleep 1
-    # Don't supply -c for next user (if supply -c, it will replace)
-    htpasswd -b /etc/httpd/.htpasswd "${C_HTTPASSWD_ROUNDCUBE_USERNAME}" "${C_HTTPASSWD_ROUNDCUBE_PASS}"
-    sudo chown apache:apache /etc/httpd/.htpasswd
-    sudo chmod +r /etc/httpd/.htpasswd
-    echo "[${SCRIPT_NAME}]: Restarting Directadmin after changing new username ... " 2>&1 | tee -a "${REPORT_FILE}"
-    # I think best to restart DA after changing username because admin has so many configs (what do you think?):
-    restart_da
-    check_finish_reboot "${FUNCNAME[0]}"
-  else
-    echo "[${SCRIPT_NAME}]: [Skipped]: ${FUNCNAME[0]} has ran before" 2>&1 | tee -a "${REPORT_FILE}"
-    echo "=~=~=~=~=~=~=~=~=~" 2>&1 | tee -a "${REPORT_FILE}"
-  fi
-
-  if [[ "${option}" == "--run-force-exit" || "${option}" == "--run-exit" ]]; then
-    _echo "$(msg yellow)Warning, script terminated due to the supplied option ${option}$(msg end)" --name
-    exit 0
-  fi
-}
 function configure_da_sql() {
   local option executed_function run
   option="$1"
@@ -9990,10 +10106,10 @@ function configure_maxida() {
       if ! [ -L ${maxida_sl_bin} ]; then
         ln -s ${maxida_bin} /usr/local/bin
       else
-        _echo warning "Symbolic link exist for ${maxida_sl_bin}!"
+        _echo "Symbolic link exist for ${maxida_sl_bin}!"
       fi
     else
-      _echo warning "Warning, maxida doesn't exist in /usr/local/maxicode !"
+      _echo "Warning, maxida doesn't exist in /usr/local/maxicode !"
       _exit 147
     fi
 
@@ -10013,7 +10129,7 @@ function configure_maxida() {
       sed -i "s|^SETUP_GIT_URL=.*|SETUP_GIT_URL=\"${C_SETUP_GIT_URL}\"|" "${maxida_conf}"
       sed -i "s|^GIT_TOKEN=.*|GIT_TOKEN=\"${C_GIT_TOKEN}\"|" "${maxida_conf}"
     else
-      _echo warning "Warning, maxida.conf.sample doesn't exist in ${maxida_conf_sample}!"
+      _echo "Warning, maxida.conf.sample doesn't exist in ${maxida_conf_sample}!"
       _exit 147
     fi
 
@@ -14126,18 +14242,17 @@ function setup() {
       #echo "[${SCRIPT_NAME}]: OK, this operating system [${DISTRO_ID}] is supported!" 2>&1 | tee -a "${REPORT_FILE}"
       :
     else
-      echo "[${SCRIPT_NAME}]: Sorry, this operating system [${DISTRO_ID}] is not supported!" 2>&1 | tee -a "${REPORT_FILE}"
+      _echo "$(msg red)Sorry, this operating system [${DISTRO_ID}] is not supported!$(msg end)" --name
       _exit 147
     fi
+
     if compgen -G "${CONF_PATH}/*_executed" >/dev/null; then
-      _echo "$(msg blue)Resuming from previous installation ...$(msg end)" --name
-      START_OR_RESUME="Resuming"
-      _pause 10
+      _echo "$(msg red)Resuming $(msg cyan)server installation for ${LABEL_C_BOX_HOSTNAME_FQHN} ...$(msg end)" --name
+      _pause 5
     else
-      START_OR_RESUME="Starting"
+      _echo "$(msg red)Starting $(msg cyan)server installation for ${LABEL_C_BOX_HOSTNAME_FQHN} ...$(msg end)" --name
     fi
-    echo ""
-    _echo "$(msg red)${START_OR_RESUME} $(msg cyan)Installation for ${LABEL_C_BOX_HOSTNAME_FQHN} ...$(msg end)" --name
+
     echo ""
 
     ############ Call function documentation ############
@@ -14163,9 +14278,9 @@ function setup() {
     # Note 1: setup_pre can be used to install screen, disable Selinux in CentOS or other necessary pre install components
     setup_pre --run
     # Note 1: Clone all setup script from git (recommend to run as --run-force instead of --run so we always get the latest security update)
-    get_latest_code --run-force
+    get_latest_code --run
     # Note 1: Get the latest security codes from maxicode (recommend to run as --run-force instead of --run so we always get the latest security update)
-    update_latest_maxicode --run-force
+    update_latest_maxicode --run
     # Note 1: This call contains security hardening server
     secure_box --run
     # Note 1: This will configure grub such as setting up password for grub bootloader
@@ -14193,15 +14308,15 @@ function setup() {
     #exit 0
     if [ "${C_SERVER_TYPE}" == "directadmin" ]; then
       install_da_pre --run
-      install_da --run-exit
-      # TODO Testing new Directadmin version. After install_da disable firewall and try accessing directadmin using port 2222, if ok we remove some rebuild options that had bug before
+      install_da --run
       install_da_post --run
-      change_da_auth --run
+      secure_da_auth --run
       # Linking da ipv6 with ipv4 and vice versa
-      link_da_ipv6 --run
+      configure_da_ips --run-exit
     fi
     # FOR BOTH GENERAL AND DIRECTADMIN INSTALLATION TYPE:
     # Best to execute after install_da because CSF installer will detect if DA exist, it will install CSF in DA way.
+    # This would be optional
     configure_csf --run
     configure_maxibox --run
     configure_maxicode_pre --run
@@ -14476,12 +14591,13 @@ create_file "ssh-push-scripts setup-readme"
 if [ "${C_HIDE_SENSITIVE_TEXT}" == "true" ]; then
   # This will create a source file that will hide the sensitive variable value to equal to its own variable
   create_file "sensitive-label-hide"
-  _echo "$(msg cyan)Note, sensitive labels are hidden from terminal$(msg end)" --name
+  #_echo "$(msg cyan)Note, sensitive labels are hidden from terminal$(msg end)" --name
 else
   # this will create a source file that will show the sensitive variable value to equal to the value in the config file
   create_file "sensitive-label-show"
-  _echo "$(msg yellow)Warning, sensitive labels will be shown on terminal because C_HIDE_SENSITIVE_TEXT is not set to true$(msg end)" --name
-  _pause 10
+  # TODO only show warning 2 times after changed C_HIDE_SENSITIVE_TEXT because this is a little annoying
+  #_echo "$(msg yellow)Warning, sensitive labels will be shown on terminal because C_HIDE_SENSITIVE_TEXT is not set to true$(msg end)" --name
+  #_pause 2
 fi
 # Source the sensitive label whether to hide data or not
 source "${CONF_PATH}/sensitive_label"
@@ -14494,9 +14610,21 @@ DNS_PROVIDER_API_KEY=$(echo "${C_DNS_PROVIDER_API1}" | awk -F':' '{ print $3 }')
 # if C_HOST_PUBLIC_IP is not set in config file, we retrieve this host IP automatically
 
 if [ -z "${C_HOST_PUBLIC_IP}" ]; then
+  # Install required components if does not exist
   required "debian@@apt:dnsutils" "ubuntu@@apt:dnsutils"
-
-  C_HOST_PUBLIC_IP=$(dig TXT +short o-o.myaddr.l.google.com @ns1.google.com | awk -F'"' '{ print $2}')
+  # Get the current host public IP
+  TEST_C_HOST_PUBLIC_IP=$(dig TXT +short o-o.myaddr.l.google.com @ns1.google.com | awk -F'"' '{ print $2}')
+  if is_valid ipv46 "${TEST_C_HOST_PUBLIC_IP}"; then
+    C_HOST_PUBLIC_IP="${TEST_C_HOST_PUBLIC_IP}"
+  else
+    if ! is_valid ipv46 "${C_HOST_PUBLIC_IP}"; then
+      _echo "$(msg red)Error, could not find the current host public IP and the C_HOST_PUBLIC_IP is not a valid IP. Please insert a valid host public IP manually in config file at ${CONFIG_FILE}$(msg end)" --name
+      _exit 147
+    else
+      :
+      # Do nothing because we already have the value of C_HOST_PUBLIC_IP
+    fi
+  fi
   if [[ "${C_HIDE_SENSITIVE_TEXT}" == "true" ]]; then
     LABEL_C_HOST_PUBLIC_IP="C_HOST_PUBLIC_IP"
   else
@@ -14736,6 +14864,8 @@ ENDSSH
     break
     ;;
   -t | --test)
+    configure_maxida
+    exit 1
     restart_da
     exit 1
     echo "Provider: ${DNS_PROVIDER_NAME}"

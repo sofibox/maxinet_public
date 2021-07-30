@@ -251,7 +251,12 @@ C_ENABLE_DA_HOST_SSL=true
 
 # This is a new testing feature to add automatically ipv6 config (official and manual way)
 # when supplying true , meaning no need to add through GUI manually, system will will do it automatically
-C_DA_AUTO_ADD_IPV6_ENTRY=true
+# Warning if you disable this variable C_DA_AUTO_ADD_IPV46_ENTRY, the installation will try to open directadmin port for you to keyin IPv6 IP address manually
+# So, it requires your input to press enter
+C_DA_AUTO_ADD_IPV46_ENTRY=true
+# Warning if you disable this variable C_DA_AUTO_LINK_IP, the installation will try to open directadmin port for you to link IPv6 IP address with IPv4 IP address manually
+# So, it requires your input to press enter
+C_DA_AUTO_LINK_IP=true
 
 # C_DA_LOGIN_METHOD: NOTE this is a planned feature (this setting has no effect yet)
 # This variable is used as login style method in directadmin. This login method is mentioned in the directadmin API documentation
@@ -504,7 +509,6 @@ C_IPV4_NETMASK_IP0="255.255.255.0"
 C_IPV6_ADD0="IPV6_ADDRESS" #eg: "2400:8902::a02d:91ee:fe05:4db2"
 C_IPV6_DEF_GATEWAY0="fe80::1"
 C_IPV6_NETMASK0="/64"
-C_DA_AUTO_LINK_IP="true"
 # For /etc/resolv.conf
 C_NAME_SERVER1="123.11.11.5"
 C_NAME_SERVER2="123.11.14.5"
