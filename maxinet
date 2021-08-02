@@ -5,7 +5,7 @@
 # Author: Arafat Ali | Email: webmaster@sofibox.com | Website: sofibox.com
 _APP_SPECIFIC_NAME="Maxinet"
 # Note some minor versions are not published
-_APP_VERSION="0.5.5.2"
+_APP_VERSION="0.5.5.5"
 _APP_STATUS="alpha"
 _APP_VERSION_STATUS="${_APP_VERSION}-${_APP_STATUS}"
 
@@ -48,7 +48,6 @@ function _traps() {
     trap "${clean_func} ${sig}" "${sig}"
   done
 }
-
 # This function is used by _traps function to clean exit
 function trap_cleanup() {
   # The first argument will have the name of the trap signal executed:
@@ -109,6 +108,7 @@ function script_header() {
   _echo "$(msg red)=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=$(msg end)" --plain
   _echo "" --plain
 }
+
 function help() {
   # This help section is deprecated, will update time to time when the code finish
   echo "Welcome to help section!"
@@ -323,13 +323,55 @@ function is_valid() {
   distro_id="${DISTRO_ID}"
 
   required "debian@@apt:ipcalc,iproute2"
+  #if is_valid ssl_site "${C_BOX_HOSTNAME_FQHN}:${C_DA_PORT}"; then
+  if [[ "${type}" == "ipv6_prefix" || "${type}" == "ipv6_subnet" ]]; then
+    local ipv6_prefix ipv6_prefix_pattern
+    ipv6_prefix="${data1}"
+    ipv6_prefix_pattern='^(\/)\b([1-9]|[1-5][0-9]|6[0-4])\b'
+    if [[ ${ipv6_prefix} =~ ${ipv6_prefix_pattern} ]]; then
+      return 0
+    else
+      return 1
+    fi
+  elif [[ "${type}" == "ssl_site" ]]; then
+    local url port final_hostname status
+    url="${data1}"
+    host "${url}" >/dev/null 2>&1
+    retval=$?
+    if [ "${retval}" -eq 0 ]; then
+      #echo "Link is valid"
+      port=$(echo "${url}" | awk -F':' '{ print $3 }')
+
+      if [ -z "${port}" ]; then
+        port="443"
+      fi
+      # Use timeout 5 instead of the built-in function because the built in function --max-wait does not work
+      # This will get the final redirection for a hostname
+      final_hostname=$(timeout 3 curl "${url}" -s -L -I -o /dev/null -w '%{url_effective}' | awk -F[/:] '{print $4}')
+      #echo "URL: ${url}"
+      #echo "FINAL_HOSTNAME: ${final_hostname}"
+      #echo "PORT: ${port}"
+
+      status=$(openssl s_client -connect "${final_hostname}:${port}" </dev/null 2>/dev/null | grep 'Verify return code: 0 (ok)')
+
+      if [ -n "${status}" ]; then
+        #echo "Site ${final_hostname} with port ${port} is valid https"
+        return 0
+      else
+        return 1
+        #echo "Site ${final_hostname} with port ${port} is not valid https"
+      fi
+    else
+      #echo "Link is not valid"
+      return 1
+    fi
 
   # is_valid available_port <server> <port>
   # This function will check if defined server and port is available (in a listening state)
   # Usage: available_port <server> <port>
   # eg: available_port test.sofibox.com 22
   # It will return 0 (if available), and other return codes (if listening state for the port is not available)
-  if [[ "${type}" == "available_port" ]]; then
+  elif [[ "${type}" == "available_port" ]]; then
     local server port retval
     server="${data1}"
     port="${data2}"
@@ -2364,13 +2406,19 @@ function msg() {
 # _echo "hello $(msg red)this is red $(msg end) and $(msg underline)$(msg -b yellow)$(msg green)this is underline with yellow background and green color $(msg end)" --report --timestamp --name
 # Default value for verbose should be 6, so if we dont' specify verbose value, it will use this
 # To turn off echo (but still ...
+# Remember if you want to pass any character but begin with single or double hypens, you cannot do this: _echo "------" or _echo "-test". You need to use the following:
+#_echo -- "------" or _echo -- "-test"
 function _echo() {
-  local options retval report timestamp name verbose plain start_spin stop_spin
+  local long_opts short_opts options retval report timestamp name verbose plain start_spin stop_spin
   declare -A LOG_LEVELS
-  options=$(getopt -o vqsprtn --long verbose:,quiet,silent,plain,report,timestamp,name,start-spin,stop-spin -n "${FUNCNAME[0]} ${SCRIPT_NAME}" -- "$@")
+
+  short_opts="vqsprtn"
+  long_opts="verbose:,quiet,silent,plain,report,timestamp,name,start-spin,stop-spin"
+
+  options=$(getopt -a -o "${short_opts}" --long "${long_opts}" -n "${FUNCNAME[0]} ${SCRIPT_NAME}" -- "$@")
   retval=$?
   if [ ${retval} != 0 ]; then
-    echo "Error, terminating..." >&2
+    _echo "$(msg red)Error, invalid options. Terminating...$(msg end)" --name
     exit 1
   fi
 
@@ -2431,6 +2479,10 @@ function _echo() {
       shift
       break
       ;;
+    -*)
+      echo "Error, unknown option: $1"
+      _exit 147
+      ;;
     *)
       break
       ;;
@@ -2468,10 +2520,10 @@ function _echo() {
     echo -e "${msg}" 2>&1 | tee -a ${report_path}
 
   elif [[ "${C_LOG_VERBOSITY_LEVEL}" -ge "${verbose}" && "${verbose}" -ne -1 ]]; then
-    echo -e "[${LOG_LEVELS[${verbose}]}]""${msg}" 2>&1 | tee -a ${report_path}
+    echo -e "[${LOG_LEVELS[${verbose}]}] ${msg}" 2>&1 | tee -a ${report_path}
   else # Meaning this is quiet but still we write report in file
     if [ ${report} == "true" ]; then
-      echo -e "[${LOG_LEVELS[${verbose}]}]" "${msg}" >>${report_path} 2>&1
+      echo -e "[${LOG_LEVELS[${verbose}]}] ${msg}" >>${report_path} 2>&1
     fi
   fi
 
@@ -5754,175 +5806,289 @@ function amazonaws_api_admin() {
   :
 }
 # da_api_admin <action> <action-option-arguments>
-# da_api_admin "create" "admin2" "admin2@sofibox.com" "x12321aa"
-# da_api_admin add-ip 12.12.12.12 255.255.255.0
 function da_api_admin() {
+  local action argnum short_opts long_opts options retval sign_as \
+    ip_address netmask
+
+  action="$1"
+  argnum="$#"
+
+  echo "${action}"
+  short_opts="h"
+  long_opts="help,sign-as:,ip-address:,netmask:"
+
+  options=$(getopt -o "${short_opts}" --long "${long_opts}" -n "${FUNCNAME[0]}@${action} in ${SCRIPT_NAME}" -- "$@")
+  retval=$?
+  if [ ${retval} != 0 ]; then
+    _echo "$(msg red)Error, invalid parsed data. Terminating...$(msg end)" >&2
+    _exit 147
+  fi
+
+  eval set -- "${options}"
+  sign_as="owner1" # specify by role such as: owner1, admin1, reseller1, user1 OR specify by username such as: arafatx, maxi32. Default is owner1 (the first owner).
+  ip_address=""    # Can be ipv4 or ipv6 address
+  netmask=""       # eg: 255.255.255.0 or /24, /64
+
+  while true; do
+    case "$1" in
+    -h | --help)
+      manual "${FUNCNAME[0]}"
+      shift
+      exit 0
+      ;;
+    --sign-as)
+      sign_as="$2"
+      shift 2
+      ;;
+    --ip-address)
+      ip_address="$2"
+      shift 2
+      ;;
+    --netmask)
+      netmask="$2"
+      shift 2
+      ;;
+    --)
+      shift
+      break
+      ;;
+    *)
+      break
+      ;;
+    esac
+  done
+  local api_username api_password found_user
+  local owner_old_list_file owner_admin_list_file reseller_list_file user_list_path
+  local owner_first_user admin_first_user reseller_first_user user_first_user
+  #local owner_main_auth admin_main_auth reseller_main_auth user_main_auth user_extra_auth
+  local ssl_protocol user_api_auth_path
+  found_user=false
+  # Create file to store API authentication flag in secure folder
+  #user_api_auth_path="${SECURE_PATH}/api_auth"
+  #mkdir -p "${user_api_auth_path}"
+  owner_old_list_file="/usr/local/directadmin/scripts/setup.txt"
+  # This file contains list of directadmin admins (including owner) per-line
+  owner_admin_list_file="/usr/local/directadmin/data/admin/admin.list"
+  # This file contains list of directadmin resellers per-line
+  reseller_list_file="/usr/local/directadmin/data/admin/reseller.list"
+  # This folder contains list of directadmin users as folder name
+  user_list_path="/usr/local/directadmin/data/users/"
+
+  # This owner_first_user variable will store the first username of owner that match in the admin.list file.
+  # Owner role is my own term (not officially used by Directadmin) where it has the same access level as admin where he is the original user that was created during directadmin setup
+  # There is only one owner in directadmin system
+  owner_first_user=$(grep -w "${C_DA_OWNER_USERNAME1}" "${owner_admin_list_file}" | tail -n 1)
+  # This admin_first_user variable will store the first username of admin that match C_DA_ADMIN_USERNAME1 in the admin.list file.
+  admin_first_user=$(grep -w "${C_DA_ADMIN_USERNAME1}" "${owner_admin_list_file}" | tail -n 1)
+  # This reseller_first_user variable will store the first username of reseller that match C_DA_RESELLER_USERNAME1 in the reseller.list file.
+  reseller_first_user=$(grep -w "${C_DA_RESELLER_USERNAME1}" "${reseller_list_file}" | tail -n 1)
+  # This user_first_user variable will store the first username of user that match C_DA_USER_USERNAME1 in the path /usr/local/directadmin/data/users/
+  user_first_user=$(find ${user_list_path} -name "${C_DA_USER_USERNAME1}" -type d | tail -n 1)
+
+  #owner_main_auth="${user_api_auth_path}/${C_DA_OWNER_USERNAME1}_owner_main_auth_api"
+  #admin_main_auth="${user_api_auth_path}/${C_DA_ADMIN_USERNAME1}_admin_main_auth_api"
+  #reseller_main_auth="${user_api_auth_path}/${C_DA_RESELLER_USERNAME1}_reseller_main_auth_api"
+  #user_main_auth="${user_api_auth_path}/${C_DA_USER_USERNAME1}_user_main_auth_api"
+  #user_extra_auth="${user_api_auth_path}/extra_user_main_auth_api"
+
+  if is_valid ssl_site "${C_BOX_HOSTNAME_FQHN}:${C_DA_PORT}"; then
+    echo "${C_BOX_HOSTNAME_FQHN} is a valid SSL/https site"
+    ssl_protocol="https"
+  else
+    echo "${C_BOX_HOSTNAME_FQHN} is not a valid SSL/https site"
+    ssl_protocol="http"
+  fi
+
+  #END OF
+
+  if [ "${sign_as}" == "owner1" ]; then
+    echo "Sign as first owner: "
+    api_username="${C_DA_OWNER_USERNAME1}"
+    api_password="${C_DA_OWNER_USERPASS1}"
+  elif [ "${sign_as}" == "admin1" ]; then
+    echo "Sign as first admin: "
+    api_username="${C_DA_ADMIN_USERNAME1}"
+    api_password="${C_DA_ADMIN_USERPASS1}"
+  elif [ "${sign_as}" == "reseller1" ]; then
+    echo "Sign as first reseller: "
+    api_username="${C_DA_RESELLER_USERNAME1}"
+    api_password="${C_DA_RESELLER_USERPASS1}"
+  elif [ "${sign_as}" == "user1" ]; then
+    echo "Sign as first user: "
+    api_username="${C_DA_USER_USERNAME1}"
+    api_password="${C_DA_USER_USERPASS1}"
+  else
+    # This is when using authentication by username: --sign-as arafatx
+    local da_owner_username da_owner_password da_admin_username da_admin_password da_reseller_username da_reseller_password \
+      da_user_username da_user_password owner_index admin_index reseller_index user_index
+    ((owner_index = admin_index = reseller_index = user_index = 1))
+    #grep -wE "C_DA_USER_USERNAME.*${sign_as}" "${CONFIG_FILE}"
+    #echo "C_DA_USER_USERNAME1=\"maxibi00\"" | grep -wE C_DA_USER_USERNAME.*maxibi00
+
+    # Get list of all da user usernames for looping
+
+    #echo "da_user_usernames: ${da_user_usernames}"
+    echo ""
+    # initial value to loop
+
+    while [[ ${owner_index} -le $(echo "${!C_DA_OWNER_USERNAME@}" | wc -w) ]]; do
+      #echo "owner_index: ${owner_index}"
+      #echo ""
+      typeset -n "da_owner_username=C_DA_OWNER_USERNAME${owner_index}"
+      typeset -n "da_owner_password=C_DA_OWNER_USERPASS${owner_index}"
+      ((owner_index++))
+      #echo ""
+      #echo ""
+      #echo "NEW da_owner_username: ${da_owner_username}"
+      #echo "NWE da_owner_password ${da_owner_password}"
+      #echo "==============="
+      if [ "${sign_as}" == "${da_owner_username}" ]; then
+        api_username="${da_owner_username}"
+        api_password="${da_owner_password}"
+        break
+      else
+        # Badass search like heap tree, if user not found, it will pause searching the current role and search the next role
+        # then it will come back if the next search not found until we found it.
+        while [[ ${admin_index} -le $(echo "${!C_DA_ADMIN_USERNAME@}" | wc -w) ]]; do
+          typeset -n "da_admin_username=C_DA_ADMIN_USERNAME${admin_index}"
+          typeset -n "da_admin_password=C_DA_ADMIN_USERPASS${admin_index}"
+          ((admin_index++))
+          if [ "${sign_as}" == "${da_admin_username}" ]; then
+            api_username="${da_admin_username}"
+            api_password="${da_admin_password}"
+            break
+          else
+            while [[ ${reseller_index} -le $(echo "${!C_DA_ADMIN_USERNAME@}" | wc -w) ]]; do
+              typeset -n "da_reseller_username=C_DA_RESELLER_USERNAME${reseller_index}"
+              typeset -n "da_reseller_password=C_DA_RESELLER_USERPASS${reseller_index}"
+              ((reseller_index++))
+              if [ "${sign_as}" == "${da_reseller_username}" ]; then
+                api_username="${da_reseller_username}"
+                api_password="${da_reseller_password}"
+                break
+              else
+                while [[ ${user_index} -le $(echo "${!C_DA_USER_USERNAME@}" | wc -w) ]]; do
+                  typeset -n "da_user_username=C_DA_USER_USERNAME${user_index}"
+                  typeset -n "da_user_password=C_DA_USER_USERPASS${user_index}"
+                  ((user_index++))
+                  if [ "${sign_as}" == "${da_user_username}" ]; then
+                    api_username="${da_user_username}"
+                    api_password="${da_user_password}"
+                    break
+                  fi
+                done
+              fi
+            done
+          fi
+        done
+      fi
+    done
+
+    if [ -z "${api_username}" ]; then
+      _echo "$(msg end)Error, directadmin user not found! $(msg end)" --name
+      _exit 147
+    fi
+  fi
+  # TODO this one contains sensitive information, hide later
+  _echo "$(msg newline)" --plain --verbose 7
+  _echo "API_DETAILS:" --name --verbose 7
+  _echo "$(msg magenta)=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=$(msg end)" --name --verbose 7
+  _echo "ALL ARGS: $*" --name --verbose 7
+  _echo "ACTION: ${action}" --name --verbose 7
+  _echo "SIGN_AS or EXECUTE_AS: ${sign_as}" --name --verbose 7
+  _echo "OWNER_FIRST_USER: ${owner_first_user}" --name --verbose 7
+  _echo "ADMIN_FIRST_USER: ${admin_first_user}" --name --verbose 7
+  _echo "RESELLER_FIRST_USER: ${reseller_first_user}" --name --verbose 7
+  _echo "USER_FIRST_USER: ${user_first_user}" --name --verbose 7
+  _echo "API_USERNAME ${api_username}" --name --verbose 7
+  _echo "API_PASSWORD ${api_password}" --name --verbose 7
+  _echo "API PROTOCOL SELECTED: ${ssl_protocol}" --name --verbose 7
+  _echo "$(msg magenta)=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=$(msg end)" --name --verbose 7
+  _echo "$(msg newline)" --plain --verbose 7
+
+  # eg: for ipv4 -> maxinet --da-api add-ip --sign-as owner1 --ip-address 1.1.1.1 --netmask 255.255.255.0
+  # eg: for ipv6 -> maxinet --da-api add-ip --ip-address 2001:0db8:3c4d:0015:0000:0000:1a2f:1a2b --netmask /64
+  if [[ "${action}" == "add-ip" ]]; then
+    local cmd_api data method retval da_api_exec has_error
+
+    if is_valid ipv6 "${ip_address}"; then
+      #echo "${netmask}" | grep -qE "(^(\/)((?:[0-9])|(?:[0-9][0-9][0-9])|(?:3[0-2])))$"
+      # Remember for IPv6, netmask must be using subnet prefix notation. This will check that:
+      #/1 - /64
+      if ! is_valid ipv6_prefix "${netmask}"; then
+        _echo "$(msg red)Error, IPv6 address requires netmask in subnet prefix notation. eg: /0 - /64$(msg end)" --name
+        _exit 147
+      fi
+    fi
+
+    #echo "Adding IP"
+    #echo "Sign as: ${sign_as}"
+    #echo "API username: ${api_username}"
+    #echo "API password: ${api_password}"
+    #echo "IP address is: ${ip_address}"
+    #echo "Netmask is: ${netmask_ip}"
+    # API configs
+    cmd_api="CMD_API_IP_MANAGER"
+    # the add_to_device_aware is needed if want to use device=yes or device=no (https://www.directadmin.com/features.php?id=2080)
+    data="action=add&ip=${ip_address}&netmask=${netmask}&device=yes&add_to_device_aware=yes&json=yes"
+    method="POST"
+    # API call
+    da_api_exec=$(curl --silent --request "${method}" --user "${api_username}":"${api_password}" --data "${data}" "${ssl_protocol}://${C_BOX_HOSTNAME_FQHN}:${C_DA_PORT}/${cmd_api}")
+    has_error=$(echo "${da_api_exec}" | grep -w "\"error\":")
+
+    if [ -n "${has_error}" ]; then
+      _echo "$(msg red)Warning, API executed with the following error: $(msg end)" --name
+      _echo "$(msg red)${da_api_exec}$(msg end)" --plain
+    #_exit 147
+    else
+      _echo "$(msg green)OK, API executed with the following status: $(msg end)" --name
+      _echo "$(msg green)${da_api_exec}$(msg end)" --plain
+    fi
+
+  elif
+
+    [[ "${action}" == "another" ]]
+  then
+    :
+  else
+    _echo "$(msg red)The API action ${action} does not exist!$(msg end)" --name
+    _exit 147
+  fi
+
+  exit 1
+  # Below code is deprecated ... will remove later:
+
   # By default, da_api_admin will use owner authentication if I don't supply this: da_api_admin "end+owner"
   #echo "Continuing in 2 seconds ..."
   #sleep 2
   local api_username api_password
   local command data method filter_cmd is_start retval result #decoded_status
-  local action username email password
+  local action username email password\\
   local owner_main_auth owner_new_list admin_new_list admin_list reseller_new_list admin_ori_list admin_main_auth
   local reseller_main_auth user_main_auth user_new_list
   local ip netmask ssl
   local domain ip_type
   local package_name
   local role_user
+
   admin_list="/usr/local/directadmin/data/admin/admin.list"
+
   admin_new_list=$(grep -w "${C_DA_ADMIN_USERNAME1}" "${admin_list}")
   owner_new_list=$(grep -w "${C_DA_OWNER_USERNAME1}" "${admin_list}")
+
   reseller_new_list=$(grep -w "${C_DA_RESELLER_USERNAME1}" "/usr/local/directadmin/data/admin/reseller.list")
+  # -- TODO END
   user_new_list=$(find /usr/local/directadmin/data/users/ -name "${C_DA_USER_USERNAME1}" -type d)
   admin_ori_list="/usr/local/directadmin/scripts/setup.txt"
+
   owner_main_auth="${TEMP_PATH}/api/${C_DA_OWNER_USERNAME1}_owner_main_auth_api"
   admin_main_auth="${TEMP_PATH}/api/${C_DA_ADMIN_USERNAME1}_admin_main_auth_api"
   reseller_main_auth="${TEMP_PATH}/api/${C_DA_RESELLER_USERNAME1}_reseller_main_auth_api"
   user_main_auth="${TEMP_PATH}/api/${C_DA_USER_USERNAME1}_user_main_auth_api"
   user_extra_auth="${TEMP_PATH}/api/extra_user_main_auth_api"
+
   action="$1"
 
-  mkdir -p "${TEMP_PATH}/api"
-  if [[ "${C_ENABLE_DA_HOST_SSL}" == "true" && -f "${CONF_PATH}/configure_da_ssl_executed" ]]; then
-    ssl="https"
-  else
-    ssl="http"
-  fi
-  is_start=$(echo "${action}" | awk -F'+' '{ print $1 }')
-  # This can be either username or role name
-  role_user=$(echo "${action}" | awk -F'+' '{ print $2 }')
-  role_password=$(echo "${action}" | awk -F'+' '{ print $3 }')
-  #da_api_admin "signas+${da_user_uname}${role_password}"
-  if [ "${is_start}" == "signas" ]; then
-    user_extra_list=$(find /usr/local/directadmin/data/users/ -name "${role_user}" -type d)
-    if [ -n "${user_extra_list}" ]; then
-      rm -f "${TEMP_PATH}"/api/*
-      echo "Authenticating DA API with signas+${role_user} ..."
-      touch "${user_extra_auth}"
-      {
-        echo "DA_USER_EXTRA_USERNAME=\"${role_user}"\"
-        echo "DA_USER_EXTRA_USERPASS=\"${role_password}"\"
-      } >"${user_extra_auth}"
-    elif [ "${action}" == "signas+owner" ]; then
-      rm -f "${TEMP_PATH}"/api/*
-      echo "Authenticating DA API with signas+owner"
-      if [ -n "${owner_new_list}" ]; then
-        #echo "[${SCRIPT_NAME}]: Found main owner account ${owner_new_list} matched in config file. Creating API session file authentication for ${owner_new_list} ..." 2>&1 | tee -a "${REPORT_FILE}"
-        touch "${owner_main_auth}"
-        {
-          echo "DA_OWNER_USERNAME1=\"${C_DA_OWNER_USERNAME1}"\"
-          echo "DA_OWNER_USERPASS1=\"${C_DA_OWNER_USERPASS1}"\"
-        } >"${owner_main_auth}"
-      else
-        echo "[${SCRIPT_NAME}]: Error, no main owner account matched in config file. Please create owner first!" 2>&1 | tee -a "${REPORT_FILE}"
-        _exit 147
-      fi
-    elif [ "${action}" == "signas+admin" ]; then
-      rm -f "${TEMP_PATH}"/api/*
-      echo "Authenticating DA API with signas+admin"
-      if [ -n "${admin_new_list}" ]; then
-        #echo "[${SCRIPT_NAME}]: Found main admin account ${admin_new_list} matched in config file. Creating API session file authentication for ${admin_new_list} ..." 2>&1 | tee -a "${REPORT_FILE}"
-        touch "${admin_main_auth}"
-        {
-          echo "DA_ADMIN_USERNAME1=\"${C_DA_ADMIN_USERNAME1}"\"
-          # Admin username cannot contain character '+' it will trigger invalid password (DA bug?)
-          echo "DA_ADMIN_USERPASS1=\"${C_DA_ADMIN_USERPASS1}"\"
-        } >"${admin_main_auth}"
-      else
-        echo "[${SCRIPT_NAME}]: Error, no main admin account matched in config file. Please create admin first!" 2>&1 | tee -a "${REPORT_FILE}"
-        _exit 147
-      fi
-    elif [ "${action}" == "signas+reseller" ]; then
-      rm -f "${TEMP_PATH}"/api/*
-      echo "Authenticating DA API with signas+reseller"
-      if [ -n "${reseller_new_list}" ]; then
-        #echo "[${SCRIPT_NAME}]: Found main reseller account ${reseller_new_list} matched in config file. Creating API session file authentication for ${reseller_new_list} ..." 2>&1 | tee -a "${REPORT_FILE}"
-        touch "${reseller_main_auth}"
-        {
-          echo "DA_RESELLER_USERNAME1=\"${C_DA_RESELLER_USERNAME1}"\"
-          echo "DA_RESELLER_USERPASS1=\"${C_DA_RESELLER_USERPASS1}"\"
-        } >"${reseller_main_auth}"
-      else
-        echo "[${SCRIPT_NAME}]: Error, no main reseller account matched in config file. Please create reseller first!" 2>&1 | tee -a "${REPORT_FILE}"
-        _exit 147
-      fi
-    elif [ "${action}" == "signas+user" ]; then
-      rm -f "${TEMP_PATH}"/api/*
-      echo "Authenticating DA API with signas+user"
-      if [ -n "${user_new_list}" ]; then
-        #echo "[${SCRIPT_NAME}]: Found main user account ${user_new_list} matched in config file. Creating API session file authentication for ${user_new_list}..." 2>&1 | tee -a "${REPORT_FILE}"
-        touch "${user_main_auth}"
-        {
-          echo "DA_USER_USERNAME1=\"${C_DA_USER_USERNAME1}"\"
-          echo "DA_USER_USERPASS1=\"${C_DA_USER_USERPASS1}"\"
-        } >"${user_main_auth}"
-      else
-        echo "[${SCRIPT_NAME}]: Error, no main user account matched in config file. Please create user first!" 2>&1 | tee -a "${REPORT_FILE}"
-        _exit 147
-      fi
-    fi
-  elif [ "${is_start}" == "end" ]; then
-    if [ "${action}" == "end+owner" ]; then
-      rm -f "${owner_main_auth}"
-    elif [ "${action}" == "end+admin" ]; then
-      rm -f "${admin_main_auth}"
-    elif [ "${action}" == "end+reseller" ]; then
-      rm -f "${reseller_main_auth}"
-    elif [ "${action}" == "end+user" ]; then
-      rm -f "${user_main_auth}"
-    elif [ "${action}" == "end" ]; then
-      rm -f "${TEMP_PATH}"/api/*
-    fi
-  fi
-
-  # End check
-
-  # If the admin.list file has a new admin username, we use that authentication
-  # This is the default authentication for DA owner
-  if [ -s "${user_extra_auth}" ]; then
-    #echo "[${SCRIPT_NAME}]: Found auth file for ${role_user}. Using authentication for this user ..." 2>&1 | tee -a "${REPORT_FILE}"
-    #_pause 2
-    api_username=$(sed -n 's/^DA_USER_EXTRA_USERNAME=//p' "${user_extra_auth}" | sed -e 's/^"//' -e 's/"$//')
-    api_password=$(sed -n 's/^DA_USER_EXTRA_USERPASS=//p' "${user_extra_auth}" | sed -e 's/^"//' -e 's/"$//')
-  elif [ -s "${owner_main_auth}" ]; then
-    #echo "[${SCRIPT_NAME}]: Found auth file for ${C_DA_OWNER_USERNAME1}. Using authentication for this user ..." 2>&1 | tee -a "${REPORT_FILE}"
-    #_pause 2
-    api_username=$(sed -n 's/^DA_OWNER_USERNAME1=//p' "${owner_main_auth}" | sed -e 's/^"//' -e 's/"$//')
-    api_password=$(sed -n 's/^DA_OWNER_USERPASS1=//p' "${owner_main_auth}" | sed -e 's/^"//' -e 's/"$//')
-    #echo "api_username is: ${api_username}"
-    #echo "api_userpassword is: ${api_password}"
-    #exit 147
-  elif [ -s "${admin_main_auth}" ]; then
-    #echo "[${SCRIPT_NAME}]: Found auth file for ${LABEL_C_DA_ADMIN_USERNAME1}. Using authentication for this user ..." 2>&1 | tee -a "${REPORT_FILE}"
-    #_pause 2
-    api_username=$(sed -n 's/^DA_ADMIN_USERNAME1=//p' "${admin_main_auth}" | sed -e 's/^"//' -e 's/"$//')
-    api_password=$(sed -n 's/^DA_ADMIN_USERPASS1=//p' "${admin_main_auth}" | sed -e 's/^"//' -e 's/"$//')
-  elif [ -s "${reseller_main_auth}" ]; then
-    #echo "[${SCRIPT_NAME}]: Found auth file for ${LABEL_C_DA_RESELLER_USERNAME1}. Using authentication for this user ..." 2>&1 | tee -a "${REPORT_FILE}"
-    #_pause 2
-    api_username=$(sed -n 's/^DA_RESELLER_USERNAME1=//p' "${reseller_main_auth}" | sed -e 's/^"//' -e 's/"$//')
-    api_password=$(sed -n 's/^DA_RESELLER_USERPASS1=//p' "${reseller_main_auth}" | sed -e 's/^"//' -e 's/"$//')
-  elif [ -s "${user_main_auth}" ]; then
-    #echo "[${SCRIPT_NAME}]: Found auth file for ${LABEL_C_DA_USER_USERNAME1}. Using authentication for this user ..." 2>&1 | tee -a "${REPORT_FILE}"
-    #_pause 2
-    api_username=$(sed -n 's/^DA_USER_USERNAME1=//p' "${user_main_auth}" | sed -e 's/^"//' -e 's/"$//')
-    api_password=$(sed -n 's/^DA_USER_USERPASS1=//p' "${user_main_auth}" | sed -e 's/^"//' -e 's/"$//')
-  # At this stage, if user don't use signas+<user> before calling API then it will use below with the condition the auth exist:
-  elif [ -n "${owner_new_list}" ]; then
-    #echo "[${SCRIPT_NAME}]: Found auth file for ${C_DA_OWNER_USERNAME1}. Using authentication for this user ..." 2>&1 | tee -a "${REPORT_FILE}"
-    #_pause 2
-    api_username=${C_DA_OWNER_USERNAME1}
-    api_password=${C_DA_OWNER_USERPASS1}
-  elif [ -s "${admin_ori_list}" ]; then
-    #echo "[${SCRIPT_NAME}]: No other authentication file found. Using DA API authentication from DA setup.txt file ..." 2>&1 | tee -a "${REPORT_FILE}"
-    #_pause 2
-    # else we use the original authentication generated by DA during installation if all above not valid
-    api_username=$(sed -n 's/^adminname=//p' ${admin_ori_list})
-    api_password=$(sed -n 's/^adminpass=//p' ${admin_ori_list})
-  else
-    echo "[${SCRIPT_NAME}]: Warning, no valid authentication is available to use Directadmin API!" 2>&1 | tee -a "${REPORT_FILE}"
-    _exit 147
-  fi
   # Only run this if number of argument is more than 1 or at least 2
   if [ "$#" -gt 1 ]; then
     if [ "${action}" == "create-admin-account" ]; then
@@ -5974,18 +6140,7 @@ function da_api_admin() {
       #exit 147
       echo "Now, executing API with action name: ${action}" 2>&1 | tee -a "${REPORT_FILE}"
     elif [ "${action}" == "add-ip" ]; then
-      # da_api_admin "add-ip" "2400:1234:0000:0000:123c:1234:fe05:6cb1" "/64"
-      # da_api_admin "add-ip" "12.12.12.12" "255.255.255.0"
-      shift
-      ip="$1"
-      netmask="$2"
-      command="CMD_API_IP_MANAGER"
-      data="action=add&ip=${ip}&netmask=${netmask}&device=yes&add_to_device_aware=yes&json=yes"
-      method="POST"
-      echo "SSL: ${ssl} | Action: ${action} | IP: ${ip} | netmask: ${netmask}"
-      #exit 147
-      echo "Now, executing API with action name: ${action}" 2>&1 | tee -a "${REPORT_FILE}"
-      #CMD_API_MANAGE_RESELLER_PACKAGES
+      :
     elif [ "${action}" == "create-reseller-package" ]; then
       # da_api_admin"create-reseller-package" "RESELLER_UNLIMITED"
       shift
@@ -6232,6 +6387,8 @@ function da_api_admin() {
       echo "[${SCRIPT_NAME}]: The API action '${action}' does not exist!" 2>&1 | tee -a "${REPORT_FILE}"
       _exit 147
     fi
+
+    # REMOVE THIS LATER TODO
     #_pause 2
     echo "[${SCRIPT_NAME}]: API status: " 2>&1 | tee -a "${REPORT_FILE}"
     echo "----------------------------" 2>&1 | tee -a "${REPORT_FILE}"
@@ -6275,99 +6432,102 @@ function check_finish_reboot() {
 }
 
 # This function will check service error and try to repair it using common solutions like log error information
-# check_fix_service <service_name>
+# repair_services "<service_name1>" "<service_name2>" ... "<service_nameN>"
 # This function is a standalone service
-function check_fix_service() {
-  local service_name="$1"
-  local gc retval lfd_service csf_service
-  echo "[${SCRIPT_NAME}]: Checking ${service_name} status ..." 2>&1 | tee -a "${REPORT_FILE}"
-  sleep 2
-  if [ "${service_name}" == "csf" ]; then
-    # Fix that here
-    csf_service=$(systemctl is-active csf)
-    if [ "${csf_service}" == "active" ]; then
-      _echo success "OK, ${service_name} service is running with status 0"
-    else
-      # CSF fix 1 - restarting
-      _echo warning "Warning, unable to start CSF service properly. Restarting CSF ..."
-      systemctl restart csf
-      sleep 3
+function repair_services() {
+  local service_name service_names gc retval lfd_service csf_service
+  service_names="$*"
+  for service_name in ${service_names}; do
+    _echo "$(msg cyan)Checking ${service_name} status ...$(msg end)" --name
+    sleep 2
+    if [ "${service_name}" == "csf" ]; then
+      # Fix that here
       csf_service=$(systemctl is-active csf)
       if [ "${csf_service}" == "active" ]; then
-        _echo warning "Warning, unable to start CSF service properly. Please check the log file for more hints"
-        _exit 147
+        _echo "$(msg green)OK, ${service_name} service is running$(msg end)" --name
       else
-        _echo warning "OK, CSF service is running with status 0"
-      fi
-      # CSF fix 2 - pending if any
-    fi
-  fi
-
-  if [ "${service_name}" == "lfd" ]; then
-    lfd_service=$(systemctl is-active lfd)
-    if [ "${lfd_service}" == "active" ]; then
-      _echo success "OK, ${service_name} has started with status 0"
-    else
-      _echo warning "Warning, unable to start LFD service properly. Trying to solve this based on common problems ..."
-      sleep 1
-      # Start lfd to generate log file because first it had no log
-      _echo default "Starting lfd to generate lfd log file ..."
-      systemctl start lfd
-      # Waiting 10 seconds (so that the log file is generated properly within this time)
-      sleep 5
-      # lfd known fix 1
-      if [ -f /var/log/lfd.log ]; then
-        gc=$(grep -ic 'you may need to install the IO::Socket::INET6 module' /var/log/lfd.log)
-        if [ "${gc}" -ne 0 ]; then
-          _echo warning "Found missing perl IO::Socket::INET6 module. Installing libio-socket-inet6-perl for Debian"
-          sleep 1
-          # Use this function for best compatibility with other DISTRO
-          required "debian@@apt:libio-socket-inet6-perl"
-          #apt-get -y install libio-socket-inet6-perl 2>&1 | tee -a "${REPORT_FILE}"
-          _echo yellow "Clearing lfd log entry ..."
-          sleep 1
-          cat /dev/null >/var/log/lfd.log
-          _echo yellow "Restarting lfd ..."
-          systemctl restart lfd
-          # Waiting at least 5 seconds (so that the lfd process is up and it generates a log file for the first time)
-          sleep 5
-          check_fix_service "lfd"
+        # CSF fix 1 - restarting
+        _echo "$(msg yellow)Warning, unable to start CSF service properly. Restarting CSF ...$(msg end)" --name
+        systemctl restart csf
+        sleep 3
+        csf_service=$(systemctl is-active csf)
+        if [ "${csf_service}" == "active" ]; then
+          _echo "$(msg green)OK, CSF service is running$(msg end)" --name
         else
-          _echo error "Error, unable to understand why lfd cannot be started. Check /var/log/lfd.log for more hints"
+          _echo "$(msg red)Error, unable to start CSF service properly. Please check the log file for more hints$(msg end)" --name
           _exit 147
         fi
-      else
-        # This is just in case if log file not appear
-        _echo warning "Warning, lfd log file not generated"
-        _echo default "Rechecking lfd status in 5 seconds ..."
-        sleep 5
-        check_fix_service "lfd"
+        # CSF fix 2 - pending if any
       fi
-
-      # lfd known fix 2
-      # ----
-
-      # lfd known fix 3 and more
     fi
-  fi
 
+    if [ "${service_name}" == "lfd" ]; then
+      lfd_service=$(systemctl is-active lfd)
+      if [ "${lfd_service}" == "active" ]; then
+        _echo "$(msg green)OK, ${service_name} has started$(msg end)" --name
+      else
+        _echo "$(msg yellow)Warning, unable to start LFD service properly. Trying to solve this based on common problems ...$(msg end)" --name
+        sleep 1
+        # Start lfd to generate log file because first it had no log
+        _echo "$(msg cyan)Starting lfd to generate lfd log file ...$(msg end)" --name
+        systemctl start lfd
+        # Waiting 10 seconds (so that the log file is generated properly within this time)
+        sleep 5
+        # lfd known fix 1
+        if [ -f /var/log/lfd.log ]; then
+          gc=$(grep -ic 'you may need to install the IO::Socket::INET6 module' /var/log/lfd.log)
+          if [ "${gc}" -ne 0 ]; then
+            _echo "$(msg yellow)Warning, found missing perl IO::Socket::INET6 module. Installing libio-socket-inet6-perl for Debian$(msg end)" --name
+            sleep 1
+            # Use this function for best compatibility with other DISTRO
+            required "debian@@apt:libio-socket-inet6-perl"
+            #apt-get -y install libio-socket-inet6-perl 2>&1 | tee -a "${REPORT_FILE}"
+            _echo "$(msg cyan)Clearing lfd log entry ...$(msg end)" --name
+            sleep 1
+            cat /dev/null >/var/log/lfd.log
+            _echo "$(msg cyan)Restarting lfd ...$(msg end)" --name
+            systemctl restart lfd
+            # Waiting at least 5 seconds (so that the lfd process is up and it generates a log file for the first time)
+            sleep 5
+            repair_services "lfd"
+          else
+            _echo "$(msg red)Error, unable to understand why lfd cannot be started. Check /var/log/lfd.log for more hints$(msg end)" --name
+            _exit 147
+          fi
+        else
+          # This is just in case if log file not appear
+          _echo "$(msg yellow)Warning, lfd log file not generated$(msg end)" --name
+          _echo "$(msg yellow)Rechecking lfd status in 5 seconds ...$(msg end)" --name
+          sleep 5
+          repair_services "lfd"
+        fi
+
+        # lfd known fix 2
+        # ----
+
+        # lfd known fix 3 and more
+      fi
+    fi
+  done
   # more services error to fix goes here ...
 }
 
 # This function is a standalone function
 # It restarts software server based on the installation string provided
 function restart_da_web_server() {
+  echo ""
   if [ "${C_DA_WEB_SERVER_SOFTWARE}" == "nginx_apache" ]; then
-    echo "[${SCRIPT_NAME}]: Restarting httpd for new httpd config ..." 2>&1 | tee -a "${REPORT_FILE}"
+    _echo "$(msg magenta)Restarting httpd and nginx for new httpd config ...$(msg end)" --name
     systemctl restart httpd
-    echo "[${SCRIPT_NAME}]: Restarting nginx ..." 2>&1 | tee -a "${REPORT_FILE}"
     systemctl restart nginx
   elif [ "${C_DA_WEB_SERVER_SOFTWARE}" == "nginx" ]; then
-    echo "[${SCRIPT_NAME}]: Restarting nginx ..." 2>&1 | tee -a "${REPORT_FILE}"
+    _echo "$(msg magenta)Restarting nginx  ...$(msg end)" --name
     systemctl restart nginx
   elif [ "${C_DA_WEB_SERVER_SOFTWARE}" == "apache" ]; then
-    echo "[${SCRIPT_NAME}]: Restarting httpd for new httpd config ..." 2>&1 | tee -a "${REPORT_FILE}"
+    _echo "$(msg magenta)Restarting httpd for new httpd config ...$(msg end)" --name
     systemctl restart httpd
+  elif [ "${C_DA_WEB_SERVER_SOFTWARE}" == "openlitespeed" ]; then
+    :
   else
     :
   fi
@@ -7541,6 +7701,15 @@ function configure_sysctl_ips() {
       echo "#net.ipv6.bindv6only = 1"
       echo "net.ipv6.conf.default.accept_redirects = 0"
       echo "net.ipv6.conf.all.accept_redirects = 0"
+      # This net.ipv6.ip_nonlocal_bind fixed the issue with nginx could not started because it could not listen to newly added IPv6
+      # nginx: the configuration file /etc/nginx/nginx.conf syntax is ok
+      # nginx[32309]: nginx: [emerg] bind() to [IPV6]:80 failed (99: Cannot assign requested address)
+      # nginx[32309]: nginx: configuration file /etc/nginx/nginx.conf test failed
+      # nginx[32309]: t:none,t:urlDecode
+      # systemd[1]: nginx.service: Control process exited, code=exited, status=1/FAILURE
+      # nginx.service: Failed with result 'exit-code'.
+      # systemd[1]: Failed to start The nginx HTTP and reverse proxy server.
+      echo "net.ipv6.ip_nonlocal_bind = 1"
       # Disable IPv6 DAD in kernel
       echo "net.ipv6.conf.${C_NIC_INTERFACE_NAME}.dad_transmits = 0"
       echo "#IPV4"
@@ -7563,7 +7732,11 @@ function configure_sysctl_ips() {
       echo "### Enable this when DDOS attack occur ###"
       echo "# Decrease the time default value for tcp_fin_timeout connection"
       echo "#net.ipv4.tcp_fin_timeout = 3"
-    } >>/etc/sysctl.conf
+
+      echo "net.ipv4.ip_nonlocal_bind = 1"
+
+    } \
+      >>/etc/sysctl.conf
 
     _echo "$(msg cyan)Compiling sysctl config /etc/sysctl.conf ...$(msg end)" --name
     sysctl -p /etc/sysctl.conf
@@ -8251,7 +8424,7 @@ function configure_da_ips() {
       #_echo "$(msg yellow)Warning, there is no IPv4 IP address file is found inside /usr/local/directadmin/data/admin/ips/ $(msg end)" --name
       #if [ "${C_DA_AUTO_ADD_IPV46_ENTRY}" == "true" ]; then
       #  _echo "$(msg cyan)Automatically added missing IPv4 IP address using directadmin API ... $(msg end)" --name
-      #  da_api_admin "add-ip" "${C_IPV4_ADD0}" "${C_IPV4_NETMASK_IP0}"
+      da_api_admin add-ip --ip-address "${C_IPV4_ADD0}"--netmask-ip "${C_IPV4_NETMASK_IP0}"
       #else
       #  _echo "$(msg yellow)Warning, C_DA_AUTO_ADD_IPV46_ENTRY is not set. Please manually add missing IPv4 IP address via GUI$(msg end)" --name
       #  # Give details how to login and add here
@@ -8289,7 +8462,10 @@ function configure_da_ips() {
       if [ "${C_DA_AUTO_ADD_IPV46_ENTRY}" == "true" ]; then
         _echo "$(msg cyan)Automatically adding missing IPv6 IP address using directadmin API ... $(msg end)" --name
         #1) First method: Create ipv6 file using directadmin API
-        da_api_admin "add-ip" "${C_IPV6_ADD0}" "${C_IPV6_NETMASK0}"
+
+        # TODO test this
+        da_api_admin "add-ip" --ip-address "${C_IPV6_ADD0}" --netmask "${C_IPV6_NETMASK0}"
+
         #2) Second method: Manually create ipv6 file (alternative way) if the above method API doesn't produce the IP file (just in case)
         if [ ! -f "${ipv6_da_file}" ]; then
           # Normally API will not fail, but just in case if ipv6 file is still not created,
@@ -8441,12 +8617,13 @@ function configure_da_ips() {
   echo ""
 }
 
-# Install CSF Firewall
-function configure_csf() {
-  local option executed_function run
+# Install CSF Firewall in DA way
+function install_da_csf() {
+  local option executed_function run func_name
   option="$1"
   run="no"
-  executed_function="${CONF_PATH}/${FUNCNAME[0]}_executed"
+  func_name="${FUNCNAME[0]}"
+  executed_function="${CONF_PATH}/${func_name}_executed"
   if [ "${option}" == "--skip-mark" ]; then
     cat /dev/null >"${executed_function}"
     #run="no"
@@ -8461,236 +8638,1592 @@ function configure_csf() {
   elif [[ -z "${option}" || "${option}" == "--run" || "${option}" == "--run-exit" ]]; then
     run="yes"
   fi
-  if [[ ! -f "${CONF_PATH}/${FUNCNAME[0]}_executed" && "${run}" == "yes" ]]; then
-    exec_time start "${FUNCNAME[0]}"
-    echo "[${SCRIPT_NAME}]: Executing ${FUNCNAME[0]} ..." 2>&1 | tee -a "${REPORT_FILE}"
-    # If DA INSTALL TYPE IS auto don't run this because it will install CSF automatically (as stated in documentation)
-    local gc ipv4_tcp_in ipv4_tcp_out ipv6_tcp_in ipv6_tcp_out all_allow_ports kernel_numericver
-    local bl_ip_html_source bl_ip_html_dest gc retval
-    if [ "${C_DA_INSTALL_TYPE}" != "auto" ]; then
+  if [[ ! -f "${CONF_PATH}/${func_name}_executed" && "${run}" == "yes" ]]; then
+    exec_time start "${func_name}"
+
+    _echo "$(msg cyan)Executing $(msg magenta)${func_name}()$(msg end) $(msg cyan)with option ${option} ...$(msg end)" --name
+    _echo "$(msg red)=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=$(msg end)" --plain
+    # This fixed lfd cannot started
+    required "debian@@apt:libio-socket-inet6-perl"
+    if [[ "${C_DA_INSTALL_TYPE}" == "auto" ]]; then
+      # TODO (Testing this): check how DA install using AUTO mode does it auto enable CSF? Does it auto add port ? Find it out
+      _echo "$(msg yellow)[Skipped]: Directadmin installation type is set to AUTO which already included CSF installation$(msg end)" --name
+
+    else
       if ! command -v csf &>/dev/null; then
-        echo "[${SCRIPT_NAME}]: No CSF binary is found (CSF is not installed)" 2>&1 | tee -a "${REPORT_FILE}"
+        local csf_conf da_conf inst_result csf_pignore
+        _echo "$(msg cyan)No CSF binary is found (CSF is not installed)$(msg end)" --name
+        _echo "$(msg cyan)Installing CSF on ${LABEL_C_BOX_HOSTNAME_FQHN} for directadmin based on (poralix steps) ...$(msg end)" --name
         sleep 2
-        if [ "${C_SERVER_TYPE}" == "general" ]; then
-          echo "[${SCRIPT_NAME}]: Script installation type is set to 'general'. Installing and Setting up CSF for ${LABEL_C_BOX_HOSTNAME_FQHN} ..." 2>&1 | tee -a "${REPORT_FILE}"
-          sleep 2
-          echo "[${SCRIPT_NAME}]: Removing existing CSF if exist using built-in script ..." 2>&1 | tee -a "${REPORT_FILE}"
-          sh /etc/csf/uninstall.sh
-          echo "[${SCRIPT_NAME}]: Removing previous downloaded file ..." 2>&1 | tee -a "${REPORT_FILE}"
-          rm -fv "${INST_TEMP_DIR}/csf.tgz"
-          cd_to_path "${INST_TEMP_DIR}"
-          echo "[${SCRIPT_NAME}]: Downloading and extracting CSF file in ${INST_TEMP_DIR} ..." 2>&1 | tee -a "${REPORT_FILE}"
-          curl -SL https://download.configserver.com/csf.tgz | tar -xzf - 2>&1 | tee -a "${REPORT_FILE}"
-          # Now after extracted we have csf folder, let's enter to this path
-          cd_to_path "./csf"
 
-          echo "[${SCRIPT_NAME}]: Testing CSF pre-installation requirement ..." 2>&1 | tee -a "${REPORT_FILE}"
-          gc=$(./csftest.pl | tail -n 1 | grep -c 'RESULT: csf should function on this server')
-          if [ "${gc}" != "1" ]; then
-            ./csftest.pl
-            echo ""
-            echo ""
-            echo "CSF test did not pass. Will not continue. Solve the issue and rerun this script again"
-            _exit 2
+        csf_conf=/etc/csf/csf.conf
+        da_conf=/usr/local/directadmin/conf/directadmin.conf
+
+        _echo "$(msg cyan)Checking whether directadmin config is exist ...$(msg end)" --name
+
+        if [ ! -s "${da_conf}" ]; then
+          if [ -s /usr/local/directadmin/data/templates/directadmin.conf ]; then
+            # this template contains the default value for directadmin.conf
+            da_conf=/usr/local/directadmin/data/templates/directadmin.conf
+            _echo "$(msg yellow)Warning, directadmin is not yet installed. Will use ${da_conf} for settings$(msg end)" --name
           else
-            echo "[OK]: CSF test passed!"
-          fi
-
-          echo "[${SCRIPT_NAME}]: Now installing CSF ..." 2>&1 | tee -a "${REPORT_FILE}"
-          chmod +x install.sh
-          sh "install.sh"
-          # When finished, we go back to original path
-
-          # CSF recommends to disable and remove APF+BFD (if exist). Check APF:
-          echo "[${SCRIPT_NAME}]: Checking and removing existing APF+BFD (recommended) ..." 2>&1 | tee -a "${REPORT_FILE}"
-          if command -v apf &>/dev/null; then
-            echo "[${SCRIPT_NAME}]: Warning, Found apf command. Removing apf bfd with remove_apf_bfd.sh ..." 2>&1 | tee -a "${REPORT_FILE}"
-            #sh /usr/local/csf/bin/disable_apf_bfd.sh #Script disabled because not found in the csf bin folder
-            sh /usr/local/csf/bin/remove_apf_bfd.sh
-          else
-            echo "[${SCRIPT_NAME}]: [Skipped]: OK, No existing APF+BFD installation to remove" 2>&1 | tee -a "${REPORT_FILE}"
-          fi
-        elif [ "${C_SERVER_TYPE}" == "directadmin" ]; then
-          echo "[${SCRIPT_NAME}]: Script installation type is set to DIRECTADMIN. Installing CSF on ${LABEL_C_BOX_HOSTNAME_FQHN} using DA script by Poralix..." 2>&1 | tee -a "${REPORT_FILE}"
-          sleep 2
-          #wget http://files.directadmin.com/services/all/csf/csf_install.sh 2>&1 | tee -a "${REPORT_FILE}"
-          cd_to_path "${INST_TEMP_DIR}"
-          cp "${DATA_PATH}/maxinet/storage/os/${DISTRO_ID}/usr/local/directadmin/install_scripts/csf_install.sh" "${INST_TEMP_DIR}/csf_install.sh"
-          chmod +x csf_install.sh
-          /bin/sh ./csf_install.sh 2>&1 | tee -a "${REPORT_FILE}"
-        fi
-      else
-        echo "[${SCRIPT_NAME}]: Found CSF binary (CSF already installed). Continuing setup ..." 2>&1 | tee -a "${REPORT_FILE}"
-      fi
-      # After install CSF definitely we got this
-      if [ -f /etc/csf/csf.conf ]; then
-        echo "[${SCRIPT_NAME}]: Now configuring CSF config at /etc/csf/csf.conf ..." 2>&1 | tee -a "${REPORT_FILE}"
-        sleep 1
-        # This also must have comma,
-        if [ -n "${C_CSF_EXTRA_ALLOW_PORTS}" ]; then
-          all_allow_ports=",${C_DA_PORT},${C_CSF_EXTRA_ALLOW_PORTS}"
-        else
-          all_allow_ports=",${C_DA_PORT}"
-        fi
-        echo "DEBUG: all_allow_ports=${all_allow_ports}"
-        grep -wq "^TCP_IN = .*${all_allow_ports}" /etc/csf/csf.conf
-        if [ $? = 1 ]; then
-          echo "[${SCRIPT_NAME}]: Adding extra port(s) ${all_allow_ports} in CSF firewall in CSF for TCP_IN ..." 2>&1 | tee -a "${REPORT_FILE}"
-          ipv4_tcp_in=$(grep -i '^TCP_IN' /etc/csf/csf.conf | tr -d '"' | cut -d "=" -f2 | sed 's/^ *//g' | awk -v ep="${all_allow_ports}" '{ print $1 ep }')
-          sed -i "s/TCP_IN = .*/TCP_IN = \"${ipv4_tcp_in}\"/" /etc/csf/csf.conf
-        else
-          echo "[${SCRIPT_NAME}]: [Skipped]: Extra port(s) ${all_allow_ports} has already added in CSF for TCP_IN before" 2>&1 | tee -a "${REPORT_FILE}"
-        fi
-        grep -wq "^TCP_OUT = .*${all_allow_ports}" /etc/csf/csf.conf
-        if [ $? = 1 ]; then
-          echo "[${SCRIPT_NAME}]: Adding extra port(s) ${all_allow_ports} in CSF firewall in CSF for TCP_OUT ..." 2>&1 | tee -a "${REPORT_FILE}"
-          ipv4_tcp_out=$(grep -i '^TCP_OUT' /etc/csf/csf.conf | tr -d '"' | cut -d "=" -f2 | sed 's/^ *//g' | awk -v ep="${all_allow_ports}" '{ print $1 ep }')
-          sed -i "s/TCP_OUT = .*/TCP_OUT = \"${ipv4_tcp_out}\"/" /etc/csf/csf.conf
-        else
-          echo "[${SCRIPT_NAME}]: [Skipped]: Extra port(s) ${all_allow_ports} has already added in CSF for TCP_OUT before" 2>&1 | tee -a "${REPORT_FILE}"
-        fi
-        grep -wq "^TCP6_IN = .*${all_allow_ports}" /etc/csf/csf.conf
-        if [ $? = 1 ]; then
-          echo "[${SCRIPT_NAME}]: Adding extra port(s) ${all_allow_ports} in CSF firewall in CSF for TCP6_IN ..." 2>&1 | tee -a "${REPORT_FILE}"
-          ipv6_tcp_in=$(grep -i '^TCP6_IN' /etc/csf/csf.conf | tr -d '"' | cut -d "=" -f2 | sed 's/^ *//g' | awk -v ep="${all_allow_ports}" '{ print $1 ep }')
-          sed -i "s/TCP6_IN = .*/TCP6_IN = \"${ipv6_tcp_in}\"/" /etc/csf/csf.conf
-        else
-          echo "[${SCRIPT_NAME}]: [Skipped]: Extra port(s) ${all_allow_ports} has already added in CSF for TCP6_IN before" 2>&1 | tee -a "${REPORT_FILE}"
-        fi
-        grep -wq "^TCP6_OUT = .*${all_allow_ports}" /etc/csf/csf.conf
-        if [ $? = 1 ]; then
-          echo "[${SCRIPT_NAME}]: Adding extra port(s) ${all_allow_ports} in CSF firewall in CSF for TCP6_OUT ..." 2>&1 | tee -a "${REPORT_FILE}"
-          ipv6_tcp_out=$(grep -i '^TCP6_OUT' /etc/csf/csf.conf | tr -d '"' | cut -d "=" -f2 | sed 's/^ *//g' | awk -v ep="${all_allow_ports}" '{ print $1 ep }')
-          sed -i "s/TCP6_OUT = .*/TCP6_OUT = \"${ipv6_tcp_out}\"/" /etc/csf/csf.conf
-        else
-          echo "[${SCRIPT_NAME}]: [Skipped]: Extra port(s) ${all_allow_ports} has already added in CSF for TCP6_OUT before" 2>&1 | tee -a "${REPORT_FILE}"
-        fi
-        # Disable CSF testing mode
-        echo "[${SCRIPT_NAME}]: Disabling CSF testing mode ..." 2>&1 | tee -a "${REPORT_FILE}"
-        sed -i 's/TESTING = "1"/TESTING = "0"/g' /etc/csf/csf.conf
-        #echo "[${SCRIPT_NAME}]: Setting CONNLIMIT and PORTFLOOD best setting ..." 2>&1 | tee -a "${REPORT_FILE}"
-        #sed -i 's/CONNLIMIT = ""/CONNLIMIT = "22;5,80;20,443;20"/g' /etc/csf/csf.conf
-        #sed -i 's/PORTFLOOD = ""/PORTFLOOD = "22;tcp;5;300,80;tcp;20;5,443;tcp;20;5"/g' /etc/csf/csf.conf
-        echo "[${SCRIPT_NAME}]: Enabling CSF email alert from 0 to 1 ..." 2>&1 | tee -a "${REPORT_FILE}"
-        sed -i 's/LF_SSH_EMAIL_ALERT = "0"/LF_SSH_EMAIL_ALERT = "1"/g' /etc/csf/csf.conf
-        echo "[${SCRIPT_NAME}]: Setting CSF email alert to ${C_ADMIN_EMAIL} ..." 2>&1 | tee -a "${REPORT_FILE}"
-        sed -i "s/LF_ALERT_TO = .*/LF_ALERT_TO = '\"${C_ADMIN_EMAIL}\"'/" /etc/csf/csf.conf
-        echo "[${SCRIPT_NAME}]: Enabling CSF SMTP_BLOCK ..." 2>&1 | tee -a "${REPORT_FILE}"
-        sed -i 's/SMTP_BLOCK = "0"/SMTP_BLOCK = "1"/g' /etc/csf/csf.conf
-        echo "[${SCRIPT_NAME}]: Setting CSF RESTRICT_SYSLOG from 0 to 3 to avoid warning ..." 2>&1 | tee -a "${REPORT_FILE}"
-        sed -i 's/RESTRICT_SYSLOG = "0"/RESTRICT_SYSLOG = "3"/g' /etc/csf/csf.conf
-        echo "[${SCRIPT_NAME}]: Setting CSF SYSLOG_CHECK to ${C_CSF_SYSLOG_CHECK} ..." 2>&1 | tee -a "${REPORT_FILE}"
-        sed -i "s/SYSLOG_CHECK = .*/SYSLOG_CHECK = '\"${C_CSF_SYSLOG_CHECK}\"'/" /etc/csf/csf.conf
-        sleep 1
-        echo "[${SCRIPT_NAME}]: Testing CSF after installation ..." 2>&1 | tee -a "${REPORT_FILE}"
-        echo "" 2>&1 | tee -a "${REPORT_FILE}"
-        perl /usr/local/csf/bin/csftest.pl 2>&1 | tee -a "${REPORT_FILE}"
-        echo "" 2>&1 | tee -a "${REPORT_FILE}"
-        echo "[${SCRIPT_NAME}]: Setting CSF PT_LOAD_ACTION ..." 2>&1 | tee -a "${REPORT_FILE}"
-        sed -i "s/^PT_LOAD_ACTION = .*/PT_LOAD_ACTION = \"\/usr\/local\/maxicode\/maxicsf\/csfload\"/" /etc/csf/csf.conf
-        echo "[${SCRIPT_NAME}]: Setting CSF to send security alert to ${C_ADMIN_EMAIL} ..." 2>&1 | tee -a "${REPORT_FILE}"
-        csf -m "${C_ADMIN_EMAIL}" 2>&1 | tee -a "${REPORT_FILE}"
-
-        echo "[${SCRIPT_NAME}]: Enabling IPSET large IP for CSF ..." 2>&1 | tee -a "${REPORT_FILE}"
-        # inspired by: https://community.centminmod.com/threads/what-should-be-the-right-value-for-lf_ipset-on-csf-config.2045/
-        kernel_numericver=$(uname -r | awk -F. '{ printf("%d%03d%03d%03d\n", $1,$2,$3,$4); }')
-        # shellcheck disable=SC2143
-        if [[ ! -f /proc/user_beancounters ]] && [[ "$(uname -r | grep linode)" || "$(find "/lib/modules/$(uname -r)" -name 'ipset')" ]] || [[ -f /proc/user_beancounters && "${kernel_numericver}" -ge '3000000000' ]]; then
-          if [[ ! -f /usr/sbin/ipset ]]; then
-            if [ "${DISTRO_ID}" == "centos" ]; then
-              yum -q -y install ipset ipset-devel
-            elif [ "${DISTRO_ID}" == "debian" ]; then
-              sudo apt-get install ipset -y
-            fi
-            sed -i 's/LF_IPSET = \"0\"/LF_IPSET = \"1\"/' /etc/csf/csf.conf
-          elif [[ -f /usr/sbin/ipset ]]; then
-            sed -i 's/LF_IPSET = \"0\"/LF_IPSET = \"1\"/' /etc/csf/csf.conf
+            _echo "$(msg red)Error, cannot find conf/directadmin.conf, nor data/templates/directadmin.conf. Please install directadmin first$(msg end)" --name
+            exit 147
           fi
         fi
-        # Increase block limit from 200 to 2500 (specified in config)
-        echo "[${SCRIPT_NAME}]: Setting CSF DENY_IP_LIMIT to ${C_CSF_DENY_IP_LIMIT} ..." 2>&1 | tee -a "${REPORT_FILE}"
-        sed -i "s/DENY_IP_LIMIT = .*/DENY_IP_LIMIT = '\"${C_CSF_DENY_IP_LIMIT}\"'/" /etc/csf/csf.conf
-        # CSF Messenger: TODO haven't tested this messenger
-        echo "[${SCRIPT_NAME}]: Enabling CSF Messenger ..." 2>&1 | tee -a "${REPORT_FILE}"
-        sleep 1
-        sed -i "s/MESSENGER = \"0\"/MESSENGER = \"1\"/" /etc/csf/csf.conf
-        echo "[${SCRIPT_NAME}]: Inserting CSF RECAPTCHA_SITEKEY ..." 2>&1 | tee -a "${REPORT_FILE}"
-        sleep 1
-        sed -i "s/RECAPTCHA_SITEKEY = \"\"/RECAPTCHA_SITEKEY = \"${C_GOOGLE_RECAPTCHA_SITE_V2}\"/" /etc/csf/csf.conf
-        echo "[${SCRIPT_NAME}]: Inserting CSF RECAPTCHA_SECRET ..." 2>&1 | tee -a "${REPORT_FILE}"
-        sleep 1
-        sed -i "s/RECAPTCHA_SECRET = \"\"/RECAPTCHA_SECRET = \"${C_GOOGLE_RECAPTCHA_SECRET_V2}\"/" /etc/csf/csf.conf
-        echo "[${SCRIPT_NAME}]: Adding csf user in the system ..." 2>&1 | tee -a "${REPORT_FILE}"
-        useradd csf -s /bin/false 2>&1 | tee -a "${REPORT_FILE}"
-        echo "[${SCRIPT_NAME}]: Setting up CSF firewall blacklist template ..." 2>&1 | tee -a "${REPORT_FILE}"
-        mkdir -p /usr/local/directadmin/data/templates/custom
-        bl_ip_html_source="${DATA_PATH}/maxinet/storage/os/${DISTRO_ID}/usr/local/directadmin/data/templates/custom/blacklisted_ip.html"
-        bl_ip_html_dest="/usr/local/directadmin/data/templates/custom/blacklisted_ip.html"
-        cp -r "${bl_ip_html_source}" "${bl_ip_html_dest}"
-        chmod 644 "${bl_ip_html_dest}"
-        chown diradmin:diradmin "${bl_ip_html_dest}"
-        echo "[${SCRIPT_NAME}]: Starting CSF and LFD for the first time ..." 2>&1 | tee -a "${REPORT_FILE}"
-        echo "[${SCRIPT_NAME}]: Before we start it up, please confirm that your sshd port is listed in this output:" 2>&1 | tee -a "${REPORT_FILE}"
-        echo "-----------------" 2>&1 | tee -a "${REPORT_FILE}"
-        grep ^TCP_IN /etc/csf/csf.conf 2>&1 | tee -a "${REPORT_FILE}"
-        echo "" 2>&1 | tee -a "${REPORT_FILE}"
-        echo "If you do NOT see the port listed, press ctrl-c to immediately abort the script (you can add port missing port in maxinet.conf), then re-run this setup" 2>&1 | tee -a "${REPORT_FILE}"
-        echo "If you DO, the port correctly added, press enter to continue" 2>&1 | tee -a "${REPORT_FILE}"
-        _pause 60
-        if [ "${DISTRO_ID}" == "centos" ]; then
-          echo "[${SCRIPT_NAME}]: Disabling built-in firewall (firewalld) in CentOS ..." 2>&1 | tee -a "${REPORT_FILE}"
-          systemctl disable firewalld 2>&1 | tee -a "${REPORT_FILE}"
-          systemctl stop firewalld 2>&1 | tee -a "${REPORT_FILE}"
-        elif [ "${DISTRO_ID}" == "debian" ]; then
-          echo "[${SCRIPT_NAME}]: Disabling and removing firewall (ufw) in Debian ..." 2>&1 | tee -a "${REPORT_FILE}"
-          sudo ufw disable 2>&1 | tee -a "${REPORT_FILE}"
-          sudo apt-get -y remove ufw
-          sudo apt-get -y purge ufw
-        else
-          echo "[${SCRIPT_NAME}]: Error, unknown value for distribution ID ${DISTRO_ID}" 2>&1 | tee -a "${REPORT_FILE}"
+        echo ""
+        _echo "$(msg cyan)Downloading Config Server Firewall (CSF) ...$(msg end)" --name
+        cd_to_path /usr/local/src
+        wget -O csf.tgz https://download.configserver.com/csf.tgz
+
+        if [ ! -s csf.tgz ]; then
+          _echo "$(msg red)Error, download failed for csf.tgz. Please inspect manually and re-run this script to continue$(msg end)" --name
           _exit 147
+
+        else
+          _echo "$(msg cyan)Unzipping downloaded file csf.tgz ... $(msg end)" --name
+          tar -zxf csf.tgz
+          cd_to_path ./csf
+          echo ""
         fi
-        echo "-----------------" 2>&1 | tee -a "${REPORT_FILE}"
-        echo "[${SCRIPT_NAME}]: Starting CSF ..." 2>&1 | tee -a "${REPORT_FILE}"
-        systemctl start csf 2>&1 | tee -a "${REPORT_FILE}"
-        # Check and fix csf process error here automatically
-        check_fix_service "csf"
-        # By default behaviour, LFD should start automatically when we run csf start
-        # service lfd start 2>&1 | tee -a "${REPORT_FILE}"
-        check_fix_service "lfd"
-        # This is a temporary allowed IP during setup which won't be blocked by firewall.
-        echo "[${SCRIPT_NAME}]: Temporarily allow IP ${LABEL_C_HOST_PUBLIC_IP} in /etc/etc/csf/csf.allow during setup in CSF" 2>&1 | tee -a "${REPORT_FILE}"
-        csf -a "${C_HOST_PUBLIC_IP}" "Added by ${SCRIPT_NAME} for ${C_BOX_HOSTNAME_FQHN} as temporary allowed IP during setup"
-        # After that, the next step is requesting SSL and seems like the box need to restart
-        # The reason it needs to restart here because if I don't restart at this point, the front page is not accessible (seems like port 80 is blocked)
-        # If I don't restart at this point, I will not be able to renew cert (letsencrypt will produce error like firewall problem but it's not).
-        # This is related to Ipv6 DAD. Look at function configure_da_ips() for more information
-        # DAD disable is not working. Still need to restart system. Just restart it and resume later.
-        #echo "[${SCRIPT_NAME}]: Creating reboot flag to restart system after installing CSF ..." 2>&1 | tee -a "${REPORT_FILE}"
-        #cat /dev/null >/var/run/reboot-required
-        #echo "[${SCRIPT_NAME}]: Warning, system will reboot and you can run this script again to continue setup" 2>&1 | tee -a "${REPORT_FILE}"
-        #_pause
+
+        inst_result=$(./csftest.pl | tail -n 1 | grep -c 'RESULT: csf should function on this server')
+        if [ "${inst_result}" != "1" ]; then
+          ./csftest.pl
+          echo ""
+          echo ""
+          _echo "$(msg red)Error, CSF installation test did not pass. Please inspect manually and re-run this script to continue$(msg end)" --name
+          _exit 147
+        else
+          _echo "$(msg green)OK, CSF installation test passed! Installing CSF for Directadmin ...$(msg end)" --name
+          echo ""
+          ./install.directadmin.sh
+          echo ""
+          if [ ! -s "${csf_conf}" ]; then
+            _echo "$(msg red)Error, cannot find ${csf_conf} after installation. Please inspect manually and re-run this script to continue$(msg end)" --name
+            _exit 147
+          fi
+        fi
+        echo ""
+        _echo "$(msg cyan)Ignoring CSF alert for some users in csf.pignore ...$(msg end)" --name
+        csf_pignore=/etc/csf/csf.pignore
+        if [ -e "${csf_pignore}" ]; then
+          if ! grep -m1 -q '^user:mysql$' "${csf_pignore}"; then
+            echo "user:mysql" >>"${csf_pignore}"
+          fi
+          if ! grep -m1 -q '^user:diradmin$' "${csf_pignore}"; then
+            echo "user:diradmin" >>"${csf_pignore}"
+          fi
+        fi
+        echo ""
+        _echo "$(msg cyan)Downloading other directadmin-csf script integration ...$(msg end)" --name
+        cd_to_path /usr/local/directadmin/scripts/custom/
+        wget --no-check-certificate -O block_ip.sh http://files.plugins-da.net/dl/csf_block_ip.sh.txt
+        wget --no-check-certificate -O unblock_ip.sh http://files.plugins-da.net/dl/csf_unblock_ip.sh.txt
+        wget --no-check-certificate -O show_blocked_ips.sh http://files.plugins-da.net/dl/csf_show_blocked_ips.sh.txt
+        wget --no-check-certificate -O brute_force_notice_ip.sh http://files.directadmin.com/services/all/brute_force_notice_ip.sh
+        echo ""
+        _echo "$(msg cyan)Correcting the permission of the downloaded scrips ...$(msg end)" --name
+        chmod 700 block_ip.sh show_blocked_ips.sh unblock_ip.sh brute_force_notice_ip.sh
+        echo ""
+        _echo "$(msg cyan)Creating the empty block list and exempt list files ...$(msg end)" --name
+        touch /root/blocked_ips.txt
+        touch /root/exempt_ips.txt
+        echo ""
+        _echo "$(msg cyan)Hiding directadmin bruteforce notification ...$(msg end)" --name
+        grep_count=$(grep -c hide_brute_force_notifications /usr/local/directadmin/conf/directadmin.conf)
+        if [ "${grep_count}" = "0" ]; then
+          echo "hide_brute_force_notifications=1" >>/usr/local/directadmin/conf/directadmin.conf
+        fi
+        # Credit to poralix for giving idea how to integrate CSF on directadmin:
+        echo ""
+        echo ""
+        echo "Install complete!"
+        echo "To access the plugin, go to:"
+        echo "  Admin Level -> ConfigServer Firewall\&Security"
+        echo ""
+        echo "This is a modified version based on the guide at https://help.poralix.com/articles/how-to-block-ips-with-csf-directadmin-bfm"
+        echo ""
+        echo ""
+        # Or alternatively use my own script file from maxicode
+        #wget http://files.directadmin.com/services/all/csf/csf_install.sh 2>&1 | tee -a "${REPORT_FILE}"
+        #da_install_scripts_path="${LATEST_OS_CODE_PATH}/usr/local/directadmin/install_scripts"
+        #if [ ! -d "${da_install_scripts_path}" ]; then
+        #  _echo "$(msg red)Error, directadmin install script path does not exist in ${maxicode_latest_path}. The script should be there!$(msg end)" --name
+        #  _exit 147
+        #fi
+        #cd_to_path "${INST_TEMP_DIR}"
+        #cp "${da_install_scripts_path}/csf_install.sh" "${INST_TEMP_DIR}/csf_install.sh"
+        #chmod +x csf_install.sh
+        #/bin/sh ./csf_install.sh
       else
-        echo "[${SCRIPT_NAME}]: This is the weirdest error. Where the hell is /etc/csf/csf.conf? ..." 2>&1 | tee -a "${REPORT_FILE}"
+        # CSF binary found,
+        grep_count=$(csf -v 2>/dev/null | grep -c 'csf:')
+        if [ "${grep_count}" = "0" ]; then
+          _echo "$(msg yellow)Warning, CSF already installed but it does not show its version. Installation might be corrupted$(msg end)" --name
+          echo "Uninstalling csf and lfd..."
+          echo
+          sed -i 's/lfd=ON/lfd=OFF/' /usr/local/directadmin/data/admin/services.status
+          /usr/sbin/csf -f
+          if test "$(cat /proc/1/comm)" = "systemd"; then
+            systemctl disable csf.service
+            systemctl disable lfd.service
+            systemctl stop lfd.service
+            systemctl stop csf.service
+            rm -fv /usr/lib/systemd/system/csf.service
+            rm -fv /usr/lib/systemd/system/lfd.service
+            systemctl daemon-reload
+          else
+            if [ -f /etc/redhat-release ]; then
+              /sbin/chkconfig csf off
+              /sbin/chkconfig lfd off
+              /sbin/chkconfig csf --del
+              /sbin/chkconfig lfd --del
+            elif [ -f /etc/debian_version ] || [ -f /etc/lsb-release ]; then
+              update-rc.d -f lfd remove
+              update-rc.d -f csf remove
+            elif [ -f /etc/gentoo-release ]; then
+              rc-update del lfd default
+              rc-update del csf default
+            elif [ -f /etc/slackware-version ]; then
+              rm -vf /etc/rc.d/rc3.d/S80csf
+              rm -vf /etc/rc.d/rc4.d/S80csf
+              rm -vf /etc/rc.d/rc5.d/S80csf
+              rm -vf /etc/rc.d/rc3.d/S85lfd
+              rm -vf /etc/rc.d/rc4.d/S85lfd
+              rm -vf /etc/rc.d/rc5.d/S85lfd
+            else
+              /sbin/chkconfig csf off
+              /sbin/chkconfig lfd off
+              /sbin/chkconfig csf --del
+              /sbin/chkconfig lfd --del
+            fi
+            rm -fv /etc/init.d/csf
+            rm -fv /etc/init.d/lfd
+          fi
+
+          rm -fv /etc/chkserv.d/lfd
+          rm -fv /usr/sbin/csf
+          rm -fv /usr/sbin/lfd
+          rm -fv /etc/cron.d/csf_update
+          rm -fv /etc/cron.d/lfd-cron
+          rm -fv /etc/cron.d/csf-cron
+          rm -Rfv /usr/local/directadmin/plugins/csf
+          rm -fv /etc/logrotate.d/lfd
+          rm -fv /usr/local/man/man1/csf.man.1
+          rm -Rfv /etc/csf /usr/local/csf /var/lib/csf
+          echo
+          echo "...Done"
+          install_da_csf
+        else
+          _echo "$(msg green)OK, CSF already installed with the following version status: $(msg end)" --name
+          echo ""
+          csf -v
+          echo ""
+        fi
+      fi
+    fi
+    # TIPS. CSF can be removed with this command:
+    #sh /etc/csf/uninstall.sh
+    check_finish_reboot "${func_name}"
+    exec_time total "${func_name}"
+  else
+    echo ""
+    _echo "$(msg red)=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=$(msg end)" --plain
+    _echo "$(msg yellow)[Skipped]: $(msg magenta)${func_name}()$(msg end) $(msg yellow)has ran before$(msg end)" --name
+  fi
+
+  if [[ "${option}" == "--run-force-exit" || "${option}" == "--run-exit" ]]; then
+    _echo "$(msg yellow)Note: this script is terminated due to the supplied option ${option} from function $(msg magenta)${func_name}()$(msg end) $(msg end)" --name
+    _exit 0
+  fi
+  echo ""
+}
+
+function install_general_csf() {
+  local option executed_function run func_name
+  option="$1"
+  run="no"
+  func_name="${FUNCNAME[0]}"
+  executed_function="${CONF_PATH}/${func_name}_executed"
+  if [ "${option}" == "--skip-mark" ]; then
+    cat /dev/null >"${executed_function}"
+    #run="no"
+    return 0
+  elif [ "${option}" == "--skip" ]; then
+    #run="no"
+    return 0
+  fi
+  if [[ "${option}" == "--run-force" || "${option}" == "--run-force-exit" ]]; then
+    rm -rf "${executed_function}"
+    run="yes"
+  elif [[ -z "${option}" || "${option}" == "--run" || "${option}" == "--run-exit" ]]; then
+    run="yes"
+  fi
+  if [[ ! -f "${CONF_PATH}/${func_name}_executed" && "${run}" == "yes" ]]; then
+    exec_time start "${func_name}"
+
+    _echo "$(msg cyan)Executing $(msg magenta)${func_name}()$(msg end) $(msg cyan)with option ${option} ...$(msg end)" --name
+    _echo "$(msg red)=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=$(msg end)" --plain
+
+    # If DA INSTALL TYPE IS auto don't run this because it will install CSF automatically (as stated in documentation)
+    local gc csf_ipv4_tcp_in ipv4_tcp_out ipv6_tcp_in ipv6_tcp_out extra_allow_ports kernel_numericver
+    local bl_ip_html_source bl_ip_html_dest gc retval
+
+    if ! command -v csf &>/dev/null; then
+      echo "[${SCRIPT_NAME}]: No CSF binary is found (CSF is not installed)" 2>&1 | tee -a "${REPORT_FILE}"
+      sleep 2
+      if [ "${C_SERVER_TYPE}" == "general" ]; then
+        echo "[${SCRIPT_NAME}]: Script installation type is set to 'general'. Installing and Setting up CSF for ${LABEL_C_BOX_HOSTNAME_FQHN} ..." 2>&1 | tee -a "${REPORT_FILE}"
+        sleep 2
+        echo "[${SCRIPT_NAME}]: Removing existing CSF if exist using built-in script ..." 2>&1 | tee -a "${REPORT_FILE}"
+        sh /etc/csf/uninstall.sh
+        echo "[${SCRIPT_NAME}]: Removing previous downloaded file ..." 2>&1 | tee -a "${REPORT_FILE}"
+        rm -fv "${INST_TEMP_DIR}/csf.tgz"
+        cd_to_path "${INST_TEMP_DIR}"
+        echo "[${SCRIPT_NAME}]: Downloading and extracting CSF file in ${INST_TEMP_DIR} ..." 2>&1 | tee -a "${REPORT_FILE}"
+        curl -SL https://download.configserver.com/csf.tgz | tar -xzf - 2>&1 | tee -a "${REPORT_FILE}"
+        # Now after extracted we have csf folder, let's enter to this path
+        cd_to_path "./csf"
+
+        echo "[${SCRIPT_NAME}]: Testing CSF pre-installation requirement ..." 2>&1 | tee -a "${REPORT_FILE}"
+        gc=$(./csftest.pl | tail -n 1 | grep -c 'RESULT: csf should function on this server')
+        if [ "${gc}" != "1" ]; then
+          ./csftest.pl
+          echo ""
+          echo ""
+          echo "CSF test did not pass. Will not continue. Solve the issue and rerun this script again"
+          _exit 2
+        else
+          echo "[OK]: CSF test passed!"
+        fi
+
+        echo "[${SCRIPT_NAME}]: Now installing CSF ..." 2>&1 | tee -a "${REPORT_FILE}"
+        chmod +x install.sh
+        sh "install.sh"
+        # When finished, we go back to original path
+
+        # CSF recommends to disable and remove APF+BFD (if exist). Check APF:
+        echo "[${SCRIPT_NAME}]: Checking and removing existing APF+BFD (recommended) ..." 2>&1 | tee -a "${REPORT_FILE}"
+        if command -v apf &>/dev/null; then
+          echo "[${SCRIPT_NAME}]: Warning, Found apf command. Removing apf bfd with remove_apf_bfd.sh ..." 2>&1 | tee -a "${REPORT_FILE}"
+          #sh /usr/local/csf/bin/disable_apf_bfd.sh #Script disabled because not found in the csf bin folder
+          sh /usr/local/csf/bin/remove_apf_bfd.sh
+        else
+          echo "[${SCRIPT_NAME}]: [Skipped]: OK, No existing APF+BFD installation to remove" 2>&1 | tee -a "${REPORT_FILE}"
+        fi
+      elif [ "${C_SERVER_TYPE}" == "directadmin" ]; then
+        echo "[${SCRIPT_NAME}]: Script installation type is set to DIRECTADMIN. Installing CSF on ${LABEL_C_BOX_HOSTNAME_FQHN} using DA script by Poralix..." 2>&1 | tee -a "${REPORT_FILE}"
+        sleep 2
+        #wget http://files.directadmin.com/services/all/csf/csf_install.sh 2>&1 | tee -a "${REPORT_FILE}"
+        cd_to_path "${INST_TEMP_DIR}"
+        cp "${DATA_PATH}/maxinet/storage/os/${DISTRO_ID}/usr/local/directadmin/install_scripts/csf_install.sh" "${INST_TEMP_DIR}/csf_install.sh"
+        chmod +x csf_install.sh
+        /bin/sh ./csf_install.sh 2>&1 | tee -a "${REPORT_FILE}"
+      fi
+    else
+      echo "[${SCRIPT_NAME}]: Found CSF binary (CSF already installed). Continuing setup ..." 2>&1 | tee -a "${REPORT_FILE}"
+    fi
+    # After install CSF definitely we got this
+    if [ -f /etc/csf/csf.conf ]; then
+      echo "[${SCRIPT_NAME}]: Now configuring CSF config at /etc/csf/csf.conf ..." 2>&1 | tee -a "${REPORT_FILE}"
+      sleep 1
+      # This also must have comma,
+      if [ -n "${C_CSF_EXTRA_ALLOW_PORTS}" ]; then
+        extra_allow_ports=",${C_DA_PORT},${C_CSF_EXTRA_ALLOW_PORTS}"
+      else
+        extra_allow_ports=",${C_DA_PORT}"
+      fi
+      echo "DEBUG: extra_allow_ports=${extra_allow_ports}"
+      grep -wq "^TCP_IN = .*${extra_allow_ports}" /etc/csf/csf.conf
+      if [ $? = 1 ]; then
+        echo "[${SCRIPT_NAME}]: Adding extra port(s) ${extra_allow_ports} in CSF firewall in CSF for TCP_IN ..." 2>&1 | tee -a "${REPORT_FILE}"
+        csf_ipv4_tcp_in=$(grep -i '^TCP_IN' /etc/csf/csf.conf | tr -d '"' | cut -d "=" -f2 | sed 's/^ *//g' | awk -v ep="${extra_allow_ports}" '{ print $1 ep }')
+        sed -i "s/TCP_IN = .*/TCP_IN = \"${csf_ipv4_tcp_in}\"/" /etc/csf/csf.conf
+      else
+        echo "[${SCRIPT_NAME}]: [Skipped]: Extra port(s) ${extra_allow_ports} has already added in CSF for TCP_IN before" 2>&1 | tee -a "${REPORT_FILE}"
+      fi
+      grep -wq "^TCP_OUT = .*${extra_allow_ports}" /etc/csf/csf.conf
+      if [ $? = 1 ]; then
+        echo "[${SCRIPT_NAME}]: Adding extra port(s) ${extra_allow_ports} in CSF firewall in CSF for TCP_OUT ..." 2>&1 | tee -a "${REPORT_FILE}"
+        ipv4_tcp_out=$(grep -i '^TCP_OUT' /etc/csf/csf.conf | tr -d '"' | cut -d "=" -f2 | sed 's/^ *//g' | awk -v ep="${extra_allow_ports}" '{ print $1 ep }')
+        sed -i "s/TCP_OUT = .*/TCP_OUT = \"${ipv4_tcp_out}\"/" /etc/csf/csf.conf
+      else
+        echo "[${SCRIPT_NAME}]: [Skipped]: Extra port(s) ${extra_allow_ports} has already added in CSF for TCP_OUT before" 2>&1 | tee -a "${REPORT_FILE}"
+      fi
+      grep -wq "^TCP6_IN = .*${extra_allow_ports}" /etc/csf/csf.conf
+      if [ $? = 1 ]; then
+        echo "[${SCRIPT_NAME}]: Adding extra port(s) ${extra_allow_ports} in CSF firewall in CSF for TCP6_IN ..." 2>&1 | tee -a "${REPORT_FILE}"
+        ipv6_tcp_in=$(grep -i '^TCP6_IN' /etc/csf/csf.conf | tr -d '"' | cut -d "=" -f2 | sed 's/^ *//g' | awk -v ep="${extra_allow_ports}" '{ print $1 ep }')
+        sed -i "s/TCP6_IN = .*/TCP6_IN = \"${ipv6_tcp_in}\"/" /etc/csf/csf.conf
+      else
+        echo "[${SCRIPT_NAME}]: [Skipped]: Extra port(s) ${extra_allow_ports} has already added in CSF for TCP6_IN before" 2>&1 | tee -a "${REPORT_FILE}"
+      fi
+      grep -wq "^TCP6_OUT = .*${extra_allow_ports}" /etc/csf/csf.conf
+      if [ $? = 1 ]; then
+        echo "[${SCRIPT_NAME}]: Adding extra port(s) ${extra_allow_ports} in CSF firewall in CSF for TCP6_OUT ..." 2>&1 | tee -a "${REPORT_FILE}"
+        ipv6_tcp_out=$(grep -i '^TCP6_OUT' /etc/csf/csf.conf | tr -d '"' | cut -d "=" -f2 | sed 's/^ *//g' | awk -v ep="${extra_allow_ports}" '{ print $1 ep }')
+        sed -i "s/TCP6_OUT = .*/TCP6_OUT = \"${ipv6_tcp_out}\"/" /etc/csf/csf.conf
+      else
+        echo "[${SCRIPT_NAME}]: [Skipped]: Extra port(s) ${extra_allow_ports} has already added in CSF for TCP6_OUT before" 2>&1 | tee -a "${REPORT_FILE}"
+      fi
+      # Disable CSF testing mode
+      echo "[${SCRIPT_NAME}]: Disabling CSF testing mode ..." 2>&1 | tee -a "${REPORT_FILE}"
+      sed -i 's/TESTING = "1"/TESTING = "0"/g' /etc/csf/csf.conf
+      #echo "[${SCRIPT_NAME}]: Setting CONNLIMIT and PORTFLOOD best setting ..." 2>&1 | tee -a "${REPORT_FILE}"
+      #sed -i 's/CONNLIMIT = ""/CONNLIMIT = "22;5,80;20,443;20"/g' /etc/csf/csf.conf
+      #sed -i 's/PORTFLOOD = ""/PORTFLOOD = "22;tcp;5;300,80;tcp;20;5,443;tcp;20;5"/g' /etc/csf/csf.conf
+      echo "[${SCRIPT_NAME}]: Enabling CSF email alert from 0 to 1 ..." 2>&1 | tee -a "${REPORT_FILE}"
+      sed -i 's/LF_SSH_EMAIL_ALERT = "0"/LF_SSH_EMAIL_ALERT = "1"/g' /etc/csf/csf.conf
+      echo "[${SCRIPT_NAME}]: Setting CSF email alert to ${C_ADMIN_EMAIL} ..." 2>&1 | tee -a "${REPORT_FILE}"
+      sed -i "s/LF_ALERT_TO = .*/LF_ALERT_TO = '\"${C_ADMIN_EMAIL}\"'/" /etc/csf/csf.conf
+      echo "[${SCRIPT_NAME}]: Enabling CSF SMTP_BLOCK ..." 2>&1 | tee -a "${REPORT_FILE}"
+      sed -i 's/SMTP_BLOCK = "0"/SMTP_BLOCK = "1"/g' /etc/csf/csf.conf
+      echo "[${SCRIPT_NAME}]: Setting CSF RESTRICT_SYSLOG from 0 to 3 to avoid warning ..." 2>&1 | tee -a "${REPORT_FILE}"
+      sed -i 's/RESTRICT_SYSLOG = "0"/RESTRICT_SYSLOG = "3"/g' /etc/csf/csf.conf
+      echo "[${SCRIPT_NAME}]: Setting CSF SYSLOG_CHECK to ${C_CSF_SYSLOG_CHECK} ..." 2>&1 | tee -a "${REPORT_FILE}"
+      sed -i "s/SYSLOG_CHECK = .*/SYSLOG_CHECK = '\"${C_CSF_SYSLOG_CHECK}\"'/" /etc/csf/csf.conf
+      sleep 1
+      echo "[${SCRIPT_NAME}]: Testing CSF after installation ..." 2>&1 | tee -a "${REPORT_FILE}"
+      echo "" 2>&1 | tee -a "${REPORT_FILE}"
+      perl /usr/local/csf/bin/csftest.pl 2>&1 | tee -a "${REPORT_FILE}"
+      echo "" 2>&1 | tee -a "${REPORT_FILE}"
+      echo "[${SCRIPT_NAME}]: Setting CSF PT_LOAD_ACTION ..." 2>&1 | tee -a "${REPORT_FILE}"
+      sed -i "s/^PT_LOAD_ACTION = .*/PT_LOAD_ACTION = \"\/usr\/local\/maxicode\/maxicsf\/csfload\"/" /etc/csf/csf.conf
+      echo "[${SCRIPT_NAME}]: Setting CSF to send security alert to ${C_ADMIN_EMAIL} ..." 2>&1 | tee -a "${REPORT_FILE}"
+      csf -m "${C_ADMIN_EMAIL}" 2>&1 | tee -a "${REPORT_FILE}"
+
+      echo "[${SCRIPT_NAME}]: Enabling IPSET large IP for CSF ..." 2>&1 | tee -a "${REPORT_FILE}"
+      # inspired by: https://community.centminmod.com/threads/what-should-be-the-right-value-for-lf_ipset-on-csf-config.2045/
+      kernel_numericver=$(uname -r | awk -F. '{ printf("%d%03d%03d%03d\n", $1,$2,$3,$4); }')
+      # shellcheck disable=SC2143
+      if [[ ! -f /proc/user_beancounters ]] && [[ "$(uname -r | grep linode)" || "$(find "/lib/modules/$(uname -r)" -name 'ipset')" ]] || [[ -f /proc/user_beancounters && "${kernel_numericver}" -ge '3000000000' ]]; then
+        if [[ ! -f /usr/sbin/ipset ]]; then
+          if [ "${DISTRO_ID}" == "centos" ]; then
+            yum -q -y install ipset ipset-devel
+          elif [ "${DISTRO_ID}" == "debian" ]; then
+            sudo apt-get install ipset -y
+          fi
+          sed -i 's/LF_IPSET = \"0\"/LF_IPSET = \"1\"/' /etc/csf/csf.conf
+        elif [[ -f /usr/sbin/ipset ]]; then
+          sed -i 's/LF_IPSET = \"0\"/LF_IPSET = \"1\"/' /etc/csf/csf.conf
+        fi
+      fi
+      # Increase block limit from 200 to 2500 (specified in config)
+      echo "[${SCRIPT_NAME}]: Setting CSF DENY_IP_LIMIT to ${C_CSF_DENY_IP_LIMIT} ..." 2>&1 | tee -a "${REPORT_FILE}"
+      sed -i "s/DENY_IP_LIMIT = .*/DENY_IP_LIMIT = '\"${C_CSF_DENY_IP_LIMIT}\"'/" /etc/csf/csf.conf
+      # CSF Messenger: TODO haven't tested this messenger
+      echo "[${SCRIPT_NAME}]: Enabling CSF Messenger ..." 2>&1 | tee -a "${REPORT_FILE}"
+      sleep 1
+      sed -i "s/MESSENGER = \"0\"/MESSENGER = \"1\"/" /etc/csf/csf.conf
+      echo "[${SCRIPT_NAME}]: Inserting CSF RECAPTCHA_SITEKEY ..." 2>&1 | tee -a "${REPORT_FILE}"
+      sleep 1
+      sed -i "s/RECAPTCHA_SITEKEY = \"\"/RECAPTCHA_SITEKEY = \"${C_GOOGLE_RECAPTCHA_SITE_V2}\"/" /etc/csf/csf.conf
+      echo "[${SCRIPT_NAME}]: Inserting CSF RECAPTCHA_SECRET ..." 2>&1 | tee -a "${REPORT_FILE}"
+      sleep 1
+      sed -i "s/RECAPTCHA_SECRET = \"\"/RECAPTCHA_SECRET = \"${C_GOOGLE_RECAPTCHA_SECRET_V2}\"/" /etc/csf/csf.conf
+      echo "[${SCRIPT_NAME}]: Adding csf user in the system ..." 2>&1 | tee -a "${REPORT_FILE}"
+      useradd csf -s /bin/false 2>&1 | tee -a "${REPORT_FILE}"
+      echo "[${SCRIPT_NAME}]: Setting up CSF firewall blacklist template ..." 2>&1 | tee -a "${REPORT_FILE}"
+      mkdir -p /usr/local/directadmin/data/templates/custom
+      bl_ip_html_source="${DATA_PATH}/maxinet/storage/os/${DISTRO_ID}/usr/local/directadmin/data/templates/custom/blacklisted_ip.html"
+      bl_ip_html_dest="/usr/local/directadmin/data/templates/custom/blacklisted_ip.html"
+      cp -r "${bl_ip_html_source}" "${bl_ip_html_dest}"
+      chmod 644 "${bl_ip_html_dest}"
+      chown diradmin:diradmin "${bl_ip_html_dest}"
+      echo "[${SCRIPT_NAME}]: Starting CSF and LFD for the first time ..." 2>&1 | tee -a "${REPORT_FILE}"
+      echo "[${SCRIPT_NAME}]: Before we start it up, please confirm that your sshd port is listed in this output:" 2>&1 | tee -a "${REPORT_FILE}"
+      echo "-----------------" 2>&1 | tee -a "${REPORT_FILE}"
+      grep ^TCP_IN /etc/csf/csf.conf 2>&1 | tee -a "${REPORT_FILE}"
+      echo "" 2>&1 | tee -a "${REPORT_FILE}"
+      echo "If you do NOT see the port listed, press ctrl-c to immediately abort the script (you can add port missing port in maxinet.conf), then re-run this setup" 2>&1 | tee -a "${REPORT_FILE}"
+      echo "If you DO, the port correctly added, press enter to continue" 2>&1 | tee -a "${REPORT_FILE}"
+      _pause 60
+      if [ "${DISTRO_ID}" == "centos" ]; then
+        echo "[${SCRIPT_NAME}]: Disabling built-in firewall (firewalld) in CentOS ..." 2>&1 | tee -a "${REPORT_FILE}"
+        systemctl disable firewalld 2>&1 | tee -a "${REPORT_FILE}"
+        systemctl stop firewalld 2>&1 | tee -a "${REPORT_FILE}"
+      elif [ "${DISTRO_ID}" == "debian" ]; then
+        echo "[${SCRIPT_NAME}]: Disabling and removing firewall (ufw) in Debian ..." 2>&1 | tee -a "${REPORT_FILE}"
+        sudo ufw disable 2>&1 | tee -a "${REPORT_FILE}"
+        sudo apt-get -y remove ufw
+        sudo apt-get -y purge ufw
+      else
+        echo "[${SCRIPT_NAME}]: Error, unknown value for distribution ID ${DISTRO_ID}" 2>&1 | tee -a "${REPORT_FILE}"
         _exit 147
       fi
-    # System will reboot automatically from above flag
+      echo "-----------------" 2>&1 | tee -a "${REPORT_FILE}"
+      echo "[${SCRIPT_NAME}]: Starting CSF ..." 2>&1 | tee -a "${REPORT_FILE}"
+      systemctl start csf 2>&1 | tee -a "${REPORT_FILE}"
+      # Check and fix csf process error here automatically
+      repair_services "csf"
+      # By default behaviour, LFD should start automatically when we run csf start
+      # service lfd start 2>&1 | tee -a "${REPORT_FILE}"
+      repair_services "lfd"
+      # This is a temporary allowed IP during setup which won't be blocked by firewall.
+      echo "[${SCRIPT_NAME}]: Temporarily allow IP ${LABEL_C_HOST_PUBLIC_IP} in /etc/etc/csf/csf.allow during setup in CSF" 2>&1 | tee -a "${REPORT_FILE}"
+      csf -a "${C_HOST_PUBLIC_IP}" "Added by ${SCRIPT_NAME} for ${C_BOX_HOSTNAME_FQHN} as temporary allowed IP during setup"
+      # After that, the next step is requesting SSL and seems like the box need to restart
+      # The reason it needs to restart here because if I don't restart at this point, the front page is not accessible (seems like port 80 is blocked)
+      # If I don't restart at this point, I will not be able to renew cert (letsencrypt will produce error like firewall problem but it's not).
+      # This is related to Ipv6 DAD. Look at function configure_da_ips() for more information
+      # DAD disable is not working. Still need to restart system. Just restart it and resume later.
+      #echo "[${SCRIPT_NAME}]: Creating reboot flag to restart system after installing CSF ..." 2>&1 | tee -a "${REPORT_FILE}"
+      #cat /dev/null >/var/run/reboot-required
+      #echo "[${SCRIPT_NAME}]: Warning, system will reboot and you can run this script again to continue setup" 2>&1 | tee -a "${REPORT_FILE}"
+      #_pause
     else
-      echo "[${SCRIPT_NAME}]: [Skipped]: Directadmin installation type is set to AUTO which already include CSF installation" 2>&1 | tee -a "${REPORT_FILE}"
-      # TODO (Testing this): check how DA install using AUTO mode, maybe we need to just use config from here after CSF has installed. Does it auto enable CSF? Will find out
+      echo "[${SCRIPT_NAME}]: This is the weirdest error. Where the hell is /etc/csf/csf.conf? ..." 2>&1 | tee -a "${REPORT_FILE}"
+      _exit 147
     fi
-    check_finish_reboot "${FUNCNAME[0]}"
-    exec_time end "${FUNCNAME[0]}"
+    # System will reboot automatically from above flag
+
+    # TIPS. CSF can be removed with this command:
+    #sh /etc/csf/uninstall.sh
+    check_finish_reboot "${func_name}"
+    exec_time total "${func_name}"
   else
-    echo "[${SCRIPT_NAME}]: [Skipped]: ${FUNCNAME[0]} has ran before" 2>&1 | tee -a "${REPORT_FILE}"
-    echo "=~=~=~=~=~=~=~=~=~" 2>&1 | tee -a "${REPORT_FILE}"
+    echo ""
+    _echo "$(msg red)=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=$(msg end)" --plain
+    _echo "$(msg yellow)[Skipped]: $(msg magenta)${func_name}()$(msg end) $(msg yellow)has ran before$(msg end)" --name
   fi
-  # TIPS. CSF can be removed with this command:
-  #sh /etc/csf/uninstall.sh
+
   if [[ "${option}" == "--run-force-exit" || "${option}" == "--run-exit" ]]; then
-    _echo "$(msg yellow)Warning, script terminated due to the supplied option ${option}$(msg end)" --name
-    exit 0
+    _echo "$(msg yellow)Note: this script is terminated due to the supplied option ${option} from function $(msg magenta)${func_name}()$(msg end) $(msg end)" --name
+    _exit 0
   fi
+  echo ""
+}
+# Install CSF Firewall
+function configure_csf() {
+  local option executed_function run func_name
+  option="$1"
+  run="no"
+  func_name="${FUNCNAME[0]}"
+  executed_function="${CONF_PATH}/${func_name}_executed"
+  if [ "${option}" == "--skip-mark" ]; then
+    cat /dev/null >"${executed_function}"
+    #run="no"
+    return 0
+  elif [ "${option}" == "--skip" ]; then
+    #run="no"
+    return 0
+  fi
+  if [[ "${option}" == "--run-force" || "${option}" == "--run-force-exit" ]]; then
+    rm -rf "${executed_function}"
+    run="yes"
+  elif [[ -z "${option}" || "${option}" == "--run" || "${option}" == "--run-exit" ]]; then
+    run="yes"
+  fi
+  if [[ ! -f "${CONF_PATH}/${func_name}_executed" && "${run}" == "yes" ]]; then
+    exec_time start "${func_name}"
+
+    _echo "$(msg cyan)Executing $(msg magenta)${func_name}()$(msg end) $(msg cyan)with option ${option} ...$(msg end)" --name
+    _echo "$(msg red)=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=$(msg end)" --plain
+
+    local extra_allow_ports retval \
+      csf_ipv4_tcp_in csf_ipv4_tcp_out csf_ipv6_tcp_in csf_ipv6_tcp_out kernel_numericver
+
+    # After install CSF definitely we got this
+    if [ -f /etc/csf/csf.conf ]; then
+      _echo "$(msg cyan)Configuring CSF config at /etc/csf/csf.conf ...$(msg end)" --name
+
+      if [ -n "${C_CSF_EXTRA_ALLOW_PORTS}" ]; then
+        extra_allow_ports="${C_DROP_BEAR_PORT},${C_DA_PORT},${C_CSF_EXTRA_ALLOW_PORTS}"
+      else
+        extra_allow_ports="${C_DROP_BEAR_PORT},${C_DA_PORT}"
+      fi
+      _echo "$(msg magenta)The extra allowed port to be added in CSF are: extra_allow_ports=${extra_allow_ports}$(msg end)" --name --verbose 7
+      echo ""
+
+      _echo "$(msg cyan)Adding extra port(s) ${extra_allow_ports} in CSF firewall in CSF config for TCP_IN ...$(msg end)" --name
+      grep -wq "^TCP_IN = .*${extra_allow_ports}" /etc/csf/csf.conf
+      retval=$?
+      if [ "${retval}" -eq 1 ]; then
+        csf_ipv4_tcp_in=$(grep -i '^TCP_IN' /etc/csf/csf.conf | tr -d '"' | cut -d "=" -f2 | sed 's/^ *//g' | awk -v ep=",${extra_allow_ports}" '{ print $1 ep }')
+        sed -i "s/TCP_IN = .*/TCP_IN = \"${csf_ipv4_tcp_in}\"/" /etc/csf/csf.conf
+      else
+        _echo "$(msg yellow)[Skipped]: Extra port(s) ${extra_allow_ports} has already been added in CSF config for TCP_IN before$(msg end)" --name
+      fi
+      echo ""
+      _echo "$(msg cyan)Adding extra port(s) ${extra_allow_ports} in CSF firewall in CSF config for TCP_OUT ...$(msg end)" --name
+      grep -wq "^TCP_OUT = .*${extra_allow_ports}" /etc/csf/csf.conf
+      retval=$?
+      if [ "${retval}" -eq 1 ]; then
+        csf_ipv4_tcp_out=$(grep -i '^TCP_OUT' /etc/csf/csf.conf | tr -d '"' | cut -d "=" -f2 | sed 's/^ *//g' | awk -v ep=",${extra_allow_ports}" '{ print $1 ep }')
+        sed -i "s/TCP_OUT = .*/TCP_OUT = \"${csf_ipv4_tcp_out}\"/" /etc/csf/csf.conf
+      else
+        _echo "$(msg yellow)[Skipped]: Extra port(s) ${extra_allow_ports} has already been added in CSF config for TCP_OUT before$(msg end)" --name
+      fi
+      echo ""
+      _echo "$(msg cyan)Adding extra port(s) ${extra_allow_ports} in CSF firewall in CSF config for TCP6_IN ...$(msg end)" --name
+      grep -wq "^TCP6_IN = .*${extra_allow_ports}" /etc/csf/csf.conf
+      retval=$?
+      if [ "${retval}" -eq 1 ]; then
+
+        csf_ipv6_tcp_in=$(grep -i '^TCP6_IN' /etc/csf/csf.conf | tr -d '"' | cut -d "=" -f2 | sed 's/^ *//g' | awk -v ep=",${extra_allow_ports}" '{ print $1 ep }')
+        sed -i "s/TCP6_IN = .*/TCP6_IN = \"${csf_ipv6_tcp_in}\"/" /etc/csf/csf.conf
+      else
+        _echo "$(msg yellow)[Skipped]: Extra port(s) ${extra_allow_ports} has already been added in CSF config for TCP6_IN before$(msg end)" --name
+      fi
+      echo ""
+      _echo "$(msg cyan)Adding extra port(s) ${extra_allow_ports} in CSF firewall in CSF config for TCP6_OUT ...$(msg end)" --name
+      grep -wq "^TCP6_OUT = .*${extra_allow_ports}" /etc/csf/csf.conf
+      retval=$?
+      if [ "${retval}" -eq 1 ]; then
+        csf_ipv6_tcp_out=$(grep -i '^TCP6_OUT' /etc/csf/csf.conf | tr -d '"' | cut -d "=" -f2 | sed 's/^ *//g' | awk -v ep=",${extra_allow_ports}" '{ print $1 ep }')
+        sed -i "s/TCP6_OUT = .*/TCP6_OUT = \"${csf_ipv6_tcp_out}\"/" /etc/csf/csf.conf
+      else
+        _echo "$(msg yellow)[Skipped]: Extra port(s) ${extra_allow_ports} has already been added in CSF config for TCP6_OUT before$(msg end)" --name
+      fi
+      echo ""
+
+      # This is used only if server is in bruteforce mode
+      #echo "[${SCRIPT_NAME}]: Setting CONNLIMIT and PORTFLOOD best setting ..."
+      #sed -i 's/CONNLIMIT = ""/CONNLIMIT = "22;5,80;20,443;20"/g' /etc/csf/csf.conf
+      #sed -i 's/PORTFLOOD = ""/PORTFLOOD = "22;tcp;5;300,80;tcp;20;5,443;tcp;20;5"/g' /etc/csf/csf.conf
+      # Disable CSF testing mode
+      _echo "$(msg cyan)Disabling CSF testing mode ...$(msg end)" --name
+      sed -i 's/TESTING = "1"/TESTING = "0"/g' /etc/csf/csf.conf
+      echo ""
+      _echo "$(msg cyan)Enabling CSF SSH email alert LF_SSH_EMAIL_ALERT from 0 to 1 ...$(msg end)" --name
+      sed -i 's/LF_SSH_EMAIL_ALERT = "0"/LF_SSH_EMAIL_ALERT = "1"/g' /etc/csf/csf.conf
+      echo ""
+      _echo "$(msg cyan)Setting CSF LF email alert to email ${C_ADMIN_EMAIL} ...$(msg end)" --name
+      sed -i "s/LF_ALERT_TO = .*/LF_ALERT_TO = '\"${C_ADMIN_EMAIL}\"'/" /etc/csf/csf.conf
+      echo ""
+      _echo "$(msg cyan)Enabling CSF SMTP_BLOCK ...$(msg end)" --name
+      sed -i 's/SMTP_BLOCK = "0"/SMTP_BLOCK = "1"/g' /etc/csf/csf.conf
+      echo ""
+      _echo "$(msg cyan)Setting CSF RESTRICT_SYSLOG from 0 to 3 to avoid warning ...$(msg end)" --name
+      sed -i 's/RESTRICT_SYSLOG = "0"/RESTRICT_SYSLOG = "3"/g' /etc/csf/csf.conf
+      echo ""
+      _echo "$(msg cyan)Setting CSF SYSLOG_CHECK to ${C_CSF_SYSLOG_CHECK} ...$(msg end)" --name
+      sed -i "s/SYSLOG_CHECK = .*/SYSLOG_CHECK = '\"${C_CSF_SYSLOG_CHECK}\"'/" /etc/csf/csf.conf
+      echo ""
+      _echo "$(msg cyan)Setting CSF PT_LOAD_ACTION script path ...$(msg end)" --name
+      # TODO improve this script
+      sed -i "s/^PT_LOAD_ACTION = .*/PT_LOAD_ACTION = \"\/usr\/local\/maxicode\/maxicsf\/csfload\"/" /etc/csf/csf.conf
+      echo ""
+      _echo "$(msg cyan)Setting CSF to send security alert to ${C_ADMIN_EMAIL} ...$(msg end)" --name
+      csf -m "${C_ADMIN_EMAIL}" 2>&1 | tee -a "${REPORT_FILE}"
+      echo ""
+      _echo "$(msg cyan)Enabling LF_IPSET large IP for CSF (if compatible) ...$(msg end)" --name
+      # This method is inspired by this post: https://community.centminmod.com/threads/what-should-be-the-right-value-for-lf_ipset-on-csf-config.2045/
+      kernel_numericver=$(uname -r | awk -F. '{ printf("%d%03d%03d%03d\n", $1,$2,$3,$4); }')
+      if [[ ! -f /proc/user_beancounters ]] && [[ "$(uname -r | grep linode)" || "$(find "/lib/modules/$(uname -r)" -name 'ipset')" ]] || [[ -f /proc/user_beancounters && "${kernel_numericver}" -ge '3000000000' ]]; then
+        if [[ ! -f $(command -v ipset) ]]; then
+          required "centos@@dnf:ipset" "debian@@apt:ipset"
+          sed -i 's/LF_IPSET = \"0\"/LF_IPSET = \"1\"/' /etc/csf/csf.conf
+        elif [[ -f $(command -v ipset) ]]; then
+          sed -i 's/LF_IPSET = \"0\"/LF_IPSET = \"1\"/' /etc/csf/csf.conf
+        fi
+      fi
+      echo ""
+      # Increase block limit from 200 to 2500 (specified in config)
+      _echo "$(msg cyan)Setting CSF DENY_IP_LIMIT to ${C_CSF_DENY_IP_LIMIT} ....$(msg end)" --name
+      sed -i "s/DENY_IP_LIMIT = .*/DENY_IP_LIMIT = '\"${C_CSF_DENY_IP_LIMIT}\"'/" /etc/csf/csf.conf
+      echo ""
+      # CSF Messenger: TODO haven't tested this messenger
+      _echo "$(msg cyan)Enabling CSF Messenger ...$(msg end)" --name
+      sed -i "s/MESSENGER = \"0\"/MESSENGER = \"1\"/" /etc/csf/csf.conf
+      echo ""
+      _echo "$(msg cyan)Adding csf user in the system ...$(msg end)" --name
+      useradd csf -s /bin/false
+      echo ""
+      _echo "$(msg cyan)Inserting CSF RECAPTCHA_SITEKEY ...$(msg end)" --name
+      sed -i "s/RECAPTCHA_SITEKEY = \"\"/RECAPTCHA_SITEKEY = \"${C_GOOGLE_RECAPTCHA_SITE_V2}\"/" /etc/csf/csf.conf
+      echo ""
+      _echo "$(msg cyan)Inserting CSF RECAPTCHA_SECRET ...$(msg end)" --name
+      sed -i "s/RECAPTCHA_SECRET = \"\"/RECAPTCHA_SECRET = \"${C_GOOGLE_RECAPTCHA_SECRET_V2}\"/" /etc/csf/csf.conf
+      echo ""
+      _echo "$(msg cyan)Setting up CSF firewall blacklist template taken from maxicode ...$(msg end)" --name
+      mkdir -p /usr/local/directadmin/data/templates/custom
+      cp "${LATEST_OS_CODE_PATH}/usr/local/directadmin/data/templates/custom/blacklisted_ip.html" "/usr/local/directadmin/data/templates/custom/blacklisted_ip.html"
+      chmod 644 "/usr/local/directadmin/data/templates/custom/blacklisted_ip.html"
+      chown diradmin:diradmin "/usr/local/directadmin/data/templates/custom/blacklisted_ip.html"
+      echo ""
+
+      _echo "$(msg cyan)Testing CSF after installation ...$(msg end)" --name
+      echo ""
+      perl /usr/local/csf/bin/csftest.pl
+      echo ""
+
+      _echo "$(msg cyan)Starting CSF and LFD for the first time ...$(msg end)" --name
+      echo "[${SCRIPT_NAME}]: Before we start it up, please confirm that your sshd port is listed in this output:$(msg end)" --name
+      echo "-----------------"
+      grep ^TCP_IN /etc/csf/csf.conf
+      echo ""
+      _echo "$(msg cyan)If you do NOT see the port listed, press ctrl-c to immediately abort the script (you can add port missing port in maxinet.conf), then re-run this setup$(msg end)" --name
+      _echo "$(msg cyan)If the port correctly added, press enter to continue$(msg end)" --name
+      _pause 30
+      if [ "${DISTRO_ID}" == "centos" ]; then
+        _echo "$(msg cyan)Disabling built-in firewall (firewalld) in CentOS ...$(msg end)" --name
+        systemctl disable firewalld
+        systemctl stop firewalld
+      elif [ "${DISTRO_ID}" == "debian" ]; then
+        _echo "$(msg cyan)Disabling and removing firewall (ufw) in Debian ...$(msg end)" --name
+        sudo ufw disable
+        sudo apt-get -y remove ufw
+        sudo apt-get -y purge ufw
+      else
+        _echo "$(msg red)Error, unknown value for distribution ID ${DISTRO_ID}. This distribution ID is not supported$(msg end)" --name
+        _exit 147
+      fi
+      echo "-----------------"
+      echo "[${SCRIPT_NAME}]: Starting CSF ..."
+      systemctl start csf
+
+      repair_services "csf" "lfd"
+      # By default behaviour, LFD should start automatically when we run csf start
+      # service lfd start 2>&1 | tee -a "${REPORT_FILE}"
+
+      # Since CSF is running without problem after the above check, we temporarily allow current host public IP
+      # This is a temporary allowed IP during setup which won't be blocked by firewall.
+      _echo "$(msg cyan)Temporarily allow IP ${LABEL_C_HOST_PUBLIC_IP} in /etc/etc/csf/csf.allow during setup in CSF$(msg end)" --name
+      csf -a "${C_HOST_PUBLIC_IP}" "Added by ${SCRIPT_NAME} for ${C_BOX_HOSTNAME_FQHN} as temporary allowed IP during setup"
+      # TODO test if the server still need to restart before requesting certificate
+      # After that, the next step is requesting SSL and seems like the box need to restart
+      # The reason it needs to restart here because if I don't restart at this point, the front page is not accessible (seems like port 80 is blocked)
+      # If I don't restart at this point, I will not be able to renew cert (letsencrypt will produce error like firewall problem but it's not).
+      # This is related to Ipv6 DAD. Look at function configure_da_ips() for more information
+      # DAD disable is not working. Still need to restart system. Just restart it and resume later.
+      #echo "[${SCRIPT_NAME}]: Creating reboot flag to restart system after installing CSF ..." 2>&1 | tee -a "${REPORT_FILE}"
+      #cat /dev/null >/var/run/reboot-required
+      #echo "[${SCRIPT_NAME}]: Warning, system will reboot and you can run this script again to continue setup" 2>&1 | tee -a "${REPORT_FILE}"
+      #_pause
+    else
+      _echo "$(msg red)Error, cannot configure CSF because csf.conf is missing. Where the hell is /etc/csf/csf.conf? If the installer might be broken, please reinstall CSF$(msg end)" --name
+      _exit 147
+    fi
+    # System will reboot automatically from above flag
+
+    # TIPS. CSF can be removed with this command:
+    #sh /etc/csf/uninstall.sh
+    check_finish_reboot "${func_name}"
+    exec_time total "${func_name}"
+  else
+    echo ""
+    _echo "$(msg red)=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=$(msg end)" --plain
+    _echo "$(msg yellow)[Skipped]: $(msg magenta)${func_name}()$(msg end) $(msg yellow)has ran before$(msg end)" --name
+  fi
+
+  if [[ "${option}" == "--run-force-exit" || "${option}" == "--run-exit" ]]; then
+    _echo "$(msg yellow)Note: this script is terminated due to the supplied option ${option} from function $(msg magenta)${func_name}()$(msg end) $(msg end)" --name
+    _exit 0
+  fi
+  echo ""
+}
+
+function configure_da_sql() {
+  local option executed_function run func_name
+  option="$1"
+  run="no"
+  func_name="${FUNCNAME[0]}"
+  executed_function="${CONF_PATH}/${func_name}_executed"
+  if [ "${option}" == "--skip-mark" ]; then
+    cat /dev/null >"${executed_function}"
+    #run="no"
+    return 0
+  elif [ "${option}" == "--skip" ]; then
+    #run="no"
+    return 0
+  fi
+  if [[ "${option}" == "--run-force" || "${option}" == "--run-force-exit" ]]; then
+    rm -rf "${executed_function}"
+    run="yes"
+  elif [[ -z "${option}" || "${option}" == "--run" || "${option}" == "--run-exit" ]]; then
+    run="yes"
+  fi
+  if [[ ! -f "${CONF_PATH}/${func_name}_executed" && "${run}" == "yes" ]]; then
+    exec_time start "${func_name}"
+
+    _echo "$(msg cyan)Executing $(msg magenta)${func_name}()$(msg end) $(msg cyan)with option ${option} ...$(msg end)" --name
+    _echo "$(msg red)=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=$(msg end)" --plain
+
+    # Note that during installation MySQL generates a short password and da uses this root password. See the text message below:
+    ##### MySQL root password seems to be unset, setting using MySQL queries...
+    ####Setting password: SET PASSWORD FOR 'root'@'localhost' = PASSWORD('*******');
+    # Mysql root password is stored in setup.txt file
+    local da_scripts_path mysql_on_my_cnf_etc mysql_on_my_cnf_da mysql_on_non_cnf mysql_granted my_cnf_db_root my_cnf_db_da_admin mysql_conf_db_da_admin \
+      randomBlowfishSecret replace_pma_blowfish replace_pma_authtype retval loop_count grep_count
+
+    da_scripts_path="/usr/local/directadmin/scripts"
+    mysql_conf_db_da_admin="/usr/local/directadmin/conf/mysql.conf"
+    my_cnf_db_da_admin="/usr/local/directadmin/conf/my.cnf"
+    my_cnf_db_root="/etc/my.cnf"
+
+    # By default sql root password is blank (this is not secure). Need to create that root password.
+    # This mysqld method can be used only if correct password is supplied in /etc/my.cnf or blank password with no entries in /etc/my.cnf
+    _echo "$(msg cyan)Authenticating mysql ...$(msg end)" --name
+    # 1) Using mysql if it's running and can be authenticated.
+    if command -v mysqld &>/dev/null; then
+      mysql_on_non_cnf=$(
+        mysql -e 'exit'
+        echo $?
+      )
+      # 2) Using config password from /etc/my.cnf"
+      mysql_on_my_cnf_etc=$(
+        mysql --defaults-extra-file=${my_cnf_db_root} -e 'exit'
+        echo $?
+      )
+      # 3) Using config password from /usr/local/directadmin/conf/my.cnf
+      mysql_on_my_cnf_da=$(
+        mysql --defaults-extra-file=${my_cnf_db_da_admin} -e 'exit'
+        echo $?
+      )
+
+      if [ "${mysql_on_non_cnf}" -eq 0 ]; then
+        # In case password is empty then use this (normally initial setup server is empty):
+        mysql_granted="mysql -e"
+        _echo "$(msg green)The mysql will be authenticated without specifying config file with option [ ${mysql_granted} ] ...$(msg end)" --name
+
+      elif [ "${mysql_on_my_cnf_etc}" -eq 0 ]; then
+        mysql_granted="mysql --defaults-extra-file=${my_cnf_db_root} -e"
+        _echo "$(msg green)The mysql will be authenticated using ${my_cnf_db_root} with option [ ${mysql_granted} ]  ...$(msg end)" --name
+      elif [ "${mysql_on_my_cnf_da}" -eq 0 ]; then
+        mysql_granted="mysql --defaults-extra-file=${my_cnf_db_da_admin} -e"
+        _echo "$(msg green)The mysql will be authenticated using ${my_cnf_db_da_admin} with option [ ${mysql_granted} ] ...$(msg end)" --name
+        #sleep 1
+      else
+        # If above not working I can use this: https://help.directadmin.com/item.php?id=45
+        # or this: https://www.directadmin.com/features.php?id=2677
+        _echo "$(msg red)Error, local SQL authentication is needed. If you know your root password, please supply it in ${my_cnf_db_root} or ${my_cnf_db_da_admin}$(msg end)" --name
+        _echo "$(msg red)If you don't know, you may need to reset root password manually using this article: https://help.directadmin.com/item.php?id=45$(msg end)" --name
+        _exit 147
+      fi
+
+      _echo "$(msg cyan)Changing mysql root password ...$(msg end)" --name
+      ${mysql_granted} "ALTER USER 'root'@'localhost' IDENTIFIED BY '${C_DA_ROOT_SQLPASS}';"
+      echo ""
+      if [ -w "${my_cnf_db_root}" ]; then
+        grep_count=$(grep -ic '^password=.*\|^password.*=.*' "${my_cnf_db_root}")
+        #grep -ic '^password=.*\|^password.*=.*' /etc/my.cnf
+        if [ "${grep_count}" = 0 ]; then
+          # Appending the config, because password did not exist
+          _echo "$(msg cyan)Updating new SQL root password in ${my_cnf_db_root} under [client] section ...$(msg end)" --name
+          sed -i "s|\[client\]|&\npassword=${C_DA_ROOT_SQLPASS}|" "${my_cnf_db_root}"
+        else
+          _echo "$(msg cyan)Updating new SQL username root in ${my_cnf_db_root} ...$(msg end)" --name
+          # Password already exist, we just replace
+          sed -i "/\[client\]/,/^\[/ s/password=.*/password=${C_DA_ROOT_SQLPASS}/" "${my_cnf_db_root}"
+        fi
+        echo ""
+        grep_count=$(grep -ic '^user=.*\|^user.*=.*' "${my_cnf_db_root}")
+        if [ "${grep_count}" = 0 ]; then
+          _echo "$(msg cyan)Writing new SQL root username in ${my_cnf_db_root} under [client] section ...$(msg end)" --name
+          #sleep 1
+          # Append under client because did not exist
+          sed -i 's|\[client\]|&\nuser=root|' "${my_cnf_db_root}"
+        else
+          _echo "$(msg cyan)Updating SQL user to root in ${my_cnf_db_root} ...$(msg end)" --name
+          # Already exist, so we replace
+          sed -i "/\[client\]/,/^\[/ s/user=.*/user=root/" "${my_cnf_db_root}"
+        fi
+        echo ""
+
+        grep_count=$(grep -ic '^bind-address=.*\|^bind-address.*=.*' "${my_cnf_db_root}")
+        if [ "${grep_count}" = 0 ]; then
+          _echo "$(msg cyan)Writing new config to disable mysql remote access in ${my_cnf_db_root} under [mysqld] section ...$(msg end)" --name
+          # Append under client because not exist
+          sed -i 's|\[mysqld\]|&\nbind-address=127.0.0.1|' "${my_cnf_db_root}"
+        else
+          _echo "$(msg cyan)Updating config to disable remote access in ${my_cnf_db_root} under [mysqld] section ...$(msg end)" --name
+          # Already exist, but we replace
+          sed -i "/\[mysqld\]/,/^\[/ s/bind-address=.*/bind-address=127.0.0.1/" "${my_cnf_db_root}"
+        fi
+      else
+        _echo "$(msg red)Error, the file ${my_cnf_db_root} is missing. It should exist in that location if mysql is installed through directadmin$(msg end)" --name
+        _exit 147
+      fi
+      echo ""
+
+      _echo "$(msg cyan)Removing unsecured anonymous users from database ...$(msg end)" --name
+      ${mysql_granted} "DELETE FROM mysql.user WHERE user='';"
+      echo ""
+      _echo "$(msg cyan)Removing root users from non-localhost for security ...$(msg end)" --name
+      ${mysql_granted} "DELETE FROM mysql.user WHERE User='root' AND Host NOT IN ('localhost', '127.0.0.1', '::1');"
+      echo ""
+      _echo "$(msg cyan)Removing test database if exist for security ...$(msg end)" --name
+      ${mysql_granted} "DROP DATABASE IF EXISTS test;"
+      echo ""
+      _echo "$(msg cyan)Flushing mysql privileges ...$(msg end)" --name
+      ${mysql_granted} "FLUSH PRIVILEGES;"
+      echo ""
+      # There is no recommendation to change da_admin sql username to something else at this moment,
+      # so ignore username change for sql, just change password.
+      _echo "$(msg cyan)Changing Directadmin da_admin default SQL password ...$(msg end)" --name
+      ${mysql_granted} "ALTER USER 'da_admin'@'localhost' IDENTIFIED BY '${C_DA_ADMIN_SQLPASS}';"
+      echo ""
+      _echo "$(msg cyan)Updating da_admin SQL authentication information at ${mysql_conf_db_da_admin} ...$(msg end)" --name
+      if [ -s ${mysql_conf_db_da_admin} ]; then
+        sed -i "s/^passwd=.*/passwd=${C_DA_ADMIN_SQLPASS}/" ${mysql_conf_db_da_admin}
+      else
+        echo -n '' >${mysql_conf_db_da_admin}
+        chmod 600 ${mysql_conf_db_da_admin}
+        chown diradmin:diradmin ${mysql_conf_db_da_admin}
+        echo "user=da_admin" >>${mysql_conf_db_da_admin}
+        echo "passwd=${C_DA_ADMIN_SQLPASS}" >>${mysql_conf_db_da_admin}
+      fi
+      echo ""
+      _echo "$(msg cyan)Updating da_admin SQL authentication information at ${my_cnf_db_da_admin} ...$(msg end)" --name
+      if [ -s ${my_cnf_db_da_admin} ]; then
+        sed -i "s/^password=.*/password=${C_DA_ADMIN_SQLPASS}/" ${my_cnf_db_da_admin}
+      else
+        echo -n '' >${my_cnf_db_da_admin}
+        chmod 600 ${my_cnf_db_da_admin}
+        chown diradmin:diradmin ${my_cnf_db_da_admin}
+        echo "[client]"
+        echo "user=da_admin" >>${my_cnf_db_da_admin}
+        echo "password=${C_DA_ADMIN_SQLPASS}" >>${my_cnf_db_da_admin}
+      fi
+    else
+      _echo "$(msg red)Error, mysqld is not running. Please inspect why and re-run this script to continue$(msg end)" --name
+      _exit 147
+    fi
+    echo ""
+    # When done, test running mysql in terminal.
+    _echo "$(msg green)[Completed]: Now, you can execute mysql command in terminal to test if mysql authentication was correctly setup$(msg end)" --name
+    echo ""
+
+    # Configuring phpmyadmin htaccess
+    _echo "$(msg cyan)Creating https redirection .htaccess for mysql management (phpMyAdmin) ...$(msg end)" --name
+    touch /var/www/html/phpMyAdmin/.htaccess
+    {
+      echo "RewriteEngine On"
+      echo "RewriteCond %{HTTPS} !=on"
+      echo "RewriteRule ^/?(.*) https://%{SERVER_NAME}${C_PHPMYADMIN_LOGIN_ROUTE}\$1 [R=301,L]"
+    } >/var/www/html/phpMyAdmin/.htaccess
+    chmod 644 /var/www/html/phpMyAdmin/.htaccess
+    chown webapps:webapps /var/www/html/phpMyAdmin/.htaccess
+    echo ""
+
+    _echo "$(msg cyan)Backing up original phpmyadmin config.inc.php at /var/www/html/phpMyAdmin as config.inc.php_original_${DATE_TIME_NOW}...$(msg end)" --name
+    cp -p "/var/www/html/phpMyAdmin/config.inc.php" "/var/www/html/phpMyAdmin/config.inc.php_backup_original_${DATE_TIME_NOW}"
+    echo ""
+
+    _echo "$(msg cyan)Generating new blowfish secret key for phpMyAdmin in config.inc.php ...$(msg end)" --name
+    if [ -f /var/www/html/phpMyAdmin/config.inc.php ]; then
+      # Enabling cookie authentication (so that we can use htpasswd for this)
+      # To enable cookie authentication we need to have blow fish string
+      # Some character might break sed like '/' so we don't want this character because this character can have problem later on.
+      # No need to escape https://stackoverflow.com/questions/65528031/how-to-generate-openssl-blowfish-without-certain-characters-or-allow-certain-set
+      loop_count=0
+      while :; do
+        ((loop_count++))
+        randomBlowfishSecret=$(openssl rand -base64 32)
+        replace_pma_blowfish="\$cfg['blowfish_secret'] = '${randomBlowfishSecret}'; \/* YOU MUST FILL IN THIS FOR COOKIE AUTH! *\/"
+        sed -i "s/\$cfg\[.blowfish_secret.\]\s*=.*/${replace_pma_blowfish}/" /var/www/html/phpMyAdmin/config.inc.php 2>/dev/null
+        retval=$?
+        if [ "${retval}" = 0 ]; then
+          _echo "$(msg green)OK, successfully inserted blowfish secret key into /var/www/html/phpMyAdmin/config.inc.php after ${loop_count} retry(s)$(msg end)" --name
+          break
+        fi
+      done
+      # Warning only use cookie authentication for development
+      _echo "$(msg cyan)Setting phpMyAdmin authentication from http to cookie in config.inc.php to enable page login and httpd protection ...$(msg end)" --name
+      replace_pma_authtype="\$cfg['Servers'][\$i]['auth_type'] = 'cookie';"
+      sed -i "s/\$cfg\['Servers'\]\[\$i\]\['auth_type'\] = 'http';/${replace_pma_authtype}/" /var/www/html/phpMyAdmin/config.inc.php
+    else
+      _echo "$(msg red)Error, phpMyAdmin config file /var/www/html/phpMyAdmin/config.inc.php is missing. Please inspect manually and re-run this script to continue$(msg end)" --name
+      _exit 147
+    fi
+    echo ""
+    # For custom phpMyAdmin theme (not using theme yet). Theme we must get it from maxinet
+    #echo "[${SCRIPT_NAME}]: Setting up phpMyAdmin custom themes ..." 2>&1 | tee -a "${REPORT_FILE}"
+    #sleep 1
+    #cp -p "phpMyAdmin_theme_from_maxinet_called_sofibox" into "/var/www/html/phpMyAdmin/themes/sofibox"
+    # Temporarily no theme yet. In the future put theme here
+    # And all the themes must have this permissions:
+    #chmod 644 for files, chmod 755 for folders
+    # And all must have this users:
+    #chown webapps:webapps /var/www/html/phpMyAdmin/themes/*
+
+    # This is used to fix problem with phpMyAdmin Storage: https://help.directadmin.com/item.php?id=564
+    _echo "$(msg cyan)Creating phpMyAdmin configuration storage database ...$(msg end)" --name
+    cd_to_path "${INST_TEMP_DIR}"
+    wget -O create_tables.sh http://files1.directadmin.com/services/all/phpMyAdmin/create_tables.sh
+    chmod 755 create_tables.sh
+    _echo "$(msg cyan)Executing create_tables.sh to create phpMyAdmin configuration storage database ...$(msg end)" --name
+    ./create_tables.sh
+    echo ""
+
+    _echo "$(msg cyan)Installing mysqltuner ...$(msg end)" --name
+    wget -O /usr/local/sbin/mysqltuner mysqltuner.pl
+    chmod 710 /usr/local/sbin/mysqltuner
+    if command -v mysqltuner &>/dev/null; then
+      _echo "$(msg green)OK, mysqltuner has been installed$(msg end)" --name
+    else
+      _echo "$(msg red)Error, mysqltuner command is missing. Please inspect manually and re-run this script to continue$(msg end)" --name
+      _exit 147
+    fi
+    #mysqltuner
+    #when you execute mysqltuner, you will get suggestion what to tweak for your sql.
+    #The mysqltuner will read directadmin mysql.conf password that you have specified before.
+    #In case it cannot read and trigger an error.
+    #Make sure the password doesn't contain this character > or < because mysqltuner does not support it.
+    # Mysqltuner also does not accept this password: )
+    #[Sample my.cnf at /etc/my.cnf](https://gitlab.com/arafatx/sofibox-luks-earth/-/blob/master/etc/my.cnf)
+
+    # Deprecated
+    #_echo "$(msg cyan)Changing Directadmin da_admin SQL password using directadmin script reset_da_admin_password.sh ... $(msg end)" --name
+    # This script requires that we have root or da_admin password in setup.txt or defined in cnf, else it's not working
+    #${da_scripts_path}/reset_da_admin_password.sh --password "${C_DA_ADMIN_SQLPASS}"
+    #retval=$?
+    #echo "${retval}"
+
+    check_finish_reboot "${func_name}"
+    exec_time total "${func_name}"
+  else
+    echo ""
+    _echo "$(msg red)=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=$(msg end)" --plain
+    _echo "$(msg yellow)[Skipped]: $(msg magenta)${func_name}()$(msg end) $(msg yellow)has ran before$(msg end)" --name
+  fi
+
+  if [[ "${option}" == "--run-force-exit" || "${option}" == "--run-exit" ]]; then
+    _echo "$(msg yellow)Note: this script is terminated due to the supplied option ${option} from function $(msg magenta)${func_name}()$(msg end) $(msg end)" --name
+    _exit 0
+  fi
+  echo ""
+}
+
+# This configure_da_mail can be roundcube squirrelmail or others
+function configure_da_mail() {
+  local option executed_function run func_name
+  option="$1"
+  run="no"
+  func_name="${FUNCNAME[0]}"
+  executed_function="${CONF_PATH}/${func_name}_executed"
+  if [ "${option}" == "--skip-mark" ]; then
+    cat /dev/null >"${executed_function}"
+    #run="no"
+    return 0
+  elif [ "${option}" == "--skip" ]; then
+    #run="no"
+    return 0
+  fi
+  if [[ "${option}" == "--run-force" || "${option}" == "--run-force-exit" ]]; then
+    rm -rf "${executed_function}"
+    run="yes"
+  elif [[ -z "${option}" || "${option}" == "--run" || "${option}" == "--run-exit" ]]; then
+    run="yes"
+  fi
+  if [[ ! -f "${CONF_PATH}/${func_name}_executed" && "${run}" == "yes" ]]; then
+    exec_time start "${func_name}"
+    _echo "$(msg cyan)Executing $(msg magenta)${func_name}()$(msg end) $(msg cyan)with option ${option} ...$(msg end)" --name
+    _echo "$(msg red)=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=$(msg end)" --plain
+    local rc_index_file
+    rc_index_file="/var/www/html/roundcube/index.php"
+    if [ -f ${rc_index_file} ]; then
+      local grep_count rc_version my_cnf_rc_file rc_config_file rc_built_in_plugins \
+        replace_rc_authconf replace_rc_prodname replace_rc_rcguard_recaptcha_privatekey replace_rc_rcguard_recaptcha_publickey
+
+      rc_version=$(grep '| Version' /var/www/html/roundcube/index.php | awk '{ print $3 }')
+      my_cnf_rc_file="/var/www/html/roundcube/config/my.cnf"
+      rc_config_file="/var/www/html/roundcube/config/config.inc.php"
+      _echo "$(msg cyan)Roundcube version ${rc_version} has been detected installed in the system$(msg end)" --name
+      echo ""
+      _echo "$(msg cyan)Backing up roundcube config at ${rc_config_file} as config.inc.php_original_${DATE_TIME_NOW}...$(msg end)" --name
+      cp -p "${rc_config_file}" "${rc_config_file}_backup_original_${DATE_TIME_NOW}"
+      echo ""
+      # By default roundcube is installed with a very short and weak password. We need to change the password to secured one
+      # Remember roundcube password cannot contains character '@ , & and :' because config.inc.php use this separator and won't accept that password.
+      _echo "$(msg cyan)Changing da_roundcube password in user database ...$(msg end)" --name
+      mysql -e "ALTER USER 'da_roundcube'@'localhost' IDENTIFIED BY '${C_DA_ROUNDCUBE_SQLPASS}'; FLUSH PRIVILEGES;"
+      echo ""
+      _echo "$(msg cyan)Updating da_roundcube password in config.inc.php ...$(msg end)" --name
+      replace_rc_authconf="\$config['db_dsnw'] = 'mysql:\/\/da_roundcube:${C_DA_ROUNDCUBE_SQLPASS}@localhost\/da_roundcube';"
+      sed -i "s/\$config\[.db_dsnw.\]\s*=.*/${replace_rc_authconf}/" "${rc_config_file}"
+      echo ""
+      _echo "$(msg cyan)Changing roundcube product name in config.inc.php for display purpose ...$(msg end)" --name
+      replace_rc_prodname="\$config['product_name'] = '${C_ROUNDCUBE_CUSTOM_NAME}';"
+      sed -i "s/\$config\[.product_name.\]\s*=.*/${replace_rc_prodname}/" "${rc_config_file}"
+      echo ""
+
+      grep_count=$(grep -ic "\$config\['force_https'\]" "${rc_config_file}")
+      if [ "${grep_count}" = 0 ]; then
+        _echo "$(msg cyan)Enabling force_https for roundcube at config.inc.php ...$(msg end)" --name
+        #sleep 1
+        echo "\$config['force_https'] = true;" >>"${rc_config_file}"
+      else
+        _echo "$(msg yellow)[Skipped]: The force_https has already been set in roundcube setting config.inc.php previously$(msg end)" --name
+      fi
+      echo ""
+      if [ -s "${my_cnf_rc_file}" ]; then
+        _echo "$(msg cyan)Updating SQL da_roundcube username in ${my_cnf_rc_file} ...$(msg end)" --name
+        sed -i "/\[client\]/,/^\[/ s/user=.*/user=da_roundcube/" "${my_cnf_rc_file}"
+        echo ""
+        _echo "$(msg cyan)Updating SQL da_roundcube password in ${my_cnf_rc_file} ...$(msg end)" --name
+        sed -i "/\[client\]/,/^\[/ s/password=.*/password=${C_DA_ROUNDCUBE_SQLPASS}/" ${my_cnf_rc_file}
+      else
+        # If no file was created, we write this file for my.cnf (roundcube auth sql config)
+        echo -n '' >${my_cnf_rc_file}
+        chmod 600 ${my_cnf_rc_file}
+        chown diradmin:diradmin ${my_cnf_rc_file}
+        echo "[client]"
+        echo "user=da_roundcube" >>${my_cnf_rc_file}
+        echo "password=${C_DA_ROUNDCUBE_SQLPASS}" >>${my_cnf_rc_file}
+      fi
+
+      _echo "$(msg cyan)Enabling some roundcube built-in plugins ...$(msg end)" --name
+      # You can add extra plugin here inside this array:
+      rc_built_in_plugins=("'password',"
+        "'archive',"
+        "'zipdownload',"
+        "'newmail_notifier',"
+        "'managesieve',"
+        "'markasjunk',"
+        "'emoticons',"
+        "'attachment_reminder',"
+        "'new_user_dialog',"
+      )
+      #printf "%s\n" "${rc_built_in_plugins[@]}"
+      for rc_built_in_plugin in "${rc_built_in_plugins[@]}"; do
+        grep_count=$(grep -ic "${rc_built_in_plugin}" "${rc_config_file}")
+        if [ "${grep_count}" -eq 0 ]; then
+          # Use this code and loop above rc_plugins must be array
+          _echo "$(msg cyan)Adding ${rc_built_in_plugin} into roundcube plugin list ...$(msg end)" --name
+          sed -i "s|\$config\[.plugins.\] = array(|&\n    ${rc_built_in_plugin}|" "${rc_config_file}"
+        else
+          _echo "$(msg yellow)[Skipped] The plugin ${rc_built_in_plugin} has already been set in ${rc_config_file}$(msg end)" --name
+        fi
+      done
+      echo ""
+      _echo "$(msg cyan)Installing roundcube 3rd party plugins ...$(msg end)" --name
+      # Here we install roundcube 3rd party plugins
+      if [ "${C_ENABLE_ROUNDCUBE_RCGUARD}" == "true" ]; then
+        # I posted bug here: https://github.com/dsoares/roundcube-rcguard/issues/39, but jus that server restart fixed the problem
+
+        #sleep 1
+        cd_to_path "/var/www/html/roundcube/plugins/"
+        _echo "$(msg cyan)Removing existing rcguard plugin for roundcube ...$(msg end)" --name
+        rm -rf rcguard
+        echo ""
+        _echo "$(msg cyan)Installing rcguard (Google recaptcha) to protect roundcube ...$(msg end)" --name
+        GIT_SSL_NO_VERIFY=true git clone https://github.com/dsoares/rcguard.git rcguard
+        chown -R webapps:webapps rcguard/
+        chmod 755 rcguard
+        cd_to_path "/var/www/html/roundcube/plugins/rcguard/"
+        find . -type d -exec chmod 0755 {} \;
+        find . -type f -exec chmod 0644 {} \;
+        mv config.inc.php.dist config.inc.php
+        echo ""
+
+        _echo "$(msg cyan)Configuring rcguard recaptcha_publickey in config.inc.php ...$(msg end)" --name
+        replace_rc_rcguard_recaptcha_publickey="\$config['recaptcha_publickey'] = '${C_GOOGLE_RECAPTCHA_SITE_V2}';"
+        sed -i "s/\$config\[.recaptcha_publickey.\]\s*=.*/${replace_rc_rcguard_recaptcha_publickey}/" /var/www/html/roundcube/plugins/rcguard/config.inc.php
+        echo ""
+        _echo "$(msg cyan)Configuring rcguard recaptcha_privatekey in config.inc.php ...$(msg end)" --name
+        replace_rc_rcguard_recaptcha_privatekey="\$config['recaptcha_privatekey'] = '${C_GOOGLE_RECAPTCHA_SECRET_V2}';"
+        sed -i "s/\$config\[.recaptcha_privatekey.\]\s*=.*/${replace_rc_rcguard_recaptcha_privatekey}/" /var/www/html/roundcube/plugins/rcguard/config.inc.php
+        echo ""
+        _echo "$(msg cyan)Creating mysql table for rcguard ...$(msg end)" --name
+        # The plugin already provide initial script to create rcguard table in roundcube. So we can just add this sql file under da_roundcube username
+        mysql da_roundcube </var/www/html/roundcube/plugins/rcguard/SQL/mysql.initial.sql
+        echo ""
+        # Add rcguard plugin into roundcube config if doesn't exist
+        grep_count=$(grep -ic "'rcguard'," ${rc_config_file})
+        if [ "${grep_count}" -eq 0 ]; then
+          # Use this code and loop above rc_plugins must be array
+          _echo "$(msg cyan)Adding 'rcguard', into roundcube plugin list ...$(msg end)" --name
+          sed -i "s|\$config\[.plugins.\] = array(|&\n    'rcguard',|" ${rc_config_file}
+        else
+          _echo "$(msg yellow)[Skipped] The plugin 'rcguard', has already been set in ${rc_config_file}$(msg end)" --name
+        fi
+
+      else
+        _echo "$(msg yellow)[Skipped]: rcguard plugin installation config C_ENABLE_ROUNDCUBE_RCGUARD is not set to true$(msg end)" --name
+      fi
+    else
+      _echo "$(msg cyan)[Skipped]: Warning, unable to detect roundcube version (${rc_index_file} was missing)$(msg end)" --name
+    fi
+    # configure other mail here, like squirrelmail from here
+    check_finish_reboot "${func_name}"
+    exec_time total "${func_name}"
+  else
+    echo ""
+    _echo "$(msg red)=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=$(msg end)" --plain
+    _echo "$(msg yellow)[Skipped]: $(msg magenta)${func_name}()$(msg end) $(msg yellow)has ran before$(msg end)" --name
+  fi
+
+  if [[ "${option}" == "--run-force-exit" || "${option}" == "--run-exit" ]]; then
+    _echo "$(msg yellow)Note: this script is terminated due to the supplied option ${option} from function $(msg magenta)${func_name}()$(msg end) $(msg end)" --name
+    _exit 0
+  fi
+  echo ""
+}
+
+function configure_da_ftp() {
+  local option executed_function run func_name
+  option="$1"
+  run="no"
+  func_name="${FUNCNAME[0]}"
+  executed_function="${CONF_PATH}/${func_name}_executed"
+  if [ "${option}" == "--skip-mark" ]; then
+    cat /dev/null >"${executed_function}"
+    #run="no"
+    return 0
+  elif [ "${option}" == "--skip" ]; then
+    #run="no"
+    return 0
+  fi
+  if [[ "${option}" == "--run-force" || "${option}" == "--run-force-exit" ]]; then
+    rm -rf "${executed_function}"
+    run="yes"
+  elif [[ -z "${option}" || "${option}" == "--run" || "${option}" == "--run-exit" ]]; then
+    run="yes"
+  fi
+  if [[ ! -f "${CONF_PATH}/${func_name}_executed" && "${run}" == "yes" ]]; then
+    exec_time start "${func_name}"
+    _echo "$(msg cyan)Executing $(msg magenta)${func_name}()$(msg end) $(msg cyan)with option ${option} ...$(msg end)" --name
+    _echo "$(msg red)=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=$(msg end)" --plain
+    if [ "${C_DA_FTP_SOFTWARE}" == "pureftpd" ]; then
+      local grep_count
+      _echo "$(msg cyan)Setting up pure-ftpd to use log at /var/log/pureftpd.log ...$(msg end)" --name
+      grep_count=$(grep -ic '\-\/var\/log\/pureftpd\.log' /etc/rsyslog.conf)
+      if [ "${grep_count}" -eq 0 ]; then
+        printf "ftp.*\t\t\t\t-/var/log/pureftpd.log\n" >>/etc/rsyslog.conf
+      else
+        _echo "$(msg yellow)[Skipped]: Found ftp log entry '-/var/log/pureftpd.log' at /etc/ryslog.conf$(msg end)" --name
+      fi
+    elif [ "${C_DA_FTP_SOFTWARE}" == "proftpd" ]; then
+      _echo "$(msg yellow)[Skipped]: FTP software proftpd configuration is not yet implemented$(msg end)" --name
+    else
+      _echo "$(msg yellow)[Skipped]: FTP software ${C_DA_FTP_SOFTWARE} configuration is not yet implemented$(msg end)" --name
+    fi
+    # No need to remove ftp log from rsyslog.conf using ftp.none because DA BFM and LFD from CSF needs the log to auto block
+    check_finish_reboot "${func_name}"
+    exec_time total "${func_name}"
+  else
+    echo ""
+    _echo "$(msg red)=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=$(msg end)" --plain
+    _echo "$(msg yellow)[Skipped]: $(msg magenta)${func_name}()$(msg end) $(msg yellow)has ran before$(msg end)" --name
+  fi
+
+  if [[ "${option}" == "--run-force-exit" || "${option}" == "--run-exit" ]]; then
+    _echo "$(msg yellow)Note: this script is terminated due to the supplied option ${option} from function $(msg magenta)${func_name}()$(msg end) $(msg end)" --name
+    _exit 0
+  fi
+  echo ""
+}
+
+# This function only for configuring nginx_apache (it makes URL phpmyadmin or roundcube secure)
+function configure_nginx_apache() {
+  local option executed_function run func_name
+  option="$1"
+  run="no"
+  func_name="${FUNCNAME[0]}"
+  executed_function="${CONF_PATH}/${func_name}_executed"
+  if [ "${option}" == "--skip-mark" ]; then
+    cat /dev/null >"${executed_function}"
+    #run="no"
+    return 0
+  elif [ "${option}" == "--skip" ]; then
+    #run="no"
+    return 0
+  fi
+  if [[ "${option}" == "--run-force" || "${option}" == "--run-force-exit" ]]; then
+    rm -rf "${executed_function}"
+    run="yes"
+  elif [[ -z "${option}" || "${option}" == "--run" || "${option}" == "--run-exit" ]]; then
+    run="yes"
+  fi
+  if [[ ! -f "${CONF_PATH}/${func_name}_executed" && "${run}" == "yes" ]]; then
+    exec_time start "${func_name}"
+    _echo "$(msg cyan)Executing $(msg magenta)${func_name}()$(msg end) $(msg cyan)with option ${option} ...$(msg end)" --name
+    _echo "$(msg red)=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=$(msg end)" --plain
+    local httpd_alias_conf httpd_include_conf httpd_default_conf
+    httpd_alias_conf="/etc/httpd/conf/extra/httpd-alias.conf"
+    httpd_include_conf="/etc/httpd/conf/extra/httpd-includes.conf"
+    httpd_default_conf="/etc/httpd/conf/extra/httpd-default.conf"
+    _echo "$(msg cyan)Backing up original httpd-alias.conf at /etc/httpd/ as httpd-alias.conf_backup_original_${DATE_TIME_NOW} ...$(msg end)" --name
+    cp -p "${httpd_alias_conf}" "${httpd_alias_conf}_backup_original_${DATE_TIME_NOW}"
+    echo ""
+    cat /dev/null >"${httpd_alias_conf}"
+    _echo "$(msg cyan)Writing httpd custom config for httpd-alias.conf in ${httpd_alias_conf} ...$(msg end)" --name
+    {
+      echo "# ==============================================="
+      echo "# This configuration file was generated by ${SCRIPT_NAME}"
+      echo "# Author: ${C_ADMIN_NAME} | Email: ${C_ADMIN_EMAIL} | Web: ${C_BOX_DOMAIN}"
+      echo "# ==============================================="
+      echo "RewriteEngine On"
+      echo "Alias /config \"/var/www/html/redirect.php"\"
+      echo "Alias /.well-known/acme-challenge \"/var/www/html/.well-known/acme-challenge"\"
+      echo ""
+      # Here we can specify what URL should be blocked (with 404.html page)
+      echo "# BLOCKED URLs:"
+      echo "Alias /phpMyAdmin \"/var/www/html/server/error_docs/404.html"\"
+      echo "Alias /phpmyadmin \"/var/www/html/server/error_docs/404.html"\"
+      echo "Alias /pma \"/var/www/html/server/error_docs/404.html"\"
+      echo "Alias /squirrelmail \"/var/www/html/server/error_docs/404.html"\"
+      echo "Alias /webmail \"/var/www/html/server/error_docs/404.html"\"
+      echo "Alias /roundcube \"/var/www/html/server/error_docs/404.html"\"
+      echo ""
+      echo "# CUSTOM URLs:"
+      echo "# PHPMYADMIN custom URL:"
+      echo "Alias ${C_PHPMYADMIN_LOGIN_ROUTE} \"/var/www/html/phpMyAdmin/"\"
+      echo "# ROUNDCUBE custom URL:"
+      echo "Alias ${C_ROUNDCUBE_LOGIN_ROUTE} \"/var/www/html/roundcube/"\"
+      echo "# HTPASSWD secure directories:"
+      echo ""
+    } >>"${httpd_alias_conf}"
+    echo ""
+
+    if [ "${C_SECURE_LOGIN_ROUTE}" == "true" ]; then
+      _echo "$(msg cyan)Protecting phpMyAdmin and roundcube with htpasswd because C_SECURE_LOGIN_ROUTE is se to true ...$(msg end)" --name
+      {
+        echo "#Protect phpMyAdmin directory:"
+        echo "<Directory \"/var/www/html/phpMyAdmin/\">"
+        echo "#AllowOverride AuthConfig"
+        echo "AuthType Basic"
+        echo "AuthName \"${C_BOX_HOSTNAME_FQHN}": DB-Auth\"
+        echo "AuthUserFile /etc/httpd/.htpasswd"
+        echo "Require user ${C_HTTPASSWD_PHPMYADMIN_USERNAME}"
+        echo "</Directory>"
+        echo ""
+        echo "#Protect roundcube directory:"
+        echo "<Directory \"/var/www/html/roundcube/\">"
+        echo "#AllowOverride AuthConfig"
+        echo "AuthType Basic"
+        echo "AuthName \"${C_BOX_HOSTNAME_FQHN}": Mail-Auth\"
+        echo "AuthUserFile /etc/httpd/.htpasswd"
+        echo "Require user ${C_HTTPASSWD_ROUNDCUBE_USERNAME}"
+        echo "</Directory>"
+      } >>"${httpd_alias_conf}"
+
+    else
+      _echo "$(msg cyan)[Skipped]: C_SECURE_LOGIN_ROUTE is not set. Custom URL routes are not protected$(msg end)" --name
+      {
+        echo "##Protect phpMyAdmin directory:"
+        echo "#<Directory \"/var/www/html/phpMyAdmin/\">"
+        echo "##AllowOverride AuthConfig"
+        echo "#AuthType Basic"
+        echo "#AuthName \"${C_BOX_HOSTNAME_FQHN}": DB-Auth\"
+        echo "#AuthUserFile /etc/httpd/.htpasswd"
+        echo "#Require user ${C_HTTPASSWD_PHPMYADMIN_USERNAME}"
+        echo "#</Directory>"
+        echo ""
+        echo "##Protect roundcube directory:"
+        echo "#<Directory \"/var/www/html/roundcube/\">"
+        echo "##AllowOverride AuthConfig"
+        echo "#AuthType Basic"
+        echo "#AuthName \"${C_BOX_HOSTNAME_FQHN}": Mail-Auth\"
+        echo "#AuthUserFile /etc/httpd/.htpasswd"
+        echo "#Require user ${C_HTTPASSWD_ROUNDCUBE_USERNAME}"
+        echo "#</Directory>"
+      } >>"${httpd_alias_conf}"
+
+    fi
+    echo ""
+    ######## Temporarily disable this because we do not need to force redirection (might have issue), just backup
+    _echo "$(msg cyan)Backing up original httpd-includes.conf at ${httpd_include_conf} as ${httpd_include_conf}_backup_original_${DATE_TIME_NOW} ...$(msg end)" --name
+    cp -p "${httpd_include_conf}" "${httpd_include_conf}_backup_original_${DATE_TIME_NOW}"
+
+    ## It is a new file, so we make sure it is exist
+    #cat /dev/null >"${httpd_include_conf}"
+    # _echo "$(msg cyan)Writing https redirection for all routes in httpd-includes.conf ...$(msg end)" --name
+    #{
+    #  # Make https for all directories (This will take over force https setting at Directadmin)
+    #  echo "# ==============================================="
+    #  echo "# This configuration file was generated by ${SCRIPT_NAME}"
+    #  echo "# Author: ${C_ADMIN_NAME} | Email: ${C_ADMIN_EMAIL} | Web: ${C_BOX_DOMAIN}"
+    #  echo "# ==============================================="
+    #  echo "<location /*>"
+    #  echo "RewriteEngine On"
+    #  echo "RewriteCond %{HTTPS} off"
+    #  echo "RewriteRule (.*) https://%{HTTP_HOST}%{REQUEST_URI}"
+    #  echo "</location>"
+    #} >>${httpd_include_conf}
+    #echo ""
+    _echo "$(msg cyan)Backing up original httpd-default.conf at ${httpd_default_conf} as ${httpd_default_conf}_backup_original_${DATE_TIME_NOW} ...$(msg end)" --name
+    cp -p "${httpd_default_conf}" "${httpd_default_conf}_backup_original_${DATE_TIME_NOW}"
+    echo ""
+    _echo "$(msg cyan)Customizing server config at ${httpd_default_conf} ...$(msg end)" --name
+    sed -i 's|^ServerTokens .*|ServerTokens Prod|' ${httpd_default_conf}
+    sed -i 's|^ServerSignature .*|ServerSignature Off|' ${httpd_default_conf}
+    echo ""
+    # Restarting web server based on config file ( do not rewrite_confs because that command will replace everything to default )
+    _echo "$(msg cyan)Requesting to restart web server ...$(msg end)" --name
+    restart_da_web_server
+    echo ""
+    check_finish_reboot "${func_name}"
+    exec_time total "${func_name}"
+  else
+    echo ""
+    _echo "$(msg red)=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=$(msg end)" --plain
+    _echo "$(msg yellow)[Skipped]: $(msg magenta)${func_name}()$(msg end) $(msg yellow)has ran before$(msg end)" --name
+  fi
+
+  if [[ "${option}" == "--run-force-exit" || "${option}" == "--run-exit" ]]; then
+    _echo "$(msg yellow)Note: this script is terminated due to the supplied option ${option} from function $(msg magenta)${func_name}()$(msg end) $(msg end)" --name
+    _exit 0
+  fi
+  echo ""
+}
+
+function build_da_custom_settings() {
+  # This function will create / copy all custom configs like roundcube, phpmyadmin, ap2 etc in DA custom folder
+  # So when we update Directadmin, it won't replace these files.
+  local option executed_function run func_name
+  option="$1"
+  run="no"
+  func_name="${FUNCNAME[0]}"
+  executed_function="${CONF_PATH}/${func_name}_executed"
+  if [ "${option}" == "--skip-mark" ]; then
+    cat /dev/null >"${executed_function}"
+    #run="no"
+    return 0
+  elif [ "${option}" == "--skip" ]; then
+    #run="no"
+    return 0
+  fi
+  if [[ "${option}" == "--run-force" || "${option}" == "--run-force-exit" ]]; then
+    rm -rf "${executed_function}"
+    run="yes"
+  elif [[ -z "${option}" || "${option}" == "--run" || "${option}" == "--run-exit" ]]; then
+    run="yes"
+  fi
+  if [[ ! -f "${CONF_PATH}/${func_name}_executed" && "${run}" == "yes" ]]; then
+    exec_time start "${func_name}"
+    _echo "$(msg cyan)Executing $(msg magenta)${func_name}()$(msg end) $(msg cyan)with option ${option} ...$(msg end)" --name
+    _echo "$(msg red)=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=$(msg end)" --plain
+    # This will build custom config for DA with secured settings
+    local da_cb_bin da_cb_custom_conf_path httpd_alias_conf httpd_include_conf phpmyadmin_path roundcube_path
+    da_cb_bin="/usr/local/directadmin/custombuild/build"
+    da_cb_custom_conf_path="/usr/local/directadmin/custombuild/custom"
+    httpd_alias_conf="/etc/httpd/conf/extra/httpd-alias.conf"
+    httpd_include_conf="/etc/httpd/conf/extra/httpd-includes.conf"
+    httpd_default_conf="/etc/httpd/conf/extra/httpd-default.conf"
+    phpmyadmin_path="/var/www/html/phpMyAdmin"
+    roundcube_path="/var/www/html/roundcube"
+
+    # 1) create custom folder at /usr/local/directadmin/custombuild/custom/ap2/conf/extra
+    _echo "$(msg cyan)Creating a custom config folder for apache/httpd (ap2) at ${da_cb_custom_conf_path}/ap2/conf/extra ...$(msg end)" --name
+    mkdir -p "${da_cb_custom_conf_path}/ap2/conf/extra"
+    echo ""
+    _echo "$(msg cyan)Copying httpd-alias.conf into DA custom ap2 folder ...$(msg end)" --name
+    cp -p "${httpd_alias_conf}" "${da_cb_custom_conf_path}/ap2/conf/extra/httpd-alias.conf"
+    echo ""
+    _echo "$(msg cyan)Copying httpd-includes.conf into ${da_cb_custom_conf_path}/ap2/conf/extra/httpd-includes.conf ...$(msg end)" --name
+    cp -p "${httpd_include_conf}" "${da_cb_custom_conf_path}/ap2/conf/extra/httpd-includes.conf"
+    echo ""
+
+    _echo "$(msg cyan)Copying httpd-default.conf into ${da_cb_custom_conf_path}/ap2/conf/extra/httpd-default.conf ...$(msg end)" --name
+    cp -p "${httpd_default_conf}" "${da_cb_custom_conf_path}/ap2/conf/extra/httpd-default.conf"
+    echo ""
+
+    # 2 For phpmyadmin custom config
+    _echo "$(msg cyan)Creating a custom config folder for phpMyAdmin at ${da_cb_custom_conf_path}/phpMyAdmin ...$(msg end)" --name
+    mkdir -p "${da_cb_custom_conf_path}/phpmyadmin"
+    echo ""
+    # .htaccess
+    _echo "$(msg cyan)Copying phpMyAdmin .htaccess into phpmyadmin DA custom folder ...$(msg end)" --name
+    #sleep 1
+    cp -p "/var/www/html/phpMyAdmin/.htaccess" "/usr/local/directadmin/custombuild/custom/phpmyadmin/.htaccess"
+    echo ""
+    # config.inc.php
+    _echo "$(msg cyan)Copying original phpmyadmin config from ${phpmyadmin_path}/config.inc.php into ${da_cb_custom_conf_path}/phpmyadmin/config.inc.php ...$(msg end)" --name
+    #sleep 1
+    cp -p "${phpmyadmin_path}/config.inc.php" "${da_cb_custom_conf_path}/phpmyadmin/config.inc.php"
+    echo ""
+
+    # For custom phpMyAdmin theme (not using theme yet) leave this comment until I have new custom theme
+    #mkdir -p /usr/local/directadmin/custombuild/custom/phpmyadmin/themes
+    #echo "[${SCRIPT_NAME}]: Copying custom phpMyAdmin themes ..." 2>&1 | tee -a "${REPORT_FILE}"
+    #cp -p "/var/www/html/phpMyAdmin/themes/sofibox" "/usr/local/directadmin/custombuild/custom/phpmyadmin/themes/sofibox"
+    #sleep 1
+
+    #3 - For main roundcube (2 important files: config.inc.php, my.cnf)
+    _echo "$(msg cyan)Creating a custom config folder for roundcube at ${da_cb_custom_conf_path}/roundcube ...$(msg end)" --name
+    mkdir -p "${da_cb_custom_conf_path}/roundcube"
+    echo ""
+    _echo "$(msg cyan)Copying original roundcube config from into DA roundcube custom folder ...$(msg end)" --name
+    #sleep 1
+    cp -p "${roundcube_path}/config/config.inc.php" "${da_cb_custom_conf_path}/roundcube/config.inc.php"
+    echo ""
+    # Remember when rebuild roundcube ./build roundcube DA will automatically update my.cnf. Don't touch that.
+    # I wrote answer here: https://forum.directadmin.com/threads/script-to-reset-da_admin-da_roundcube-password.57101/#post-324944
+
+    #4 - For roundcube rcguard plugin (copy the whole folder)
+    _echo "$(msg cyan)Creating a custom config folder for roundcube plugins ${da_cb_custom_conf_path}/roundcube/plugins ...$(msg end)" --name
+    mkdir -p /usr/local/directadmin/custombuild/custom/roundcube/plugins/
+    echo ""
+    _echo "$(msg cyan)Copying custom roundcube custom plugins ...$(msg end)" --name
+    cp -p -r ${roundcube_path}/plugins/rcguard ${da_cb_custom_conf_path}/roundcube/plugins/
+    echo ""
+
+    #n - For others later in here
+
+    # TODO if problem with modsecurity use this custom config (monitoring this):
+    #    cd /usr/local/directadmin/custombuild/
+    #mkdir -p custom/nginx_reverse/conf/
+    #[ -f "custom/nginx_reverse/conf/nginx-modsecurity.conf" ] || cp -p configure/nginx_reverse/conf/nginx-modsecurity.conf custom/nginx_reverse/conf/nginx-modsecurity.conf
+    #perl -pi -e "s/^SecDefaultAction /#SecDefaultAction /" custom/nginx_reverse/conf/nginx-modsecurity.conf
+    #./build rewrite_confs
+
+    #n-Create custom php ini file here (create custom php ini file here with the following information) -- what is the purpose? find it out
+    # increase memory consumption or upload sql size, make custom path in custom/php.conf.d
+    #https://forum.directadmin.com/threads/solved-customized-50-webapps-ini-and-10-directadmin-ini.61045/#post-312326
+
+    # at the end must do build phpmyadmin, roundcube, rewrite_confs to save httpd changes.
+    # Need to rebuild this because previously we change config.inc.php. Better rebuild for new setting.
+    _echo "$(msg cyan)Rebuilding phpMyAdmin for new settings ...$(msg end)" --name
+    ${da_cb_bin} phpmyadmin
+    echo ""
+    _echo "$(msg cyan)Rebuilding roundcube for new settings ...$(msg end)" --name
+    ${da_cb_bin} roundcube
+    echo ""
+    _echo "$(msg cyan)Rebuilding server configs for new settings ...$(msg end)" --name
+    ${da_cb_bin} rewrite_confs 1>/dev/null 2>/dev/null
+    echo ""
+
+    # Rebuilding other directadmin package more starting here if needed ...
+    check_finish_reboot "${func_name}"
+    exec_time total "${func_name}"
+  else
+    echo ""
+    _echo "$(msg red)=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=$(msg end)" --plain
+    _echo "$(msg yellow)[Skipped]: $(msg magenta)${func_name}()$(msg end) $(msg yellow)has ran before$(msg end)" --name
+  fi
+
+  if [[ "${option}" == "--run-force-exit" || "${option}" == "--run-exit" ]]; then
+    _echo "$(msg yellow)Note: this script is terminated due to the supplied option ${option} from function $(msg magenta)${func_name}()$(msg end) $(msg end)" --name
+    _exit 0
+  fi
+  echo ""
+}
+
+# Configure apps in /var/www/html
+function configure_web_apps() {
+  local option executed_function run func_name
+  option="$1"
+  run="no"
+  func_name="${FUNCNAME[0]}"
+  executed_function="${CONF_PATH}/${func_name}_executed"
+  if [ "${option}" == "--skip-mark" ]; then
+    cat /dev/null >"${executed_function}"
+    #run="no"
+    return 0
+  elif [ "${option}" == "--skip" ]; then
+    #run="no"
+    return 0
+  fi
+  if [[ "${option}" == "--run-force" || "${option}" == "--run-force-exit" ]]; then
+    rm -rf "${executed_function}"
+    run="yes"
+  elif [[ -z "${option}" || "${option}" == "--run" || "${option}" == "--run-exit" ]]; then
+    run="yes"
+  fi
+  if [[ ! -f "${CONF_PATH}/${func_name}_executed" && "${run}" == "yes" ]]; then
+    exec_time start "${func_name}"
+    _echo "$(msg cyan)Executing $(msg magenta)${func_name}()$(msg end) $(msg cyan)with option ${option} ...$(msg end)" --name
+    _echo "$(msg red)=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=$(msg end)" --plain
+
+    # TODO update and copy that webapps here (it should from maxinet)
+    # every custom webapps like /billing should be here
+    cat /dev/null >/var/www/html/index.php
+    {
+      echo "<? php"
+      echo "MaXi32 - Arafat Ali - Rebuilding"
+      echo "?>"
+    } >/var/www/html/index.php
+
+    chmod 644 /var/www/html/index.php
+    chown webapps:webapps /var/www/html/index.php
+
+    check_finish_reboot "${func_name}"
+    exec_time total "${func_name}"
+  else
+    echo ""
+    _echo "$(msg red)=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=$(msg end)" --plain
+    _echo "$(msg yellow)[Skipped]: $(msg magenta)${func_name}()$(msg end) $(msg yellow)has ran before$(msg end)" --name
+  fi
+
+  if [[ "${option}" == "--run-force-exit" || "${option}" == "--run-exit" ]]; then
+    _echo "$(msg yellow)Note: this script is terminated due to the supplied option ${option} from function $(msg magenta)${func_name}()$(msg end) $(msg end)" --name
+    _exit 0
+  fi
+  echo ""
+}
+
+# For configuring admin setting and extra hardening any DA related installation
+function configure_da_settings() {
+  # TODO until here
+  local option executed_function run func_name
+  option="$1"
+  run="no"
+  func_name="${FUNCNAME[0]}"
+  executed_function="${CONF_PATH}/${func_name}_executed"
+  if [ "${option}" == "--skip-mark" ]; then
+    cat /dev/null >"${executed_function}"
+    #run="no"
+    return 0
+  elif [ "${option}" == "--skip" ]; then
+    #run="no"
+    return 0
+  fi
+  if [[ "${option}" == "--run-force" || "${option}" == "--run-force-exit" ]]; then
+    rm -rf "${executed_function}"
+    run="yes"
+  elif [[ -z "${option}" || "${option}" == "--run" || "${option}" == "--run-exit" ]]; then
+    run="yes"
+  fi
+  if [[ ! -f "${CONF_PATH}/${func_name}_executed" && "${run}" == "yes" ]]; then
+    exec_time start "${func_name}"
+    _echo "$(msg cyan)Executing $(msg magenta)${func_name}()$(msg end) $(msg cyan)with option ${option} ...$(msg end)" --name
+    _echo "$(msg red)=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=$(msg end)" --plain
+    local da_bin da_cb_bin
+
+    da_bin="/usr/local/directadmin/directadmin"
+    da_cb_bin="/usr/local/directadmin/custombuild/build"
+    if [ ! -f "${da_bin}" ]; then
+      _echo "$(msg Error)Error, directadmin binary does not exist!$(msg end)" --name
+      _exit 147
+    fi
+
+    _echo "$(msg cyan)Enforcing Directadmin difficult password ...$(msg end)" --name
+    ${da_bin} set enforce_difficult_passwords 1
+    echo ""
+    # This setting force_hostname will only allow hostname url login in Directadmin. For example, without this option you can use any domain within directadmin system to login.
+    # eg: userdomain.com:2222 . Sometimes this user does not have valid certificate, thus this will cause security issue.
+    # so, it is better to redirect to one hostname with a valid certificate:
+    # Also explained in here: https://www.directadmin.com/features.php?id=917
+    # It is recommend to enable this option for security
+    _echo "$(msg cyan)Enabling directadmin to force login with only hostname ${LABEL_C_BOX_HOSTNAME_FQHN} ...$(msg end)" --name
+    ${da_bin} set force_hostname "${C_BOX_HOSTNAME_FQHN}"
+    echo ""
+    _echo "$(msg cyan)Securing all php installation ...$(msg end)" --name
+    ${da_cb_bin} secure_php
+    echo ""
+    _echo "$(msg cyan)Enabling Directadmin backup encryption ...$(msg end)" --name
+    ${da_bin} set allow_backup_encryption 1
+    echo ""
+    _echo "$(msg cyan)Setting Directadmin online help ...$(msg end)" --name
+    ${da_bin} set admin_helper "${C_DA_HELP_DOMAIN}"
+    ${da_bin} set reseller_helper "${C_DA_HELP_DOMAIN}"
+    ${da_bin} set user_helper "${C_DA_HELP_DOMAIN}"
+    echo ""
+
+    # For DA Administrator Settings:
+    da_api_admin "start+admin"
+    echo "[${SCRIPT_NAME}]: Configuring Directadmin Admin settings ..."
+    da_api_admin "set-admin-settings"
+    echo "[${SCRIPT_NAME}]: Configuring Directadmin Server, Security and Email settings ..."
+    da_api_admin "set-server-settings"
+    # TODO look at the post about DA external import js, try to avoid that for security and apply it here
+    check_finish_reboot "${func_name}"
+    exec_time total "${func_name}"
+  else
+    echo ""
+    _echo "$(msg red)=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=$(msg end)" --plain
+    _echo "$(msg yellow)[Skipped]: $(msg magenta)${func_name}()$(msg end) $(msg yellow)has ran before$(msg end)" --name
+  fi
+
+  if [[ "${option}" == "--run-force-exit" || "${option}" == "--run-exit" ]]; then
+    _echo "$(msg yellow)Note: this script is terminated due to the supplied option ${option} from function $(msg magenta)${func_name}()$(msg end) $(msg end)" --name
+    _exit 0
+  fi
+  echo ""
 }
 
 # This is the pre-requirement before getting ssl
@@ -8716,16 +10249,16 @@ function configure_da_ssl_pre() {
   fi
   if [[ ! -f "${CONF_PATH}/${FUNCNAME[0]}_executed" && "${run}" == "yes" ]]; then
     echo "[${SCRIPT_NAME}]: Executing ${FUNCNAME[0]} ..." 2>&1 | tee -a "${REPORT_FILE}"
-    local da_bin cb_bin
+    local da_bin da_cb_bin
     da_bin="/usr/local/directadmin/directadmin"
-    cb_bin="/usr/local/directadmin/custombuild/build"
+    da_cb_bin="/usr/local/directadmin/custombuild/build"
     # Not enabling this yet
     # echo "[${SCRIPT_NAME}]: Setting directadmin ddns_ttl=1 at directadmin.conf ..." 2>&1 | tee -a "${REPORT_FILE}"
     # sleep 1
     # ${da_bin} set ddns_ttl 1
     # install the latest letsencrypt here (this will only get the latest letsencrypt.sh)
     echo "[${SCRIPT_NAME}]: Installing the latest letsencrypt.sh for Directadmin ..." 2>&1 | tee -a "${REPORT_FILE}"
-    ${cb_bin} letsencrypt 2>&1 | tee -a "${REPORT_FILE}"
+    ${da_cb_bin} letsencrypt 2>&1 | tee -a "${REPORT_FILE}"
     sleep 1
     # Need to reboot
     echo "[${SCRIPT_NAME}]: Creating reboot flag to restart system before requesting SSL certificate for Directadmin ..." 2>&1 | tee -a "${REPORT_FILE}"
@@ -8770,9 +10303,9 @@ function configure_da_ssl() {
   if [[ ! -f "${CONF_PATH}/${FUNCNAME[0]}_executed" && "${run}" == "yes" ]]; then
     echo "[${SCRIPT_NAME}]: Executing ${FUNCNAME[0]} ..." 2>&1 | tee -a "${REPORT_FILE}"
     if [ "${C_ENABLE_DA_HOST_SSL}" == "true" ]; then
-      local da_bin cb_bin da_script_path
+      local da_bin da_cb_bin da_script_path
       da_bin="/usr/local/directadmin/directadmin"
-      cb_bin="/usr/local/directadmin/custombuild/build"
+      da_cb_bin="/usr/local/directadmin/custombuild/build"
       da_script_path="/usr/local/directadmin/scripts"
       echo "[${SCRIPT_NAME}]: Configuring Directadmin SSL Certificate ..." 2>&1 | tee -a "${REPORT_FILE}"
       #0) Set the ssl_redirect_host
@@ -8780,10 +10313,10 @@ function configure_da_ssl() {
       ${da_bin} set ssl_redirect_host "${C_BOX_HOSTNAME_FQHN}" 2>&1 | tee -a "${REPORT_FILE}"
 
       echo "[${SCRIPT_NAME}]: Setting redirect_host_https no in Directadmin options.conf config ..." 2>&1 | tee -a "${REPORT_FILE}"
-      ${cb_bin} set redirect_host_https no 2>&1 | tee -a "${REPORT_FILE}"
+      ${da_cb_bin} set redirect_host_https no 2>&1 | tee -a "${REPORT_FILE}"
       sleep 1
       echo "[${SCRIPT_NAME}]: Setting use_hostname_for_alias yes in Directadmin options.conf config ..." 2>&1 | tee -a "${REPORT_FILE}"
-      ${cb_bin} set use_hostname_for_alias yes 2>&1 | tee -a "${REPORT_FILE}"
+      ${da_cb_bin} set use_hostname_for_alias yes 2>&1 | tee -a "${REPORT_FILE}"
       sleep 1
       #https://help.directadmin.com/item.php?id=629
       #1) Make sure enable_ssl_sni=1 in directadmin.conf (internal value is already default to 1, so if enable_ssl_sni has no entry this code does nothing)
@@ -8796,7 +10329,7 @@ function configure_da_ssl() {
       sleep 1
       #3) Add wellknown-alias
       echo "[${SCRIPT_NAME}]: Creating dummy acme-challenge texts through custombuild rewrite_confs ..." 2>&1 | tee -a "${REPORT_FILE}"
-      ${cb_bin} rewrite_confs
+      ${da_cb_bin} rewrite_confs
       sleep 1
       #4) Install letsencrypt latest version at pre function
       #5) Disable ssl=0 # This one fixed issue where you cannot request cert using ssl=1.
@@ -8816,7 +10349,7 @@ function configure_da_ssl() {
       echo "[${SCRIPT_NAME}]: Enabling ssl=1 in directadmin.conf config..." 2>&1 | tee -a "${REPORT_FILE}"
       ${da_bin} set ssl 1 2>&1 | tee -a "${REPORT_FILE}"
       echo "[${SCRIPT_NAME}]: Setting redirect_host_https yes in Directadmin options.conf config ..." 2>&1 | tee -a "${REPORT_FILE}"
-      ${cb_bin} set redirect_host_https yes 2>&1 | tee -a "${REPORT_FILE}"
+      ${da_cb_bin} set redirect_host_https yes 2>&1 | tee -a "${REPORT_FILE}"
       sleep 1
       # Always a good idea to restart DA after changing directadmin.conf
       restart_da
@@ -8828,824 +10361,6 @@ function configure_da_ssl() {
     echo "=~=~=~=~=~=~=~=~=~" 2>&1 | tee -a "${REPORT_FILE}"
   fi
 
-  if [[ "${option}" == "--run-force-exit" || "${option}" == "--run-exit" ]]; then
-    _echo "$(msg yellow)Warning, script terminated due to the supplied option ${option}$(msg end)" --name
-    exit 0
-  fi
-}
-
-function configure_da_sql() {
-  local option executed_function run
-  option="$1"
-  run="no"
-  executed_function="${CONF_PATH}/${FUNCNAME[0]}_executed"
-  if [ "${option}" == "--skip-mark" ]; then
-    cat /dev/null >"${executed_function}"
-    #run="no"
-    return 0
-  elif [ "${option}" == "--skip" ]; then
-    #run="no"
-    return 0
-  fi
-  if [[ "${option}" == "--run-force" || "${option}" == "--run-force-exit" ]]; then
-    rm -rf "${executed_function}"
-    run="yes"
-  elif [[ -z "${option}" || "${option}" == "--run" || "${option}" == "--run-exit" ]]; then
-    run="yes"
-  fi
-  if [[ ! -f "${CONF_PATH}/${FUNCNAME[0]}_executed" && "${run}" == "yes" ]]; then
-    echo "[${SCRIPT_NAME}]: Executing ${FUNCNAME[0]} ..." 2>&1 | tee -a "${REPORT_FILE}"
-    # Note that during installation MySQL generates a short password and DA use this root password. See the text message below:
-    # Heard someone said in the forum that root password is not set but that was wrong.
-    ##### MySQL root password seems to be unset, setting using MySQL queries...
-    ####Setting password: SET PASSWORD FOR 'root'@'localhost' = PASSWORD('*******');
-    local da_scripts_path mysql_on_my_cnf_etc mysql_on_my_cnf_da mysql_on_non_cnf gc mysql_granted my_cnf_db_root my_cnf_db_da_admin mysql_conf_db_da_admin
-    local randomBlowfishSecret replace_pma_blowfish replace_pma_authtype ret_code loop_count
-
-    da_scripts_path="/usr/local/directadmin/scripts"
-    mysql_conf_db_da_admin="/usr/local/directadmin/conf/mysql.conf"
-    my_cnf_db_da_admin="/usr/local/directadmin/conf/my.cnf"
-    my_cnf_db_root="/etc/my.cnf"
-
-    echo "[${SCRIPT_NAME}]: Securing mysql installation ..." 2>&1 | tee -a "${REPORT_FILE}"
-    echo "===============================" 2>&1 | tee -a "${REPORT_FILE}"
-    #sleep 1
-    # By default sql root password is blank (this is not secure). Need to create that root password.
-    # This mysqld method can be used only if correct password is supplied in /etc/my.cnf or blank password with no entries in /etc/my.cnf
-
-    # Using mysql if it's running and can be authenticated.
-    if command -v mysqld &>/dev/null; then
-
-      mysql_on_non_cnf=$(
-        mysql -e 'exit'
-        echo $?
-      )
-      mysql_on_my_cnf_etc=$(
-        mysql --defaults-extra-file=${my_cnf_db_root} -e 'exit'
-        echo $?
-      )
-      mysql_on_my_cnf_da=$(
-        mysql --defaults-extra-file=${my_cnf_db_da_admin} -e 'exit'
-        echo $?
-      )
-
-      if [ "${mysql_on_non_cnf}" -eq 0 ]; then
-        # In case password is empty then use this (normally initial setup server is empty):
-        echo "[${SCRIPT_NAME}]: Authenticating mysql without specifying config ..." 2>&1 | tee -a "${REPORT_FILE}"
-        mysql_granted="mysql -e"
-        echo "[${SCRIPT_NAME}]: Success, mysql command is able to login without specifying config file. mysql_granted is set to: ${mysql_granted}" 2>&1 | tee -a "${REPORT_FILE}"
-        #sleep 1
-      elif [ "${mysql_on_my_cnf_etc}" -eq 0 ]; then
-        echo "[${SCRIPT_NAME}]: Authenticating mysql using ${my_cnf_db_root} ..." 2>&1 | tee -a "${REPORT_FILE}"
-        mysql_granted="mysql --defaults-extra-file=${my_cnf_db_root} -e"
-        echo "[${SCRIPT_NAME}]: Success, mysql command is able to login using ${my_cnf_db_root}. mysql_granted is set to: ${mysql_granted}" 2>&1 | tee -a "${REPORT_FILE}"
-        #sleep 1
-      elif [ "${mysql_on_my_cnf_da}" -eq 0 ]; then
-        echo "[${SCRIPT_NAME}]: Authenticating mysql using ${my_cnf_db_da_admin} ..." 2>&1 | tee -a "${REPORT_FILE}"
-        mysql_granted="mysql --defaults-extra-file=${my_cnf_db_da_admin} -e"
-        echo "[${SCRIPT_NAME}]: Success, mysql command is able to login using ${my_cnf_db_da_admin}. mysql_granted is set to: ${mysql_granted}" 2>&1 | tee -a "${REPORT_FILE}"
-        #sleep 1
-      else
-        # If above not working I can use this: https://help.directadmin.com/item.php?id=45
-        # or this: https://www.directadmin.com/features.php?id=2677
-        echo "[${SCRIPT_NAME}]: Error, local SQL authentication is needed. If you know your root password, please supply it in ${my_cnf_db_root} or ${my_cnf_db_da_admin}" 2>&1 | tee -a "${REPORT_FILE}"
-        echo "If you don't know, you may need to reset root password manually using this article: https://help.directadmin.com/item.php?id=45" 2>&1 | tee -a "${REPORT_FILE}"
-        _exit 147
-      fi
-
-      echo "[${SCRIPT_NAME}]: Changing mysql root password ... " 2>&1 | tee -a "${REPORT_FILE}"
-      ${mysql_granted} "ALTER USER 'root'@'localhost' IDENTIFIED BY '${C_DA_ROOT_SQLPASS}';"
-      if [ -w "${my_cnf_db_root}" ]; then
-
-        gc=$(grep -ic '^password=.*\|^password.*=.*' "${my_cnf_db_root}")
-        #grep -ic '^password=.*\|^password.*=.*' /etc/my.cnf
-        if [ "${gc}" = 0 ]; then
-          # Append because not exist
-          echo "[${SCRIPT_NAME}]: Updating new SQL root password in ${my_cnf_db_root} under [client] section ... " 2>&1 | tee -a "${REPORT_FILE}"
-          #sleep 1
-          sed -i "s|\[client\]|&\npassword=${C_DA_ROOT_SQLPASS}|" "${my_cnf_db_root}"
-        else
-          echo "[${SCRIPT_NAME}]: Updating new SQL username root in ${my_cnf_db_root} ... " 2>&1 | tee -a "${REPORT_FILE}"
-          # Already exist, but we replace
-          sed -i "/\[client\]/,/^\[/ s/password=.*/password=${C_DA_ROOT_SQLPASS}/" "${my_cnf_db_root}"
-        fi
-        gc=$(grep -ic '^user=.*\|^user.*=.*' "${my_cnf_db_root}")
-        if [ "${gc}" = 0 ]; then
-          echo "[${SCRIPT_NAME}]: Updating new SQL root username in ${my_cnf_db_root} under [client] section ... " 2>&1 | tee -a "${REPORT_FILE}"
-          #sleep 1
-          # Append under client because not exist
-          sed -i 's|\[client\]|&\nuser=root|' "${my_cnf_db_root}"
-        else
-          echo "[${SCRIPT_NAME}]: Setting SQL user to root in ${my_cnf_db_root} ... " 2>&1 | tee -a "${REPORT_FILE}"
-          # Already exist, but we replace
-          sed -i "/\[client\]/,/^\[/ s/user=.*/user=root/" "${my_cnf_db_root}"
-        fi
-        gc=$(grep -ic '^bind-address=.*\|^bind-address.*=.*' "${my_cnf_db_root}")
-        if [ "${gc}" = 0 ]; then
-          echo "[${SCRIPT_NAME}]: Disabling mysql remote access in ${my_cnf_db_root} under [mysqld] section ... " 2>&1 | tee -a "${REPORT_FILE}"
-          #sleep 1
-          # Append under client because not exist
-          sed -i 's|\[mysqld\]|&\nbind-address=127.0.0.1|' "${my_cnf_db_root}"
-        else
-          echo "[${SCRIPT_NAME}]: Updating mysql remote access as bind-address=127.0.0.1 in ${my_cnf_db_root} under [mysqld] section ... " 2>&1 | tee -a "${REPORT_FILE}"
-          # Already exist, but we replace
-          sed -i "/\[mysqld\]/,/^\[/ s/bind-address=.*/bind-address=127.0.0.1/" "${my_cnf_db_root}"
-        fi
-      else
-        echo "[${SCRIPT_NAME}]: Warning, file ${my_cnf_db_root} is missing. It should exist in this location if mysql is installed through DA" 2>&1 | tee -a "${REPORT_FILE}"
-        _exit 147
-      fi
-
-      echo "[${SCRIPT_NAME}]: Removing unsecured anonymous users from database ... " 2>&1 | tee -a "${REPORT_FILE}"
-      #sleep 1
-      ${mysql_granted} "DELETE FROM mysql.user WHERE user='';"
-      echo "[${SCRIPT_NAME}]: Removing root users from non-localhost for security ... " 2>&1 | tee -a "${REPORT_FILE}"
-      #sleep 1
-      ${mysql_granted} "DELETE FROM mysql.user WHERE User='root' AND Host NOT IN ('localhost', '127.0.0.1', '::1');"
-      echo "[${SCRIPT_NAME}]: Removing test database if exist for security ... " 2>&1 | tee -a "${REPORT_FILE}"
-      #sleep 1
-      ${mysql_granted} "DROP DATABASE IF EXISTS test;"
-      echo "[${SCRIPT_NAME}]: Flushing mysql privileges ... " 2>&1 | tee -a "${REPORT_FILE}"
-      #sleep 1
-      ${mysql_granted} "FLUSH PRIVILEGES;"
-      # There is no recommendation to change da_admin sql username to something else at this moment,
-      # so ignore username change for sql, just change password.
-      echo "[${SCRIPT_NAME}]: Changing Directadmin da_admin default SQL password ... " 2>&1 | tee -a "${REPORT_FILE}"
-      #sleep 1
-      ${mysql_granted} "ALTER USER 'da_admin'@'localhost' IDENTIFIED BY '${C_DA_ADMIN_SQLPASS}';"
-      echo "[${SCRIPT_NAME}]: Updating da_admin SQL authentication information at ${mysql_conf_db_da_admin} ... " 2>&1 | tee -a "${REPORT_FILE}"
-      #sleep 1
-
-      if [ -s ${mysql_conf_db_da_admin} ]; then
-        sed -i "s/^passwd=.*/passwd=${C_DA_ADMIN_SQLPASS}/" ${mysql_conf_db_da_admin}
-      else
-        echo -n '' >${mysql_conf_db_da_admin}
-        chmod 600 ${mysql_conf_db_da_admin}
-        chown diradmin:diradmin ${mysql_conf_db_da_admin}
-        echo "user=da_admin" >>${mysql_conf_db_da_admin}
-        echo "passwd=${C_DA_ADMIN_SQLPASS}" >>${mysql_conf_db_da_admin}
-      fi
-
-      if [ -s ${my_cnf_db_da_admin} ]; then
-        sed -i "s/^password=.*/password=${C_DA_ADMIN_SQLPASS}/" ${my_cnf_db_da_admin}
-      else
-        echo -n '' >${my_cnf_db_da_admin}
-        chmod 600 ${my_cnf_db_da_admin}
-        chown diradmin:diradmin ${my_cnf_db_da_admin}
-        echo "[client]"
-        echo "user=da_admin" >>${my_cnf_db_da_admin}
-        echo "password=${C_DA_ADMIN_SQLPASS}" >>${my_cnf_db_da_admin}
-      fi
-    else
-      echo "[${SCRIPT_NAME}]: Warning, mysqld is not running. Please inspect why and re-run this script to resume setup." 2>&1 | tee -a "${REPORT_FILE}"
-      _exit 147
-    fi
-    # When done, test running mysql in terminal.
-    echo "[${SCRIPT_NAME}]: [Completed]: Now, you can test running 'mysql' command in terminal to see if authentication was correctly setup" 2>&1 | tee -a "${REPORT_FILE}"
-    sleep 2
-
-    # Configuring phpmyadmin htaccess
-    echo "[${SCRIPT_NAME}]: Creating https redirection .htaccess for phpMyAdmin ..." 2>&1 | tee -a "${REPORT_FILE}"
-    sleep 1
-    touch /var/www/html/phpMyAdmin/.htaccess
-    {
-      echo "RewriteEngine On"
-      echo "RewriteCond %{HTTPS} !=on"
-      echo "RewriteRule ^/?(.*) https://%{SERVER_NAME}${C_PHPMYADMIN_LOGIN_ROUTE}\$1 [R=301,L]"
-    } >/var/www/html/phpMyAdmin/.htaccess
-    chmod 644 /var/www/html/phpMyAdmin/.htaccess
-    chown webapps:webapps /var/www/html/phpMyAdmin/.htaccess
-
-    echo "[${SCRIPT_NAME}]: Backing up original phpmyadmin config.inc.php at /var/www/html/phpMyAdmin as config.inc.php_original_${DATE_TIME_NOW}..." 2>&1 | tee -a "${REPORT_FILE}"
-    sleep 1
-    cp -p "/var/www/html/phpMyAdmin/config.inc.php" "/var/www/html/phpMyAdmin/config.inc.php_original_${DATE_TIME_NOW}"
-
-    echo "[${SCRIPT_NAME}]: Generating new blowfish secret key for phpMyAdmin in config.inc.php ..." 2>&1 | tee -a "${REPORT_FILE}"
-    #sleep 1
-    # Enabling cookie authentication (so that we can use htpasswd for this)
-    # To enable cookie authentication we need to have blow fish string
-    # Some character might break sed like '/' so we don't want this character because this character can have problem later on.
-    # No need to escape https://stackoverflow.com/questions/65528031/how-to-generate-openssl-blowfish-without-certain-characters-or-allow-certain-set
-    loop_count=0
-    while :; do
-      ((loop_count++))
-      randomBlowfishSecret=$(openssl rand -base64 32)
-      replace_pma_blowfish="\$cfg['blowfish_secret'] = '${randomBlowfishSecret}'; \/* YOU MUST FILL IN THIS FOR COOKIE AUTH! *\/"
-      sed -i "s/\$cfg\[.blowfish_secret.\]\s*=.*/${replace_pma_blowfish}/" /var/www/html/phpMyAdmin/config.inc.php 2>/dev/null
-      ret_code=$?
-      if [ "${ret_code}" = 0 ]; then
-        echo "[${SCRIPT_NAME}]: Successfully inserted blowfish secret key into /var/www/html/phpMyAdmin/config.inc.php after ${loop_count} retry(s)" 2>&1 | tee -a "${REPORT_FILE}"
-        break
-      fi
-    done
-
-    echo "[${SCRIPT_NAME}]: Setting phpMyAdmin authentication from http to cookie in config.inc.php to enable page login and httpd protection ..." 2>&1 | tee -a "${REPORT_FILE}"
-    sleep 1
-    replace_pma_authtype="\$cfg['Servers'][\$i]['auth_type'] = 'cookie';"
-    sed -i "s/\$cfg\['Servers'\]\[\$i\]\['auth_type'\] = 'http';/${replace_pma_authtype}/" /var/www/html/phpMyAdmin/config.inc.php
-
-    # For custom phpMyAdmin theme (not using theme yet). Theme we must get it from maxinet
-    #echo "[${SCRIPT_NAME}]: Setting up phpMyAdmin custom themes ..." 2>&1 | tee -a "${REPORT_FILE}"
-    #sleep 1
-    #cp -p "phpMyAdmin_theme_from_maxinet_called_sofibox" into "/var/www/html/phpMyAdmin/themes/sofibox"
-    # Temporarily no theme yet. In the future put theme here
-    # And all the themes must have this permissions:
-    #chmod 644 for files, chmod 755 for folders
-    # And all must have this users:
-    #chown webapps:webapps /var/www/html/phpMyAdmin/themes/*
-
-    # This is used to fix problem with phpMyAdmin Storage: https://help.directadmin.com/item.php?id=564
-    cd_to_path "${INST_TEMP_DIR}"
-    echo "[${SCRIPT_NAME}]: Creating phpMyAdmin configuration storage database ..." 2>&1 | tee -a "${REPORT_FILE}"
-    wget -O create_tables.sh http://files1.directadmin.com/services/all/phpMyAdmin/create_tables.sh
-    chmod 755 create_tables.sh
-    echo "[${SCRIPT_NAME}]: Executing create_tables.sh to create phpMyAdmin configuration storage database ..." 2>&1 | tee -a "${REPORT_FILE}"
-    ./create_tables.sh
-
-    #TODO install mysql tuner after all above to check mysql or phpmyadmin status here:
-    #wget -O /usr/local/sbin/mysqltuner mysqltuner.pl
-    #chmod 710 /usr/local/sbin/mysqltuner
-    #mysqltuner
-    #when you execute mysqltuner, you will get suggestion what to tweak for your sql.
-    #The mysqltuner will read directadmin mysql.conf password that you have specified before.
-    #In case it cannot read and trigger an error.
-    #Make sure the password doesn't contain this character > or < because mysqltuner does not support it.
-    # Mysqltuner also does not accept this password: )
-    #[Sample my.cnf at /etc/my.cnf](https://gitlab.com/arafatx/sofibox-luks-earth/-/blob/master/etc/my.cnf)
-    check_finish_reboot "${FUNCNAME[0]}"
-  else
-    echo "[${SCRIPT_NAME}]: [Skipped]: ${FUNCNAME[0]} has ran before" 2>&1 | tee -a "${REPORT_FILE}"
-    #sleep 1
-    echo "=~=~=~=~=~=~=~=~=~" 2>&1 | tee -a "${REPORT_FILE}"
-  fi
-
-  # Deprecated:
-  # echo "[${SCRIPT_NAME}]: Changing Directadmin da_admin SQL password using DA custom script ... " 2>&1 | tee -a "${REPORT_FILE}"
-  # This script requires that we have root or da_admin password defined in cnf, else it's not working
-  # ${da_scripts_path}/reset_da_admin_password.sh --password "${C_DA_ADMIN_SQLPASS}"
-  if [[ "${option}" == "--run-force-exit" || "${option}" == "--run-exit" ]]; then
-    _echo "$(msg yellow)Warning, script terminated due to the supplied option ${option}$(msg end)" --name
-    exit 0
-  fi
-}
-# This configure_da_mail can be roundcube squirrelmail or others
-function configure_da_mail() {
-  local option executed_function run
-  option="$1"
-  run="no"
-  executed_function="${CONF_PATH}/${FUNCNAME[0]}_executed"
-  if [ "${option}" == "--skip-mark" ]; then
-    cat /dev/null >"${executed_function}"
-    #run="no"
-    return 0
-  elif [ "${option}" == "--skip" ]; then
-    #run="no"
-    return 0
-  fi
-  if [[ "${option}" == "--run-force" || "${option}" == "--run-force-exit" ]]; then
-    rm -rf "${executed_function}"
-    run="yes"
-  elif [[ -z "${option}" || "${option}" == "--run" || "${option}" == "--run-exit" ]]; then
-    run="yes"
-  fi
-  if [[ ! -f "${CONF_PATH}/${FUNCNAME[0]}_executed" && "${run}" == "yes" ]]; then
-    echo "[${SCRIPT_NAME}]: Executing ${FUNCNAME[0]} ..." 2>&1 | tee -a "${REPORT_FILE}"
-    local rc_index_file
-    rc_index_file="/var/www/html/roundcube/index.php"
-    if [ -f ${rc_index_file} ]; then
-      local grep_count my_cnf_rc_file replace_rc_authconf replace_rc_prodname rc_config_file
-      local replace_rc_rcguard_recaptcha_privatekey replace_rc_rcguard_recaptcha_publickey rc_built_in_plugins rc_version
-      rc_version=$(grep '| Version' /var/www/html/roundcube/index.php | awk '{ print $3 }')
-      echo "[${SCRIPT_NAME}]: OK, roundcube version ${rc_version} has been detected" 2>&1 | tee -a "${REPORT_FILE}"
-      echo "[${SCRIPT_NAME}]: Configuring roundcube ${rc_version} installation ..." 2>&1 | tee -a "${REPORT_FILE}"
-      sleep 2
-
-      my_cnf_rc_file="/var/www/html/roundcube/config/my.cnf"
-      rc_config_file="/var/www/html/roundcube/config/config.inc.php"
-      echo "[${SCRIPT_NAME}]: Backing up original roundcube config.inc.php at /var/www/html/roundcube/config/config.inc.php as config.inc.php_original_${DATE_TIME_NOW}..." 2>&1 | tee -a "${REPORT_FILE}"
-      #sleep 1
-      cp -p "/var/www/html/roundcube/config/config.inc.php" "/var/www/html/roundcube/config/config.inc.php_original_${DATE_TIME_NOW}"
-
-      echo "[${SCRIPT_NAME}]: Securing roundcube installation ..." 2>&1 | tee -a "${REPORT_FILE}"
-      echo "===============================" 2>&1 | tee -a "${REPORT_FILE}"
-      #sleep 1
-      # By default roundcube is installed with a very short and weak password. We need to change the password to secured one
-      # Remember roundcube password cannot contains character '@ , & and :' because config.inc.php use this separator and won't accept that password.
-      echo "[${SCRIPT_NAME}]: Changing da_roundcube password in user database ..." 2>&1 | tee -a "${REPORT_FILE}"
-      #sleep 1
-      mysql -e "ALTER USER 'da_roundcube'@'localhost' IDENTIFIED BY '${C_DA_ROUNDCUBE_SQLPASS}'; FLUSH PRIVILEGES;"
-      echo "[${SCRIPT_NAME}]: Updating da_roundcube password in config.inc.php ..." 2>&1 | tee -a "${REPORT_FILE}"
-      #sleep 1
-      replace_rc_authconf="\$config['db_dsnw'] = 'mysql:\/\/da_roundcube:${C_DA_ROUNDCUBE_SQLPASS}@localhost\/da_roundcube';"
-      sed -i "s/\$config\[.db_dsnw.\]\s*=.*/${replace_rc_authconf}/" "${rc_config_file}"
-
-      echo "[${SCRIPT_NAME}]: Changing DA product name in config.inc.php ..." 2>&1 | tee -a "${REPORT_FILE}"
-      #sleep 1
-      replace_rc_prodname="\$config['product_name'] = '${C_ROUNDCUBE_CUSTOM_NAME}';"
-      sed -i "s/\$config\[.product_name.\]\s*=.*/${replace_rc_prodname}/" "${rc_config_file}"
-
-      grep_count=$(grep -ic "\$config\['force_https'\]" "${rc_config_file}")
-      if [ "${grep_count}" = 0 ]; then
-        echo "[${SCRIPT_NAME}]: Enabling force_https for roundcube at config.inc.php ..." 2>&1 | tee -a "${REPORT_FILE}"
-        #sleep 1
-        echo "\$config['force_https'] = true;" >>"${rc_config_file}"
-      else
-        echo "[${SCRIPT_NAME}]: The roundcube setting config.inc.php has already set force_https" 2>&1 | tee -a "${REPORT_FILE}"
-      fi
-
-      if [ -s "${my_cnf_rc_file}" ]; then
-        echo "[${SCRIPT_NAME}]: Updating SQL da_roundcube username in ${my_cnf_rc_file} ... " 2>&1 | tee -a "${REPORT_FILE}"
-        #sleep 1
-        sed -i "/\[client\]/,/^\[/ s/user=.*/user=da_roundcube/" "${my_cnf_rc_file}"
-        echo "[${SCRIPT_NAME}]: Updating SQL da_roundcube password in ${my_cnf_rc_file} ... " 2>&1 | tee -a "${REPORT_FILE}"
-        #sleep 1
-        sed -i "/\[client\]/,/^\[/ s/password=.*/password=${C_DA_ROUNDCUBE_SQLPASS}/" ${my_cnf_rc_file}
-      else
-        # If no file was created, we write this file for my.cnf (roundcube auth sql config)
-        echo -n '' >${my_cnf_rc_file}
-        chmod 600 ${my_cnf_rc_file}
-        chown diradmin:diradmin ${my_cnf_rc_file}
-        echo "[client]"
-        echo "user=da_roundcube" >>${my_cnf_rc_file}
-        echo "password=${C_DA_ROUNDCUBE_SQLPASS}" >>${my_cnf_rc_file}
-      fi
-
-      echo "[${SCRIPT_NAME}]: Enabling some roundcube built-in plugins ... " 2>&1 | tee -a "${REPORT_FILE}"
-      #sleep 1
-      rc_built_in_plugins=("'password',"
-        "'archive',"
-        "'zipdownload',"
-        "'newmail_notifier',"
-        "'managesieve',"
-        "'markasjunk',"
-        "'emoticons',"
-        "'attachment_reminder',"
-        "'new_user_dialog',"
-      )
-      #printf "%s\n" "${rc_built_in_plugins[@]}"
-      for rc_built_in_plugin in "${rc_built_in_plugins[@]}"; do
-        grep_count=$(grep -ic "${rc_built_in_plugin}" "${rc_config_file}")
-        if [ "${grep_count}" -eq 0 ]; then
-          # Use this code and loop above rc_plugins must be array
-          echo "[${SCRIPT_NAME}]: Adding ${rc_built_in_plugin} into roundcube plugin list ..." 2>&1 | tee -a "${REPORT_FILE}"
-          #sleep 1
-          sed -i "s|\$config\[.plugins.\] = array(|&\n    ${rc_built_in_plugin}|" "${rc_config_file}"
-        else
-          echo "[${SCRIPT_NAME}]: [Skipped] The plugin ${rc_built_in_plugin} has already been set in ${rc_config_file}" 2>&1 | tee -a "${REPORT_FILE}"
-        fi
-      done
-
-      echo "[${SCRIPT_NAME}]: Installing roundcube 3rd party plugins ... " 2>&1 | tee -a "${REPORT_FILE}"
-      # Here we install roundcube 3rd party plugins
-      if [ "${C_ENABLE_ROUNDCUBE_RCGUARD}" == "true" ]; then
-
-        #sleep 1
-        # I posted bug here: https://github.com/dsoares/roundcube-rcguard/issues/39, but jus that server restart fixed the problem
-        echo "[${SCRIPT_NAME}]: Installing rcguard (Google recaptcha) to protect roundcube ... " 2>&1 | tee -a "${REPORT_FILE}"
-        #sleep 1
-        cd_to_path "/var/www/html/roundcube/plugins/"
-        GIT_SSL_NO_VERIFY=true git clone https://github.com/dsoares/rcguard.git rcguard
-        chown -R webapps:webapps rcguard/
-        chmod 755 rcguard
-        cd_to_path "/var/www/html/roundcube/plugins/rcguard/"
-        find . -type d -exec chmod 0755 {} \;
-        find . -type f -exec chmod 0644 {} \;
-        mv config.inc.php.dist config.inc.php
-
-        echo "[${SCRIPT_NAME}]: Configuring rcguard recaptcha_publickey in config.inc.php ..." 2>&1 | tee -a "${REPORT_FILE}"
-        #sleep 1
-        replace_rc_rcguard_recaptcha_publickey="\$config['recaptcha_publickey'] = '${C_GOOGLE_RECAPTCHA_SITE_V2}';"
-        sed -i "s/\$config\[.recaptcha_publickey.\]\s*=.*/${replace_rc_rcguard_recaptcha_publickey}/" /var/www/html/roundcube/plugins/rcguard/config.inc.php
-        echo "[${SCRIPT_NAME}]: Configuring rcguard recaptcha_privatekey in config.inc.php ..." 2>&1 | tee -a "${REPORT_FILE}"
-        #sleep 1
-        replace_rc_rcguard_recaptcha_privatekey="\$config['recaptcha_privatekey'] = '${C_GOOGLE_RECAPTCHA_SECRET_V2}';"
-        sed -i "s/\$config\[.recaptcha_privatekey.\]\s*=.*/${replace_rc_rcguard_recaptcha_privatekey}/" /var/www/html/roundcube/plugins/rcguard/config.inc.php
-        echo "[${SCRIPT_NAME}]: Creating mysql table for rcguard ..." 2>&1 | tee -a "${REPORT_FILE}"
-        #sleep 1
-        # The plugin already provide initial script to create rcguard table in roundcube. So we can just add this sql file under da_roundcube username
-        mysql da_roundcube </var/www/html/roundcube/plugins/rcguard/SQL/mysql.initial.sql
-
-        # Add rcguard plugin into roundcube config if doesn't exist
-        grep_count=$(grep -ic "'rcguard'," /var/www/html/roundcube/config/config.inc.php)
-        if [ "${grep_count}" -eq 0 ]; then
-          # Use this code and loop above rc_plugins must be array
-          echo "[${SCRIPT_NAME}]: Adding 'rcguard', into roundcube plugin list ..."
-          #sleep 1
-          sed -i "s|\$config\[.plugins.\] = array(|&\n    'rcguard',|" /var/www/html/roundcube/config/config.inc.php
-        else
-          echo "[${SCRIPT_NAME}]: [Skipped] The plugin 'rcguard', has already been set in /var/www/html/roundcube/config/config.inc.php  " 2>&1 | tee -a "${REPORT_FILE}"
-        fi
-
-      else
-        echo "[${SCRIPT_NAME}]: [Skipped]: rcguard plugin installation is not set to yes" 2>&1 | tee -a "${REPORT_FILE}"
-      fi
-    else
-      echo "[${SCRIPT_NAME}]: [Skipped]: no roundcube has been installed (unable to detect index.php)" 2>&1 | tee -a "${REPORT_FILE}"
-    fi
-
-    # configure other mail here, like squirrelmail
-    check_finish_reboot "${FUNCNAME[0]}"
-  else
-    echo "[${SCRIPT_NAME}]: [Skipped]: ${FUNCNAME[0]} has ran before" 2>&1 | tee -a "${REPORT_FILE}"
-    #sleep 1
-    echo "=~=~=~=~=~=~=~=~=~" 2>&1 | tee -a "${REPORT_FILE}"
-  fi
-  if [[ "${option}" == "--run-force-exit" || "${option}" == "--run-exit" ]]; then
-    _echo "$(msg yellow)Warning, script terminated due to the supplied option ${option}$(msg end)" --name
-    exit 0
-  fi
-}
-
-function configure_da_ftp() {
-  local option executed_function run
-  option="$1"
-  run="no"
-  executed_function="${CONF_PATH}/${FUNCNAME[0]}_executed"
-  if [ "${option}" == "--skip-mark" ]; then
-    cat /dev/null >"${executed_function}"
-    #run="no"
-    return 0
-  elif [ "${option}" == "--skip" ]; then
-    #run="no"
-    return 0
-  fi
-  if [[ "${option}" == "--run-force" || "${option}" == "--run-force-exit" ]]; then
-    rm -rf "${executed_function}"
-    run="yes"
-  elif [[ -z "${option}" || "${option}" == "--run" || "${option}" == "--run-exit" ]]; then
-    run="yes"
-  fi
-  if [[ ! -f "${CONF_PATH}/${FUNCNAME[0]}_executed" && "${run}" == "yes" ]]; then
-    echo "[${SCRIPT_NAME}]: Executing ${FUNCNAME[0]} ..." 2>&1 | tee -a "${REPORT_FILE}"
-    local gc
-    gc=$(grep -ic '\-\/var\/log\/pureftpd\.log' /etc/rsyslog.conf)
-    if [ "${gc}" -eq 0 ]; then
-      echo "[${SCRIPT_NAME}]: Setting pure-ftpd to use log at /var/log/pureftpd.log ..." 2>&1 | tee -a "${REPORT_FILE}"
-      #sleep 1
-      printf "ftp.*\t\t\t\t-/var/log/pureftpd.log\n" >>/etc/rsyslog.conf
-    else
-      echo "[${SCRIPT_NAME}]: [Skipped]: Found ftp log entry '-/var/log/pureftpd.log' at /etc/ryslog.conf" 2>&1 | tee -a "${REPORT_FILE}"
-    fi
-    # No need to remove ftp log from rsyslog.conf using ftp.none because DA BFM and LFD from CSF needs the log to auto block
-    check_finish_reboot "${FUNCNAME[0]}"
-  else
-    echo "[${SCRIPT_NAME}]: [Skipped]: ${FUNCNAME[0]} has ran before" 2>&1 | tee -a "${REPORT_FILE}"
-    echo "=~=~=~=~=~=~=~=~=~" 2>&1 | tee -a "${REPORT_FILE}"
-  fi
-  if [[ "${option}" == "--run-force-exit" || "${option}" == "--run-exit" ]]; then
-    _echo "$(msg yellow)Warning, script terminated due to the supplied option ${option}$(msg end)" --name
-    exit 0
-  fi
-}
-# This function only for configuring nginx_apache (it makes URL phpmyadmin or roundcube secure)
-function configure_nginx_apache() {
-  local option executed_function run
-  option="$1"
-  run="no"
-  executed_function="${CONF_PATH}/${FUNCNAME[0]}_executed"
-  if [ "${option}" == "--skip-mark" ]; then
-    cat /dev/null >"${executed_function}"
-    #run="no"
-    return 0
-  elif [ "${option}" == "--skip" ]; then
-    #run="no"
-    return 0
-  fi
-  if [[ "${option}" == "--run-force" || "${option}" == "--run-force-exit" ]]; then
-    rm -rf "${executed_function}"
-    run="yes"
-  elif [[ -z "${option}" || "${option}" == "--run" || "${option}" == "--run-exit" ]]; then
-    run="yes"
-  fi
-  if [[ ! -f "${CONF_PATH}/${FUNCNAME[0]}_executed" && "${run}" == "yes" ]]; then
-    echo "[${SCRIPT_NAME}]: Executing ${FUNCNAME[0]} ..." 2>&1 | tee -a "${REPORT_FILE}"
-    echo "[${SCRIPT_NAME}]: Backing up original httpd-alias.conf at /etc/httpd/ as httpd-alias.conf_original_${DATE_TIME_NOW} ..." 2>&1 | tee -a "${REPORT_FILE}"
-    #sleep 1
-    cp -p "/etc/httpd/conf/extra/httpd-alias.conf" "/etc/httpd/conf/extra/httpd-alias.conf_original_${DATE_TIME_NOW}"
-    echo "[${SCRIPT_NAME}]: Creating DA custom config for httpd-alias.conf ..." 2>&1 | tee -a "${REPORT_FILE}"
-    #sleep 1
-    cat /dev/null >/etc/httpd/conf/extra/httpd-alias.conf
-    {
-      echo "# ==============================================="
-      echo "# This configuration file was generated by ${SCRIPT_NAME}"
-      echo "# Author: ${C_ADMIN_NAME} | Email: ${C_ADMIN_EMAIL} | Web: ${C_BOX_DOMAIN}"
-      echo "# ==============================================="
-      echo "RewriteEngine On"
-      echo "Alias /config "\"/var/www/html/redirect.php"\""
-      echo "Alias /.well-known/acme-challenge "\"/var/www/html/.well-known/acme-challenge"\""
-      echo ""
-      # Here we can specify what URL should be blocked (with 404.html page)
-      echo "# BLOCKED URLs:"
-      echo "Alias /phpMyAdmin "\"/var/www/html/server/error_docs/404.html"\""
-      echo "Alias /phpmyadmin "\"/var/www/html/server/error_docs/404.html"\""
-      echo "Alias /pma "\"/var/www/html/server/error_docs/404.html"\""
-      echo "Alias /squirrelmail "\"/var/www/html/server/error_docs/404.html"\""
-      echo "Alias /webmail "\"/var/www/html/server/error_docs/404.html"\""
-      echo "Alias /roundcube "\"/var/www/html/server/error_docs/404.html"\""
-      echo ""
-      echo "# CUSTOM URLs:"
-      echo "# PHPMYADMIN custom URL:"
-      echo "Alias ${C_PHPMYADMIN_LOGIN_ROUTE} "\"/var/www/html/phpMyAdmin/"\""
-      echo "# ROUNDCUBE custom URL:"
-      echo "Alias ${C_ROUNDCUBE_LOGIN_ROUTE} "\"/var/www/html/roundcube/"\""
-      echo "# HTPASSWD secure directories:"
-      echo ""
-    } >>/etc/httpd/conf/extra/httpd-alias.conf
-    if [ "${C_SECURE_LOGIN_ROUTE}" == "true" ]; then
-      echo "[${SCRIPT_NAME}]: C_SECURE_LOGIN_ROUTE is set to yes. creating htpasswd authentication for custom routes ..." 2>&1 | tee -a "${REPORT_FILE}"
-      #sleep 1
-      {
-        echo "#Protect phpMyAdmin directory:"
-        echo "<Directory "\"/var/www/html/phpMyAdmin/"\">"
-        echo "#AllowOverride AuthConfig"
-        echo "AuthType Basic"
-        echo "AuthName "\""${C_BOX_HOSTNAME_FQHN}": DB-Auth"\""
-        echo "AuthUserFile /etc/httpd/.htpasswd"
-        echo "Require user ${C_HTTPASSWD_PHPMYADMIN_USERNAME}"
-        echo "</Directory>"
-        echo ""
-        echo "#Protect roundcube directory:"
-        echo "<Directory "\"/var/www/html/roundcube/"\">"
-        echo "#AllowOverride AuthConfig"
-        echo "AuthType Basic"
-        echo "AuthName "\""${C_BOX_HOSTNAME_FQHN}": Mail-Auth"\""
-        echo "AuthUserFile /etc/httpd/.htpasswd"
-        echo "Require user ${C_HTTPASSWD_ROUNDCUBE_USERNAME}"
-        echo "</Directory>"
-      } >>/etc/httpd/conf/extra/httpd-alias.conf
-
-    else
-      echo "[${SCRIPT_NAME}]: [skipped]: SECURE HTTPASSWD_LOGIN_ROUTE is set to no. Custom URL routes are not protected" 2>&1 | tee -a "${REPORT_FILE}"
-      #sleep 1
-      {
-        echo "##Protect phpMyAdmin directory:"
-        echo "#<Directory "\"/var/www/html/phpMyAdmin/"\">"
-        echo "##AllowOverride AuthConfig"
-        echo "#AuthType Basic"
-        echo "#AuthName "\""${C_BOX_HOSTNAME_FQHN}": DB-Auth"\""
-        echo "#AuthUserFile /etc/httpd/.htpasswd"
-        echo "#Require user ${C_HTTPASSWD_PHPMYADMIN_USERNAME}"
-        echo "#</Directory>"
-        echo ""
-        echo "##Protect roundcube directory:"
-        echo "#<Directory "\"/var/www/html/roundcube/"\">"
-        echo "##AllowOverride AuthConfig"
-        echo "#AuthType Basic"
-        echo "#AuthName "\""${C_BOX_HOSTNAME_FQHN}": Mail-Auth"\""
-        echo "#AuthUserFile /etc/httpd/.htpasswd"
-        echo "#Require user ${C_HTTPASSWD_ROUNDCUBE_USERNAME}"
-        echo "#</Directory>"
-      } >>/etc/httpd/conf/extra/httpd-alias.conf
-
-    fi
-
-    echo "[${SCRIPT_NAME}]: Backing up original httpd-includes.conf at /etc/httpd/ as httpd-includes.conf_original_${DATE_TIME_NOW} ..." 2>&1 | tee -a "${REPORT_FILE}"
-    #sleep 1
-    cp -p "/etc/httpd/conf/extra/httpd-includes.conf" "/etc/httpd/conf/extra/httpd-includes.conf_original_${DATE_TIME_NOW}"
-    #echo "[${SCRIPT_NAME}]: Creating https redirection for all routes in httpd-includes.conf ..." 2>&1 | tee -a "${REPORT_FILE}"
-    #sleep 1
-    # It is a new file, so we make sure it is exist
-    #touch /etc/httpd/conf/extra/httpd-includes.conf
-    #{ # Temporarily disable this
-    #  # Make https for all directories (This will take over force https setting at Directadmin)
-    #  echo "# ==============================================="
-    #  echo "# This configuration file was generated by ${SCRIPT_NAME}"
-    #  echo "# Author: ${C_ADMIN_NAME} | Email: ${C_ADMIN_EMAIL} | Web: ${C_BOX_DOMAIN}"
-    #  echo "# ==============================================="
-    #  echo "<location /*>"
-    #  echo "RewriteEngine On"
-    #  echo "RewriteCond %{HTTPS} off"
-    #  echo "RewriteRule (.*) https://%{HTTP_HOST}%{REQUEST_URI}"
-    #  echo "</location>"
-    #} >>/etc/httpd/conf/extra/httpd-includes.conf
-    echo "[${SCRIPT_NAME}]: Backing up original httpd-default.conf at /etc/httpd/ as httpd-default.conf_original_${DATE_TIME_NOW} ..." 2>&1 | tee -a "${REPORT_FILE}"
-    #sleep 1
-    cp -p "/etc/httpd/conf/extra/httpd-default.conf" "/etc/httpd/conf/extra/httpd-default.conf_original_${DATE_TIME_NOW}"
-    echo "[${SCRIPT_NAME}]: Customizing server config at httpd-default.conf ..." 2>&1 | tee -a "${REPORT_FILE}"
-    #sleep 1
-    sed -i 's|^ServerTokens .*|ServerTokens Prod|' /etc/httpd/conf/extra/httpd-default.conf
-    sed -i 's|^ServerSignature .*|ServerSignature Off|' /etc/httpd/conf/extra/httpd-default.conf
-    # Restarting web server based on config file
-    restart_da_web_server
-    check_finish_reboot "${FUNCNAME[0]}"
-  else
-    echo "[${SCRIPT_NAME}]: [Skipped]: ${FUNCNAME[0]} has ran before" 2>&1 | tee -a "${REPORT_FILE}"
-    echo "=~=~=~=~=~=~=~=~=~" 2>&1 | tee -a "${REPORT_FILE}"
-  fi
-  if [[ "${option}" == "--run-force-exit" || "${option}" == "--run-exit" ]]; then
-    _echo "$(msg yellow)Warning, script terminated due to the supplied option ${option}$(msg end)" --name
-    exit 0
-  fi
-}
-
-# Configure apps in /var/www/html
-function configure_web_apps_html() {
-  local option executed_function run
-  option="$1"
-  run="no"
-  executed_function="${CONF_PATH}/${FUNCNAME[0]}_executed"
-  if [ "${option}" == "--skip-mark" ]; then
-    cat /dev/null >"${executed_function}"
-    #run="no"
-    return 0
-  elif [ "${option}" == "--skip" ]; then
-    #run="no"
-    return 0
-  fi
-  if [[ "${option}" == "--run-force" || "${option}" == "--run-force-exit" ]]; then
-    rm -rf "${executed_function}"
-    run="yes"
-  elif [[ -z "${option}" || "${option}" == "--run" || "${option}" == "--run-exit" ]]; then
-    run="yes"
-  fi
-  if [[ ! -f "${CONF_PATH}/${FUNCNAME[0]}_executed" && "${run}" == "yes" ]]; then
-    echo "[${SCRIPT_NAME}]: Executing ${FUNCNAME[0]} ..." 2>&1 | tee -a "${REPORT_FILE}"
-    # TODO copy that webapps here (it should from maxinet)
-    cat /dev/null >/var/www/html/index.php
-    {
-      echo "<? php"
-      echo "MaXi32 - Arafat Ali - Rebuilding"
-      echo "?>"
-    } >/var/www/html/index.php
-    chmod 644 /var/www/html/index.php
-    chown webapps:webapps /var/www/html/index.php
-    check_finish_reboot "${FUNCNAME[0]}"
-  else
-    echo "[${SCRIPT_NAME}]: [Skipped]: ${FUNCNAME[0]} has ran before" 2>&1 | tee -a "${REPORT_FILE}"
-    echo "=~=~=~=~=~=~=~=~=~" 2>&1 | tee -a "${REPORT_FILE}"
-  fi
-  if [[ "${option}" == "--run-force-exit" || "${option}" == "--run-exit" ]]; then
-    _echo "$(msg yellow)Warning, script terminated due to the supplied option ${option}$(msg end)" --name
-    exit 0
-  fi
-}
-
-function build_da_custom_conf() {
-  # This function will create / copy all custom configs like roundcube, phpmyadmin, ap2 etc in DA custom folder
-  # So when we update Directadmin, it won't replace these files.
-  local option executed_function run
-  option="$1"
-  run="no"
-  executed_function="${CONF_PATH}/${FUNCNAME[0]}_executed"
-  if [ "${option}" == "--skip-mark" ]; then
-    cat /dev/null >"${executed_function}"
-    #run="no"
-    return 0
-  elif [ "${option}" == "--skip" ]; then
-    #run="no"
-    return 0
-  fi
-  if [[ "${option}" == "--run-force" || "${option}" == "--run-force-exit" ]]; then
-    rm -rf "${executed_function}"
-    run="yes"
-  elif [[ -z "${option}" || "${option}" == "--run" || "${option}" == "--run-exit" ]]; then
-    run="yes"
-  fi
-  if [[ ! -f "${CONF_PATH}/${FUNCNAME[0]}_executed" && "${run}" == "yes" ]]; then
-    echo "[${SCRIPT_NAME}]: Executing ${FUNCNAME[0]} ..." 2>&1 | tee -a "${REPORT_FILE}"
-    # This will build custom config for DA with secured settings
-    local cb_bin
-    cb_bin="/usr/local/directadmin/custombuild/build"
-    # 1) create custom folder at /usr/local/directadmin/custombuild/custom/ap2/conf/extra
-    mkdir -p /usr/local/directadmin/custombuild/custom/ap2/conf/extra
-    echo "[${SCRIPT_NAME}]: Copying httpd-alias.conf into DA custom ap2 folder ..." 2>&1 | tee -a "${REPORT_FILE}"
-    #sleep 1
-    cp -p "/etc/httpd/conf/extra/httpd-alias.conf" "/usr/local/directadmin/custombuild/custom/ap2/conf/extra/httpd-alias.conf"
-
-    echo "[${SCRIPT_NAME}]: Copying httpd-includes.conf into DA custom ap2 folder ..." 2>&1 | tee -a "${REPORT_FILE}"
-    #sleep 1
-    cp -p "/etc/httpd/conf/extra/httpd-includes.conf" "/usr/local/directadmin/custombuild/custom/ap2/conf/extra/httpd-includes.conf"
-
-    echo "[${SCRIPT_NAME}]: Copying httpd-default.conf at into DA custom ap2 folder ..." 2>&1 | tee -a "${REPORT_FILE}"
-    #sleep 1
-    cp -p "/etc/httpd/conf/extra/httpd-default.conf" "/usr/local/directadmin/custombuild/custom/ap2/conf/extra/httpd-default.conf"
-
-    # 2 For phpmyadmin
-    mkdir -p /usr/local/directadmin/custombuild/custom/phpmyadmin
-    # .htaccess
-    echo "[${SCRIPT_NAME}]: Copying phpMyAdmin .htaccess into phpmyadmin DA custom folder ..." 2>&1 | tee -a "${REPORT_FILE}"
-    #sleep 1
-    cp -p "/var/www/html/phpMyAdmin/.htaccess" "/usr/local/directadmin/custombuild/custom/phpmyadmin/.htaccess"
-
-    # config.inc.php
-    echo "[${SCRIPT_NAME}]: Copying original phpmyadmin config.inc.php at /var/www/html/phpMyAdmin into DA phpmyadmin custom folder ..." 2>&1 | tee -a "${REPORT_FILE}"
-    #sleep 1
-    cp -p "/var/www/html/phpMyAdmin/config.inc.php" "/usr/local/directadmin/custombuild/custom/phpmyadmin/config.inc.php"
-
-    # For custom phpMyAdmin theme (not using theme yet) leave this comment until I have new custom theme
-    #mkdir -p /usr/local/directadmin/custombuild/custom/phpmyadmin/themes
-    #echo "[${SCRIPT_NAME}]: Copying custom phpMyAdmin themes ..." 2>&1 | tee -a "${REPORT_FILE}"
-    #cp -p "/var/www/html/phpMyAdmin/themes/sofibox" "/usr/local/directadmin/custombuild/custom/phpmyadmin/themes/sofibox"
-    #sleep 1
-
-    #3 - For main roundcube (2 important files: config.inc.php, my.cnf)
-    mkdir -p /usr/local/directadmin/custombuild/custom/roundcube
-    echo "[${SCRIPT_NAME}]: Copying original roundcube config.inc.php into DA roundcube custom folder ..." 2>&1 | tee -a "${REPORT_FILE}"
-    #sleep 1
-    cp -p "/var/www/html/roundcube/config/config.inc.php" "/usr/local/directadmin/custombuild/custom/roundcube/config.inc.php"
-    # Remember when rebuild roundcube ./build roundcube DA will automatically update my.cnf. Don't touch that.
-    # I wrote answer here: https://forum.directadmin.com/threads/script-to-reset-da_admin-da_roundcube-password.57101/#post-324944
-    #4 - For roundcube rcguard plugin (copy the whole folder)
-    mkdir -p /usr/local/directadmin/custombuild/custom/roundcube/plugins/
-    echo "[${SCRIPT_NAME}]: Copying custom roundcube custom plugins ..." 2>&1 | tee -a "${REPORT_FILE}"
-    cp -p -r /var/www/html/roundcube/plugins/rcguard /usr/local/directadmin/custombuild/custom/roundcube/plugins/
-
-    #n - For others later in here
-
-    #n-Create custom php ini file here (create custom php ini file here with the following information) -- what is the purpose? find it out
-    # increase memory consumption or upload sql size, make custom path in custom/php.conf.d
-    #https://forum.directadmin.com/threads/solved-customized-50-webapps-ini-and-10-directadmin-ini.61045/#post-312326
-
-    # at the end must do build phpmyadmin, roundcube, rewrite_confs to save httpd changes.
-    # Need to rebuild this because previously we change config.inc.php. Better rebuild for new setting.
-    echo "[${SCRIPT_NAME}]: Rebuilding DA phpMyAdmin for new settings ..." 2>&1 | tee -a "${REPORT_FILE}"
-    #sleep 1
-    ${cb_bin} phpmyadmin 2>&1 | tee -a "${REPORT_FILE}"
-    echo "[${SCRIPT_NAME}]: Rebuilding DA roundcube for new settings ..." 2>&1 | tee -a "${REPORT_FILE}"
-    #sleep 1
-    ${cb_bin} roundcube 2>&1 | tee -a "${REPORT_FILE}"
-    echo "[${SCRIPT_NAME}]: Updating DA apache/nginx configs for new settings ..." 2>&1 | tee -a "${REPORT_FILE}"
-    #sleep 1
-    ${cb_bin} rewrite_confs 2>&1 | tee -a "${REPORT_FILE}"
-
-    # Rebuilding other DA package whatever more here if needed ...
-    check_finish_reboot "${FUNCNAME[0]}"
-  else
-    echo "[${SCRIPT_NAME}]: [Skipped]: ${FUNCNAME[0]} has ran before" 2>&1 | tee -a "${REPORT_FILE}"
-    echo "=~=~=~=~=~=~=~=~=~" 2>&1 | tee -a "${REPORT_FILE}"
-  fi
-  if [[ "${option}" == "--run-force-exit" || "${option}" == "--run-exit" ]]; then
-    _echo "$(msg yellow)Warning, script terminated due to the supplied option ${option}$(msg end)" --name
-    exit 0
-  fi
-}
-
-# For configuring admin setting and extra hardening any DA related installation
-function configure_da() {
-  local option executed_function run
-  option="$1"
-  run="no"
-  executed_function="${CONF_PATH}/${FUNCNAME[0]}_executed"
-  if [ "${option}" == "--skip-mark" ]; then
-    cat /dev/null >"${executed_function}"
-    #run="no"
-    return 0
-  elif [ "${option}" == "--skip" ]; then
-    #run="no"
-    return 0
-  fi
-  if [[ "${option}" == "--run-force" || "${option}" == "--run-force-exit" ]]; then
-    rm -rf "${executed_function}"
-    run="yes"
-  elif [[ -z "${option}" || "${option}" == "--run" || "${option}" == "--run-exit" ]]; then
-    run="yes"
-  fi
-  if [[ ! -f "${CONF_PATH}/${FUNCNAME[0]}_executed" && "${run}" == "yes" ]]; then
-    echo "[${SCRIPT_NAME}]: Executing ${FUNCNAME[0]} ..." 2>&1 | tee -a "${REPORT_FILE}"
-    # From now on we should use maxida since it was released and installed earlier when executing this script (with maxicode update).
-    # Maxida (or Maxi Direct Admin) is used to manage everything related to Directadmin. It also has the ability to manage DA API eg:
-    # maxida --api <action> <options> ...
-    if command -v maxida &>/dev/null; then
-      echo "[${SCRIPT_NAME}]: Maxida is installed with the following details: " 2>&1 | tee -a "${REPORT_FILE}"
-      maxida -V
-      sleep 2
-    else
-      echo "[${SCRIPT_NAME}]: Warning, no maxida binary is found!" 2>&1 | tee -a "${REPORT_FILE}"
-      _exit 147
-    fi
-
-    echo "[${SCRIPT_NAME}]: Enforcing Directadmin difficult password ..." 2>&1 | tee -a "${REPORT_FILE}"
-    # or maxida --directadmin set enforce_difficult_passwords 1
-    maxida --da set enforce_difficult_passwords 1
-    # This will only allow hostname url login in Directadmin. For example, without this option you can use any domain within DA system to login.
-    # eg: userdomain.com:2222 . Sometimes this user does not have valid certificate, thus this will cause security issue.
-    # so, it is better to redirect to one hostname with a valid certificate:
-    # Also explained in here: https://www.directadmin.com/features.php?id=917
-    echo "[${SCRIPT_NAME}]: Forcing Directadmin login url to usr ${LABEL_C_BOX_HOSTNAME_FQHN} ..." 2>&1 | tee -a "${REPORT_FILE}"
-    maxida --da set force_hostname "${C_BOX_HOSTNAME_FQHN}"
-
-    echo "[${SCRIPT_NAME}]: Securing all php installation ..." 2>&1 | tee -a "${REPORT_FILE}"
-    # or maxida --custombuild secure_php
-    maxida --cb secure_php
-    echo "[${SCRIPT_NAME}]: Enabling Directadmin backup encryption ..." 2>&1 | tee -a "${REPORT_FILE}"
-    maxida --da set allow_backup_encryption 1
-    echo "[${SCRIPT_NAME}]: Setting Directadmin online help ..." 2>&1 | tee -a "${REPORT_FILE}"
-    maxida --da set admin_helper "${C_DA_HELP_DOMAIN}"
-    maxida --da set reseller_helper "${C_DA_HELP_DOMAIN}"
-    maxida --da set user_helper "${C_DA_HELP_DOMAIN}"
-
-    # For DA Administrator Settings:
-    da_api_admin "start+admin"
-    echo "[${SCRIPT_NAME}]: Configuring Directadmin Admin settings ..."
-    da_api_admin "set-admin-settings"
-    echo "[${SCRIPT_NAME}]: Configuring Directadmin Server, Security and Email settings ..."
-    da_api_admin "set-server-settings"
-    # TODO look at the post about DA external import js, try to avoid that for security and apply it here
-    check_finish_reboot "${FUNCNAME[0]}"
-  else
-    echo "[${SCRIPT_NAME}]: [Skipped]: ${FUNCNAME[0]} has ran before" 2>&1 | tee -a "${REPORT_FILE}"
-    echo "=~=~=~=~=~=~=~=~=~" 2>&1 | tee -a "${REPORT_FILE}"
-  fi
   if [[ "${option}" == "--run-force-exit" || "${option}" == "--run-exit" ]]; then
     _echo "$(msg yellow)Warning, script terminated due to the supplied option ${option}$(msg end)" --name
     exit 0
@@ -10859,7 +11574,7 @@ function configure_da_geoip() {
   fi
 }
 
-configure_da_dns_templates() {
+function configure_da_dns_templates() {
   local option executed_function run
   option="$1"
   run="no"
@@ -14305,41 +15020,23 @@ function setup() {
     configure_sysctl_ips --run
     # Upgrade system
     upgrade_os --run
-    #exit 0
+
     if [ "${C_SERVER_TYPE}" == "directadmin" ]; then
       install_da_pre --run
       install_da --run
       install_da_post --run
       secure_da_auth --run
       # Linking da ipv6 with ipv4 and vice versa
-      configure_da_ips --run-exit
-    fi
-    # FOR BOTH GENERAL AND DIRECTADMIN INSTALLATION TYPE:
-    # Best to execute after install_da because CSF installer will detect if DA exist, it will install CSF in DA way.
-    # This would be optional
-    configure_csf --run
-    configure_maxibox --run
-    configure_maxicode_pre --run
-    configure_maxicode --run
-    configure_maxiperm --run
-    configure_maxinis --run
-    configure_maxigpg --run
-    configure_maxida --run
-    configure_maxicron --run
-    configure_maxiaide --run-force
-    configure_maxiwall --run-force-exit
-    configure_maxicloud --run-exit
-    configure_maxipass --run
-    configure_maxify --skip #-- disable temporarily
-    configure_logs --skip   #-- skip temporarily
-    if [ "${C_SERVER_TYPE}" == "directadmin" ]; then
+      configure_da_ips --run
+      install_da_csf --run
+      configure_csf --run
       configure_da_sql --run
       configure_da_mail --run
       configure_da_ftp --run
       configure_nginx_apache --run
-      configure_web_apps_html --run
-      build_da_custom_conf --run
-      configure_da --run
+      build_da_custom_settings --run
+      configure_web_apps --run-exit
+      configure_da_settings --run
       configure_da_memcached --run
       configure_da_geoip --run
       # we configure dns template before creating admin, reseller and user accounts so they can use new DNS template
@@ -14381,9 +15078,26 @@ function setup() {
       configure_da_user_domain_ssl_pre --run
       configure_da_user_domain_ssl --run
     fi
+    configure_csf --skip # Skipped this is not for directadmin (but others)
+    configure_maxibox --run
+    configure_maxicode_pre --run
+    configure_maxicode --run
+    configure_maxiperm --run
+    configure_maxinis --run
+    configure_maxigpg --run
+    configure_maxida --run
+    configure_maxicron --run
+    configure_maxiaide --run-force
+    configure_maxiwall --run-force-exit
+    configure_maxicloud --run-exit
+    configure_maxipass --run
+    configure_maxify --skip #-- disable temporarily
+    configure_logs --skip   #-- skip temporarily
+    configure_cronjobs --run
+
     # Still need to add more based on lynis suggestion
     harden_with_lynis --run
-    configure_cronjobs --run
+
     setup_post --run
     # End of function_name call
 
@@ -14706,14 +15420,6 @@ while [ "$#" -gt 0 ]; do
     exit 0
     break
     ;;
-  # Test or user linode API here
-  # eg: maxinet --linode-api "get-linode-id" "sun.sofibox.com"
-  --linode-api | --linode_api | --linode)
-    shift
-    linode_api_admin "$@"
-    exit 0
-    break
-    ;;
   # This will list out what domain or subdomain that will have problem when request certificate
   -srt | --ssl-request-test | --request-ssl-test)
     # Beta test
@@ -14842,6 +15548,20 @@ ENDSSH
     exit 0
     break
     ;;
+    # Test or user linode API here
+  # eg: maxinet --linode-api "get-linode-id" "sun.sofibox.com"
+  --linode-api | --linode_api | --linode)
+    shift
+    linode_api_admin "$@"
+    exit 0
+    break
+    ;;
+  --da-api | --da_api | --da | --directadmin-api | --directadmin_api | --directadmin)
+    shift
+    da_api_admin "$@"
+    exit 0
+    break
+    ;;
   -b | --build)
     shift
     package_name="$1"
@@ -14864,6 +15584,22 @@ ENDSSH
     break
     ;;
   -t | --test)
+    _echo -- "---------"
+    exit 1
+    shift
+    da_api_admin add-ip --sign-as admin --ip-address 1.1.1.1 --netmask 255.255.255.0
+    exit 1
+
+    data="$1"
+    if is_valid ssl_site "${data}"; then
+      echo "${data} is a valid SSL/https site"
+    else
+      echo "${data} is not a valid SSL/https site"
+    fi
+
+    exit 1
+    repair_services "csf" "lfd"
+    exit 1
     configure_maxida
     exit 1
     restart_da

@@ -30,6 +30,11 @@
 # 11) Each of the variable name in this config should begin with the following characters to represent this variable is from config file: C_
 #    eg: C_ADMIN_NAME
 # 12) A new planned feature will be included in the script where you do not have to edit this config file to store variable information, you could configure this within the script
+# 13) The Directadmin username owner1, admin1, reseller1 and user1 are reserved for this script. You will get error if you try to use these usernames
+# 14) Each role (OWNER, ADMIN, RESELLER, USER) must have at least 1 user created with index 1
+# 15) Use accending index number when creating directadmin user (do not skip the number):
+#    eg: This is OK: ADMIN_USERNAME1 -> ADMIN_USERNAME2 -> ADMIN_USERNAME3 -> ADMIN_USERNAME[N+1]
+#    eg: This is not OK: ADMIN_USERNAME1 -> ADMIN_USERNAME4
 # =~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~="
 
 # C_HIDE_SENSITIVE_TEXT:
@@ -238,7 +243,8 @@ C_DA_PORT="8132"
 C_DA_MODSECURITY_RULESET="comodo" # or owasp
 C_DA_HELP_DOMAIN="help.sofibox.com/directadmin"
 C_DA_WEB_SERVER_SOFTWARE="nginx_apache"
-
+C_DA_FTP_SOFTWARE="pureftpd"
+C_DA_CUSTOMBUILD_VERSION="2.0"
 # Server cache configuration
 # Planned variable
 C_DA_INSTALL_REDIS=true
