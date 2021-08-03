@@ -5,7 +5,7 @@
 # Author: Arafat Ali | Email: webmaster@sofibox.com | Website: sofibox.com
 _APP_SPECIFIC_NAME="Maxinet"
 # Note some minor versions are not published
-_APP_VERSION="0.5.5.5"
+_APP_VERSION="0.5.5.6"
 _APP_STATUS="alpha"
 _APP_VERSION_STATUS="${_APP_VERSION}-${_APP_STATUS}"
 
@@ -2408,6 +2408,7 @@ function msg() {
 # To turn off echo (but still ...
 # Remember if you want to pass any character but begin with single or double hypens, you cannot do this: _echo "------" or _echo "-test". You need to use the following:
 #_echo -- "------" or _echo -- "-test"
+# Can be used with gotify: _echo "How are you" | gotify
 function _echo() {
   local long_opts short_opts options retval report timestamp name verbose plain start_spin stop_spin
   declare -A LOG_LEVELS
@@ -5902,19 +5903,19 @@ function da_api_admin() {
   #END OF
 
   if [ "${sign_as}" == "owner1" ]; then
-    echo "Sign as first owner: "
+    _echo "Sign as first owner: " --name --verbose 7
     api_username="${C_DA_OWNER_USERNAME1}"
     api_password="${C_DA_OWNER_USERPASS1}"
   elif [ "${sign_as}" == "admin1" ]; then
-    echo "Sign as first admin: "
+    _echo "Sign as first admin: " --name --verbose 7
     api_username="${C_DA_ADMIN_USERNAME1}"
     api_password="${C_DA_ADMIN_USERPASS1}"
   elif [ "${sign_as}" == "reseller1" ]; then
-    echo "Sign as first reseller: "
+    _echo "Sign as first reseller: " --name --verbose 7
     api_username="${C_DA_RESELLER_USERNAME1}"
     api_password="${C_DA_RESELLER_USERPASS1}"
   elif [ "${sign_as}" == "user1" ]; then
-    echo "Sign as first user: "
+    _echo "Sign as first user: " --name --verbose 7
     api_username="${C_DA_USER_USERNAME1}"
     api_password="${C_DA_USER_USERPASS1}"
   else
@@ -6045,47 +6046,46 @@ function da_api_admin() {
       _echo "$(msg green)${da_api_exec}$(msg end)" --plain
     fi
 
-  elif
+  elif [[ "${action}" == "set-common-da-admin-settings" ]]; then
+    local cmd_api data method retval da_api_exec has_error
+    cmd_api="CMD_API_ADMIN_SETTINGS"
+    data="auto_update=yes&backup_threshold=90&demo_admin=no&demo_reseller=no&demo_user=no&oversell=yes&service_email_active=yes&suspend=yes&user_backup=yes&json=yes&action=save"
+    method="POST"
+    # This API includes security settings and email settings (DA combined this)
+    da_api_exec=$(curl --silent --request "${method}" --user "${api_username}":"${api_password}" --data "${data}" "${ssl_protocol}://${C_BOX_HOSTNAME_FQHN}:${C_DA_PORT}/${cmd_api}")
+    has_error=$(echo "${da_api_exec}" | grep -w "\"error\":")
 
-    [[ "${action}" == "another" ]]
-  then
-    :
+    if [ -n "${has_error}" ]; then
+      _echo "$(msg red)Warning, API executed with the following error: $(msg end)" --name
+      _echo "$(msg red)${da_api_exec}$(msg end)" --plain
+    #_exit 147
+    else
+      _echo "$(msg green)OK, API executed with the following status: $(msg end)" --name
+      _echo "$(msg green)${da_api_exec}$(msg end)" --plain
+    fi
+  elif [[ "${action}" == "set-common-da-server-settings" ]]; then
+    local cmd_api data method retval da_api_exec has_error
+    cmd_api="CMD_API_ADMIN_SETTINGS"
+    data="brute_force_log_scanner=yes&brute_force_scan_apache_logs=2&brute_force_time_limit=1200&brutecount=20&brute_dos_count=100&bruteforce=yes&check_partitions=2&check_subdomain_owner=yes&clear_blacklist_ip_time=86400&clear_brute_log_entry_time=4&clear_brute_log_time=24&demodocsroot=.%2Fdata%2Fskins%2Fevolution&enforce_difficult_passwords=yes&exempt_local_block=no&ip_brutecount=100&logs_to_keep=3&lost_password=no&max_per_email_send_limit=-1&maxfilesize=5368709120&ns1=${C_BOX_NS1}&ns2=${C_BOX_NS2}&partition_usage_threshold=95&per_email_limit=200&purge_spam_days=0&rbl_enabled=yes&servername=${C_BOX_HOSTNAME_FQHN}&session_minutes=35791&timeout=35791&user_brutecount=100&user_can_set_email_limit=yes&virtual_limit=1000&unblock_brute_ip_time=86400&timezone=${C_BOX_TIMEZONE}&max_username_length=${C_DA_MAX_UNAME_LENGTH}&json=yes&action=config"
+    method="POST"
+    da_api_exec=$(curl --silent --request "${method}" --user "${api_username}":"${api_password}" --data "${data}" "${ssl_protocol}://${C_BOX_HOSTNAME_FQHN}:${C_DA_PORT}/${cmd_api}")
+    has_error=$(echo "${da_api_exec}" | grep -w "\"error\":")
+
+    if [ -n "${has_error}" ]; then
+      _echo "$(msg red)Warning, API executed with the following error: $(msg end)" --name
+      _echo "$(msg red)${da_api_exec}$(msg end)" --plain
+    #_exit 147
+    else
+      _echo "$(msg green)OK, API executed with the following status: $(msg end)" --name
+      _echo "$(msg green)${da_api_exec}$(msg end)" --plain
+    fi
   else
     _echo "$(msg red)The API action ${action} does not exist!$(msg end)" --name
     _exit 147
   fi
 
-  exit 1
+  return 1
   # Below code is deprecated ... will remove later:
-
-  # By default, da_api_admin will use owner authentication if I don't supply this: da_api_admin "end+owner"
-  #echo "Continuing in 2 seconds ..."
-  #sleep 2
-  local api_username api_password
-  local command data method filter_cmd is_start retval result #decoded_status
-  local action username email password\\
-  local owner_main_auth owner_new_list admin_new_list admin_list reseller_new_list admin_ori_list admin_main_auth
-  local reseller_main_auth user_main_auth user_new_list
-  local ip netmask ssl
-  local domain ip_type
-  local package_name
-  local role_user
-
-  admin_list="/usr/local/directadmin/data/admin/admin.list"
-
-  admin_new_list=$(grep -w "${C_DA_ADMIN_USERNAME1}" "${admin_list}")
-  owner_new_list=$(grep -w "${C_DA_OWNER_USERNAME1}" "${admin_list}")
-
-  reseller_new_list=$(grep -w "${C_DA_RESELLER_USERNAME1}" "/usr/local/directadmin/data/admin/reseller.list")
-  # -- TODO END
-  user_new_list=$(find /usr/local/directadmin/data/users/ -name "${C_DA_USER_USERNAME1}" -type d)
-  admin_ori_list="/usr/local/directadmin/scripts/setup.txt"
-
-  owner_main_auth="${TEMP_PATH}/api/${C_DA_OWNER_USERNAME1}_owner_main_auth_api"
-  admin_main_auth="${TEMP_PATH}/api/${C_DA_ADMIN_USERNAME1}_admin_main_auth_api"
-  reseller_main_auth="${TEMP_PATH}/api/${C_DA_RESELLER_USERNAME1}_reseller_main_auth_api"
-  user_main_auth="${TEMP_PATH}/api/${C_DA_USER_USERNAME1}_user_main_auth_api"
-  user_extra_auth="${TEMP_PATH}/api/extra_user_main_auth_api"
 
   action="$1"
 
@@ -6447,7 +6447,7 @@ function repair_services() {
         _echo "$(msg green)OK, ${service_name} service is running$(msg end)" --name
       else
         # CSF fix 1 - restarting
-        _echo "$(msg yellow)Warning, unable to start CSF service properly. Restarting CSF ...$(msg end)" --name
+        _echo "$(msg yellow)Warning, unable to start CSF service properly. Restarting CSF and giving extra 3 seconds wait time ...$(msg end)" --name
         systemctl restart csf
         sleep 3
         csf_service=$(systemctl is-active csf)
@@ -6471,40 +6471,47 @@ function repair_services() {
         # Start lfd to generate log file because first it had no log
         _echo "$(msg cyan)Starting lfd to generate lfd log file ...$(msg end)" --name
         systemctl start lfd
-        # Waiting 10 seconds (so that the log file is generated properly within this time)
-        sleep 5
         # lfd known fix 1
-        if [ -f /var/log/lfd.log ]; then
-          gc=$(grep -ic 'you may need to install the IO::Socket::INET6 module' /var/log/lfd.log)
-          if [ "${gc}" -ne 0 ]; then
-            _echo "$(msg yellow)Warning, found missing perl IO::Socket::INET6 module. Installing libio-socket-inet6-perl for Debian$(msg end)" --name
-            sleep 1
-            # Use this function for best compatibility with other DISTRO
-            required "debian@@apt:libio-socket-inet6-perl"
-            #apt-get -y install libio-socket-inet6-perl 2>&1 | tee -a "${REPORT_FILE}"
-            _echo "$(msg cyan)Clearing lfd log entry ...$(msg end)" --name
-            sleep 1
-            cat /dev/null >/var/log/lfd.log
-            _echo "$(msg cyan)Restarting lfd ...$(msg end)" --name
-            systemctl restart lfd
-            # Waiting at least 5 seconds (so that the lfd process is up and it generates a log file for the first time)
-            sleep 5
-            repair_services "lfd"
+        _echo "$(msg cyan)Applying fix 1 to fix ${service_name} ...$(msg end)" --name
+        _echo "$(msg cyan)Giving 10 seconds for ${service_name} to start properly$(msg end)" --name
+        sleep 10
+        lfd_service=$(systemctl is-active lfd)
+        if [ "${lfd_service}" == "active" ]; then
+          _echo "$(msg green)OK, ${service_name} has started$(msg end)" --name
+        else
+          # lfd known fix 2
+          _echo "$(msg cyan)Applying fix 2 to fix ${service_name} ...$(msg end)" --name
+          _echo "$(msg cyan)Clearing lfd log entry at /var/log/lfd.log ...$(msg end)" --name
+          cat /dev/null >/var/log/lfd.log
+          _echo "$(msg cyan)Restarting lfd and giving 10 seconds extra wait time ...$(msg end)" --name
+          systemctl restart lfd
+          # Waiting at least 10 seconds (so that the lfd process is up and it generates a log file for the first time)
+          sleep 10
+          if [ -f /var/log/lfd.log ]; then
+            gc=$(grep -ic 'you may need to install the IO::Socket::INET6 module' /var/log/lfd.log)
+            if [ "${gc}" -ne 0 ]; then
+              _echo "$(msg yellow)Warning, found missing perl IO::Socket::INET6 module. Installing libio-socket-inet6-perl for Debian$(msg end)" --name
+              # Use this function for best compatibility with other DISTRO
+              required "debian@@apt:libio-socket-inet6-perl"
+              _echo "$(msg cyan)Restarting lfd and giving 10 seconds extra wait time ...$(msg end)" --name
+              systemctl restart lfd
+              sleep 10
+            fi
           else
-            _echo "$(msg red)Error, unable to understand why lfd cannot be started. Check /var/log/lfd.log for more hints$(msg end)" --name
+            # This is just in case if log file not appear
+            _echo "$(msg red)Error, lfd log file not generated. It should generated after given sometime. Please inspect why the lfd log file at /var/log/lfd.log is not generated!$(msg end)" --name
             _exit 147
           fi
-        else
-          # This is just in case if log file not appear
-          _echo "$(msg yellow)Warning, lfd log file not generated$(msg end)" --name
-          _echo "$(msg yellow)Rechecking lfd status in 5 seconds ...$(msg end)" --name
-          sleep 5
-          repair_services "lfd"
+          _echo "$(msg cyan)Rechecking lfd status ...$(msg end)" --name
+          lfd_service=$(systemctl is-active lfd)
+          if [ "${lfd_service}" == "active" ]; then
+            _echo "$(msg green)OK, ${service_name} has started$(msg end)" --name
+          else
+            _echo "$(msg red)Error, unable to understand why ${service_name} cannot be started. Please check the lfd log file at /var/log/lfd.log for more hints$(msg end)" --name
+            _exit 147
+          fi
         fi
-
-        # lfd known fix 2
         # ----
-
         # lfd known fix 3 and more
       fi
     fi
@@ -6534,6 +6541,7 @@ function restart_da_web_server() {
 }
 
 # This is the setup pre function
+# This will setup gpg from here
 function setup_pre() {
   local option executed_function run func_name
   option="$1"
@@ -6611,6 +6619,248 @@ function setup_pre() {
   echo ""
 
 }
+# For managing notification (eg. pushover, gotify)
+# TODO 1 put httpd layer password
+# TODO 2 Find a way to add 2 step authentication
+# TODO 3 change default admin to something else that is secure
+function configure_gotify() {
+  local option executed_function run func_name
+  option="$1"
+  run="no"
+  func_name="${FUNCNAME[0]}"
+  executed_function="${CONF_PATH}/${func_name}_executed"
+  if [ "${option}" == "--skip-mark" ]; then
+    cat /dev/null >"${executed_function}"
+    #run="no"
+    return 0
+  elif [ "${option}" == "--skip" ]; then
+    #run="no"
+    return 0
+  fi
+  if [[ "${option}" == "--run-force" || "${option}" == "--run-force-exit" ]]; then
+    rm -rf "${executed_function}"
+    run="yes"
+  elif [[ -z "${option}" || "${option}" == "--run" || "${option}" == "--run-exit" ]]; then
+    run="yes"
+  fi
+  if [[ ! -f "${CONF_PATH}/${func_name}_executed" && "${run}" == "yes" ]]; then
+    if [ "${C_GOTIFY_INSTALLATION}" == "true" ]; then
+      if [[ ${DISTRO_ID} == "debian" || ${DISTRO_ID} == "ubuntu" ]]; then
+        exec_time start "${func_name}"
+        local gotify_version gotify_platform gotify_app_name gotify_service_name gotify_app_path gotify_config gotify_data_path gotify_config_cli \
+          gotify_port_line_to_replace gotify_password_line_to_replace gotify_download_url response app_token
+        _echo "$(msg cyan)Executing $(msg magenta)${func_name}()$(msg end) $(msg cyan)with option ${option} ...$(msg end)" --name
+        _echo "$(msg red)=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=$(msg end)" --plain
+        echo ""
+
+        gotify_version="${C_GOTIFY_VERSION}"
+        gotify_platform="${C_GOTIFY_PLATFORM}"
+        gotify_app_name="gotify-server"
+        gotify_service_name="gotify"
+        gotify_app_path="/opt/gotify/"
+        gotify_config="/opt/gotify/config.yml"
+        gotify_data_path="/opt/gotify/data/"
+        gotify_config_cli="/etc/gotify/cli.json"
+        gotify_port_line_to_replace="${C_GOTIFY_PORT} # the port the HTTP server will listen on"
+        gotify_password_line_to_replace="${C_GOTIFY_PASSWORD} # the password of the default user"
+        gotify_download_url="https://github.com/gotify/server/releases/download/v${gotify_version}/gotify-${gotify_platform}.zip"
+
+        _echo "$(msg cyan)Stopping ${gotify_service_name}.service ... $(msg end)" --name
+        systemctl stop ${gotify_service_name}
+        echo ""
+        _echo "$(msg cyan)Removing gotify previous installation ... $(msg end)" --name
+        # Removing the temporary downloaded files
+        rm -rf "${TEMP_PATH}/LICENSE" "${TEMP_PATH}/licenses" "${TEMP_PATH}/gotify-${gotify_platform}.zip"
+        # Removing gotify CLI
+        rm -rf "/usr/local/bin/gotify" "/etc/gotify/"
+        # Removing gotify main server application (including the config.yml and data folder)
+        rm -rf "${gotify_app_path}"
+        # Removing gotify service name
+        rm -rf "/etc/systemd/system/${gotify_service_name}.service"
+        echo ""
+        _echo "$(msg cyan)Removing gotify previous user and group ... $(msg end)" --name
+        userdel -r "${C_GOTIFY_SYSTEM_USERNAME}"
+        groupdel "${C_GOTIFY_SYSTEM_GROUP}"
+        echo ""
+
+        _echo "$(msg cyan)Creating gotify application path at ${gotify_app_path} ... $(msg end)" --name
+        mkdir -p ${gotify_app_path}
+        echo ""
+        _echo "$(msg cyan)Downloading gotify from ${gotify_download_url} ... $(msg end)" --name
+        cd_to_path "${gotify_app_path}"
+        wget "${gotify_download_url}"
+        echo ""
+        _echo "$(msg cyan)Extracting gotify from gotify-${gotify_platform}.zip ... $(msg end)" --name
+        required "debian@@apt:unzip"
+        unzip "gotify-${gotify_platform}.zip"
+        echo ""
+        _echo "$(msg cyan)Correcting ${gotify_app_name}'s permission for execution ... $(msg end)" --name
+        mv "gotify-${gotify_platform}" "${gotify_app_name}"
+        sudo chown root:root "${gotify_app_name}"
+        sudo chmod 755 "${gotify_app_name}"
+        echo ""
+        _echo "$(msg cyan)Creating gotify user and group to control application path at ${gotify_app_path}... $(msg end)" --name
+        groupadd -r "${C_GOTIFY_SYSTEM_GROUP}"
+        useradd -M -d ${gotify_app_path} -s /sbin/nologin -r -g "${C_GOTIFY_SYSTEM_GROUP}" "${C_GOTIFY_SYSTEM_USERNAME}"
+        echo ""
+        _echo "$(msg cyan)Downloading gotify sample config file ... $(msg end)" --name
+        wget -O ${gotify_config} https://raw.githubusercontent.com/gotify/server/master/config.example.yml
+        echo ""
+        _echo "$(msg cyan)Correcting gotify config file's permission for reading ... $(msg end)" --name
+        chown root:root ${gotify_config}
+        chmod 644 ${gotify_config}
+        echo ""
+        _echo "$(msg cyan)Creating and correcting gotify data path at ${gotify_data_path} ... $(msg end)" --name
+        mkdir "${gotify_data_path}"
+        chown -R gotify:gotify "${gotify_data_path}"
+        chmod -R 755 "${gotify_data_path}"
+        echo ""
+
+        _echo "$(msg cyan)Changing the gotify current port ${current_port} to ${C_GOTIFY_PORT} ... $(msg end)" --name
+        # This will get the current port of gotify from config file
+        current_port=$(grep -E 'port:.*HTTP server' ${gotify_config} | awk -F[:#] '{ print $2 }' | tr -d ' ')
+        # This will change the current port to config port (For non-ssl server it is 2 spaces before port:)
+        sed -i "/^\(  port: \).*/s//\1${gotify_port_line_to_replace}/" ${gotify_config}
+        echo ""
+        _echo "$(msg cyan)Writing and correcting gotify service file at /etc/systemd/system/${gotify_service_name}.service ... $(msg end)" --name
+
+        {
+          echo "[Unit]"
+          echo "Description=Gotify Push Notification Server"
+          echo "Documentation=https://gotify.net/docs"
+          echo "After=network-online.target"
+          echo "Wants=network-online.target systemd-networkd-wait-online.service"
+
+          echo "[Service]"
+          echo "Type=simple"
+          echo "Restart=on-abnormal"
+          echo "User=${C_GOTIFY_SYSTEM_USERNAME}"
+          echo "Group=${C_GOTIFY_SYSTEM_GROUP}"
+
+          echo "WorkingDirectory=${gotify_app_path}"
+          echo "ExecStart=${gotify_app_path}/${gotify_app_name}"
+          echo "ExecStop=kill $MAINPID"
+          echo "ExecReload=kill -9 $MAINPID"
+
+          echo "PrivateTmp=true"
+          echo "ProtectSystem=full"
+          echo "ReadWritePaths=${gotify_data_path}"
+          echo "ReadWriteDirectories=${gotify_data_path}"
+          echo "TimeoutStopSec=5s"
+
+          echo "[Install]"
+          echo "WantedBy=multi-user.target"
+
+        } >/etc/systemd/system/${gotify_service_name}.service
+
+        chown root:root /etc/systemd/system/${gotify_service_name}.service
+        chmod 644 /etc/systemd/system/${gotify_service_name}.service
+        systemctl daemon-reload
+        echo ""
+        _echo "$(msg cyan)Enabling ${gotify_service_name}.service to run on startup ...$(msg end)" --name
+        systemctl enable ${gotify_service_name}.service
+        echo ""
+        _echo "$(msg cyan)Starting ${gotify_service_name}.service and giving 2 seconds extra wait time ... $(msg end)" --name
+        systemctl start ${gotify_service_name}.service
+        sleep 2
+        echo ""
+        _echo "$(msg cyan)Changing gotify default password database via curl and giving 2 seconds extra wait time ...$(msg end)" --name
+        curl -sSf -X POST -H "Content-Type: application/json" --user "admin:admin" "http://${C_BOX_HOSTNAME_FQHN}:${C_GOTIFY_PORT}/current/user/password" --data "{\"pass\": \"${C_GOTIFY_PASSWORD}\"}"
+        sleep 2
+        echo ""
+        _echo "$(msg cyan)Changing gotify password from admin to ${LABEL_C_GOTIFY_PASSWORD}$(msg end)" --name
+        sed -i "/^\(  pass: \).*/s//\1${gotify_password_line_to_replace}/" ${gotify_config}
+        echo ""
+        _echo "$(msg cyan)Stopping ${gotify_service_name} service ...$(msg end)" --name
+        systemctl stop ${gotify_service_name}.service
+        _echo "$(msg cyan)Starting ${gotify_service_name}.service and giving 5 seconds extra wait time ...$(msg end)" --name
+        systemctl start ${gotify_service_name}
+        sleep 5
+        echo ""
+        _echo "$(msg cyan)Testing gotify login using new user credential ...$(msg end)" --name
+        response=$(curl -sSf --user "${C_GOTIFY_USERNAME}:${C_GOTIFY_PASSWORD}" "http://${C_BOX_HOSTNAME_FQHN}:${C_GOTIFY_PORT}/current/user" || echo "$?")
+        # Number of response if have 3 digit: that means, this is error. eg 403 411
+        if ((${#response} < 4)); then
+          _echo "$(msg red)Error, login failed! Please inspect why and re-run this script to continue$(msg end)" --name
+          #echo "response: ${response}"
+          #echo "#response: ${#response}"
+          _exit 147
+        else
+          _echo "$(msg green)OK, login success!$(msg end)" --name
+          _echo "$(msg green)You can install gotify client application from Google Play store and put the following credentials:$(msg end)" --name
+          _echo "$(msg magenta)==================================$(msg end)" --plain
+          _echo "URL: http://${LABEL_C_BOX_HOSTNAME_FQHN}:${LABEL_C_GOTIFY_PORT}" --plain
+          _echo "Username: ${LABEL_C_GOTIFY_USERNAME}" --plain
+          _echo "Password: ${LABEL_C_GOTIFY_PASSWORD}" --plain
+          _echo "$(msg magenta)==================================$(msg end)" --plain
+          _pause 10
+          #echo "response: ${response}"
+          #echo "#response: ${#response}"
+        fi
+        echo ""
+        _echo "$(msg cyan)Creating gotify application token ...$(msg end)" --name
+        response=$(curl -sSf -X POST -H "Content-Type: application/json" --user "${C_GOTIFY_USERNAME}:${C_GOTIFY_PASSWORD}" "http://${C_BOX_HOSTNAME_FQHN}:${C_GOTIFY_PORT}/application" --data "{\"description\": \"${C_GOTIFY_APP_DESCRIPTION}\",  \"name\": \"${C_GOTIFY_APP_NAME}\"}")
+        app_token=$(echo "${response}" | awk 'BEGIN { FS="\""; RS="," }; { if($2 == "token") {print $4} }')
+        #echo "${app_token}"
+        if ((${#response} < 4)); then
+          _echo "$(msg red)Error, token creation failed! Please inspect why and re-run this script to continue$(msg end)" --name
+
+          _exit 147
+        else
+          _echo "$(msg green)OK, token created!$(msg end)" --name
+        fi
+        echo ""
+
+        _echo "$(msg cyan)Testing gotify push using application token created ...$(msg end)" --name
+        response=$(curl -sSf -X POST -H "Content-Type: application/json" -H "X-Gotify-Key: ${app_token}" "http://${C_BOX_HOSTNAME_FQHN}:${C_GOTIFY_PORT}/message" -d "{  \"message\": \"testMessage\",  \"priority\": 0,  \"title\": \"gotify@${C_BOX_HOSTNAME_FQHN}\"}" || echo "$?")
+        if ((${#response} < 4)); then
+          _echo "$(msg red)Error, test gotify push using application token failed! Please inspect why and re-run this script to continue$(msg end)" --name
+          _exit 147
+        else
+          _echo "$(msg green)OK, test gotify push using application token success!$(msg end)" --name
+        fi
+        echo ""
+
+        _echo "$(msg cyan)Downloading gotify-cli v${C_GOTIFY_CLI_VERSION} into /usr/local/bin/gotify... $(msg end)" --name
+        curl -Lo /usr/local/bin/gotify https://github.com/gotify/cli/releases/download/v${C_GOTIFY_CLI_VERSION}/gotify-cli-linux-amd64
+        echo ""
+        _echo "$(msg cyan)Correcting gotify-cli permission for execution ... $(msg end)" --name
+        chmod +x /usr/local/bin/gotify
+        echo ""
+        _echo "$(msg cyan)Writing gotify-cli config file to use token ... $(msg end)" --name
+        mkdir -p "/etc/gotify"
+        echo -e "{\n\t\"token\": \"${app_token}\",\n\t\"url\": \"http://${C_BOX_HOSTNAME_FQHN}:${C_GOTIFY_PORT}\",\n\t\"defaultPriority\": 0\n}" >"${gotify_config_cli}"
+        echo ""
+        _echo "$(msg cyan)Testing gotify-cli to push simple message ... $(msg end)" --name
+        gotify push -t "${SCRIPT_NAME}@${C_BOX_HOSTNAME_FQHN}" -p 10 "If you can read this notification, it means gotify has been successfully installed"
+        retval=$?
+        if [ ${retval} -eq 0 ]; then
+          _echo "$(msg green)OK, gotify-cli push using application token is success!$(msg end)" --name
+        else
+          _echo "$(msg red)Error, gotify-cli push using application token has error!$(msg end)" --name
+          _exit 147
+        fi
+      else
+        _echo "$(msg yellow)[Skipped], warning this distribution ID is not supported for installing gotify$(msg end)" --name
+      fi
+    else
+      _echo "$(msg yellow)[Skipped], C_GOTIFY_INSTALLATION is not set to true. Gotify will not be installed! If you want to install later, run this function again with option --run-force$(msg end)" --name
+    fi
+    check_finish_reboot "${func_name}"
+    exec_time total "${func_name}"
+  else
+    echo ""
+    _echo "$(msg red)=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=$(msg end)" --plain
+    _echo "$(msg yellow)[Skipped]: $(msg magenta)${func_name}()$(msg end) $(msg yellow)has ran before$(msg end)" --name
+  fi
+
+  if [[ "${option}" == "--run-force-exit" || "${option}" == "--run-exit" ]]; then
+    _echo "$(msg yellow)Note: this script is terminated due to the supplied option ${option} from function $(msg magenta)${func_name}()$(msg end) $(msg end)" --name
+    _exit 0
+  fi
+  echo ""
+}
+
 # Get the latest scripts (temporarily using git which needs to have private token defined in config)
 # This private repo contains lots of security scripts for Linux (c) by Arafat Ali (aka MaXi32)
 # can re-run this with option get_latest_code --run-force to force re-clone and update to latest codes
@@ -9095,6 +9345,8 @@ function install_general_csf() {
   echo ""
 }
 # Install CSF Firewall
+# Not if you use --run-force and want to reinstall CSF at this stage, please execute this command first:
+# sh /etc/csf/uninstall.sh (I don't include this command inside this function because CSF should not be reinstalled without permission)
 function configure_csf() {
   local option executed_function run func_name
   option="$1"
@@ -9129,9 +9381,13 @@ function configure_csf() {
       _echo "$(msg cyan)Configuring CSF config at /etc/csf/csf.conf ...$(msg end)" --name
 
       if [ -n "${C_CSF_EXTRA_ALLOW_PORTS}" ]; then
-        extra_allow_ports="${C_DROP_BEAR_PORT},${C_DA_PORT},${C_CSF_EXTRA_ALLOW_PORTS}"
+        #extra_allow_ports="${C_GOTIFY_PORT},${C_DROP_BEAR_PORT},${C_DA_PORT},${C_CSF_EXTRA_ALLOW_PORTS}"
+        # CSF will automatically detect directadmin port and include it in list (no need to specify C_DA_PORT here)
+        extra_allow_ports="${C_GOTIFY_PORT},${C_DROP_BEAR_PORT},${C_CSF_EXTRA_ALLOW_PORTS}"
       else
-        extra_allow_ports="${C_DROP_BEAR_PORT},${C_DA_PORT}"
+        #extra_allow_ports="${C_GOTIFY_PORT},${C_DROP_BEAR_PORT},${C_DA_PORT}"
+        # CSF will automatically detect directadmin port and include it in list (no need to specify C_DA_PORT here)
+        extra_allow_ports="${C_GOTIFY_PORT},${C_DROP_BEAR_PORT}"
       fi
       _echo "$(msg magenta)The extra allowed port to be added in CSF are: extra_allow_ports=${extra_allow_ports}$(msg end)" --name --verbose 7
       echo ""
@@ -9250,7 +9506,7 @@ function configure_csf() {
       echo ""
 
       _echo "$(msg cyan)Starting CSF and LFD for the first time ...$(msg end)" --name
-      echo "[${SCRIPT_NAME}]: Before we start it up, please confirm that your sshd port is listed in this output:$(msg end)" --name
+      _echo "$(msg cyan)Before we start it up, please confirm that your sshd port is listed in this output:$(msg end)" --name
       echo "-----------------"
       grep ^TCP_IN /etc/csf/csf.conf
       echo ""
@@ -10148,7 +10404,6 @@ function configure_web_apps() {
 
 # For configuring admin setting and extra hardening any DA related installation
 function configure_da_settings() {
-  # TODO until here
   local option executed_function run func_name
   option="$1"
   run="no"
@@ -10176,8 +10431,10 @@ function configure_da_settings() {
 
     da_bin="/usr/local/directadmin/directadmin"
     da_cb_bin="/usr/local/directadmin/custombuild/build"
-    if [ ! -f "${da_bin}" ]; then
-      _echo "$(msg Error)Error, directadmin binary does not exist!$(msg end)" --name
+    if [[ -f "${da_bin}" || -f "${da_cb_bin}" ]]; then
+      :
+    else
+      _echo "$(msg Error)Error, directadmin binary or custombuild does not exist!$(msg end)" --name
       _exit 147
     fi
 
@@ -10205,11 +10462,10 @@ function configure_da_settings() {
     echo ""
 
     # For DA Administrator Settings:
-    da_api_admin "start+admin"
     echo "[${SCRIPT_NAME}]: Configuring Directadmin Admin settings ..."
-    da_api_admin "set-admin-settings"
+    da_api_admin set-common-da-admin-settings
     echo "[${SCRIPT_NAME}]: Configuring Directadmin Server, Security and Email settings ..."
-    da_api_admin "set-server-settings"
+    da_api_admin set-common-da-server-settings
     # TODO look at the post about DA external import js, try to avoid that for security and apply it here
     check_finish_reboot "${func_name}"
     exec_time total "${func_name}"
@@ -10224,6 +10480,132 @@ function configure_da_settings() {
     _exit 0
   fi
   echo ""
+}
+
+function configure_redis() {
+
+  :
+}
+
+# This will install OS memcached and php memcached extension
+function configure_da_memcached() {
+  local option executed_function run
+  option="$1"
+  run="no"
+  executed_function="${CONF_PATH}/${FUNCNAME[0]}_executed"
+  if [ "${option}" == "--skip-mark" ]; then
+    cat /dev/null >"${executed_function}"
+    #run="no"
+    return 0
+  elif [ "${option}" == "--skip" ]; then
+    #run="no"
+    return 0
+  fi
+  if [[ "${option}" == "--run-force" || "${option}" == "--run-force-exit" ]]; then
+    rm -rf "${executed_function}"
+    run="yes"
+  elif [[ -z "${option}" || "${option}" == "--run" || "${option}" == "--run-exit" ]]; then
+    run="yes"
+  fi
+  if [[ ! -f "${CONF_PATH}/${FUNCNAME[0]}_executed" && "${run}" == "yes" ]]; then
+    local gc
+    echo "[${SCRIPT_NAME}]: Executing ${FUNCNAME[0]} ..." 2>&1 | tee -a "${REPORT_FILE}"
+    sleep 1
+    echo "[${SCRIPT_NAME}]: Installing memcached components in OS level ..." 2>&1 | tee -a "${REPORT_FILE}"
+    sleep 1
+    # Remember libmemcached-dev is needed for Debian. In CentOS it's called libmemcached-devel
+    sudo apt-get -y install memcached libmemcached-tools libmemcached-dev
+    gc=$(grep -ic "\-l ::1" /etc/memcached.conf)
+    if [ "${gc}" = 0 ]; then
+      echo "[${SCRIPT_NAME}]: Setting memcached to listen to IPv6 ..." 2>&1 | tee -a "${REPORT_FILE}"
+      sleep 1
+      sed -i "s/^\-l.*/\-l 127.0.0.1 \-l ::1/" /etc/memcached.conf
+    else
+      echo "[${SCRIPT_NAME}]: [Skipped] memcached config is already set to listen to IPv6" 2>&1 | tee -a "${REPORT_FILE}"
+      sleep 1
+    fi
+    echo "[${SCRIPT_NAME}]: Restarting memcached ... " 2>&1 | tee -a "${REPORT_FILE}"
+
+    systemctl restart memcached
+    echo "[${SCRIPT_NAME}]: Checking memcached status ... " 2>&1 | tee -a "${REPORT_FILE}"
+
+    systemctl --no-pager status memcached
+    echo "[${SCRIPT_NAME}]: Installing memcached for php-extension using Poralix script ..." 2>&1 | tee -a "${REPORT_FILE}"
+    sleep 1
+    cd_to_path "${INST_TEMP_DIR}"
+    cp "${DATA_PATH}/maxinet/storage/os/${DISTRO_ID}/usr/local/directadmin/install_scripts/php_extension.sh" "${INST_TEMP_DIR}/php_extension.sh"
+    chmod +x php_extension.sh
+    # This one just checking not verifying, so whether exist or not we just execute install
+    echo "[${SCRIPT_NAME}]: Checking existing php-memcached installation ..." 2>&1 | tee -a "${REPORT_FILE}"
+    sleep 1
+    /bin/sh ./php_extension.sh status memcached 2>&1 | tee -a "${REPORT_FILE}"
+    echo "[${SCRIPT_NAME}]: Installing php-memcached for all PHP versions ..." 2>&1 | tee -a "${REPORT_FILE}"
+    sleep 2
+    /bin/sh ./php_extension.sh install memcached 2>&1 | tee -a "${REPORT_FILE}"
+    check_finish_reboot "${func_name}"
+    exec_time total "${func_name}"
+  else
+    echo ""
+    _echo "$(msg red)=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=$(msg end)" --plain
+    _echo "$(msg yellow)[Skipped]: $(msg magenta)${func_name}()$(msg end) $(msg yellow)has ran before$(msg end)" --name
+  fi
+
+  if [[ "${option}" == "--run-force-exit" || "${option}" == "--run-exit" ]]; then
+    _echo "$(msg yellow)Note: this script is terminated due to the supplied option ${option} from function $(msg magenta)${func_name}()$(msg end) $(msg end)" --name
+    _exit 0
+  fi
+  echo ""
+
+}
+
+function configure_da_geoip() {
+  local option executed_function run
+  option="$1"
+  run="no"
+  executed_function="${CONF_PATH}/${FUNCNAME[0]}_executed"
+  if [ "${option}" == "--skip-mark" ]; then
+    cat /dev/null >"${executed_function}"
+    #run="no"
+    return 0
+  elif [ "${option}" == "--skip" ]; then
+    #run="no"
+    return 0
+  fi
+  if [[ "${option}" == "--run-force" || "${option}" == "--run-force-exit" ]]; then
+    rm -rf "${executed_function}"
+    run="yes"
+  elif [[ -z "${option}" || "${option}" == "--run" || "${option}" == "--run-exit" ]]; then
+    run="yes"
+  fi
+  if [[ ! -f "${CONF_PATH}/${FUNCNAME[0]}_executed" && "${run}" == "yes" ]]; then
+    echo "[${SCRIPT_NAME}]: Executing ${FUNCNAME[0]} ..." 2>&1 | tee -a "${REPORT_FILE}"
+    echo "[${SCRIPT_NAME}]: Installing geoip components in OS level ..." 2>&1 | tee -a "${REPORT_FILE}"
+    # Just like the memcached need libmemcache-dev, this geoip needs libgeoip-dev
+    apt-get -y install libgeoip-dev geoip-bin geoip-database
+
+    echo "[${SCRIPT_NAME}]: Installing geoip for php-extension using Poralix script ..." 2>&1 | tee -a "${REPORT_FILE}"
+    sleep 1
+    cd_to_path "${INST_TEMP_DIR}"
+    cp "${DATA_PATH}/maxinet/storage/os/${DISTRO_ID}/usr/local/directadmin/install_scripts/php_extension.sh" "${INST_TEMP_DIR}/php_extension.sh"
+    chmod +x php_extension.sh
+    # This one just checking not verifying, so whether exist or not we just execute install
+    echo "[${SCRIPT_NAME}]: Checking existing php-geoip installation ..." 2>&1 | tee -a "${REPORT_FILE}"
+    sleep 1
+    /bin/sh ./php_extension.sh status geoip 2>&1 | tee -a "${REPORT_FILE}"
+    echo "[${SCRIPT_NAME}]: Installing php-geoip for all PHP versions ..." 2>&1 | tee -a "${REPORT_FILE}"
+    sleep 2
+    # For geoip from poralix script, it needs to select --beta because stable release has error during installation
+    /bin/sh ./php_extension.sh install geoip --beta 2>&1 | tee -a "${REPORT_FILE}"
+
+    check_finish_reboot "${FUNCNAME[0]}"
+  else
+    echo "[${SCRIPT_NAME}]: [Skipped]: ${FUNCNAME[0]} has ran before" 2>&1 | tee -a "${REPORT_FILE}"
+    echo "=~=~=~=~=~=~=~=~=~" 2>&1 | tee -a "${REPORT_FILE}"
+  fi
+  if [[ "${option}" == "--run-force-exit" || "${option}" == "--run-exit" ]]; then
+    _echo "$(msg yellow)Warning, script terminated due to the supplied option ${option}$(msg end)" --name
+    exit 0
+  fi
 }
 
 # This is the pre-requirement before getting ssl
@@ -11377,9 +11759,6 @@ function configure_maxipass() {
   fi
 }
 
-# For managing notification (eg. pushover, gotify)
-# TODO configure this when https is ready, put in secured port, put httpd layer
-# Find a way to add 2 step authentication
 function configure_maxify() {
   local option executed_function run
   option="$1"
@@ -11400,16 +11779,8 @@ function configure_maxify() {
     run="yes"
   fi
   if [[ ! -f "${CONF_PATH}/${FUNCNAME[0]}_executed" && "${run}" == "yes" ]]; then
-    local version platform
-    echo "[${SCRIPT_NAME}]: Executing ${FUNCNAME[0]} ..." 2>&1 | tee -a "${REPORT_FILE}"
-    _echo def "Installing gotify ..."
-    version="2.0.21"
-    platform="linux-amd64"
-    wget https://github.com/gotify/server/releases/download/v${version}/gotify-${platform}.zip
-    unzip gotify-${platform}.zip
-    chmod +x gotify-${platform}
+    :
     check_finish_reboot "${FUNCNAME[0]}"
-
     #sudo ./gotify-${platform}
   else
     echo "[${SCRIPT_NAME}]: [Skipped]: ${FUNCNAME[0]} has ran before" 2>&1 | tee -a "${REPORT_FILE}"
@@ -11450,124 +11821,6 @@ function configure_logs() {
     echo "=~=~=~=~=~=~=~=~=~" 2>&1 | tee -a "${REPORT_FILE}"
   fi
 
-  if [[ "${option}" == "--run-force-exit" || "${option}" == "--run-exit" ]]; then
-    _echo "$(msg yellow)Warning, script terminated due to the supplied option ${option}$(msg end)" --name
-    exit 0
-  fi
-}
-
-# This will install OS memcached and php memcached extension
-function configure_da_memcached() {
-  local option executed_function run
-  option="$1"
-  run="no"
-  executed_function="${CONF_PATH}/${FUNCNAME[0]}_executed"
-  if [ "${option}" == "--skip-mark" ]; then
-    cat /dev/null >"${executed_function}"
-    #run="no"
-    return 0
-  elif [ "${option}" == "--skip" ]; then
-    #run="no"
-    return 0
-  fi
-  if [[ "${option}" == "--run-force" || "${option}" == "--run-force-exit" ]]; then
-    rm -rf "${executed_function}"
-    run="yes"
-  elif [[ -z "${option}" || "${option}" == "--run" || "${option}" == "--run-exit" ]]; then
-    run="yes"
-  fi
-  if [[ ! -f "${CONF_PATH}/${FUNCNAME[0]}_executed" && "${run}" == "yes" ]]; then
-    local gc
-    echo "[${SCRIPT_NAME}]: Executing ${FUNCNAME[0]} ..." 2>&1 | tee -a "${REPORT_FILE}"
-    sleep 1
-    echo "[${SCRIPT_NAME}]: Installing memcached components in OS level ..." 2>&1 | tee -a "${REPORT_FILE}"
-    sleep 1
-    # Remember libmemcached-dev is needed for Debian. In CentOS it's called libmemcached-devel
-    sudo apt-get -y install memcached libmemcached-tools libmemcached-dev
-    gc=$(grep -ic "\-l ::1" /etc/memcached.conf)
-    if [ "${gc}" = 0 ]; then
-      echo "[${SCRIPT_NAME}]: Setting memcached to listen to IPv6 ..." 2>&1 | tee -a "${REPORT_FILE}"
-      sleep 1
-      sed -i "s/^\-l.*/\-l 127.0.0.1 \-l ::1/" /etc/memcached.conf
-    else
-      echo "[${SCRIPT_NAME}]: [Skipped] memcached config is already set to listen to IPv6" 2>&1 | tee -a "${REPORT_FILE}"
-      sleep 1
-    fi
-    echo "[${SCRIPT_NAME}]: Restarting memcached ... " 2>&1 | tee -a "${REPORT_FILE}"
-
-    systemctl restart memcached
-    echo "[${SCRIPT_NAME}]: Checking memcached status ... " 2>&1 | tee -a "${REPORT_FILE}"
-
-    systemctl --no-pager status memcached
-    echo "[${SCRIPT_NAME}]: Installing memcached for php-extension using Poralix script ..." 2>&1 | tee -a "${REPORT_FILE}"
-    sleep 1
-    cd_to_path "${INST_TEMP_DIR}"
-    cp "${DATA_PATH}/maxinet/storage/os/${DISTRO_ID}/usr/local/directadmin/install_scripts/php_extension.sh" "${INST_TEMP_DIR}/php_extension.sh"
-    chmod +x php_extension.sh
-    # This one just checking not verifying, so whether exist or not we just execute install
-    echo "[${SCRIPT_NAME}]: Checking existing php-memcached installation ..." 2>&1 | tee -a "${REPORT_FILE}"
-    sleep 1
-    /bin/sh ./php_extension.sh status memcached 2>&1 | tee -a "${REPORT_FILE}"
-    echo "[${SCRIPT_NAME}]: Installing php-memcached for all PHP versions ..." 2>&1 | tee -a "${REPORT_FILE}"
-    sleep 2
-    /bin/sh ./php_extension.sh install memcached 2>&1 | tee -a "${REPORT_FILE}"
-    check_finish_reboot "${FUNCNAME[0]}"
-  else
-    echo "[${SCRIPT_NAME}]: [Skipped]: ${FUNCNAME[0]} has ran before" 2>&1 | tee -a "${REPORT_FILE}"
-    echo "=~=~=~=~=~=~=~=~=~" 2>&1 | tee -a "${REPORT_FILE}"
-  fi
-
-  if [[ "${option}" == "--run-force-exit" || "${option}" == "--run-exit" ]]; then
-    _echo "$(msg yellow)Warning, script terminated due to the supplied option ${option}$(msg end)" --name
-    exit 0
-  fi
-
-}
-
-function configure_da_geoip() {
-  local option executed_function run
-  option="$1"
-  run="no"
-  executed_function="${CONF_PATH}/${FUNCNAME[0]}_executed"
-  if [ "${option}" == "--skip-mark" ]; then
-    cat /dev/null >"${executed_function}"
-    #run="no"
-    return 0
-  elif [ "${option}" == "--skip" ]; then
-    #run="no"
-    return 0
-  fi
-  if [[ "${option}" == "--run-force" || "${option}" == "--run-force-exit" ]]; then
-    rm -rf "${executed_function}"
-    run="yes"
-  elif [[ -z "${option}" || "${option}" == "--run" || "${option}" == "--run-exit" ]]; then
-    run="yes"
-  fi
-  if [[ ! -f "${CONF_PATH}/${FUNCNAME[0]}_executed" && "${run}" == "yes" ]]; then
-    echo "[${SCRIPT_NAME}]: Executing ${FUNCNAME[0]} ..." 2>&1 | tee -a "${REPORT_FILE}"
-    echo "[${SCRIPT_NAME}]: Installing geoip components in OS level ..." 2>&1 | tee -a "${REPORT_FILE}"
-    # Just like the memcached need libmemcache-dev, this geoip needs libgeoip-dev
-    apt-get -y install libgeoip-dev geoip-bin geoip-database
-
-    echo "[${SCRIPT_NAME}]: Installing geoip for php-extension using Poralix script ..." 2>&1 | tee -a "${REPORT_FILE}"
-    sleep 1
-    cd_to_path "${INST_TEMP_DIR}"
-    cp "${DATA_PATH}/maxinet/storage/os/${DISTRO_ID}/usr/local/directadmin/install_scripts/php_extension.sh" "${INST_TEMP_DIR}/php_extension.sh"
-    chmod +x php_extension.sh
-    # This one just checking not verifying, so whether exist or not we just execute install
-    echo "[${SCRIPT_NAME}]: Checking existing php-geoip installation ..." 2>&1 | tee -a "${REPORT_FILE}"
-    sleep 1
-    /bin/sh ./php_extension.sh status geoip 2>&1 | tee -a "${REPORT_FILE}"
-    echo "[${SCRIPT_NAME}]: Installing php-geoip for all PHP versions ..." 2>&1 | tee -a "${REPORT_FILE}"
-    sleep 2
-    # For geoip from poralix script, it needs to select --beta because stable release has error during installation
-    /bin/sh ./php_extension.sh install geoip --beta 2>&1 | tee -a "${REPORT_FILE}"
-
-    check_finish_reboot "${FUNCNAME[0]}"
-  else
-    echo "[${SCRIPT_NAME}]: [Skipped]: ${FUNCNAME[0]} has ran before" 2>&1 | tee -a "${REPORT_FILE}"
-    echo "=~=~=~=~=~=~=~=~=~" 2>&1 | tee -a "${REPORT_FILE}"
-  fi
   if [[ "${option}" == "--run-force-exit" || "${option}" == "--run-exit" ]]; then
     _echo "$(msg yellow)Warning, script terminated due to the supplied option ${option}$(msg end)" --name
     exit 0
@@ -14998,6 +15251,8 @@ function setup() {
     update_latest_maxicode --run
     # Note 1: This call contains security hardening server
     secure_box --run
+    # Note 1: This is for push notification (eg: to receive notification via android phone)
+    configure_gotify --run
     # Note 1: This will configure grub such as setting up password for grub bootloader
     # Note 2: Grub bootloader password can also be used in preseed file, but having preseed file during installation is a bad idea.
     configure_grub --run
@@ -15035,8 +15290,8 @@ function setup() {
       configure_da_ftp --run
       configure_nginx_apache --run
       build_da_custom_settings --run
-      configure_web_apps --run-exit
-      configure_da_settings --run
+      configure_web_apps --run
+      configure_da_settings --run-force-exit
       configure_da_memcached --run
       configure_da_geoip --run
       # we configure dns template before creating admin, reseller and user accounts so they can use new DNS template
@@ -15584,43 +15839,7 @@ ENDSSH
     break
     ;;
   -t | --test)
-    _echo -- "---------"
-    exit 1
-    shift
-    da_api_admin add-ip --sign-as admin --ip-address 1.1.1.1 --netmask 255.255.255.0
-    exit 1
-
-    data="$1"
-    if is_valid ssl_site "${data}"; then
-      echo "${data} is a valid SSL/https site"
-    else
-      echo "${data} is not a valid SSL/https site"
-    fi
-
-    exit 1
-    repair_services "csf" "lfd"
-    exit 1
-    configure_maxida
-    exit 1
-    restart_da
-    exit 1
-    echo "Provider: ${DNS_PROVIDER_NAME}"
-    echo "Provider type: ${LABEL_C_BOX_TYPE^^}"
-    echo "IPv4 address: ${LABEL_C_IPV4_ADD0}"
-    exit 1
-    # grep -v '^\s*$\|^\s*\#' ${CONFIG_FILE}  | cut -d'=' -f 2-
-    exit 1
-    create_file "sensitive_label_show" "${CONF_PATH}/sensitive_label"
-    source "${CONF_PATH}/sensitive_label"
-    echo "ADMIN_NAME: ${ADMIN_NAME_LABEL}"
-    #grep -E '^[A-Za-z0-9_].+=.+$' "${CONFIG_FILE}" | awk -F'=' '{ print $1"_LABEL=\""$1"\""}'
-    echo ""
-    exit 0
-
-    #grep -E '^[A-Za-z0-9_].+=.+$' "${CONFIG_FILE}" | awk -F'^=' '{ print $1 $2}'
-    ssh_api push-script --server-port "${C_BOX_HOSTNAME_FQHN}:${C_SSH_PORT}" --group-user "root:${C_ROOT_USERNAME}" --local-script-path "${CODE_PATH}/ssh_scripts/maxinet_setup.sh"
-    exit 1
-    required "ubuntu@@apt:git,nano,htop,vim,bc" "debian@@apt:git,nano,htop,vim,bc"
+    configure_gotify --run-force
     exit 0
     break
     ;;

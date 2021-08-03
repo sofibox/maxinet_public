@@ -159,7 +159,7 @@ C_USE_CUSTOM_WEB_CONFIG=true
 C_DISK_ENCRYPTION=true
 
 # C_LVM_GROUP_NAME:
-# This variable is used to give the volume group name for Logical Volumn Manager.
+# This variable is used to give the volume group name for Logical Volume Manager.
 # This name will be used by fstab, such as to configure secure mount option that is required for security
 # Leave this as default, and do not change this variable between OS installation and server installation.
 # WARNING, putting different values between OS installation and server installation will cause the fstab to be corrupted because it could not detect proper LVM group name
@@ -248,7 +248,9 @@ C_DA_CUSTOMBUILD_VERSION="2.0"
 # Server cache configuration
 # Planned variable
 C_DA_INSTALL_REDIS=true
+# C_DA_INSTALL_MEMCACHED is going to be deprecated (it is recommend to use redis instead because redis is supported in Custombuild)
 C_DA_INSTALL_MEMCACHED=true
+C_DA_INSTALL_GEOIP=true
 
 # Format <sql_type>-<sql_version>
 # or mysql-8.0
@@ -263,7 +265,6 @@ C_DA_AUTO_ADD_IPV46_ENTRY=true
 # Warning if you disable this variable C_DA_AUTO_LINK_IP, the installation will try to open directadmin port for you to link IPv6 IP address with IPv4 IP address manually
 # So, it requires your input to press enter
 C_DA_AUTO_LINK_IP=true
-
 # C_DA_LOGIN_METHOD: NOTE this is a planned feature (this setting has no effect yet)
 # This variable is used as login style method in directadmin. This login method is mentioned in the directadmin API documentation
 # Possible values are:
@@ -503,6 +504,7 @@ C_BOX_NS4="ns4.sofibox.com"
 
 
 C_USE_DEFAULT_ETH0=true
+# C_NIC_INTERFACE_NAME:
 # This variable is used to change the OS network interface name.
 # Using eth0 is the default. It is recommend to use the default name convention eth0
 # use auto = let the naming convention decide (planned feature)
@@ -562,7 +564,6 @@ C_MAXIWALL_AIPDB_API_KEY="AIPDB_API_HERE"
 C_DNS_PROVIDER_NAME=""
 # Leave this variable empty for technical reason
 C_DNS_PROVIDER_USER=""
-
 # Format <provider_name>:<provider_username>:<api_key>
 C_DNS_PROVIDER_API1="linode:maxibi:LINODE_API_HERE"
 C_DNS_PROVIDER_TERMINAL_SERVER="lish-usa1.linode.com"
@@ -583,3 +584,17 @@ C_LINODE_RESCUE_DISK_LABEL="Rescue_Disk"
 
 # Alternative packages version
 C_INSTALL_RUSTC_VERSION="1.52.0"
+
+# GOTIFY configuration
+C_GOTIFY_SYSTEM_USERNAME="gotify"
+C_GOTIFY_SYSTEM_GROUP="gotify"
+C_GOTIFY_INSTALLATION=true
+C_GOTIFY_VERSION="2.0.23"
+C_GOTIFY_PLATFORM="linux-amd64"
+C_GOTIFY_PORT="8222"
+C_GOTIFY_USERNAME="admin"
+C_GOTIFY_PASSWORD="newpassword"
+C_GOTIFY_APP_NAME="test.server.com"
+# This variable C_GOTIFY_APP_DESCRIPTION is optional and be empty
+C_GOTIFY_APP_DESCRIPTION=""
+C_GOTIFY_CLI_VERSION="2.2.0"
