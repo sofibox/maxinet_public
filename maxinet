@@ -5,7 +5,7 @@
 # Author: Arafat Ali | Email: webmaster@sofibox.com | Website: sofibox.com
 _APP_SPECIFIC_NAME="Maxinet"
 # Note some minor versions are not published
-_APP_VERSION="0.5.5.6"
+_APP_VERSION="0.5.5.7"
 _APP_STATUS="alpha"
 _APP_VERSION_STATUS="${_APP_VERSION}-${_APP_STATUS}"
 
@@ -17,7 +17,7 @@ _APP_VERSION_STATUS="${_APP_VERSION}-${_APP_STATUS}"
 # URL (public): github.com/sofibox/maxinet_public | (private) github.com/sofibox/maxinet (need access token)
 # =~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~="
 # Run installation with log output: ./${script_name} --setup 2>&1 | tee maxinet.log
-# Run initialize installation with log output: ./${script_name} --init-server init-all rebuild-iso 2>&1 | tee maxinet.log
+# Run initialize installation with log output: ./${script_name} --create-server --rebuild-all --backup 2>&1 | tee maxinet.log
 
 # FUNCTION BEGIN HERE
 
@@ -3326,7 +3326,8 @@ function iso_api() {
           _echo "$(msg green)OK, previous ISO file ${debian_iso_complete_file} exist$(msg end)" --name
           echo ""
           _echo "$(msg cyan)Checking if the ISO file ${debian_iso_complete_file} is valid (bootable) ..." --name
-          ${ISOINFO_BIN} -d -i "${debian_iso_complete_file}" 2>/dev/null | grep -q "bootable"
+          required "ubuntu@@apt:genisoimage" "debian@@apt:genisoimage"
+          isoinfo -d -i "${debian_iso_complete_file}" 2>/dev/null | grep -q "bootable"
           retval=$?
           if [ ${retval} -eq 0 ]; then
             local backup_dir iso_backup_dir ssh_backup_dir
@@ -4746,7 +4747,7 @@ function linode_api_admin() {
   #linode_api_admin reboot-to-rescue --linode-label test.server.com --dev-sda "disk:Boot_Disk" --dev-sdb "disk:OS_Disk" --dev-sdc "volume:Volume_Disk"
   elif [[ "${action^^}" == +(REBOOT-TO-RESCUE|RESCUE-REBOOT|REBOOT-RESCUE|BOOT-TO-RESCUE|RESCUE-MODE) ]]; then
     # scope finish 0.1 --- see validation ...
-    local linode_id retval=1 config_disk_vol
+    local linode_id retval=1 config_disk_vol loop_count
 
     if is_valid domain "${linode_label}"; then
       [[ ${scripting} == "false" ]] && _echo "$(msg green)OK, the given --linode-label $(msg red)${linode_label}$(msg green) is valid FQDN$(msg end)" --name --verbose 7
@@ -4794,25 +4795,38 @@ function linode_api_admin() {
         echo ""
       fi
 
+      _echo "$(msg cyan)Putting linode ${linode_label} into rescue mode ...$(msg end)" --name
       ${LINODE_CLI_BIN} linodes rescue --suppress-warnings "${linode_id}" ${config_disk_vol}
-
       #wait_until_linode_status_is running
 
-      _echo "$(msg cyan)Putting linode ${linode_label} into rescue mode ...$(msg end)" --name
+      loop_count=0
       while :; do
+        sleep 1
         linode_status=$(${LINODE_CLI_BIN} --pretty --json --suppress-warnings linodes view "${linode_id}" | ${JQ_BIN} -r ".[] | .status")
         if [[ "${linode_status}" == "running" ]]; then
           _echo "$(msg green)Success, linode ${linode_label} has been successfully booted into rescue mode.$(msg end)" --stop-spin --name
           break
         else
-          _echo "$(msg cyan)Linode status is ${linode_status}. Waiting for running status ...$(msg end)" --start-spin --name
+          _echo "$(msg cyan)Linode status is ${linode_status}. Waiting for running status on rescue mode ...$(msg end)" --start-spin --name
+          ((loop_count++))
+          if [ "${loop_count}" -eq 60 ]; then
+            #loop_count=0
+            _echo "$(msg yellow)Warning it has been more than 60 seconds linode ${linode_label} has not entered into rescue mode!$(msg end)" --name
+            _echo "$(msg cyan)Putting linode ${linode_label} into rescue mode (for the second time) ...$(msg end)" --name
+            ${LINODE_CLI_BIN} linodes rescue --suppress-warnings "${linode_id}" ${config_disk_vol}
+          fi
+
+          if [ "${loop_count}" -gt 120 ]; then
+            _echo "$(msg red)Warning it has been more than 120 seconds linode ${linode_label} has not entered into rescue mode. Something is wrong, please inspect why!$(msg end)" --name
+            _exit 147
+          fi
         fi
       done
 
     fi
   # linode_api_admin restart-linode --linode-label test.server.com --linode-config-label OS_Config
   elif [[ "${action^^}" == +(RESTART-LINODE|REBOOT-LINODE) ]]; then
-    local linode_id linode_config_id linode_api_exec option
+    local linode_id linode_config_id linode_api_exec option loop_count
     option="$2"
     # Required linode_id and linode_config_id
 
@@ -4872,18 +4886,34 @@ function linode_api_admin() {
 
     fi
 
+    loop_count=0
     while :; do
+      ((loop_count++))
       linode_status=$(${LINODE_CLI_BIN} --json --pretty --suppress-warnings linodes view "${linode_id}" | ${JQ_BIN} -r ".[] | .status")
       if [[ "${linode_status}" == "running" ]]; then
         _echo "$(msg green)Success, linode ${linode_label} has been successfully rebooted.$(msg end)" --stop-spin --name
         return 0
         #break
+      elif [[ "${linode_status}" == "offline" ]]; then
+        if [ "${loop_count}" -eq 60 ]; then
+          _echo "$(msg yellow)Warning it has been more than 60 seconds linode ${linode_label} has not entered into running mode!$(msg end)" --name
+          _echo "$(msg cyan)Rebooting linode ${linode_label} (for the second time) ...$(msg end)" --name
+          ${LINODE_CLI_BIN} --json --pretty --suppress-warnings linodes reboot "${linode_id}" --config_id "${linode_config_id}"
+        fi
+
+        if [ "${loop_count}" -gt 120 ]; then
+          _echo "$(msg red)Warning it has been more than 120 seconds linode ${linode_label} linode is still in offline mode! Please inspect why$(msg end)" --name
+          _exit 147
+        fi
       else
-        _echo "$(msg cyan)Linode ${linode_label}'s status is ${linode_status}. Waiting for running status ...$(msg end)" --start-spin --name
+        _echo "$(msg cyan)Linode ${linode_label}'s status is ${linode_status}. Waiting for running status after rebooting ...$(msg end)" --start-spin --name
       fi
+
     done
 
-  elif [[ "${action^^}" == +(SHUTDOWN-LINODE|POWEROFF-LINODE|TURNOFF-LINODE) ]]; then
+  elif
+    [[ "${action^^}" == +(SHUTDOWN-LINODE|POWEROFF-LINODE|TURNOFF-LINODE) ]]
+  then
     # This scope is completed v1
     local linode_id linode_api_exec ssh_pid
     # Required only linode_id
@@ -6021,6 +6051,7 @@ function da_api_admin() {
         _exit 147
       fi
     fi
+    # TODO understand what is the purpose of device=yes in technical way https://www.directadmin.com/features.php?id=2533
 
     #echo "Adding IP"
     #echo "Sign as: ${sign_as}"
@@ -15292,7 +15323,7 @@ function setup() {
       build_da_custom_settings --run
       configure_web_apps --run
       configure_da_settings --run-force-exit
-      configure_da_memcached --run
+      configure_da_memcached --skip # Deprecated
       configure_da_geoip --run
       # we configure dns template before creating admin, reseller and user accounts so they can use new DNS template
       configure_da_dns_templates --run
@@ -15411,9 +15442,6 @@ SCRIPT_PATH="$(dirname "$(readlink -f "$0")")"
 
 # Define date location to be executed eg: /usr/bin/date
 DATE_BIN=$(command -v date)
-
-# Location of an isoinfo
-ISOINFO_BIN=$(command -v isoinfo)
 
 if [ -z "${DATE_BIN}" ]; then
   # If binary for date is empty (does not exist),
