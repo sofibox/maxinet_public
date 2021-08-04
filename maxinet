@@ -5,7 +5,7 @@
 # Author: Arafat Ali | Email: webmaster@sofibox.com | Website: sofibox.com
 _APP_SPECIFIC_NAME="Maxinet"
 # Note some minor versions are not published
-_APP_VERSION="0.5.5.8"
+_APP_VERSION="0.5.5.9"
 _APP_STATUS="alpha"
 _APP_VERSION_STATUS="${_APP_VERSION}-${_APP_STATUS}"
 
@@ -524,10 +524,11 @@ function is_valid() {
 function init_server() {
   local options retval rebuild_iso rebuild_partition rebuild_config rebuild_all backup
   ARGNUM="$#"
-  if [ $ARGNUM -eq 0 ]; then
-    echo "Error, no argument is supplied. Use [ ${SCRIPT_NAME} --init-server --help ] to see the valid options"
-    exit 1
-  fi
+  # We should allow empty argument for creating server without rebuild or backup option
+  #if [ $ARGNUM -eq 0 ]; then
+  #  echo "Error, no argument is supplied. Use [ ${SCRIPT_NAME} --init-server --help ] to see the valid options"
+  #  exit 1
+  #fi
 
   options=$(getopt -o '' --long help,rebuild-iso,rebuild-partition,rebuild-config,rebuild-all,backup -n "${FUNCNAME[0]} in ${SCRIPT_NAME}" -- "$@")
   retval=$?
@@ -715,17 +716,15 @@ function init_server() {
     linode_api_admin reboot-to-rescue --linode-label "${C_BOX_HOSTNAME_FQHN}" --label-devsda "disk:${C_LINODE_BOOT_DISK_LABEL}" --label-devsdb "disk:${C_LINODE_OS_DISK_LABEL}"
     echo ""
 
-    _echo "$(msg cyan)Copying RSA key public key for login purpose ...$(msg end)" --name
-    ssh_api copy-public-keys --without-prompt
-    echo ""
-    # Wait 12 seconds for Rescue OS to boot properly
+    # Wait 15 seconds for Rescue OS to boot properly
     # Note the method to determine whether Finnix Rescue OS port is available or not will not work because by default Rescue Disk do not have open port
-    _echo "$(msg cyan)Giving 12 seconds for ${LABEL_C_BOX_HOSTNAME_FQHN} to finish booting into Finnix rescue OS ...$(msg end)" --name
-    sleep 12
+    _echo "$(msg cyan)Giving 15 seconds for ${LABEL_C_BOX_HOSTNAME_FQHN} to finish booting into Finnix rescue OS ...$(msg end)" --name
+    sleep 15
     _echo "$(msg cyan)Writing OS into ${C_LINODE_BOOT_DISK_LABEL} Partition via SSH background (this will be completed until linode is turned off automatically) ...$(msg end)" --name
     # ssh -q -o "StrictHostKeyChecking no" -i /root/.ssh/linode_lish.id_rsa -tt "${DNS_PROVIDER_USER}@${C_DNS_PROVIDER_TERMINAL_SERVER}" "${C_BOX_HOSTNAME_FQHN}" <"${CODE_PATH}/ssh_scripts/os_write_ag.sh" >/dev/null 2>&1 &
     # This above lish ssh command is equivalent to below using --push-iso-write-script option and other config will be used the default values from config file:
     ssh_api lish-push-script --push-iso-write-script
+    #ssh -q -o "StrictHostKeyChecking no" -i /root/.ssh/linode_lish.id_rsa -tt "${DNS_PROVIDER_USER}@${C_DNS_PROVIDER_TERMINAL_SERVER}" "${C_BOX_HOSTNAME_FQHN}" <"${CODE_PATH}/ssh_scripts/os_write_ag.sh" >/dev/null 2>&1 &
     # Wait until linode status is offline
     linode_api_admin wait-linode-status --linode-label "${C_BOX_HOSTNAME_FQHN}" --until-status offline
 
@@ -1038,7 +1037,7 @@ function ssh_api() {
     local private_key_name private_key_file
     if [ -z "${rsa_key}" ]; then
       private_key_name="${group}_${user}_${server}.id_rsa"
-      private_key_file="${key_path}/${private_key_name}"
+      private_key_file="/root/.ssh/${private_key_name}"
       rsa_key="${private_key_file}"
     fi
 
@@ -1053,7 +1052,7 @@ function ssh_api() {
 
     if [ -z "${rsa_key}" ]; then
       private_key_name="${group}_${user}_${server}.id_rsa"
-      private_key_file="${key_path}/${private_key_name}"
+      private_key_file="/root/.ssh/${private_key_name}"
       rsa_key="${private_key_file}"
     fi
 
@@ -1084,7 +1083,7 @@ function ssh_api() {
 
     if [ -z "${rsa_key}" ]; then
       private_key_name="root_${C_ROOT_USERNAME}_${linode_label}.id_rsa"
-      private_key_file="${key_path}/${private_key_name}"
+      private_key_file="/root/.ssh/${private_key_name}"
       rsa_key="${private_key_file}"
     fi
     if [ "${C_HIDE_SENSITIVE_TEXT}" == "true" ]; then
@@ -1112,7 +1111,7 @@ function ssh_api() {
     # This is special login based on user from config file (for faster login)
     if [[ ${argnum} -le 1 || "${option}" == "${C_ROOT_USERNAME}" ]]; then
       private_key_name="root_${C_ROOT_USERNAME}_${C_BOX_HOSTNAME_FQHN}.id_rsa"
-      private_key_file="${key_path}/${private_key_name}"
+      private_key_file="/root/.ssh/${private_key_name}"
       rsa_key="${private_key_file}"
 
       # This will check available port even if NO LUKS encrypted
@@ -1141,7 +1140,7 @@ function ssh_api() {
       ssh -o "StrictHostKeyChecking no" -i "${rsa_key}" -p "${C_SSH_PORT}" "${C_ROOT_USERNAME}@${C_BOX_HOSTNAME_FQHN}"
     elif [ "${option}" == "${C_SSH_USERNAME}" ]; then
       private_key_name="user_${C_SSH_USERNAME}_${C_BOX_HOSTNAME_FQHN}.id_rsa"
-      private_key_file="${key_path}/${private_key_name}"
+      private_key_file="/root/.ssh/${private_key_name}"
       rsa_key="${private_key_file}"
 
       # This will check available port even if NO LUKS encrypted
@@ -1208,7 +1207,7 @@ function ssh_api() {
 
       if [ -z "${rsa_key}" ]; then
         private_key_name="${group}_${user}_${server}.id_rsa"
-        private_key_file="${key_path}/${private_key_name}"
+        private_key_file="$/root/.ssh/${private_key_name}"
         rsa_key="${private_key_file}"
       fi
 
@@ -1244,7 +1243,7 @@ function ssh_api() {
     _echo "$(msg cyan)Logging into lish console ${user}@${server}... $(msg end)" --name
     # In Windows WSL linux, there will be error log saying: setsockopt IPV6_TCLASS 16: Operation not permitted: (this message can be ignored)
     # Note 2 linode lish requires to use -t option to login. -t option means pseudo-tty (some suggested to use double -tt)
-    ssh -o "StrictHostKeyChecking no" -i "${rsa_key}" -p "${port}" -tt "${user}@${server}" "${linode_label}"
+    ssh -o "StrictHostKeyChecking no" -i "${rsa_key}" -p "${port}" -tt "${user}@${server}" "${linode_label}" 2> >(grep -v "Permanently added" 1>&2)
     ssh_pid=$?
     { kill -9 ${ssh_pid} && wait ${ssh_pid}; } 2>/dev/null
 
@@ -1271,7 +1270,7 @@ function ssh_api() {
 
     if [ -z "${rsa_key}" ]; then
       private_key_name="${group}_${user}_${server}.id_rsa"
-      private_key_file="${key_path}/${private_key_name}"
+      private_key_file="$/root/.ssh/${private_key_name}"
       rsa_key="${private_key_file}"
     fi
 
@@ -1316,7 +1315,7 @@ function ssh_api() {
     local ssh_pid
 
     if [ -z "${rsa_key}" ]; then
-      rsa_key="${SECURE_PATH}/ssh/linode_lish.id_rsa"
+      rsa_key="/root/.ssh/linode_lish.id_rsa"
     fi
 
     if [ -z "${user}" ]; then
@@ -1375,6 +1374,7 @@ function ssh_api() {
 
     fi
 
+    # This key will be stored in secure folder first not /root/.ssh
     if [[ "${silent}" == "true" || "${C_HIDE_SENSITIVE_TEXT}" == "true" ]]; then
       _echo "$(msg cyan)Creating private and public key RSA SSH key authentication ...$(msg end)" --name
       ssh-keygen -q -f "${key_path}/${private_key_name}" -t rsa -b 4096 -P "" -C "${comment}" <<<y
@@ -1398,7 +1398,7 @@ function ssh_api() {
       private_key_name="${group}_${user}_${server_label}.id_rsa"
       private_key_putty_name="${group}_${user}_${server_label}.ppk"
     fi
-
+     # This key will be stored in secure folder first not /root/.ssh
     if [[ "${silent}" == "true" || "${C_HIDE_SENSITIVE_TEXT}" == "true" ]]; then
       _echo "$(msg cyan)Creating private and public key RSA SSH key authentication ...$(msg end)" --name
       ssh-keygen -f "${key_path}/${private_key_name}" -t rsa -b 4096 -P "" -C "${comment}" <<<y >/dev/null 2>&1
@@ -1410,7 +1410,6 @@ function ssh_api() {
     required "debian@@apt:putty-tools" "ubuntu@@apt:putty-tools"
     if [[ "${silent}" == "true" || "${C_HIDE_SENSITIVE_TEXT}" == "true" ]]; then
       _echo "$(msg cyan)Creating RSA SSH key authentication for Putty ...$(msg end)" --name
-      # TODO puttygen quiet test
       puttygen -q "${key_path}/${private_key_name}" -o "${key_path}/${private_key_putty_name}"
 
     else
@@ -1432,7 +1431,7 @@ function ssh_api() {
       _exit 147
     else
       public_key_name="${group}_${user}_${server_label}.id_rsa.pub"
-      public_key_file="${key_path}/${public_key_name}"
+      public_key_file="/root/.ssh/${public_key_name}"
     fi
 
     if [ -f "${public_key_file}" ]; then
@@ -1455,7 +1454,7 @@ function ssh_api() {
       _exit 147
     else
       private_key_name="${group}_${user}_${server_label}.id_rsa"
-      private_key_file="${key_path}/${private_key_name}"
+      private_key_file="/root/.ssh/${private_key_name}"
     fi
     if [ -f "${private_key_file}" ]; then
       cat "${private_key_file}"
@@ -1468,11 +1467,13 @@ function ssh_api() {
     # Warning this will replace existing key
 
     # ssh_api copy-public-keys --destination /root/.ssh/
+    # Haven't implemented --destination (not so important) default should be /root/.ssh/
   elif [[ "${action}" == "copy-pubkeys" || "${action}" == "copy-publickeys" || "${action}" == "copy-public-keys" ]]; then
     local response retval
     if [ "${without_prompt}" == "true" ]; then
       if [ -f /root/.ssh/known_hosts ]; then
-        _echo "$(msg cyan)Resetting known_hosts and copying all public key to /root/.ssh/* ...$(msg end)" --name
+        # No need to display this message if using with option --without-prompt
+        #_echo "$(msg cyan)Resetting known_hosts and copying all public key to /root/.ssh/* ...$(msg end)" --name
         echo >/root/.ssh/known_hosts
         cp "${key_path}"/*.id_rsa* /root/.ssh/
         chmod -R 600 /root/.ssh/
@@ -15643,6 +15644,12 @@ if [ -z "${C_HOST_PUBLIC_IP}" ]; then
 fi
 
 C_BOX_HOSTNAME=$(echo "${C_BOX_HOSTNAME_FQHN}" | awk -F'.' '{ print $1 }')
+
+# Copy ssh keys from secure folder to /root/.ssh because some SSH client in linux depend only on this path and must have permission
+# In Windows WSL, secure folder has permission global 777, lish connection will not allow using this ssh key.
+#_echo "$(msg cyan)Copying RSA key public key for login purpose without prompt to replace ...$(msg end)" --name
+# The ssh folder /root/.ssh/* will always have certificate from ${SECURE_PATH}/ssh
+ssh_api copy-public-keys --without-prompt
 
 ARGNUM="$#"
 # Handle option arguments (this option handler method does not require getopt)
