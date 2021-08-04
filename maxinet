@@ -5,7 +5,7 @@
 # Author: Arafat Ali | Email: webmaster@sofibox.com | Website: sofibox.com
 _APP_SPECIFIC_NAME="Maxinet"
 # Note some minor versions are not published
-_APP_VERSION="0.5.5.7"
+_APP_VERSION="0.5.5.8"
 _APP_STATUS="alpha"
 _APP_VERSION_STATUS="${_APP_VERSION}-${_APP_STATUS}"
 
@@ -648,6 +648,7 @@ function init_server() {
       #linode_api_admin delete-disk --linode-label "${C_BOX_HOSTNAME_FQHN}" --linode-disk-label "${C_LINODE_OS_DISK_LABEL}"
       # ------ To delete all disks from linode (plural with s)------
       _echo "=== Deleting all linode disks ====" --plain --name
+      # TODO delete disk that have label name with spaces
       linode_api_admin delete-disks --linode-label "${C_BOX_HOSTNAME_FQHN}"
       # Create Boot Disk that boot the operating system installer with raw format
       _echo "=== Creating linode Boot_Disk ====" --plain --name
@@ -1470,10 +1471,12 @@ function ssh_api() {
   elif [[ "${action}" == "copy-pubkeys" || "${action}" == "copy-publickeys" || "${action}" == "copy-public-keys" ]]; then
     local response retval
     if [ "${without_prompt}" == "true" ]; then
-      _echo "$(msg cyan)Resetting known_hosts and copying all public key to /root/.ssh/* ...$(msg end)" --name
-      echo >/root/.ssh/known_hosts
-      cp "${key_path}"/*.id_rsa* /root/.ssh/
-      chmod -R 600 /root/.ssh/
+      if [ -f /root/.ssh/known_hosts ]; then
+        _echo "$(msg cyan)Resetting known_hosts and copying all public key to /root/.ssh/* ...$(msg end)" --name
+        echo >/root/.ssh/known_hosts
+        cp "${key_path}"/*.id_rsa* /root/.ssh/
+        chmod -R 600 /root/.ssh/
+      fi
     else
       read -r -p "This will replace existing public key files (except putty format) from ${key_path} into /root/.ssh/. Are you sure? [Y/n]" response
       response=$(echo "${response}" | tr '[:upper:]' '[:lower:]')
@@ -4691,7 +4694,7 @@ function linode_api_admin() {
     # Usage:
     #linode_api_admin wait-linode-status --linode-label test.server.com --until-status running
   elif [[ "${action}" == "wait-linode-status" ]]; then
-    local linode_id linode_status
+    local linode_id linode_status loop_count
     # Wait 2 seconds for the status to be new
     linode_id=$(${LINODE_CLI_BIN} --pretty --json --suppress-warnings linodes list | ${JQ_BIN} ".[] | select(.label == \"${linode_label}\") | .id")
     if [ -z "${linode_id}" ]; then
@@ -4729,13 +4732,22 @@ function linode_api_admin() {
         _echo "$(msg yellow)Warning linode ${linode_label} is already in offline mode$(msg end)" --name --verbose 3
         return 0
       else
+        loop_count=0
         while :; do
+          sleep 1
+          ((loop_count++))
           linode_status=$(${LINODE_CLI_BIN} --pretty --json --suppress-warnings linodes view "${linode_id}" | ${JQ_BIN} -r ".[] | .status")
           if [[ "${linode_status}" == "offline" ]]; then
             _echo "$(msg green)Success, linode ${linode_label} is offline.$(msg end)" --stop-spin --name
             break
           elif [[ "${linode_status}" == "running" ]]; then
             _echo "$(msg yellow)Warning, linode is running. Waiting for offline status ...$(msg end)" --name --start-spin
+            if [ "${loop_count}" -eq 420 ]; then
+              _echo "$(msg yellow)Warning, linode has not entered into offline mode for more than 420 seconds (7 minutes) ...$(msg end)" --name --start-spin
+              # Increase this value if process requires more than 7 minutes or 420 seconds more
+              _echo "$(msg yellow)This is the maximum waiting time that linode should not wait more than this duration. Please inspect why linode still running!$(msg end)" --name --start-spin
+              _exit 147
+            fi
           else
             _echo "$(msg yellow)Linode status is ${linode_status}. Waiting for offline status ...$(msg end)" --start-spin --name
           fi
