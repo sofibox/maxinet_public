@@ -5,7 +5,7 @@
 # Author: Arafat Ali | Email: webmaster@sofibox.com | Website: sofibox.com
 _APP_SPECIFIC_NAME="Maxinet"
 # Note some minor versions are not published
-_APP_VERSION="0.5.5.9"
+_APP_VERSION="0.5.6.3"
 _APP_STATUS="alpha"
 _APP_VERSION_STATUS="${_APP_VERSION}-${_APP_STATUS}"
 
@@ -594,10 +594,10 @@ function init_server() {
   #echo "Disk space: "
   #echo "Memory/RAM: "
   echo "Checking IP and domain propagation ..."
-  # TODO check IP propagation
-  sleep 5
+  # TODO validate IP address and check IP or domain propagation here before proceeding ...
+  sleep 1
   if [ ${backup} == "true" ]; then
-    _echo "$(msg blue)Notice, the option --backup-all is set. The following backup will events be triggered automatically: $(msg end)" --name --plain
+    _echo "$(msg blue)Notice, the option --backup-all is set. The following backup events will be triggered automatically: $(msg end)" --name --plain
     _echo "$(msg blue)1) Previous iso image will be backed up automatically $(msg end)" --name --plain
     _echo "$(msg blue)2) Previous RSA SSH key will be backed up automatically $(msg end)" --name --plain
   fi
@@ -1207,7 +1207,7 @@ function ssh_api() {
 
       if [ -z "${rsa_key}" ]; then
         private_key_name="${group}_${user}_${server}.id_rsa"
-        private_key_file="$/root/.ssh/${private_key_name}"
+        private_key_file="/root/.ssh/${private_key_name}"
         rsa_key="${private_key_file}"
       fi
 
@@ -1270,7 +1270,7 @@ function ssh_api() {
 
     if [ -z "${rsa_key}" ]; then
       private_key_name="${group}_${user}_${server}.id_rsa"
-      private_key_file="$/root/.ssh/${private_key_name}"
+      private_key_file="/root/.ssh/${private_key_name}"
       rsa_key="${private_key_file}"
     fi
 
@@ -1398,7 +1398,7 @@ function ssh_api() {
       private_key_name="${group}_${user}_${server_label}.id_rsa"
       private_key_putty_name="${group}_${user}_${server_label}.ppk"
     fi
-     # This key will be stored in secure folder first not /root/.ssh
+    # This key will be stored in secure folder first not /root/.ssh
     if [[ "${silent}" == "true" || "${C_HIDE_SENSITIVE_TEXT}" == "true" ]]; then
       _echo "$(msg cyan)Creating private and public key RSA SSH key authentication ...$(msg end)" --name
       ssh-keygen -f "${key_path}/${private_key_name}" -t rsa -b 4096 -P "" -C "${comment}" <<<y >/dev/null 2>&1
@@ -1431,7 +1431,8 @@ function ssh_api() {
       _exit 147
     else
       public_key_name="${group}_${user}_${server_label}.id_rsa.pub"
-      public_key_file="/root/.ssh/${public_key_name}"
+      # Note. This one should be the location of the secure path of script not the root path of ssh in the system such as /root/.ssh
+      public_key_file="${SECURE_PATH}/ssh/${public_key_name}"
     fi
 
     if [ -f "${public_key_file}" ]; then
@@ -1534,7 +1535,7 @@ function lish_console() {
   # Sent question to ticket waiting for answer to speedup this one
   #maxinet --lish configs 2>&1 | grep 'OS_Config' | awk -F')' '{ print $1 }' | xargs
   # I use 2>&1 to hide error output
-  ssh -i "${SECURE_PATH}/ssh/linode_lish.id_rsa" -o "StrictHostKeyChecking no" -oAddressFamily=inet -tt "${DNS_PROVIDER_USER}@${C_DNS_PROVIDER_TERMINAL_SERVER}" "${C_BOX_HOSTNAME_FQHN}" ${options}
+  ssh -i "/root/.ssh/linode_lish.id_rsa" -o "StrictHostKeyChecking no" -oAddressFamily=inet -tt "${DNS_PROVIDER_USER}@${C_DNS_PROVIDER_TERMINAL_SERVER}" "${C_BOX_HOSTNAME_FQHN}" ${options}
   #exec_time end lish_console
 }
 
@@ -2414,11 +2415,11 @@ function msg() {
 #_echo -- "------" or _echo -- "-test"
 # Can be used with gotify: _echo "How are you" | gotify
 function _echo() {
-  local long_opts short_opts options retval report timestamp name verbose plain start_spin stop_spin
+  local long_opts short_opts options retval report timestamp name verbose plain start_spin stop_spin push_notification silent push_notification_silent
   declare -A LOG_LEVELS
 
   short_opts="vqsprtn"
-  long_opts="verbose:,quiet,silent,plain,report,timestamp,name,start-spin,stop-spin"
+  long_opts="verbose:,quiet,silent,plain,report,timestamp,name,start-spin,stop-spin,push-notification,push-notification-silent"
 
   options=$(getopt -a -o "${short_opts}" --long "${long_opts}" -n "${FUNCNAME[0]} ${SCRIPT_NAME}" -- "$@")
   retval=$?
@@ -2437,6 +2438,9 @@ function _echo() {
   plain=false
   start_spin=false
   stop_spin=false
+  push_notification=false
+  push_notification_silent=false
+  silent=false
   while true; do
     case "$1" in
     -v | --verbose)
@@ -2448,6 +2452,7 @@ function _echo() {
       shift
       ;;
     -s | --silent)
+      silent=true
       verbose=-1
       shift
       ;;
@@ -2478,6 +2483,14 @@ function _echo() {
       ;;
     --stop-spin)
       stop_spin=true
+      shift
+      ;;
+    --push-notification)
+      push_notification=true
+      shift
+      ;;
+    --push-notification-silent)
+      push_notification_silent=true
       shift
       ;;
     --)
@@ -2517,13 +2530,38 @@ function _echo() {
   if [[ ${start_spin} == "true" ]]; then
     echo -ne "\r\e[0K${msg} [${C_SPIN_PROGRESS:SPIN_COUNT++:1}]"
     ((SPIN_COUNT == ${#C_SPIN_PROGRESS})) && SPIN_COUNT=0
-    tput civis # hide cursor
+    # hide cursor
+    tput civis
   elif [[ ${stop_spin} == "true" ]]; then
     echo -ne "\r\e[0K${msg}\n"
-    tput cnorm # restore cursor
+    # restore cursor
+    tput cnorm
   elif [[ "${plain}" == "true" ]]; then
     echo -e "${msg}" 2>&1 | tee -a ${report_path}
-
+    # Send push notification here if --push-notification is set.
+    # _echo "
+  elif [[ "${push_notification}" == "true" || "${push_notification_silent}" == "true" ]]; then
+    # Only send notification if gotify is installed
+    if command -v gotify &>/dev/null; then
+      local push_msg
+      #priority 10 will make the phone vibrate and has high volume
+      push_msg=$(echo -e "${msg}" | gotify push -p 10)
+      retval=$?
+      if [[ "${retval}" -eq 0 ]]; then
+        [[ "${push_notification_silent}" == "false" ]] && echo -e "${msg} [SENT TO PUSH NOTIFICATION]"
+        return 0
+      else
+        echo "[${SCRIPT_NAME}]: Warning, failed to send push notification to gotify for the following text:"
+        echo "${msg}"
+        echo ""
+        echo "[${SCRIPT_NAME}]: Reason of failed:"
+        echo "${push_msg}"
+        echo ""
+        return "${retval}"
+      fi
+    else
+      echo "[${SCRIPT_NAME}]: Warning, gotify is not installed. The option --push-notification does nothing"
+    fi
   elif [[ "${C_LOG_VERBOSITY_LEVEL}" -ge "${verbose}" && "${verbose}" -ne -1 ]]; then
     echo -e "[${LOG_LEVELS[${verbose}]}] ${msg}" 2>&1 | tee -a ${report_path}
   else # Meaning this is quiet but still we write report in file
@@ -3401,6 +3439,9 @@ function iso_api() {
         _echo "$(msg cyan)Creating new RSA Key for sudo [user] ...$(msg end)" --name
         ssh_api create-key-with-putty --group user --user "${C_SSH_USERNAME}" --comment "${C_BOX_HOSTNAME_FQHN}_secure_auth"
 
+        # Must copy the new keys to /root/.ssh with this command
+        _echo "$(msg cyan)Updating the keys from ${SECURE_PATH}/ssh into /root/.ssh ...$(msg end)" --name
+        ssh_api copy-public-keys --without-prompt
         echo ""
 
         _echo "$(msg cyan)Building a custom ${iso_os} image file for server using HDD Booting method ...$(msg end)" --name
@@ -6469,6 +6510,10 @@ function check_finish_reboot() {
     echo ""
     _echo "$(msg red)=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=$(msg end)" --plain
     _echo "$(msg green)[OK]: $(msg magenta)${func_name}()$(msg end) $(msg green)has been executed$(msg end)" --name
+    if command -v gotify &>/dev/null; then
+      # Send alert to push notification if gotify is installed (we dont use color here) because color will not display in terminal
+      _echo "[OK]: ${func_name}() has been executed" --name --push-notification
+    fi
     # This sleep is for debugging, when finish developing this script, I should remove this sleep to speed up the script
     #sleep 1
   fi
@@ -6592,11 +6637,11 @@ function setup_pre() {
   run="no"
   func_name="${FUNCNAME[0]}"
   executed_function="${CONF_PATH}/${func_name}_executed"
-  if [ "${option}" == "--skip-mark" ]; then
+  if [[ "${option}" == "--skip-mark" || "${option}" == "--skip-mark-exit" ]]; then
     cat /dev/null >"${executed_function}"
     #run="no"
     return 0
-  elif [ "${option}" == "--skip" ]; then
+  elif [[ "${option}" == "--skip" || "${option}" == "--skip-exit" ]]; then
     #run="no"
     return 0
   fi
@@ -6656,7 +6701,7 @@ function setup_pre() {
     _echo "$(msg yellow)[Skipped]: $(msg magenta)${func_name}()$(msg end) $(msg yellow)has ran before$(msg end)" --name
   fi
 
-  if [[ "${option}" == "--run-force-exit" || "${option}" == "--run-exit" ]]; then
+  if [[ "$(echo "${option}" | awk -F'-' '{ print $NF}')" == "exit" ]]; then
     _echo "$(msg yellow)Note: this script is terminated due to the supplied option ${option} from function $(msg magenta)${func_name}()$(msg end) $(msg end)" --name
     _exit 0
   fi
@@ -6673,11 +6718,11 @@ function configure_gotify() {
   run="no"
   func_name="${FUNCNAME[0]}"
   executed_function="${CONF_PATH}/${func_name}_executed"
-  if [ "${option}" == "--skip-mark" ]; then
+  if [[ "${option}" == "--skip-mark" || "${option}" == "--skip-mark-exit" ]]; then
     cat /dev/null >"${executed_function}"
     #run="no"
     return 0
-  elif [ "${option}" == "--skip" ]; then
+  elif [[ "${option}" == "--skip" || "${option}" == "--skip-exit" ]]; then
     #run="no"
     return 0
   fi
@@ -6809,6 +6854,7 @@ function configure_gotify() {
         sleep 2
         echo ""
         _echo "$(msg cyan)Changing gotify default password database via curl and giving 2 seconds extra wait time ...$(msg end)" --name
+        required "debian@@apt:curl" "ubuntu@@apt:curl"
         curl -sSf -X POST -H "Content-Type: application/json" --user "admin:admin" "http://${C_BOX_HOSTNAME_FQHN}:${C_GOTIFY_PORT}/current/user/password" --data "{\"pass\": \"${C_GOTIFY_PASSWORD}\"}"
         sleep 2
         echo ""
@@ -6898,7 +6944,7 @@ function configure_gotify() {
     _echo "$(msg yellow)[Skipped]: $(msg magenta)${func_name}()$(msg end) $(msg yellow)has ran before$(msg end)" --name
   fi
 
-  if [[ "${option}" == "--run-force-exit" || "${option}" == "--run-exit" ]]; then
+  if [[ "$(echo "${option}" | awk -F'-' '{ print $NF}')" == "exit" ]]; then
     _echo "$(msg yellow)Note: this script is terminated due to the supplied option ${option} from function $(msg magenta)${func_name}()$(msg end) $(msg end)" --name
     _exit 0
   fi
@@ -6914,11 +6960,11 @@ function get_latest_code() {
   run="no"
   func_name="${FUNCNAME[0]}"
   executed_function="${CONF_PATH}/${func_name}_executed"
-  if [ "${option}" == "--skip-mark" ]; then
+  if [[ "${option}" == "--skip-mark" || "${option}" == "--skip-mark-exit" ]]; then
     cat /dev/null >"${executed_function}"
     #run="no"
     return 0
-  elif [ "${option}" == "--skip" ]; then
+  elif [[ "${option}" == "--skip" || "${option}" == "--skip-exit" ]]; then
     #run="no"
     return 0
   fi
@@ -6930,7 +6976,7 @@ function get_latest_code() {
   fi
   if [[ ! -f "${CONF_PATH}/${func_name}_executed" && "${run}" == "yes" ]]; then
     exec_time start "${func_name}"
-    local code_version
+    local latest_code_version current_code_version
     _echo "$(msg cyan)Executing $(msg magenta)${func_name}()$(msg end) $(msg cyan)with option ${option} ...$(msg end)" --name
     _echo "$(msg red)=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=$(msg end)" --plain
     echo ""
@@ -6958,11 +7004,14 @@ function get_latest_code() {
     echo ""
     git clone "${C_SETUP_GIT_URL}" "${LATEST_CODE_PATH}"
     echo ""
-    code_version=$(grep -w "^_APP_VERSION" "${LATEST_CODE_PATH}/${SCRIPT_NAME}" | cut -d "=" -f 2- | sed -e 's/"//' -e 's/"$//')
-    if [ -n "${code_version}" ]; then
-      _echo "$(msg cyan)Latest code version is $(msg magenta)${code_version}$(msg end)" --name
+    current_code_version=$(grep -w "^_APP_VERSION" "${SCRIPT_PATH}/${SCRIPT_NAME}" | cut -d "=" -f 2- | sed -e 's/"//' -e 's/"$//')
+    latest_code_version=$(grep -w "^_APP_VERSION" "${LATEST_CODE_PATH}/${SCRIPT_NAME}" | cut -d "=" -f 2- | sed -e 's/"//' -e 's/"$//')
+
+    if [ -n "${latest_code_version}" ]; then
+      _echo "$(msg cyan)Current code version is v$(msg magenta)${current_code_version}$(msg end)" --name
+      _echo "$(msg cyan)Latest code version is v$(msg magenta)${latest_code_version}$(msg end)" --name
     else
-      _echo "$(msg red)Error, could not determine the latest code version!$(msg end)" --name
+      _echo "$(msg red)Error, could not determine the latest code version! The latest code is needed for this script to work properly$(msg end)" --name
       _exit 147
     fi
     # After we have the latest source code folder, now we can delete these sensitive files for security
@@ -6977,7 +7026,7 @@ function get_latest_code() {
     _echo "$(msg yellow)[Skipped]: $(msg magenta)${func_name}()$(msg end) $(msg yellow)has ran before$(msg end)" --name
   fi
 
-  if [[ "${option}" == "--run-force-exit" || "${option}" == "--run-exit" ]]; then
+  if [[ "$(echo "${option}" | awk -F'-' '{ print $NF}')" == "exit" ]]; then
     _echo "$(msg yellow)Note: this script is terminated due to the supplied option ${option} from function $(msg magenta)${func_name}()$(msg end) $(msg end)" --name
     _exit 0
   fi
@@ -6991,11 +7040,11 @@ function update_latest_maxicode() {
   run="no"
   func_name="${FUNCNAME[0]}"
   executed_function="${CONF_PATH}/${func_name}_executed"
-  if [ "${option}" == "--skip-mark" ]; then
+  if [[ "${option}" == "--skip-mark" || "${option}" == "--skip-mark-exit" ]]; then
     cat /dev/null >"${executed_function}"
     #run="no"
     return 0
-  elif [ "${option}" == "--skip" ]; then
+  elif [[ "${option}" == "--skip" || "${option}" == "--skip-exit" ]]; then
     #run="no"
     return 0
   fi
@@ -7040,7 +7089,7 @@ function update_latest_maxicode() {
     _echo "$(msg yellow)[Skipped]: $(msg magenta)${func_name}()$(msg end) $(msg yellow)has ran before$(msg end)" --name
   fi
 
-  if [[ "${option}" == "--run-force-exit" || "${option}" == "--run-exit" ]]; then
+  if [[ "$(echo "${option}" | awk -F'-' '{ print $NF}')" == "exit" ]]; then
     _echo "$(msg yellow)Note: this script is terminated due to the supplied option ${option} from function $(msg magenta)${func_name}()$(msg end) $(msg end)" --name
     _exit 0
   fi
@@ -7048,17 +7097,17 @@ function update_latest_maxicode() {
 }
 
 # This function contains the security hardening for Linux
-function secure_box() {
+function secure_os() {
   local option executed_function run func_name
   option="$1"
   run="no"
   func_name="${FUNCNAME[0]}"
   executed_function="${CONF_PATH}/${func_name}_executed"
-  if [ "${option}" == "--skip-mark" ]; then
+  if [[ "${option}" == "--skip-mark" || "${option}" == "--skip-mark-exit" ]]; then
     cat /dev/null >"${executed_function}"
     #run="no"
     return 0
-  elif [ "${option}" == "--skip" ]; then
+  elif [[ "${option}" == "--skip" || "${option}" == "--skip-exit" ]]; then
     #run="no"
     return 0
   fi
@@ -7070,7 +7119,7 @@ function secure_box() {
   fi
   if [[ ! -f "${CONF_PATH}/${func_name}_executed" && "${run}" == "yes" ]]; then
     exec_time start "${func_name}"
-    local code_version find_au find_ar user_rsa_public_key
+    local latest_code_version find_au find_ar user_rsa_public_key
     _echo "$(msg cyan)Executing $(msg magenta)${func_name}()$(msg end) $(msg cyan)with option ${option} ...$(msg end)" --name
     _echo "$(msg red)=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=$(msg end)" --plain
     echo ""
@@ -7111,14 +7160,13 @@ function secure_box() {
     echo ""
     if [[ "${DISTRO_ID}" == "centos" || "${DISTRO_ID}" == "almalinux" ]]; then
       _echo "$(msg cyan)Creating a non-sudo username ${LABEL_C_SSH_USERNAME} ...$(msg end)" --name
-      adduser "${C_SSH_USERNAME}" 2>&1 | tee -a "${REPORT_FILE}"
+      adduser "${C_SSH_USERNAME}"
       echo ""
       _echo "$(msg cyan)Setting up password for non-sudo username ${LABEL_C_SSH_USERNAME} ...$(msg end)" --name
       echo "${C_SSH_USERPASS}" | passwd --stdin "${C_SSH_USERNAME}"
       echo ""
       _echo "$(msg cyan)Adding a non-sudo user ${LABEL_C_SSH_USERNAME} to the highest privilege group ...$(msg end)" --name
-
-      gpasswd -a "${C_SSH_USERNAME}" wheel 2>&1 | tee -a "${REPORT_FILE}"
+      gpasswd -a "${C_SSH_USERNAME}" wheel
       echo ""
     elif [ "${DISTRO_ID}" == "debian" ]; then
       _echo "$(msg cyan)Creating a non-sudo username ${LABEL_C_SSH_USERNAME} ...$(msg end)" --name
@@ -7236,8 +7284,13 @@ function secure_box() {
       _echo "$(msg yellow)Warning, the default debian installation doesn't include any firewalls. Debian will be installed automatically if it does not exist ...$(msg end)" --name
       required "debian@@apt:ufw"
       echo ""
-      _echo "$(msg cyan)Adding SSH port ${LABEL_C_SSH_PORT}/tcp to ufw...$(msg end)" --name
+      _echo "$(msg cyan)Adding SSH port ${LABEL_C_SSH_PORT}/tcp to ufw ...$(msg end)" --name
       sudo ufw allow "${C_SSH_PORT}/tcp"
+      echo ""
+      if [ "${C_GOTIFY_INSTALLATION}" == "true" ]; then
+        _echo "$(msg cyan)Adding gotify port ${LABEL_C_GOTIFY_PORT}/tcp to ufw ...$(msg end)" --name
+        sudo ufw allow "${C_GOTIFY_PORT}/tcp"
+      fi
       echo ""
       _echo "$(msg cyan)Adding an IP address ${LABEL_C_HOST_PUBLIC_IP} from config file in ufw to prevent locked out during setup$(msg end)" --name
       sudo ufw allow from "${C_HOST_PUBLIC_IP}"
@@ -7282,7 +7335,7 @@ function secure_box() {
     _echo "$(msg yellow)[Skipped]: $(msg magenta)${func_name}()$(msg end) $(msg yellow)has ran before$(msg end)" --name
   fi
 
-  if [[ "${option}" == "--run-force-exit" || "${option}" == "--run-exit" ]]; then
+  if [[ "$(echo "${option}" | awk -F'-' '{ print $NF}')" == "exit" ]]; then
     _echo "$(msg yellow)Note: this script is terminated due to the supplied option ${option} from function $(msg magenta)${func_name}()$(msg end) $(msg end)" --name
     _exit 0
   fi
@@ -7295,11 +7348,11 @@ function configure_grub() {
   run="no"
   func_name="${FUNCNAME[0]}"
   executed_function="${CONF_PATH}/${func_name}_executed"
-  if [ "${option}" == "--skip-mark" ]; then
+  if [[ "${option}" == "--skip-mark" || "${option}" == "--skip-mark-exit" ]]; then
     cat /dev/null >"${executed_function}"
     #run="no"
     return 0
-  elif [ "${option}" == "--skip" ]; then
+  elif [[ "${option}" == "--skip" || "${option}" == "--skip-exit" ]]; then
     #run="no"
     return 0
   fi
@@ -7353,7 +7406,7 @@ function configure_grub() {
     _echo "$(msg yellow)[Skipped]: $(msg magenta)${func_name}()$(msg end) $(msg yellow)has ran before$(msg end)" --name
   fi
 
-  if [[ "${option}" == "--run-force-exit" || "${option}" == "--run-exit" ]]; then
+  if [[ "$(echo "${option}" | awk -F'-' '{ print $NF}')" == "exit" ]]; then
     _echo "$(msg yellow)Note: this script is terminated due to the supplied option ${option} from function $(msg magenta)${func_name}()$(msg end) $(msg end)" --name
     _exit 0
   fi
@@ -7367,11 +7420,11 @@ function configure_net() {
   run="no"
   func_name="${FUNCNAME[0]}"
   executed_function="${CONF_PATH}/${func_name}_executed"
-  if [ "${option}" == "--skip-mark" ]; then
+  if [[ "${option}" == "--skip-mark" || "${option}" == "--skip-mark-exit" ]]; then
     cat /dev/null >"${executed_function}"
     #run="no"
     return 0
-  elif [ "${option}" == "--skip" ]; then
+  elif [[ "${option}" == "--skip" || "${option}" == "--skip-exit" ]]; then
     #run="no"
     return 0
   fi
@@ -7582,7 +7635,7 @@ function configure_net() {
     _echo "$(msg yellow)[Skipped]: $(msg magenta)${func_name}()$(msg end) $(msg yellow)has ran before$(msg end)" --name
   fi
 
-  if [[ "${option}" == "--run-force-exit" || "${option}" == "--run-exit" ]]; then
+  if [[ "$(echo "${option}" | awk -F'-' '{ print $NF}')" == "exit" ]]; then
     _echo "$(msg yellow)Note: this script is terminated due to the supplied option ${option} from function $(msg magenta)${func_name}()$(msg end) $(msg end)" --name
     _exit 0
   fi
@@ -7597,11 +7650,11 @@ function configure_net2() {
   run="no"
   func_name="${FUNCNAME[0]}"
   executed_function="${CONF_PATH}/${func_name}_executed"
-  if [ "${option}" == "--skip-mark" ]; then
+  if [[ "${option}" == "--skip-mark" || "${option}" == "--skip-mark-exit" ]]; then
     cat /dev/null >"${executed_function}"
     #run="no"
     return 0
-  elif [ "${option}" == "--skip" ]; then
+  elif [[ "${option}" == "--skip" || "${option}" == "--skip-exit" ]]; then
     #run="no"
     return 0
   fi
@@ -7778,7 +7831,7 @@ function configure_net2() {
     _echo "$(msg yellow)[Skipped]: $(msg magenta)${func_name}()$(msg end) $(msg yellow)has ran before$(msg end)" --name
   fi
 
-  if [[ "${option}" == "--run-force-exit" || "${option}" == "--run-exit" ]]; then
+  if [[ "$(echo "${option}" | awk -F'-' '{ print $NF}')" == "exit" ]]; then
     _echo "$(msg yellow)Note: this script is terminated due to the supplied option ${option} from function $(msg magenta)${func_name}()$(msg end) $(msg end)" --name
     _exit 0
   fi
@@ -7791,11 +7844,11 @@ function configure_fstab() {
   run="no"
   func_name="${FUNCNAME[0]}"
   executed_function="${CONF_PATH}/${func_name}_executed"
-  if [ "${option}" == "--skip-mark" ]; then
+  if [[ "${option}" == "--skip-mark" || "${option}" == "--skip-mark-exit" ]]; then
     cat /dev/null >"${executed_function}"
     #run="no"
     return 0
-  elif [ "${option}" == "--skip" ]; then
+  elif [[ "${option}" == "--skip" || "${option}" == "--skip-exit" ]]; then
     #run="no"
     return 0
   fi
@@ -7849,7 +7902,7 @@ function configure_fstab() {
     _echo "$(msg yellow)[Skipped]: $(msg magenta)${func_name}()$(msg end) $(msg yellow)has ran before$(msg end)" --name
   fi
 
-  if [[ "${option}" == "--run-force-exit" || "${option}" == "--run-exit" ]]; then
+  if [[ "$(echo "${option}" | awk -F'-' '{ print $NF}')" == "exit" ]]; then
     _echo "$(msg yellow)Note: this script is terminated due to the supplied option ${option} from function $(msg magenta)${func_name}()$(msg end) $(msg end)" --name
     _exit 0
   fi
@@ -7863,11 +7916,11 @@ function configure_sysctl_swap() {
   run="no"
   func_name="${FUNCNAME[0]}"
   executed_function="${CONF_PATH}/${func_name}_executed"
-  if [ "${option}" == "--skip-mark" ]; then
+  if [[ "${option}" == "--skip-mark" || "${option}" == "--skip-mark-exit" ]]; then
     cat /dev/null >"${executed_function}"
     #run="no"
     return 0
-  elif [ "${option}" == "--skip" ]; then
+  elif [[ "${option}" == "--skip" || "${option}" == "--skip-exit" ]]; then
     #run="no"
     return 0
   fi
@@ -7900,7 +7953,7 @@ function configure_sysctl_swap() {
     _echo "$(msg yellow)[Skipped]: $(msg magenta)${func_name}()$(msg end) $(msg yellow)has ran before$(msg end)" --name
   fi
 
-  if [[ "${option}" == "--run-force-exit" || "${option}" == "--run-exit" ]]; then
+  if [[ "$(echo "${option}" | awk -F'-' '{ print $NF}')" == "exit" ]]; then
     _echo "$(msg yellow)Note: this script is terminated due to the supplied option ${option} from function $(msg magenta)${func_name}()$(msg end) $(msg end)" --name
     _exit 0
   fi
@@ -7913,11 +7966,11 @@ function configure_sysctl_kernel_fs() {
   run="no"
   func_name="${FUNCNAME[0]}"
   executed_function="${CONF_PATH}/${func_name}_executed"
-  if [ "${option}" == "--skip-mark" ]; then
+  if [[ "${option}" == "--skip-mark" || "${option}" == "--skip-mark-exit" ]]; then
     cat /dev/null >"${executed_function}"
     #run="no"
     return 0
-  elif [ "${option}" == "--skip" ]; then
+  elif [[ "${option}" == "--skip" || "${option}" == "--skip-exit" ]]; then
     #run="no"
     return 0
   fi
@@ -7954,7 +8007,7 @@ function configure_sysctl_kernel_fs() {
     _echo "$(msg yellow)[Skipped]: $(msg magenta)${func_name}()$(msg end) $(msg yellow)has ran before$(msg end)" --name
   fi
 
-  if [[ "${option}" == "--run-force-exit" || "${option}" == "--run-exit" ]]; then
+  if [[ "$(echo "${option}" | awk -F'-' '{ print $NF}')" == "exit" ]]; then
     _echo "$(msg yellow)Note: this script is terminated due to the supplied option ${option} from function $(msg magenta)${func_name}()$(msg end) $(msg end)" --name
     _exit 0
   fi
@@ -7967,11 +8020,11 @@ function configure_sysctl_ips() {
   run="no"
   func_name="${FUNCNAME[0]}"
   executed_function="${CONF_PATH}/${func_name}_executed"
-  if [ "${option}" == "--skip-mark" ]; then
+  if [[ "${option}" == "--skip-mark" || "${option}" == "--skip-mark-exit" ]]; then
     cat /dev/null >"${executed_function}"
     #run="no"
     return 0
-  elif [ "${option}" == "--skip" ]; then
+  elif [[ "${option}" == "--skip" || "${option}" == "--skip-exit" ]]; then
     #run="no"
     return 0
   fi
@@ -8043,7 +8096,7 @@ function configure_sysctl_ips() {
     _echo "$(msg yellow)[Skipped]: $(msg magenta)${func_name}()$(msg end) $(msg yellow)has ran before$(msg end)" --name
   fi
 
-  if [[ "${option}" == "--run-force-exit" || "${option}" == "--run-exit" ]]; then
+  if [[ "$(echo "${option}" | awk -F'-' '{ print $NF}')" == "exit" ]]; then
     _echo "$(msg yellow)Note: this script is terminated due to the supplied option ${option} from function $(msg magenta)${func_name}()$(msg end) $(msg end)" --name
     _exit 0
   fi
@@ -8056,11 +8109,11 @@ function upgrade_os() {
   run="no"
   func_name="${FUNCNAME[0]}"
   executed_function="${CONF_PATH}/${func_name}_executed"
-  if [ "${option}" == "--skip-mark" ]; then
+  if [[ "${option}" == "--skip-mark" || "${option}" == "--skip-mark-exit" ]]; then
     cat /dev/null >"${executed_function}"
     #run="no"
     return 0
-  elif [ "${option}" == "--skip" ]; then
+  elif [[ "${option}" == "--skip" || "${option}" == "--skip-exit" ]]; then
     #run="no"
     return 0
   fi
@@ -8162,7 +8215,7 @@ function upgrade_os() {
     _echo "$(msg yellow)[Skipped]: $(msg magenta)${func_name}()$(msg end) $(msg yellow)has ran before$(msg end)" --name
   fi
 
-  if [[ "${option}" == "--run-force-exit" || "${option}" == "--run-exit" ]]; then
+  if [[ "$(echo "${option}" | awk -F'-' '{ print $NF}')" == "exit" ]]; then
     _echo "$(msg yellow)Note: this script is terminated due to the supplied option ${option} from function $(msg magenta)${func_name}()$(msg end) $(msg end)" --name
     _exit 0
   fi
@@ -8182,7 +8235,7 @@ function restart_da() {
     ((HOLD_SECONDS = HOLD_SECONDS + 1))
     sleep ${wait_step}
     if [[ -s "${task_queue_file}" && -f "${task_queue_file}" ]]; then
-      _echo "$(msg cyan)Waiting for pending task(s) to finish executing. Maximum wait of ${HOLD_SECONDS}/${max_wait} seconds ...$(msg end)" --start-spin --name
+      _echo "$(msg cyan)Waiting for pending task(s) to finish executed. Maximum wait of ${HOLD_SECONDS}/${max_wait} seconds ...$(msg end)" --start-spin --name
       if [ "${HOLD_SECONDS}" -gt ${max_wait} ]; then
         # Force restart if waiting time is longer than max_wait. The maximum task.queue execution time is only 1 minute based on directadmin documentation
         # Another condition that can be force to restart is, if the task.queue contains more than 2 lines, it means it is not running. So we can force restart it.
@@ -8211,11 +8264,11 @@ function install_da_pre() {
   run="no"
   func_name="${FUNCNAME[0]}"
   executed_function="${CONF_PATH}/${func_name}_executed"
-  if [ "${option}" == "--skip-mark" ]; then
+  if [[ "${option}" == "--skip-mark" || "${option}" == "--skip-mark-exit" ]]; then
     cat /dev/null >"${executed_function}"
     #run="no"
     return 0
-  elif [ "${option}" == "--skip" ]; then
+  elif [[ "${option}" == "--skip" || "${option}" == "--skip-exit" ]]; then
     #run="no"
     return 0
   fi
@@ -8251,7 +8304,9 @@ function install_da_pre() {
         # This one needed if clamav is included
         # https://forum.directadmin.com/threads/configure-error-libcurl-not-found-libcurl-e-g-libcurl-devel-is-required-in-order-to-build-freshclam-and-clamsubmit.62869/
         # No need to install libcurl now, it's working without installing libcurl. I have updated the post.
-        :
+        # We do not need any curl versions because directadmin will install it, if we dont remove this we will have curl conflict with the following error:
+        # curl: /usr/local/lib/libcurl.so.4: no version information available (required by curl)
+        apt-get -y remove curl
         #echo "[${SCRIPT_NAME}]: Installing Debian libcurl ..." 2>&1 | tee -a "${REPORT_FILE}"
         #sudo apt-get -y install libcurl4-openssl-dev 2>&1 | tee -a "${REPORT_FILE}"
       else
@@ -8302,7 +8357,7 @@ function install_da_pre() {
     _echo "$(msg yellow)[Skipped]: $(msg magenta)${func_name}()$(msg end) $(msg yellow)has ran before$(msg end)" --name
   fi
 
-  if [[ "${option}" == "--run-force-exit" || "${option}" == "--run-exit" ]]; then
+  if [[ "$(echo "${option}" | awk -F'-' '{ print $NF}')" == "exit" ]]; then
     _echo "$(msg yellow)Note: this script is terminated due to the supplied option ${option} from function $(msg magenta)${func_name}()$(msg end) $(msg end)" --name
     _exit 0
   fi
@@ -8316,11 +8371,11 @@ function install_da() {
   run="no"
   func_name="${FUNCNAME[0]}"
   executed_function="${CONF_PATH}/${func_name}_executed"
-  if [ "${option}" == "--skip-mark" ]; then
+  if [[ "${option}" == "--skip-mark" || "${option}" == "--skip-mark-exit" ]]; then
     cat /dev/null >"${executed_function}"
     #run="no"
     return 0
-  elif [ "${option}" == "--skip" ]; then
+  elif [[ "${option}" == "--skip" || "${option}" == "--skip-exit" ]]; then
     #run="no"
     return 0
   fi
@@ -8381,7 +8436,7 @@ function install_da() {
     _echo "$(msg yellow)[Skipped]: $(msg magenta)${func_name}()$(msg end) $(msg yellow)has ran before$(msg end)" --name
   fi
 
-  if [[ "${option}" == "--run-force-exit" || "${option}" == "--run-exit" ]]; then
+  if [[ "$(echo "${option}" | awk -F'-' '{ print $NF}')" == "exit" ]]; then
     _echo "$(msg yellow)Note: this script is terminated due to the supplied option ${option} from function $(msg magenta)${func_name}()$(msg end) $(msg end)" --name
     _exit 0
   fi
@@ -8397,11 +8452,11 @@ function install_da_post() {
   run="no"
   func_name="${FUNCNAME[0]}"
   executed_function="${CONF_PATH}/${func_name}_executed"
-  if [ "${option}" == "--skip-mark" ]; then
+  if [[ "${option}" == "--skip-mark" || "${option}" == "--skip-mark-exit" ]]; then
     cat /dev/null >"${executed_function}"
     #run="no"
     return 0
-  elif [ "${option}" == "--skip" ]; then
+  elif [[ "${option}" == "--skip" || "${option}" == "--skip-exit" ]]; then
     #run="no"
     return 0
   fi
@@ -8574,7 +8629,7 @@ function install_da_post() {
     _echo "$(msg yellow)[Skipped]: $(msg magenta)${func_name}()$(msg end) $(msg yellow)has ran before$(msg end)" --name
   fi
 
-  if [[ "${option}" == "--run-force-exit" || "${option}" == "--run-exit" ]]; then
+  if [[ "$(echo "${option}" | awk -F'-' '{ print $NF}')" == "exit" ]]; then
     _echo "$(msg yellow)Note: this script is terminated due to the supplied option ${option} from function $(msg magenta)${func_name}()$(msg end) $(msg end)" --name
     _exit 0
   fi
@@ -8589,11 +8644,11 @@ function secure_da_auth() {
   run="no"
   func_name="${FUNCNAME[0]}"
   executed_function="${CONF_PATH}/${func_name}_executed"
-  if [ "${option}" == "--skip-mark" ]; then
+  if [[ "${option}" == "--skip-mark" || "${option}" == "--skip-mark-exit" ]]; then
     cat /dev/null >"${executed_function}"
     #run="no"
     return 0
-  elif [ "${option}" == "--skip" ]; then
+  elif [[ "${option}" == "--skip" || "${option}" == "--skip-exit" ]]; then
     #run="no"
     return 0
   fi
@@ -8652,7 +8707,7 @@ function secure_da_auth() {
     _echo "$(msg yellow)[Skipped]: $(msg magenta)${func_name}()$(msg end) $(msg yellow)has ran before$(msg end)" --name
   fi
 
-  if [[ "${option}" == "--run-force-exit" || "${option}" == "--run-exit" ]]; then
+  if [[ "$(echo "${option}" | awk -F'-' '{ print $NF}')" == "exit" ]]; then
     _echo "$(msg yellow)Note: this script is terminated due to the supplied option ${option} from function $(msg magenta)${func_name}()$(msg end) $(msg end)" --name
     _exit 0
   fi
@@ -8666,11 +8721,11 @@ function configure_da_ips() {
   run="no"
   func_name="${FUNCNAME[0]}"
   executed_function="${CONF_PATH}/${func_name}_executed"
-  if [ "${option}" == "--skip-mark" ]; then
+  if [[ "${option}" == "--skip-mark" || "${option}" == "--skip-mark-exit" ]]; then
     cat /dev/null >"${executed_function}"
     #run="no"
     return 0
-  elif [ "${option}" == "--skip" ]; then
+  elif [[ "${option}" == "--skip" || "${option}" == "--skip-exit" ]]; then
     #run="no"
     return 0
   fi
@@ -8904,7 +8959,7 @@ function configure_da_ips() {
     _echo "$(msg yellow)[Skipped]: $(msg magenta)${func_name}()$(msg end) $(msg yellow)has ran before$(msg end)" --name
   fi
 
-  if [[ "${option}" == "--run-force-exit" || "${option}" == "--run-exit" ]]; then
+  if [[ "$(echo "${option}" | awk -F'-' '{ print $NF}')" == "exit" ]]; then
     _echo "$(msg yellow)Note: this script is terminated due to the supplied option ${option} from function $(msg magenta)${func_name}()$(msg end) $(msg end)" --name
     _exit 0
   fi
@@ -8918,11 +8973,11 @@ function install_da_csf() {
   run="no"
   func_name="${FUNCNAME[0]}"
   executed_function="${CONF_PATH}/${func_name}_executed"
-  if [ "${option}" == "--skip-mark" ]; then
+  if [[ "${option}" == "--skip-mark" || "${option}" == "--skip-mark-exit" ]]; then
     cat /dev/null >"${executed_function}"
     #run="no"
     return 0
-  elif [ "${option}" == "--skip" ]; then
+  elif [[ "${option}" == "--skip" || "${option}" == "--skip-exit" ]]; then
     #run="no"
     return 0
   fi
@@ -9127,7 +9182,7 @@ function install_da_csf() {
     _echo "$(msg yellow)[Skipped]: $(msg magenta)${func_name}()$(msg end) $(msg yellow)has ran before$(msg end)" --name
   fi
 
-  if [[ "${option}" == "--run-force-exit" || "${option}" == "--run-exit" ]]; then
+  if [[ "$(echo "${option}" | awk -F'-' '{ print $NF}')" == "exit" ]]; then
     _echo "$(msg yellow)Note: this script is terminated due to the supplied option ${option} from function $(msg magenta)${func_name}()$(msg end) $(msg end)" --name
     _exit 0
   fi
@@ -9140,11 +9195,11 @@ function install_general_csf() {
   run="no"
   func_name="${FUNCNAME[0]}"
   executed_function="${CONF_PATH}/${func_name}_executed"
-  if [ "${option}" == "--skip-mark" ]; then
+  if [[ "${option}" == "--skip-mark" || "${option}" == "--skip-mark-exit" ]]; then
     cat /dev/null >"${executed_function}"
     #run="no"
     return 0
-  elif [ "${option}" == "--skip" ]; then
+  elif [[ "${option}" == "--skip" || "${option}" == "--skip-exit" ]]; then
     #run="no"
     return 0
   fi
@@ -9382,7 +9437,7 @@ function install_general_csf() {
     _echo "$(msg yellow)[Skipped]: $(msg magenta)${func_name}()$(msg end) $(msg yellow)has ran before$(msg end)" --name
   fi
 
-  if [[ "${option}" == "--run-force-exit" || "${option}" == "--run-exit" ]]; then
+  if [[ "$(echo "${option}" | awk -F'-' '{ print $NF}')" == "exit" ]]; then
     _echo "$(msg yellow)Note: this script is terminated due to the supplied option ${option} from function $(msg magenta)${func_name}()$(msg end) $(msg end)" --name
     _exit 0
   fi
@@ -9397,11 +9452,11 @@ function configure_csf() {
   run="no"
   func_name="${FUNCNAME[0]}"
   executed_function="${CONF_PATH}/${func_name}_executed"
-  if [ "${option}" == "--skip-mark" ]; then
+  if [[ "${option}" == "--skip-mark" || "${option}" == "--skip-mark-exit" ]]; then
     cat /dev/null >"${executed_function}"
     #run="no"
     return 0
-  elif [ "${option}" == "--skip" ]; then
+  elif [[ "${option}" == "--skip" || "${option}" == "--skip-exit" ]]; then
     #run="no"
     return 0
   fi
@@ -9608,7 +9663,7 @@ function configure_csf() {
     _echo "$(msg yellow)[Skipped]: $(msg magenta)${func_name}()$(msg end) $(msg yellow)has ran before$(msg end)" --name
   fi
 
-  if [[ "${option}" == "--run-force-exit" || "${option}" == "--run-exit" ]]; then
+  if [[ "$(echo "${option}" | awk -F'-' '{ print $NF}')" == "exit" ]]; then
     _echo "$(msg yellow)Note: this script is terminated due to the supplied option ${option} from function $(msg magenta)${func_name}()$(msg end) $(msg end)" --name
     _exit 0
   fi
@@ -9621,11 +9676,11 @@ function configure_da_sql() {
   run="no"
   func_name="${FUNCNAME[0]}"
   executed_function="${CONF_PATH}/${func_name}_executed"
-  if [ "${option}" == "--skip-mark" ]; then
+  if [[ "${option}" == "--skip-mark" || "${option}" == "--skip-mark-exit" ]]; then
     cat /dev/null >"${executed_function}"
     #run="no"
     return 0
-  elif [ "${option}" == "--skip" ]; then
+  elif [[ "${option}" == "--skip" || "${option}" == "--skip-exit" ]]; then
     #run="no"
     return 0
   fi
@@ -9880,7 +9935,7 @@ function configure_da_sql() {
     _echo "$(msg yellow)[Skipped]: $(msg magenta)${func_name}()$(msg end) $(msg yellow)has ran before$(msg end)" --name
   fi
 
-  if [[ "${option}" == "--run-force-exit" || "${option}" == "--run-exit" ]]; then
+  if [[ "$(echo "${option}" | awk -F'-' '{ print $NF}')" == "exit" ]]; then
     _echo "$(msg yellow)Note: this script is terminated due to the supplied option ${option} from function $(msg magenta)${func_name}()$(msg end) $(msg end)" --name
     _exit 0
   fi
@@ -9894,11 +9949,11 @@ function configure_da_mail() {
   run="no"
   func_name="${FUNCNAME[0]}"
   executed_function="${CONF_PATH}/${func_name}_executed"
-  if [ "${option}" == "--skip-mark" ]; then
+  if [[ "${option}" == "--skip-mark" || "${option}" == "--skip-mark-exit" ]]; then
     cat /dev/null >"${executed_function}"
     #run="no"
     return 0
-  elif [ "${option}" == "--skip" ]; then
+  elif [[ "${option}" == "--skip" || "${option}" == "--skip-exit" ]]; then
     #run="no"
     return 0
   fi
@@ -10046,7 +10101,7 @@ function configure_da_mail() {
     _echo "$(msg yellow)[Skipped]: $(msg magenta)${func_name}()$(msg end) $(msg yellow)has ran before$(msg end)" --name
   fi
 
-  if [[ "${option}" == "--run-force-exit" || "${option}" == "--run-exit" ]]; then
+  if [[ "$(echo "${option}" | awk -F'-' '{ print $NF}')" == "exit" ]]; then
     _echo "$(msg yellow)Note: this script is terminated due to the supplied option ${option} from function $(msg magenta)${func_name}()$(msg end) $(msg end)" --name
     _exit 0
   fi
@@ -10059,11 +10114,11 @@ function configure_da_ftp() {
   run="no"
   func_name="${FUNCNAME[0]}"
   executed_function="${CONF_PATH}/${func_name}_executed"
-  if [ "${option}" == "--skip-mark" ]; then
+  if [[ "${option}" == "--skip-mark" || "${option}" == "--skip-mark-exit" ]]; then
     cat /dev/null >"${executed_function}"
     #run="no"
     return 0
-  elif [ "${option}" == "--skip" ]; then
+  elif [[ "${option}" == "--skip" || "${option}" == "--skip-exit" ]]; then
     #run="no"
     return 0
   fi
@@ -10100,7 +10155,7 @@ function configure_da_ftp() {
     _echo "$(msg yellow)[Skipped]: $(msg magenta)${func_name}()$(msg end) $(msg yellow)has ran before$(msg end)" --name
   fi
 
-  if [[ "${option}" == "--run-force-exit" || "${option}" == "--run-exit" ]]; then
+  if [[ "$(echo "${option}" | awk -F'-' '{ print $NF}')" == "exit" ]]; then
     _echo "$(msg yellow)Note: this script is terminated due to the supplied option ${option} from function $(msg magenta)${func_name}()$(msg end) $(msg end)" --name
     _exit 0
   fi
@@ -10114,11 +10169,11 @@ function configure_nginx_apache() {
   run="no"
   func_name="${FUNCNAME[0]}"
   executed_function="${CONF_PATH}/${func_name}_executed"
-  if [ "${option}" == "--skip-mark" ]; then
+  if [[ "${option}" == "--skip-mark" || "${option}" == "--skip-mark-exit" ]]; then
     cat /dev/null >"${executed_function}"
     #run="no"
     return 0
-  elif [ "${option}" == "--skip" ]; then
+  elif [[ "${option}" == "--skip" || "${option}" == "--skip-exit" ]]; then
     #run="no"
     return 0
   fi
@@ -10254,7 +10309,7 @@ function configure_nginx_apache() {
     _echo "$(msg yellow)[Skipped]: $(msg magenta)${func_name}()$(msg end) $(msg yellow)has ran before$(msg end)" --name
   fi
 
-  if [[ "${option}" == "--run-force-exit" || "${option}" == "--run-exit" ]]; then
+  if [[ "$(echo "${option}" | awk -F'-' '{ print $NF}')" == "exit" ]]; then
     _echo "$(msg yellow)Note: this script is terminated due to the supplied option ${option} from function $(msg magenta)${func_name}()$(msg end) $(msg end)" --name
     _exit 0
   fi
@@ -10269,11 +10324,11 @@ function build_da_custom_settings() {
   run="no"
   func_name="${FUNCNAME[0]}"
   executed_function="${CONF_PATH}/${func_name}_executed"
-  if [ "${option}" == "--skip-mark" ]; then
+  if [[ "${option}" == "--skip-mark" || "${option}" == "--skip-mark-exit" ]]; then
     cat /dev/null >"${executed_function}"
     #run="no"
     return 0
-  elif [ "${option}" == "--skip" ]; then
+  elif [[ "${option}" == "--skip" || "${option}" == "--skip-exit" ]]; then
     #run="no"
     return 0
   fi
@@ -10386,7 +10441,7 @@ function build_da_custom_settings() {
     _echo "$(msg yellow)[Skipped]: $(msg magenta)${func_name}()$(msg end) $(msg yellow)has ran before$(msg end)" --name
   fi
 
-  if [[ "${option}" == "--run-force-exit" || "${option}" == "--run-exit" ]]; then
+  if [[ "$(echo "${option}" | awk -F'-' '{ print $NF}')" == "exit" ]]; then
     _echo "$(msg yellow)Note: this script is terminated due to the supplied option ${option} from function $(msg magenta)${func_name}()$(msg end) $(msg end)" --name
     _exit 0
   fi
@@ -10400,11 +10455,11 @@ function configure_web_apps() {
   run="no"
   func_name="${FUNCNAME[0]}"
   executed_function="${CONF_PATH}/${func_name}_executed"
-  if [ "${option}" == "--skip-mark" ]; then
+  if [[ "${option}" == "--skip-mark" || "${option}" == "--skip-mark-exit" ]]; then
     cat /dev/null >"${executed_function}"
     #run="no"
     return 0
-  elif [ "${option}" == "--skip" ]; then
+  elif [[ "${option}" == "--skip" || "${option}" == "--skip-exit" ]]; then
     #run="no"
     return 0
   fi
@@ -10439,7 +10494,7 @@ function configure_web_apps() {
     _echo "$(msg yellow)[Skipped]: $(msg magenta)${func_name}()$(msg end) $(msg yellow)has ran before$(msg end)" --name
   fi
 
-  if [[ "${option}" == "--run-force-exit" || "${option}" == "--run-exit" ]]; then
+  if [[ "$(echo "${option}" | awk -F'-' '{ print $NF}')" == "exit" ]]; then
     _echo "$(msg yellow)Note: this script is terminated due to the supplied option ${option} from function $(msg magenta)${func_name}()$(msg end) $(msg end)" --name
     _exit 0
   fi
@@ -10453,11 +10508,11 @@ function configure_da_settings() {
   run="no"
   func_name="${FUNCNAME[0]}"
   executed_function="${CONF_PATH}/${func_name}_executed"
-  if [ "${option}" == "--skip-mark" ]; then
+  if [[ "${option}" == "--skip-mark" || "${option}" == "--skip-mark-exit" ]]; then
     cat /dev/null >"${executed_function}"
     #run="no"
     return 0
-  elif [ "${option}" == "--skip" ]; then
+  elif [[ "${option}" == "--skip" || "${option}" == "--skip-exit" ]]; then
     #run="no"
     return 0
   fi
@@ -10504,13 +10559,14 @@ function configure_da_settings() {
     ${da_bin} set reseller_helper "${C_DA_HELP_DOMAIN}"
     ${da_bin} set user_helper "${C_DA_HELP_DOMAIN}"
     echo ""
-
     # For DA Administrator Settings:
-    echo "[${SCRIPT_NAME}]: Configuring Directadmin Admin settings ..."
+    _echo "$(msg cyan)Configuring Directadmin Admin settings ...$(msg end)" -- name
     da_api_admin set-common-da-admin-settings
-    echo "[${SCRIPT_NAME}]: Configuring Directadmin Server, Security and Email settings ..."
+    echo ""
+    _echo "$(msg cyan)Configuring Directadmin Server, Security and Email settings ...$(msg end)" --name
     da_api_admin set-common-da-server-settings
-    # TODO look at the post about DA external import js, try to avoid that for security and apply it here
+    echo ""
+    # Add more security concern here for directadmin installation
     check_finish_reboot "${func_name}"
     exec_time total "${func_name}"
   else
@@ -10519,29 +10575,85 @@ function configure_da_settings() {
     _echo "$(msg yellow)[Skipped]: $(msg magenta)${func_name}()$(msg end) $(msg yellow)has ran before$(msg end)" --name
   fi
 
-  if [[ "${option}" == "--run-force-exit" || "${option}" == "--run-exit" ]]; then
+  if [[ "$(echo "${option}" | awk -F'-' '{ print $NF}')" == "exit" ]]; then
     _echo "$(msg yellow)Note: this script is terminated due to the supplied option ${option} from function $(msg magenta)${func_name}()$(msg end) $(msg end)" --name
     _exit 0
   fi
   echo ""
 }
 
-function configure_redis() {
+function configure_da_redis() {
+  local option executed_function run func_name
+  option="$1"
+  run="no"
+  func_name="${FUNCNAME[0]}"
+  executed_function="${CONF_PATH}/${func_name}_executed"
+  if [[ "${option}" == "--skip-mark" || "${option}" == "--skip-mark-exit" ]]; then
+    cat /dev/null >"${executed_function}"
+    #run="no"
+    return 0
+  elif [[ "${option}" == "--skip" || "${option}" == "--skip-exit" ]]; then
+    #run="no"
+    return 0
+  fi
+  if [[ "${option}" == "--run-force" || "${option}" == "--run-force-exit" ]]; then
+    rm -rf "${executed_function}"
+    run="yes"
+  elif [[ -z "${option}" || "${option}" == "--run" || "${option}" == "--run-exit" ]]; then
+    run="yes"
+  fi
+  if [[ ! -f "${CONF_PATH}/${func_name}_executed" && "${run}" == "yes" ]]; then
+    exec_time start "${func_name}"
+    _echo "$(msg cyan)Executing $(msg magenta)${func_name}()$(msg end) $(msg cyan)with option ${option} ...$(msg end)" --name
+    _echo "$(msg red)=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=$(msg end)" --plain
+    if [ "${C_DA_INSTALL_REDIS}" == "true" ]; then
+      local da_cb_bin da_install_log
+      da_cb_bin="/usr/local/directadmin/custombuild/build"
+      da_install_log="${LOG_PATH}/da-install.log"
+      touch "${da_install_log}"
+      _echo "$(msg cyan)Installing redis in system level ...$(msg end)" --name
+      ${da_cb_bin} set redis yes
+      {
+        ${da_cb_bin} redis
+      } >>da_install_log
+      echo ""
+      _echo "$(msg cyan)Installing redis as php-extension ...$(msg end)" --name
+      ${da_cb_bin} set php_redis yes
+      {
+        ${da_cb_bin} php_redis
+      } >>da_install_log
+      echo ""
+      # Create system service for redis, run the redis-server in background..
+    else
+      _echo "$(msg yellow)[Skipped],  C_DA_INSTALL_REDIS is not set to true in config file. Redis will not be installed on this system$(msg end)" --name
+    fi
+    #build php_redis and build redis
+    check_finish_reboot "${func_name}"
+    exec_time total "${func_name}"
+  else
+    echo ""
+    _echo "$(msg red)=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=$(msg end)" --plain
+    _echo "$(msg yellow)[Skipped]: $(msg magenta)${func_name}()$(msg end) $(msg yellow)has ran before$(msg end)" --name
+  fi
 
-  :
+  if [[ "$(echo "${option}" | awk -F'-' '{ print $NF}')" == "exit" ]]; then
+    _echo "$(msg yellow)Note: this script is terminated due to the supplied option ${option} from function $(msg magenta)${func_name}()$(msg end) $(msg end)" --name
+    _exit 0
+  fi
 }
 
 # This will install OS memcached and php memcached extension
+# This is going to be deprecated because we focus on redis only
 function configure_da_memcached() {
   local option executed_function run
   option="$1"
   run="no"
   executed_function="${CONF_PATH}/${FUNCNAME[0]}_executed"
-  if [ "${option}" == "--skip-mark" ]; then
+  if [[ "${option}" == "--skip-mark" || "${option}" == "--skip-mark-exit" ]]; then
     cat /dev/null >"${executed_function}"
     #run="no"
     return 0
-  elif [ "${option}" == "--skip" ]; then
+  elif [[ "${option}" == "--skip" || "${option}" == "--skip-exit" ]]; then
     #run="no"
     return 0
   fi
@@ -10594,7 +10706,7 @@ function configure_da_memcached() {
     _echo "$(msg yellow)[Skipped]: $(msg magenta)${func_name}()$(msg end) $(msg yellow)has ran before$(msg end)" --name
   fi
 
-  if [[ "${option}" == "--run-force-exit" || "${option}" == "--run-exit" ]]; then
+  if [[ "$(echo "${option}" | awk -F'-' '{ print $NF}')" == "exit" ]]; then
     _echo "$(msg yellow)Note: this script is terminated due to the supplied option ${option} from function $(msg magenta)${func_name}()$(msg end) $(msg end)" --name
     _exit 0
   fi
@@ -10607,11 +10719,11 @@ function configure_da_geoip() {
   option="$1"
   run="no"
   executed_function="${CONF_PATH}/${FUNCNAME[0]}_executed"
-  if [ "${option}" == "--skip-mark" ]; then
+  if [[ "${option}" == "--skip-mark" || "${option}" == "--skip-mark-exit" ]]; then
     cat /dev/null >"${executed_function}"
     #run="no"
     return 0
-  elif [ "${option}" == "--skip" ]; then
+  elif [[ "${option}" == "--skip" || "${option}" == "--skip-exit" ]]; then
     #run="no"
     return 0
   fi
@@ -10646,9 +10758,125 @@ function configure_da_geoip() {
     echo "[${SCRIPT_NAME}]: [Skipped]: ${FUNCNAME[0]} has ran before" 2>&1 | tee -a "${REPORT_FILE}"
     echo "=~=~=~=~=~=~=~=~=~" 2>&1 | tee -a "${REPORT_FILE}"
   fi
-  if [[ "${option}" == "--run-force-exit" || "${option}" == "--run-exit" ]]; then
+  if [[ "$(echo "${option}" | awk -F'-' '{ print $NF}')" == "exit" ]]; then
     _echo "$(msg yellow)Warning, script terminated due to the supplied option ${option}$(msg end)" --name
     exit 0
+  fi
+}
+
+# Note this function creates custom template dns for directadmin,
+# currently nothing to adjust because the latest version of directadmin already included this by default.
+function configure_da_dns_templates() {
+  local option executed_function run func_name
+  option="$1"
+  run="no"
+  func_name="${FUNCNAME[0]}"
+  executed_function="${CONF_PATH}/${func_name}_executed"
+  if [[ "${option}" == "--skip-mark" || "${option}" == "--skip-mark-exit" ]]; then
+    cat /dev/null >"${executed_function}"
+    #run="no"
+    return 0
+  elif [[ "${option}" == "--skip" || "${option}" == "--skip-exit" ]]; then
+    #run="no"
+    return 0
+  fi
+  if [[ "${option}" == "--run-force" || "${option}" == "--run-force-exit" ]]; then
+    rm -rf "${executed_function}"
+    run="yes"
+  elif [[ -z "${option}" || "${option}" == "--run" || "${option}" == "--run-exit" ]]; then
+    run="yes"
+  fi
+  if [[ ! -f "${CONF_PATH}/${func_name}_executed" && "${run}" == "yes" ]]; then
+    exec_time start "${func_name}"
+    _echo "$(msg cyan)Executing $(msg magenta)${func_name}()$(msg end) $(msg cyan)with option ${option} ...$(msg end)" --name
+    _echo "$(msg red)=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=$(msg end)" --plain
+
+    #local da_template_custom ipv6_full_uncompressed da_bin da_current_version
+
+    #da_template_custom="/usr/local/directadmin/data/templates/custom"
+    #da_bin="/usr/local/directadmin/directadmin"
+    #if [ -f "${da_bin}" ]; then
+    #  da_current_version=$(${da_bin} v | awk '{ print $3 }')
+    #else
+    #  _echo "$(msg red)Error, directadmin binary does not exist$(msg end)" --name
+    #  _exit 147
+    #fi
+
+    #_echo "$(msg cyan)Creating directadmin DNS custom template folder ...$(msg end)" --name
+
+    #mkdir -p "${da_template_custom}"
+    #chown diradmin:diradmin ${da_template_custom}
+    #echo ""
+
+    #_echo "$(msg cyan)Creating SPF, DKIM and DMARC DNS custom template for directadmin server ...$(msg end)" --name
+    #if [ "${da_current_version}" == "v1.61.5" ]; then
+    #  :
+    #else
+    #  _echo "$(msg cyan)Warning, current DNS config is compatible with directadmin v1.61.5 but directadmin version is ${da_current_version}. Please check compatibility issue before proceeding$(msg end)" --name
+    #  _exit 147
+    #fi
+
+    #touch "${da_template_custom}/dns_txt.conf"
+    #{
+    # TODO: In previous version of directadmin currently have issue using this '_domainkey' with API (GUI works): (fixed-added through API manually)
+    # https://forum.directadmin.com/threads/possible-bug-when-using-dns_txt-conf-with-api-include-step-to-reproduce.63247/
+    # Note 1: since directadmin version 1.61.6 (unreleased) SPF is enabled by default (it has its own template): https://www.directadmin.com/features.php?id=2946
+    # Note 2: This is an old deprecated template for SPF
+    # echo "|DOMAIN|.=\"v=spf1 a mx ip4:|SERVER_IP||EXTRA_SPF| ~all\""
+    # Note 3: The new SPF template is already defined in /usr/local/directadmin/data/templates/dns_txt.con with the following contents:
+    # |DOMAIN|.="v=spf1 a mx ip4:|SERVER_IP||EXTRA_SPF||SPF_IPV6| ~all"
+    # Note 4: This _dmarc key also is enabled by default in the latest directadmin version 1.61.6+ (tested it created this record automatically)
+    # echo "_dmarc=\"v=DMARC1; p=none; sp=none; rua=mailto:spam-reports@|DOMAIN|\""
+    # Note 5: This _domainkey is also enabled by default in the latest directadmin version 1.61.6+ (tested it created this record automatically)
+    # echo "_domainkey=\"o=~; r=webmaster@|DOMAIN|\""
+    # TODO Google site verification should be here
+    #} >"${da_template_custom}/dns_txt.conf"
+    #chmod 644 "${da_template_custom}/dns_txt.conf"
+    #chown diradmin:diradmin "${da_template_custom}/dns_txt.conf"
+    #{
+    #  echo "|*if IS_IPV6!=""\"yes\"|"
+    #  echo "|DOMAIN|.=|IP|"
+    #  echo "mail=|IP|"
+    #  echo "pop=|IP|"
+    #  echo "www=|IP|"
+    #  echo "ftp=|IP|"
+    #  echo "smtp=|IP|"
+    #  echo "|*endif|"
+    #} >"${da_template_custom}/dns_a.conf"
+    #chmod 644 "${da_template_custom}/dns_a.conf"
+
+    #{
+    #  echo "|*if IS_IPV6=""\"yes\"|"
+    #  echo "|DOMAIN|.=|IP|"
+    #  echo "mail=|IP|"
+    #  echo "pop=|IP|"
+    #  echo "www=|IP|"
+    #  echo "ftp=|IP|"
+    #  echo "smtp=|IP|"
+    #  echo "|*endif|"
+    #} >"${da_template_custom}/dns_aaaa.conf"
+    #chmod 644 "${da_template_custom}/dns_aaaa.conf"
+    # Note last year I use the full form of IP. Remember DA also has ipv6 calculator from directadmin binary.
+    #ipv6_full_uncompressed=$(ipv6calc --addr2fulluncompaddr "${C_IPV6_ADD0}")
+    # No need this anymore, latest da version enabled this by default
+    #echo "[${SCRIPT_NAME}]: Setting extra_spf_value with ipv6:${ipv6_full_uncompressed} ..."
+    #${da_bin} set extra_spf_value " ip6:${ipv6_full_uncompressed}"
+    #restart_da
+    # rewrite_confs here so that dns_txt.conf is updated
+    # Fixed DNS new record updated:
+    #echo "[${SCRIPT_NAME}]: Updating DNS template ..." 2>&1 | tee -a "${REPORT_FILE}"
+    #/usr/local/directadmin/custombuild/build rewrite_confs
+    check_finish_reboot "${func_name}"
+    exec_time total "${func_name}"
+  else
+    echo ""
+    _echo "$(msg red)=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=$(msg end)" --plain
+    _echo "$(msg yellow)[Skipped]: $(msg magenta)${func_name}()$(msg end) $(msg yellow)has ran before$(msg end)" --name
+  fi
+
+  if [[ "$(echo "${option}" | awk -F'-' '{ print $NF}')" == "exit" ]]; then
+    _echo "$(msg yellow)Note: this script is terminated due to the supplied option ${option} from function $(msg magenta)${func_name}()$(msg end) $(msg end)" --name
+    _exit 0
   fi
 }
 
@@ -10659,11 +10887,11 @@ function configure_da_ssl_pre() {
   option="$1"
   run="no"
   executed_function="${CONF_PATH}/${FUNCNAME[0]}_executed"
-  if [ "${option}" == "--skip-mark" ]; then
+  if [[ "${option}" == "--skip-mark" || "${option}" == "--skip-mark-exit" ]]; then
     cat /dev/null >"${executed_function}"
     #run="no"
     return 0
-  elif [ "${option}" == "--skip" ]; then
+  elif [[ "${option}" == "--skip" || "${option}" == "--skip-exit" ]]; then
     #run="no"
     return 0
   fi
@@ -10697,7 +10925,7 @@ function configure_da_ssl_pre() {
     echo "=~=~=~=~=~=~=~=~=~" 2>&1 | tee -a "${REPORT_FILE}"
   fi
 
-  if [[ "${option}" == "--run-force-exit" || "${option}" == "--run-exit" ]]; then
+  if [[ "$(echo "${option}" | awk -F'-' '{ print $NF}')" == "exit" ]]; then
     _echo "$(msg yellow)Warning, script terminated due to the supplied option ${option}$(msg end)" --name
     exit 0
   fi
@@ -10712,11 +10940,11 @@ function configure_da_ssl() {
   option="$1"
   run="no"
   executed_function="${CONF_PATH}/${FUNCNAME[0]}_executed"
-  if [ "${option}" == "--skip-mark" ]; then
+  if [[ "${option}" == "--skip-mark" || "${option}" == "--skip-mark-exit" ]]; then
     cat /dev/null >"${executed_function}"
     #run="no"
     return 0
-  elif [ "${option}" == "--skip" ]; then
+  elif [[ "${option}" == "--skip" || "${option}" == "--skip-exit" ]]; then
     #run="no"
     return 0
   fi
@@ -10787,7 +11015,7 @@ function configure_da_ssl() {
     echo "=~=~=~=~=~=~=~=~=~" 2>&1 | tee -a "${REPORT_FILE}"
   fi
 
-  if [[ "${option}" == "--run-force-exit" || "${option}" == "--run-exit" ]]; then
+  if [[ "$(echo "${option}" | awk -F'-' '{ print $NF}')" == "exit" ]]; then
     _echo "$(msg yellow)Warning, script terminated due to the supplied option ${option}$(msg end)" --name
     exit 0
   fi
@@ -10799,11 +11027,11 @@ function add_da_ip() {
   option="$1"
   run="no"
   executed_function="${CONF_PATH}/${FUNCNAME[0]}_executed"
-  if [ "${option}" == "--skip-mark" ]; then
+  if [[ "${option}" == "--skip-mark" || "${option}" == "--skip-mark-exit" ]]; then
     cat /dev/null >"${executed_function}"
     #run="no"
     return 0
-  elif [ "${option}" == "--skip" ]; then
+  elif [[ "${option}" == "--skip" || "${option}" == "--skip-exit" ]]; then
     #run="no"
     return 0
   fi
@@ -10832,7 +11060,7 @@ function add_da_ip() {
     echo "[${SCRIPT_NAME}]: [Skipped]: ${FUNCNAME[0]} has ran before" 2>&1 | tee -a "${REPORT_FILE}"
     echo "=~=~=~=~=~=~=~=~=~" 2>&1 | tee -a "${REPORT_FILE}"
   fi
-  if [[ "${option}" == "--run-force-exit" || "${option}" == "--run-exit" ]]; then
+  if [[ "$(echo "${option}" | awk -F'-' '{ print $NF}')" == "exit" ]]; then
     _echo "$(msg yellow)Warning, script terminated due to the supplied option ${option}$(msg end)" --name
     exit 0
   fi
@@ -10844,11 +11072,11 @@ function configure_maxibox() {
   option="$1"
   run="no"
   executed_function="${CONF_PATH}/${FUNCNAME[0]}_executed"
-  if [ "${option}" == "--skip-mark" ]; then
+  if [[ "${option}" == "--skip-mark" || "${option}" == "--skip-mark-exit" ]]; then
     cat /dev/null >"${executed_function}"
     #run="no"
     return 0
-  elif [ "${option}" == "--skip" ]; then
+  elif [[ "${option}" == "--skip" || "${option}" == "--skip-exit" ]]; then
     #run="no"
     return 0
   fi
@@ -10866,7 +11094,7 @@ function configure_maxibox() {
     echo "[${SCRIPT_NAME}]: [Skipped]: ${FUNCNAME[0]} has ran before" 2>&1 | tee -a "${REPORT_FILE}"
     echo "=~=~=~=~=~=~=~=~=~" 2>&1 | tee -a "${REPORT_FILE}"
   fi
-  if [[ "${option}" == "--run-force-exit" || "${option}" == "--run-exit" ]]; then
+  if [[ "$(echo "${option}" | awk -F'-' '{ print $NF}')" == "exit" ]]; then
     _echo "$(msg yellow)Warning, script terminated due to the supplied option ${option}$(msg end)" --name
     exit 0
   fi
@@ -10878,11 +11106,11 @@ function configure_maxicode_pre() {
   option="$1"
   run="no"
   executed_function="${CONF_PATH}/${FUNCNAME[0]}_executed"
-  if [ "${option}" == "--skip-mark" ]; then
+  if [[ "${option}" == "--skip-mark" || "${option}" == "--skip-mark-exit" ]]; then
     cat /dev/null >"${executed_function}"
     #run="no"
     return 0
-  elif [ "${option}" == "--skip" ]; then
+  elif [[ "${option}" == "--skip" || "${option}" == "--skip-exit" ]]; then
     #run="no"
     return 0
   fi
@@ -10901,7 +11129,7 @@ function configure_maxicode_pre() {
     echo "[${SCRIPT_NAME}]: [Skipped]: ${FUNCNAME[0]} has ran before" 2>&1 | tee -a "${REPORT_FILE}"
     echo "=~=~=~=~=~=~=~=~=~" 2>&1 | tee -a "${REPORT_FILE}"
   fi
-  if [[ "${option}" == "--run-force-exit" || "${option}" == "--run-exit" ]]; then
+  if [[ "$(echo "${option}" | awk -F'-' '{ print $NF}')" == "exit" ]]; then
     _echo "$(msg yellow)Warning, script terminated due to the supplied option ${option}$(msg end)" --name
     exit 0
   fi
@@ -10916,11 +11144,11 @@ function configure_maxicode() {
   option="$1"
   run="no"
   executed_function="${CONF_PATH}/${FUNCNAME[0]}_executed"
-  if [ "${option}" == "--skip-mark" ]; then
+  if [[ "${option}" == "--skip-mark" || "${option}" == "--skip-mark-exit" ]]; then
     cat /dev/null >"${executed_function}"
     #run="no"
     return 0
-  elif [ "${option}" == "--skip" ]; then
+  elif [[ "${option}" == "--skip" || "${option}" == "--skip-exit" ]]; then
     #run="no"
     return 0
   fi
@@ -10978,7 +11206,7 @@ function configure_maxicode() {
     echo "[${SCRIPT_NAME}]: [Skipped]: ${FUNCNAME[0]} has ran before" 2>&1 | tee -a "${REPORT_FILE}"
     echo "=~=~=~=~=~=~=~=~=~" 2>&1 | tee -a "${REPORT_FILE}"
   fi
-  if [[ "${option}" == "--run-force-exit" || "${option}" == "--run-exit" ]]; then
+  if [[ "$(echo "${option}" | awk -F'-' '{ print $NF}')" == "exit" ]]; then
     _echo "$(msg yellow)Warning, script terminated due to the supplied option ${option}$(msg end)" --name
     exit 0
   fi
@@ -10989,11 +11217,11 @@ function configure_maxiperm() {
   option="$1"
   run="no"
   executed_function="${CONF_PATH}/${FUNCNAME[0]}_executed"
-  if [ "${option}" == "--skip-mark" ]; then
+  if [[ "${option}" == "--skip-mark" || "${option}" == "--skip-mark-exit" ]]; then
     cat /dev/null >"${executed_function}"
     #run="no"
     return 0
-  elif [ "${option}" == "--skip" ]; then
+  elif [[ "${option}" == "--skip" || "${option}" == "--skip-exit" ]]; then
     #run="no"
     return 0
   fi
@@ -11022,7 +11250,7 @@ function configure_maxiperm() {
     echo "[${SCRIPT_NAME}]: [Skipped]: ${FUNCNAME[0]} has ran before" 2>&1 | tee -a "${REPORT_FILE}"
     echo "=~=~=~=~=~=~=~=~=~" 2>&1 | tee -a "${REPORT_FILE}"
   fi
-  if [[ "${option}" == "--run-force-exit" || "${option}" == "--run-exit" ]]; then
+  if [[ "$(echo "${option}" | awk -F'-' '{ print $NF}')" == "exit" ]]; then
     _echo "$(msg yellow)Warning, script terminated due to the supplied option ${option}$(msg end)" --name
     exit 0
   fi
@@ -11035,11 +11263,11 @@ function configure_maxinis() {
   option="$1"
   run="no"
   executed_function="${CONF_PATH}/${FUNCNAME[0]}_executed"
-  if [ "${option}" == "--skip-mark" ]; then
+  if [[ "${option}" == "--skip-mark" || "${option}" == "--skip-mark-exit" ]]; then
     cat /dev/null >"${executed_function}"
     #run="no"
     return 0
-  elif [ "${option}" == "--skip" ]; then
+  elif [[ "${option}" == "--skip" || "${option}" == "--skip-exit" ]]; then
     #run="no"
     return 0
   fi
@@ -11087,7 +11315,7 @@ function configure_maxinis() {
     echo "[${SCRIPT_NAME}]: [Skipped]: ${FUNCNAME[0]} has ran before" 2>&1 | tee -a "${REPORT_FILE}"
     echo "=~=~=~=~=~=~=~=~=~" 2>&1 | tee -a "${REPORT_FILE}"
   fi
-  if [[ "${option}" == "--run-force-exit" || "${option}" == "--run-exit" ]]; then
+  if [[ "$(echo "${option}" | awk -F'-' '{ print $NF}')" == "exit" ]]; then
     _echo "$(msg yellow)Warning, script terminated due to the supplied option ${option}$(msg end)" --name
     exit 0
   fi
@@ -11100,11 +11328,11 @@ function configure_maxigpg() {
   option="$1"
   run="no"
   executed_function="${CONF_PATH}/${FUNCNAME[0]}_executed"
-  if [ "${option}" == "--skip-mark" ]; then
+  if [[ "${option}" == "--skip-mark" || "${option}" == "--skip-mark-exit" ]]; then
     cat /dev/null >"${executed_function}"
     #run="no"
     return 0
-  elif [ "${option}" == "--skip" ]; then
+  elif [[ "${option}" == "--skip" || "${option}" == "--skip-exit" ]]; then
     #run="no"
     return 0
   fi
@@ -11198,7 +11426,7 @@ EOF
     echo "[${SCRIPT_NAME}]: [Skipped]: ${FUNCNAME[0]} has ran before" 2>&1 | tee -a "${REPORT_FILE}"
     echo "=~=~=~=~=~=~=~=~=~" 2>&1 | tee -a "${REPORT_FILE}"
   fi
-  if [[ "${option}" == "--run-force-exit" || "${option}" == "--run-exit" ]]; then
+  if [[ "$(echo "${option}" | awk -F'-' '{ print $NF}')" == "exit" ]]; then
     _echo "$(msg yellow)Warning, script terminated due to the supplied option ${option}$(msg end)" --name
     exit 0
   fi
@@ -11210,14 +11438,15 @@ function configure_maxida() {
   option="$1"
   run="no"
   executed_function="${CONF_PATH}/${FUNCNAME[0]}_executed"
-  if [ "${option}" == "--skip-mark" ]; then
+  if [[ "${option}" == "--skip-mark" || "${option}" == "--skip-mark-exit" ]]; then
     cat /dev/null >"${executed_function}"
     #run="no"
     return 0
-  elif [ "${option}" == "--skip" ]; then
+  elif [[ "${option}" == "--skip" || "${option}" == "--skip-exit" ]]; then
     #run="no"
     return 0
   fi
+
   if [[ "${option}" == "--run-force" || "${option}" == "--run-force-exit" ]]; then
     rm -rf "${executed_function}"
     run="yes"
@@ -11282,7 +11511,7 @@ function configure_maxida() {
     echo "[${SCRIPT_NAME}]: [Skipped]: ${FUNCNAME[0]} has ran before" 2>&1 | tee -a "${REPORT_FILE}"
     echo "=~=~=~=~=~=~=~=~=~" 2>&1 | tee -a "${REPORT_FILE}"
   fi
-  if [[ "${option}" == "--run-force-exit" || "${option}" == "--run-exit" ]]; then
+  if [[ "$(echo "${option}" | awk -F'-' '{ print $NF}')" == "exit" ]]; then
     _echo "$(msg yellow)Warning, script terminated due to the supplied option ${option}$(msg end)" --name
     exit 0
   fi
@@ -11293,11 +11522,11 @@ function configure_maxicron() {
   option="$1"
   run="no"
   executed_function="${CONF_PATH}/${FUNCNAME[0]}_executed"
-  if [ "${option}" == "--skip-mark" ]; then
+  if [[ "${option}" == "--skip-mark" || "${option}" == "--skip-mark-exit" ]]; then
     cat /dev/null >"${executed_function}"
     #run="no"
     return 0
-  elif [ "${option}" == "--skip" ]; then
+  elif [[ "${option}" == "--skip" || "${option}" == "--skip-exit" ]]; then
     #run="no"
     return 0
   fi
@@ -11326,7 +11555,7 @@ function configure_maxicron() {
     echo "[${SCRIPT_NAME}]: [Skipped]: ${FUNCNAME[0]} has ran before" 2>&1 | tee -a "${REPORT_FILE}"
     echo "=~=~=~=~=~=~=~=~=~" 2>&1 | tee -a "${REPORT_FILE}"
   fi
-  if [[ "${option}" == "--run-force-exit" || "${option}" == "--run-exit" ]]; then
+  if [[ "$(echo "${option}" | awk -F'-' '{ print $NF}')" == "exit" ]]; then
     _echo "$(msg yellow)Warning, script terminated due to the supplied option ${option}$(msg end)" --name
     exit 0
   fi
@@ -11338,11 +11567,11 @@ function configure_maxiaide() {
   option="$1"
   run="no"
   executed_function="${CONF_PATH}/${FUNCNAME[0]}_executed"
-  if [ "${option}" == "--skip-mark" ]; then
+  if [[ "${option}" == "--skip-mark" || "${option}" == "--skip-mark-exit" ]]; then
     cat /dev/null >"${executed_function}"
     #run="no"
     return 0
-  elif [ "${option}" == "--skip" ]; then
+  elif [[ "${option}" == "--skip" || "${option}" == "--skip-exit" ]]; then
     #run="no"
     return 0
   fi
@@ -11377,7 +11606,7 @@ function configure_maxiaide() {
     echo "[${SCRIPT_NAME}]: [Skipped]: ${FUNCNAME[0]} has ran before" 2>&1 | tee -a "${REPORT_FILE}"
     echo "=~=~=~=~=~=~=~=~=~" 2>&1 | tee -a "${REPORT_FILE}"
   fi
-  if [[ "${option}" == "--run-force-exit" || "${option}" == "--run-exit" ]]; then
+  if [[ "$(echo "${option}" | awk -F'-' '{ print $NF}')" == "exit" ]]; then
     _echo "$(msg yellow)Warning, script terminated due to the supplied option ${option}$(msg end)" --name
     exit 0
   fi
@@ -11392,11 +11621,11 @@ function configure_maxiwall() {
   option="$1"
   run="no"
   executed_function="${CONF_PATH}/${FUNCNAME[0]}_executed"
-  if [ "${option}" == "--skip-mark" ]; then
+  if [[ "${option}" == "--skip-mark" || "${option}" == "--skip-mark-exit" ]]; then
     cat /dev/null >"${executed_function}"
     #run="no"
     return 0
-  elif [ "${option}" == "--skip" ]; then
+  elif [[ "${option}" == "--skip" || "${option}" == "--skip-exit" ]]; then
     #run="no"
     return 0
   fi
@@ -11669,7 +11898,7 @@ function configure_maxiwall() {
     echo "[${SCRIPT_NAME}]: [Skipped]: ${FUNCNAME[0]} has ran before" 2>&1 | tee -a "${REPORT_FILE}"
     echo "=~=~=~=~=~=~=~=~=~" 2>&1 | tee -a "${REPORT_FILE}"
   fi
-  if [[ "${option}" == "--run-force-exit" || "${option}" == "--run-exit" ]]; then
+  if [[ "$(echo "${option}" | awk -F'-' '{ print $NF}')" == "exit" ]]; then
     _echo "$(msg yellow)Warning, script terminated due to the supplied option ${option}$(msg end)" --name
     exit 0
   fi
@@ -11682,11 +11911,11 @@ function configure_maxicloud() {
   option="$1"
   run="no"
   executed_function="${CONF_PATH}/${FUNCNAME[0]}_executed"
-  if [ "${option}" == "--skip-mark" ]; then
+  if [[ "${option}" == "--skip-mark" || "${option}" == "--skip-mark-exit" ]]; then
     cat /dev/null >"${executed_function}"
     #run="no"
     return 0
-  elif [ "${option}" == "--skip" ]; then
+  elif [[ "${option}" == "--skip" || "${option}" == "--skip-exit" ]]; then
     #run="no"
     return 0
   fi
@@ -11726,7 +11955,7 @@ function configure_maxicloud() {
     echo "[${SCRIPT_NAME}]: [Skipped]: ${FUNCNAME[0]} has ran before" 2>&1 | tee -a "${REPORT_FILE}"
     echo "=~=~=~=~=~=~=~=~=~" 2>&1 | tee -a "${REPORT_FILE}"
   fi
-  if [[ "${option}" == "--run-force-exit" || "${option}" == "--run-exit" ]]; then
+  if [[ "$(echo "${option}" | awk -F'-' '{ print $NF}')" == "exit" ]]; then
     _echo "$(msg yellow)Warning, script terminated due to the supplied option ${option}$(msg end)" --name
     exit 0
   fi
@@ -11738,11 +11967,11 @@ function configure_maxipass() {
   option="$1"
   run="no"
   executed_function="${CONF_PATH}/${FUNCNAME[0]}_executed"
-  if [ "${option}" == "--skip-mark" ]; then
+  if [[ "${option}" == "--skip-mark" || "${option}" == "--skip-mark-exit" ]]; then
     cat /dev/null >"${executed_function}"
     #run="no"
     return 0
-  elif [ "${option}" == "--skip" ]; then
+  elif [[ "${option}" == "--skip" || "${option}" == "--skip-exit" ]]; then
     #run="no"
     return 0
   fi
@@ -11797,7 +12026,7 @@ function configure_maxipass() {
     echo "[${SCRIPT_NAME}]: [Skipped]: ${FUNCNAME[0]} has ran before" 2>&1 | tee -a "${REPORT_FILE}"
     echo "=~=~=~=~=~=~=~=~=~" 2>&1 | tee -a "${REPORT_FILE}"
   fi
-  if [[ "${option}" == "--run-force-exit" || "${option}" == "--run-exit" ]]; then
+  if [[ "$(echo "${option}" | awk -F'-' '{ print $NF}')" == "exit" ]]; then
     _echo "$(msg yellow)Warning, script terminated due to the supplied option ${option}$(msg end)" --name
     exit 0
   fi
@@ -11808,11 +12037,11 @@ function configure_maxify() {
   option="$1"
   run="no"
   executed_function="${CONF_PATH}/${FUNCNAME[0]}_executed"
-  if [ "${option}" == "--skip-mark" ]; then
+  if [[ "${option}" == "--skip-mark" || "${option}" == "--skip-mark-exit" ]]; then
     cat /dev/null >"${executed_function}"
     #run="no"
     return 0
-  elif [ "${option}" == "--skip" ]; then
+  elif [[ "${option}" == "--skip" || "${option}" == "--skip-exit" ]]; then
     #run="no"
     return 0
   fi
@@ -11831,7 +12060,7 @@ function configure_maxify() {
     echo "=~=~=~=~=~=~=~=~=~" 2>&1 | tee -a "${REPORT_FILE}"
   fi
 
-  if [[ "${option}" == "--run-force-exit" || "${option}" == "--run-exit" ]]; then
+  if [[ "$(echo "${option}" | awk -F'-' '{ print $NF}')" == "exit" ]]; then
     _echo "$(msg yellow)Warning, script terminated due to the supplied option ${option}$(msg end)" --name
     exit 0
   fi
@@ -11842,11 +12071,11 @@ function configure_logs() {
   option="$1"
   run="no"
   executed_function="${CONF_PATH}/${FUNCNAME[0]}_executed"
-  if [ "${option}" == "--skip-mark" ]; then
+  if [[ "${option}" == "--skip-mark" || "${option}" == "--skip-mark-exit" ]]; then
     cat /dev/null >"${executed_function}"
     #run="no"
     return 0
-  elif [ "${option}" == "--skip" ]; then
+  elif [[ "${option}" == "--skip" || "${option}" == "--skip-exit" ]]; then
     #run="no"
     return 0
   fi
@@ -11865,98 +12094,12 @@ function configure_logs() {
     echo "=~=~=~=~=~=~=~=~=~" 2>&1 | tee -a "${REPORT_FILE}"
   fi
 
-  if [[ "${option}" == "--run-force-exit" || "${option}" == "--run-exit" ]]; then
+  if [[ "$(echo "${option}" | awk -F'-' '{ print $NF}')" == "exit" ]]; then
     _echo "$(msg yellow)Warning, script terminated due to the supplied option ${option}$(msg end)" --name
     exit 0
   fi
 }
 
-function configure_da_dns_templates() {
-  local option executed_function run
-  option="$1"
-  run="no"
-  executed_function="${CONF_PATH}/${FUNCNAME[0]}_executed"
-  if [ "${option}" == "--skip-mark" ]; then
-    cat /dev/null >"${executed_function}"
-    #run="no"
-    return 0
-  elif [ "${option}" == "--skip" ]; then
-    #run="no"
-    return 0
-  fi
-  if [[ "${option}" == "--run-force" || "${option}" == "--run-force-exit" ]]; then
-    rm -rf "${executed_function}"
-    run="yes"
-  elif [[ -z "${option}" || "${option}" == "--run" || "${option}" == "--run-exit" ]]; then
-    run="yes"
-  fi
-  if [[ ! -f "${CONF_PATH}/${FUNCNAME[0]}_executed" && "${run}" == "yes" ]]; then
-    echo "[${SCRIPT_NAME}]: Executing ${FUNCNAME[0]} ..." 2>&1 | tee -a "${REPORT_FILE}"
-    local da_template_custom ipv6_full_uncompressed da_bin da_latest_version
-    da_latest_version=$(curl -s https://www.directadmin.com/version.php | grep -Eo "[0-9]+\.[0-9]+")
-    da_template_custom="/usr/local/directadmin/data/templates/custom"
-    da_bin="/usr/local/directadmin/directadmin"
-    mkdir -p "${da_template_custom}"
-    chown diradmin:diradmin ${da_template_custom}
-    touch "${da_template_custom}/dns_txt.conf"
-    echo "DA latest version is ${da_latest_version}. Current DNS config is compatible with DA 1.61.5. Please check compatibility issue"
-    echo "[${SCRIPT_NAME}]: Creating SPF, DKIM and DMARC DNS custom template file for Directadmin ..." 2>&1 | tee -a "${REPORT_FILE}"
-    sleep 1
-    {
-      # Da version 1.61.6 (unreleased) is enabled by default for SPF this: https://www.directadmin.com/features.php?id=2946
-      # Remember once it's released check this:
-      echo "|DOMAIN|.=\"v=spf1 a mx ip4:|SERVER_IP||EXTRA_SPF| ~all\""
-      echo "_dmarc=\"v=DMARC1; p=none; sp=none; rua=mailto:spam-reports@|DOMAIN|\""
-      # Currently have issue using this '_domainkey' with API (GUI works): (fixed-added through API manually)
-      # https://forum.directadmin.com/threads/possible-bug-when-using-dns_txt-conf-with-api-include-step-to-reproduce.63247/
-      echo "_domainkey=\"o=~; r=webmaster@|DOMAIN|\""
-      # Google site verification should be here
-    } >"${da_template_custom}/dns_txt.conf"
-    chmod 644 "${da_template_custom}/dns_txt.conf"
-    chown diradmin:diradmin "${da_template_custom}/dns_txt.conf"
-    {
-      echo "|*if IS_IPV6!=""\"yes\"|"
-      echo "|DOMAIN|.=|IP|"
-      echo "mail=|IP|"
-      echo "pop=|IP|"
-      echo "www=|IP|"
-      echo "ftp=|IP|"
-      echo "smtp=|IP|"
-      echo "|*endif|"
-    } >"${da_template_custom}/dns_a.conf"
-    chmod 644 "${da_template_custom}/dns_a.conf"
-
-    {
-      echo "|*if IS_IPV6=""\"yes\"|"
-      echo "|DOMAIN|.=|IP|"
-      echo "mail=|IP|"
-      echo "pop=|IP|"
-      echo "www=|IP|"
-      echo "ftp=|IP|"
-      echo "smtp=|IP|"
-      echo "|*endif|"
-    } >"${da_template_custom}/dns_aaaa.conf"
-    chmod 644 "${da_template_custom}/dns_aaaa.conf"
-    # Note last year I use the full form of IP. Remember DA also has ipv6 calculator from directadmin binary.
-    ipv6_full_uncompressed=$(ipv6calc --addr2fulluncompaddr "${C_IPV6_ADD0}")
-    echo "[${SCRIPT_NAME}]: Setting extra_spf_value with ipv6:${ipv6_full_uncompressed} ..." 2>&1 | tee -a "${REPORT_FILE}"
-    sleep 1
-    ${da_bin} set extra_spf_value " ip6:${ipv6_full_uncompressed}" 2>&1 | tee -a "${REPORT_FILE}"
-    restart_da
-    # rewrite_confs here so that dns_txt.conf is updated
-    # Fixed DNS new record updated:
-    echo "[${SCRIPT_NAME}]: Updating DNS template ..." 2>&1 | tee -a "${REPORT_FILE}"
-    /usr/local/directadmin/custombuild/build rewrite_confs
-    check_finish_reboot "${FUNCNAME[0]}"
-  else
-    echo "[${SCRIPT_NAME}]: [Skipped]: ${FUNCNAME[0]} has ran before" 2>&1 | tee -a "${REPORT_FILE}"
-    echo "=~=~=~=~=~=~=~=~=~" 2>&1 | tee -a "${REPORT_FILE}"
-  fi
-  if [[ "${option}" == "--run-force-exit" || "${option}" == "--run-exit" ]]; then
-    _echo "$(msg yellow)Warning, script terminated due to the supplied option ${option}$(msg end)" --name
-    exit 0
-  fi
-}
 # Maybe we need to log into owner (so we fix the menu, time format etc)
 # it's best not to use owner. Use admin instead to manage DA user for security purpose
 function configure_da_owner_skins() {
@@ -11965,11 +12108,11 @@ function configure_da_owner_skins() {
   option="$1"
   run="no"
   executed_function="${CONF_PATH}/${FUNCNAME[0]}_executed"
-  if [ "${option}" == "--skip-mark" ]; then
+  if [[ "${option}" == "--skip-mark" || "${option}" == "--skip-mark-exit" ]]; then
     cat /dev/null >"${executed_function}"
     #run="no"
     return 0
-  elif [ "${option}" == "--skip" ]; then
+  elif [[ "${option}" == "--skip" || "${option}" == "--skip-exit" ]]; then
     #run="no"
     return 0
   fi
@@ -12031,7 +12174,7 @@ function configure_da_owner_skins() {
     echo "[${SCRIPT_NAME}]: [Skipped]: ${FUNCNAME[0]} has ran before" 2>&1 | tee -a "${REPORT_FILE}"
     echo "=~=~=~=~=~=~=~=~=~" 2>&1 | tee -a "${REPORT_FILE}"
   fi
-  if [[ "${option}" == "--run-force-exit" || "${option}" == "--run-exit" ]]; then
+  if [[ "$(echo "${option}" | awk -F'-' '{ print $NF}')" == "exit" ]]; then
     _echo "$(msg yellow)Warning, script terminated due to the supplied option ${option}$(msg end)" --name
     exit 0
   fi
@@ -12044,11 +12187,11 @@ function configure_da_admin_skins() {
   option="$1"
   run="no"
   executed_function="${CONF_PATH}/${FUNCNAME[0]}_executed"
-  if [ "${option}" == "--skip-mark" ]; then
+  if [[ "${option}" == "--skip-mark" || "${option}" == "--skip-mark-exit" ]]; then
     cat /dev/null >"${executed_function}"
     #run="no"
     return 0
-  elif [ "${option}" == "--skip" ]; then
+  elif [[ "${option}" == "--skip" || "${option}" == "--skip-exit" ]]; then
     #run="no"
     return 0
   fi
@@ -12110,7 +12253,7 @@ function configure_da_admin_skins() {
     echo "[${SCRIPT_NAME}]: [Skipped]: ${FUNCNAME[0]} has ran before" 2>&1 | tee -a "${REPORT_FILE}"
     echo "=~=~=~=~=~=~=~=~=~" 2>&1 | tee -a "${REPORT_FILE}"
   fi
-  if [[ "${option}" == "--run-force-exit" || "${option}" == "--run-exit" ]]; then
+  if [[ "$(echo "${option}" | awk -F'-' '{ print $NF}')" == "exit" ]]; then
     _echo "$(msg yellow)Warning, script terminated due to the supplied option ${option}$(msg end)" --name
     exit 0
   fi
@@ -12121,11 +12264,11 @@ function configure_da_reseller_skins() {
   option="$1"
   run="no"
   executed_function="${CONF_PATH}/${FUNCNAME[0]}_executed"
-  if [ "${option}" == "--skip-mark" ]; then
+  if [[ "${option}" == "--skip-mark" || "${option}" == "--skip-mark-exit" ]]; then
     cat /dev/null >"${executed_function}"
     #run="no"
     return 0
-  elif [ "${option}" == "--skip" ]; then
+  elif [[ "${option}" == "--skip" || "${option}" == "--skip-exit" ]]; then
     #run="no"
     return 0
   fi
@@ -12186,7 +12329,7 @@ function configure_da_reseller_skins() {
     echo "[${SCRIPT_NAME}]: [Skipped]: ${FUNCNAME[0]} has ran before" 2>&1 | tee -a "${REPORT_FILE}"
     echo "=~=~=~=~=~=~=~=~=~" 2>&1 | tee -a "${REPORT_FILE}"
   fi
-  if [[ "${option}" == "--run-force-exit" || "${option}" == "--run-exit" ]]; then
+  if [[ "$(echo "${option}" | awk -F'-' '{ print $NF}')" == "exit" ]]; then
     _echo "$(msg yellow)Warning, script terminated due to the supplied option ${option}$(msg end)" --name
     exit 0
   fi
@@ -12197,11 +12340,11 @@ function configure_da_admin_admin_settings() {
   option="$1"
   run="no"
   executed_function="${CONF_PATH}/${FUNCNAME[0]}_executed"
-  if [ "${option}" == "--skip-mark" ]; then
+  if [[ "${option}" == "--skip-mark" || "${option}" == "--skip-mark-exit" ]]; then
     cat /dev/null >"${executed_function}"
     #run="no"
     return 0
-  elif [ "${option}" == "--skip" ]; then
+  elif [[ "${option}" == "--skip" || "${option}" == "--skip-exit" ]]; then
     #run="no"
     return 0
   fi
@@ -12218,7 +12361,7 @@ function configure_da_admin_admin_settings() {
     echo "=~=~=~=~=~=~=~=~=~" 2>&1 | tee -a "${REPORT_FILE}"
   fi
   ######
-  if [[ "${option}" == "--run-force-exit" || "${option}" == "--run-exit" ]]; then
+  if [[ "$(echo "${option}" | awk -F'-' '{ print $NF}')" == "exit" ]]; then
     _echo "$(msg yellow)Warning, script terminated due to the supplied option ${option}$(msg end)" --name
     exit 0
   fi
@@ -12229,11 +12372,11 @@ function configure_da_owner_accounts() {
   option="$1"
   run="no"
   executed_function="${CONF_PATH}/${FUNCNAME[0]}_executed"
-  if [ "${option}" == "--skip-mark" ]; then
+  if [[ "${option}" == "--skip-mark" || "${option}" == "--skip-mark-exit" ]]; then
     cat /dev/null >"${executed_function}"
     #run="no"
     return 0
-  elif [ "${option}" == "--skip" ]; then
+  elif [[ "${option}" == "--skip" || "${option}" == "--skip-exit" ]]; then
     #run="no"
     return 0
   fi
@@ -12255,7 +12398,7 @@ function configure_da_owner_accounts() {
     echo "[${SCRIPT_NAME}]: [Skipped]: ${FUNCNAME[0]} has ran before" 2>&1 | tee -a "${REPORT_FILE}"
     echo "=~=~=~=~=~=~=~=~=~" 2>&1 | tee -a "${REPORT_FILE}"
   fi
-  if [[ "${option}" == "--run-force-exit" || "${option}" == "--run-exit" ]]; then
+  if [[ "$(echo "${option}" | awk -F'-' '{ print $NF}')" == "exit" ]]; then
     _echo "$(msg yellow)Warning, script terminated due to the supplied option ${option}$(msg end)" --name
     exit 0
   fi
@@ -12268,11 +12411,11 @@ function configure_da_admin_accounts() {
   option="$1"
   run="no"
   executed_function="${CONF_PATH}/${FUNCNAME[0]}_executed"
-  if [ "${option}" == "--skip-mark" ]; then
+  if [[ "${option}" == "--skip-mark" || "${option}" == "--skip-mark-exit" ]]; then
     cat /dev/null >"${executed_function}"
     #run="no"
     return 0
-  elif [ "${option}" == "--skip" ]; then
+  elif [[ "${option}" == "--skip" || "${option}" == "--skip-exit" ]]; then
     #run="no"
     return 0
   fi
@@ -12321,7 +12464,7 @@ function configure_da_admin_accounts() {
     echo "[${SCRIPT_NAME}]: [Skipped]: ${FUNCNAME[0]} has ran before" 2>&1 | tee -a "${REPORT_FILE}"
     echo "=~=~=~=~=~=~=~=~=~" 2>&1 | tee -a "${REPORT_FILE}"
   fi
-  if [[ "${option}" == "--run-force-exit" || "${option}" == "--run-exit" ]]; then
+  if [[ "$(echo "${option}" | awk -F'-' '{ print $NF}')" == "exit" ]]; then
     _echo "$(msg yellow)Warning, script terminated due to the supplied option ${option}$(msg end)" --name
     exit 0
   fi
@@ -12339,11 +12482,11 @@ function configure_da_reseller_accounts() {
   option="$1"
   run="no"
   executed_function="${CONF_PATH}/${FUNCNAME[0]}_executed"
-  if [ "${option}" == "--skip-mark" ]; then
+  if [[ "${option}" == "--skip-mark" || "${option}" == "--skip-mark-exit" ]]; then
     cat /dev/null >"${executed_function}"
     #run="no"
     return 0
-  elif [ "${option}" == "--skip" ]; then
+  elif [[ "${option}" == "--skip" || "${option}" == "--skip-exit" ]]; then
     #run="no"
     return 0
   fi
@@ -12753,7 +12896,7 @@ function configure_da_reseller_accounts() {
     echo "[${SCRIPT_NAME}]: [Skipped]: ${FUNCNAME[0]} has ran before" 2>&1 | tee -a "${REPORT_FILE}"
     echo "=~=~=~=~=~=~=~=~=~" 2>&1 | tee -a "${REPORT_FILE}"
   fi
-  if [[ "${option}" == "--run-force-exit" || "${option}" == "--run-exit" ]]; then
+  if [[ "$(echo "${option}" | awk -F'-' '{ print $NF}')" == "exit" ]]; then
     _echo "$(msg yellow)Warning, script terminated due to the supplied option ${option}$(msg end)" --name
     exit 0
   fi
@@ -12764,11 +12907,11 @@ function configure_da_reseller_root_domains() {
   option="$1"
   run="no"
   executed_function="${CONF_PATH}/${FUNCNAME[0]}_executed"
-  if [ "${option}" == "--skip-mark" ]; then
+  if [[ "${option}" == "--skip-mark" || "${option}" == "--skip-mark-exit" ]]; then
     cat /dev/null >"${executed_function}"
     #run="no"
     return 0
-  elif [ "${option}" == "--skip" ]; then
+  elif [[ "${option}" == "--skip" || "${option}" == "--skip-exit" ]]; then
     #run="no"
     return 0
   fi
@@ -12867,7 +13010,7 @@ function configure_da_reseller_root_domains() {
     echo "[${SCRIPT_NAME}]: [Skipped]: ${FUNCNAME[0]} has ran before" 2>&1 | tee -a "${REPORT_FILE}"
     echo "=~=~=~=~=~=~=~=~=~" 2>&1 | tee -a "${REPORT_FILE}"
   fi
-  if [[ "${option}" == "--run-force-exit" || "${option}" == "--run-exit" ]]; then
+  if [[ "$(echo "${option}" | awk -F'-' '{ print $NF}')" == "exit" ]]; then
     _echo "$(msg yellow)Warning, script terminated due to the supplied option ${option}$(msg end)" --name
     exit 0
   fi
@@ -12877,11 +13020,11 @@ function configure_da_reseller_wildcard_domains() {
   option="$1"
   run="no"
   executed_function="${CONF_PATH}/${FUNCNAME[0]}_executed"
-  if [ "${option}" == "--skip-mark" ]; then
+  if [[ "${option}" == "--skip-mark" || "${option}" == "--skip-mark-exit" ]]; then
     cat /dev/null >"${executed_function}"
     #run="no"
     return 0
-  elif [ "${option}" == "--skip" ]; then
+  elif [[ "${option}" == "--skip" || "${option}" == "--skip-exit" ]]; then
     #run="no"
     return 0
   fi
@@ -12979,7 +13122,7 @@ function configure_da_reseller_wildcard_domains() {
     echo "[${SCRIPT_NAME}]: [Skipped]: ${FUNCNAME[0]} has ran before" 2>&1 | tee -a "${REPORT_FILE}"
     echo "=~=~=~=~=~=~=~=~=~" 2>&1 | tee -a "${REPORT_FILE}"
   fi
-  if [[ "${option}" == "--run-force-exit" || "${option}" == "--run-exit" ]]; then
+  if [[ "$(echo "${option}" | awk -F'-' '{ print $NF}')" == "exit" ]]; then
     _echo "$(msg yellow)Warning, script terminated due to the supplied option ${option}$(msg end)" --name
     exit 0
   fi
@@ -12991,11 +13134,11 @@ function configure_da_user_accounts() {
   option="$1"
   run="no"
   executed_function="${CONF_PATH}/${FUNCNAME[0]}_executed"
-  if [ "${option}" == "--skip-mark" ]; then
+  if [[ "${option}" == "--skip-mark" || "${option}" == "--skip-mark-exit" ]]; then
     cat /dev/null >"${executed_function}"
     #run="no"
     return 0
-  elif [ "${option}" == "--skip" ]; then
+  elif [[ "${option}" == "--skip" || "${option}" == "--skip-exit" ]]; then
     #run="no"
     return 0
   fi
@@ -13334,7 +13477,7 @@ function configure_da_user_accounts() {
     echo "[${SCRIPT_NAME}]: [Skipped]: ${FUNCNAME[0]} has ran before" 2>&1 | tee -a "${REPORT_FILE}"
     echo "=~=~=~=~=~=~=~=~=~" 2>&1 | tee -a "${REPORT_FILE}"
   fi
-  if [[ "${option}" == "--run-force-exit" || "${option}" == "--run-exit" ]]; then
+  if [[ "$(echo "${option}" | awk -F'-' '{ print $NF}')" == "exit" ]]; then
     _echo "$(msg yellow)Warning, script terminated due to the supplied option ${option}$(msg end)" --name
     exit 0
   fi
@@ -13345,11 +13488,11 @@ function configure_da_user_root_domains() {
   option="$1"
   run="no"
   executed_function="${CONF_PATH}/${FUNCNAME[0]}_executed"
-  if [ "${option}" == "--skip-mark" ]; then
+  if [[ "${option}" == "--skip-mark" || "${option}" == "--skip-mark-exit" ]]; then
     cat /dev/null >"${executed_function}"
     #run="no"
     return 0
-  elif [ "${option}" == "--skip" ]; then
+  elif [[ "${option}" == "--skip" || "${option}" == "--skip-exit" ]]; then
     #run="no"
     return 0
   fi
@@ -13448,7 +13591,7 @@ function configure_da_user_root_domains() {
     echo "[${SCRIPT_NAME}]: [Skipped]: ${FUNCNAME[0]} has ran before" 2>&1 | tee -a "${REPORT_FILE}"
     echo "=~=~=~=~=~=~=~=~=~" 2>&1 | tee -a "${REPORT_FILE}"
   fi
-  if [[ "${option}" == "--run-force-exit" || "${option}" == "--run-exit" ]]; then
+  if [[ "$(echo "${option}" | awk -F'-' '{ print $NF}')" == "exit" ]]; then
     _echo "$(msg yellow)Warning, script terminated due to the supplied option ${option}$(msg end)" --name
     exit 0
   fi
@@ -13459,11 +13602,11 @@ function configure_da_user_wildcard_domains() {
   option="$1"
   run="no"
   executed_function="${CONF_PATH}/${FUNCNAME[0]}_executed"
-  if [ "${option}" == "--skip-mark" ]; then
+  if [[ "${option}" == "--skip-mark" || "${option}" == "--skip-mark-exit" ]]; then
     cat /dev/null >"${executed_function}"
     #run="no"
     return 0
-  elif [ "${option}" == "--skip" ]; then
+  elif [[ "${option}" == "--skip" || "${option}" == "--skip-exit" ]]; then
     #run="no"
     return 0
   fi
@@ -13561,7 +13704,7 @@ function configure_da_user_wildcard_domains() {
     echo "[${SCRIPT_NAME}]: [Skipped]: ${FUNCNAME[0]} has ran before" 2>&1 | tee -a "${REPORT_FILE}"
     echo "=~=~=~=~=~=~=~=~=~" 2>&1 | tee -a "${REPORT_FILE}"
   fi
-  if [[ "${option}" == "--run-force-exit" || "${option}" == "--run-exit" ]]; then
+  if [[ "$(echo "${option}" | awk -F'-' '{ print $NF}')" == "exit" ]]; then
     _echo "$(msg yellow)Warning, script terminated due to the supplied option ${option}$(msg end)" --name
     exit 0
   fi
@@ -13572,11 +13715,11 @@ function configure_da_reseller_subdomains() {
   option="$1"
   run="no"
   executed_function="${CONF_PATH}/${FUNCNAME[0]}_executed"
-  if [ "${option}" == "--skip-mark" ]; then
+  if [[ "${option}" == "--skip-mark" || "${option}" == "--skip-mark-exit" ]]; then
     cat /dev/null >"${executed_function}"
     #run="no"
     return 0
-  elif [ "${option}" == "--skip" ]; then
+  elif [[ "${option}" == "--skip" || "${option}" == "--skip-exit" ]]; then
     #run="no"
     return 0
   fi
@@ -13694,7 +13837,7 @@ function configure_da_reseller_subdomains() {
     echo "[${SCRIPT_NAME}]: [Skipped]: ${FUNCNAME[0]} has ran before" 2>&1 | tee -a "${REPORT_FILE}"
     echo "=~=~=~=~=~=~=~=~=~" 2>&1 | tee -a "${REPORT_FILE}"
   fi
-  if [[ "${option}" == "--run-force-exit" || "${option}" == "--run-exit" ]]; then
+  if [[ "$(echo "${option}" | awk -F'-' '{ print $NF}')" == "exit" ]]; then
     _echo "$(msg yellow)Warning, script terminated due to the supplied option ${option}$(msg end)" --name
     exit 0
   fi
@@ -13705,11 +13848,11 @@ function configure_da_user_subdomains() {
   option="$1"
   run="no"
   executed_function="${CONF_PATH}/${FUNCNAME[0]}_executed"
-  if [ "${option}" == "--skip-mark" ]; then
+  if [[ "${option}" == "--skip-mark" || "${option}" == "--skip-mark-exit" ]]; then
     cat /dev/null >"${executed_function}"
     #run="no"
     return 0
-  elif [ "${option}" == "--skip" ]; then
+  elif [[ "${option}" == "--skip" || "${option}" == "--skip-exit" ]]; then
     #run="no"
     return 0
   fi
@@ -13813,7 +13956,7 @@ function configure_da_user_subdomains() {
     echo "[${SCRIPT_NAME}]: [Skipped]: ${FUNCNAME[0]} has ran before" 2>&1 | tee -a "${REPORT_FILE}"
     echo "=~=~=~=~=~=~=~=~=~" 2>&1 | tee -a "${REPORT_FILE}"
   fi
-  if [[ "${option}" == "--run-force-exit" || "${option}" == "--run-exit" ]]; then
+  if [[ "$(echo "${option}" | awk -F'-' '{ print $NF}')" == "exit" ]]; then
     _echo "$(msg yellow)Warning, script terminated due to the supplied option ${option}$(msg end)" --name
     exit 0
   fi
@@ -13823,11 +13966,11 @@ function configure_da_reseller_emails() {
   option="$1"
   run="no"
   executed_function="${CONF_PATH}/${FUNCNAME[0]}_executed"
-  if [ "${option}" == "--skip-mark" ]; then
+  if [[ "${option}" == "--skip-mark" || "${option}" == "--skip-mark-exit" ]]; then
     cat /dev/null >"${executed_function}"
     #run="no"
     return 0
-  elif [ "${option}" == "--skip" ]; then
+  elif [[ "${option}" == "--skip" || "${option}" == "--skip-exit" ]]; then
     #run="no"
     return 0
   fi
@@ -13916,7 +14059,7 @@ function configure_da_reseller_emails() {
     echo "[${SCRIPT_NAME}]: [Skipped]: ${FUNCNAME[0]} has ran before" 2>&1 | tee -a "${REPORT_FILE}"
     echo "=~=~=~=~=~=~=~=~=~" 2>&1 | tee -a "${REPORT_FILE}"
   fi
-  if [[ "${option}" == "--run-force-exit" || "${option}" == "--run-exit" ]]; then
+  if [[ "$(echo "${option}" | awk -F'-' '{ print $NF}')" == "exit" ]]; then
     _echo "$(msg yellow)Warning, script terminated due to the supplied option ${option}$(msg end)" --name
     exit 0
   fi
@@ -13927,11 +14070,11 @@ function configure_da_user_emails() {
   option="$1"
   run="no"
   executed_function="${CONF_PATH}/${FUNCNAME[0]}_executed"
-  if [ "${option}" == "--skip-mark" ]; then
+  if [[ "${option}" == "--skip-mark" || "${option}" == "--skip-mark-exit" ]]; then
     cat /dev/null >"${executed_function}"
     #run="no"
     return 0
-  elif [ "${option}" == "--skip" ]; then
+  elif [[ "${option}" == "--skip" || "${option}" == "--skip-exit" ]]; then
     #run="no"
     return 0
   fi
@@ -14019,7 +14162,7 @@ function configure_da_user_emails() {
     echo "[${SCRIPT_NAME}]: [Skipped]: ${FUNCNAME[0]} has ran before" 2>&1 | tee -a "${REPORT_FILE}"
     echo "=~=~=~=~=~=~=~=~=~" 2>&1 | tee -a "${REPORT_FILE}"
   fi
-  if [[ "${option}" == "--run-force-exit" || "${option}" == "--run-exit" ]]; then
+  if [[ "$(echo "${option}" | awk -F'-' '{ print $NF}')" == "exit" ]]; then
     _echo "$(msg yellow)Warning, script terminated due to the supplied option ${option}$(msg end)" --name
     exit 0
   fi
@@ -14030,11 +14173,11 @@ function configure_da_reseller_domain_ssl_pre() {
   option="$1"
   run="no"
   executed_function="${CONF_PATH}/${FUNCNAME[0]}_executed"
-  if [ "${option}" == "--skip-mark" ]; then
+  if [[ "${option}" == "--skip-mark" || "${option}" == "--skip-mark-exit" ]]; then
     cat /dev/null >"${executed_function}"
     #run="no"
     return 0
-  elif [ "${option}" == "--skip" ]; then
+  elif [[ "${option}" == "--skip" || "${option}" == "--skip-exit" ]]; then
     #run="no"
     return 0
   fi
@@ -14127,7 +14270,7 @@ function configure_da_reseller_domain_ssl_pre() {
     echo "[${SCRIPT_NAME}]: [Skipped]: ${FUNCNAME[0]} has ran before" 2>&1 | tee -a "${REPORT_FILE}"
     echo "=~=~=~=~=~=~=~=~=~" 2>&1 | tee -a "${REPORT_FILE}"
   fi
-  if [[ "${option}" == "--run-force-exit" || "${option}" == "--run-exit" ]]; then
+  if [[ "$(echo "${option}" | awk -F'-' '{ print $NF}')" == "exit" ]]; then
     _echo "$(msg yellow)Warning, script terminated due to the supplied option ${option}$(msg end)" --name
     exit 0
   fi
@@ -14138,11 +14281,11 @@ function configure_da_user_domain_ssl_pre() {
   option="$1"
   run="no"
   executed_function="${CONF_PATH}/${FUNCNAME[0]}_executed"
-  if [ "${option}" == "--skip-mark" ]; then
+  if [[ "${option}" == "--skip-mark" || "${option}" == "--skip-mark-exit" ]]; then
     cat /dev/null >"${executed_function}"
     #run="no"
     return 0
-  elif [ "${option}" == "--skip" ]; then
+  elif [[ "${option}" == "--skip" || "${option}" == "--skip-exit" ]]; then
     #run="no"
     return 0
   fi
@@ -14221,7 +14364,7 @@ function configure_da_user_domain_ssl_pre() {
     echo "[${SCRIPT_NAME}]: [Skipped]: ${FUNCNAME[0]} has ran before" 2>&1 | tee -a "${REPORT_FILE}"
     echo "=~=~=~=~=~=~=~=~=~" 2>&1 | tee -a "${REPORT_FILE}"
   fi
-  if [[ "${option}" == "--run-force-exit" || "${option}" == "--run-exit" ]]; then
+  if [[ "$(echo "${option}" | awk -F'-' '{ print $NF}')" == "exit" ]]; then
     _echo "$(msg yellow)Warning, script terminated due to the supplied option ${option}$(msg end)" --name
     exit 0
   fi
@@ -14234,11 +14377,11 @@ function configure_da_reseller_domain_ssl() {
   option="$1"
   run="no"
   executed_function="${CONF_PATH}/${FUNCNAME[0]}_executed"
-  if [ "${option}" == "--skip-mark" ]; then
+  if [[ "${option}" == "--skip-mark" || "${option}" == "--skip-mark-exit" ]]; then
     cat /dev/null >"${executed_function}"
     #run="no"
     return 0
-  elif [ "${option}" == "--skip" ]; then
+  elif [[ "${option}" == "--skip" || "${option}" == "--skip-exit" ]]; then
     #run="no"
     return 0
   fi
@@ -14343,7 +14486,7 @@ function configure_da_reseller_domain_ssl() {
     echo "[${SCRIPT_NAME}]: [Skipped]: ${FUNCNAME[0]} has ran before" 2>&1 | tee -a "${REPORT_FILE}"
     echo "=~=~=~=~=~=~=~=~=~" 2>&1 | tee -a "${REPORT_FILE}"
   fi
-  if [[ "${option}" == "--run-force-exit" || "${option}" == "--run-exit" ]]; then
+  if [[ "$(echo "${option}" | awk -F'-' '{ print $NF}')" == "exit" ]]; then
     _echo "$(msg yellow)Warning, script terminated due to the supplied option ${option}$(msg end)" --name
     exit 0
   fi
@@ -14355,11 +14498,11 @@ function configure_da_user_domain_ssl() {
   option="$1"
   run="no"
   executed_function="${CONF_PATH}/${FUNCNAME[0]}_executed"
-  if [ "${option}" == "--skip-mark" ]; then
+  if [[ "${option}" == "--skip-mark" || "${option}" == "--skip-mark-exit" ]]; then
     cat /dev/null >"${executed_function}"
     #run="no"
     return 0
-  elif [ "${option}" == "--skip" ]; then
+  elif [[ "${option}" == "--skip" || "${option}" == "--skip-exit" ]]; then
     #run="no"
     return 0
   fi
@@ -14462,7 +14605,7 @@ function configure_da_user_domain_ssl() {
     echo "[${SCRIPT_NAME}]: [Skipped]: ${FUNCNAME[0]} has ran before" 2>&1 | tee -a "${REPORT_FILE}"
     echo "=~=~=~=~=~=~=~=~=~" 2>&1 | tee -a "${REPORT_FILE}"
   fi
-  if [[ "${option}" == "--run-force-exit" || "${option}" == "--run-exit" ]]; then
+  if [[ "$(echo "${option}" | awk -F'-' '{ print $NF}')" == "exit" ]]; then
     _echo "$(msg yellow)Warning, script terminated due to the supplied option ${option}$(msg end)" --name
     exit 0
   fi
@@ -14475,11 +14618,11 @@ function configure_da_owner_security() {
   option="$1"
   run="no"
   executed_function="${CONF_PATH}/${FUNCNAME[0]}_executed"
-  if [ "${option}" == "--skip-mark" ]; then
+  if [[ "${option}" == "--skip-mark" || "${option}" == "--skip-mark-exit" ]]; then
     cat /dev/null >"${executed_function}"
     #run="no"
     return 0
-  elif [ "${option}" == "--skip" ]; then
+  elif [[ "${option}" == "--skip" || "${option}" == "--skip-exit" ]]; then
     #run="no"
     return 0
   fi
@@ -14548,7 +14691,7 @@ function configure_da_owner_security() {
     echo "[${SCRIPT_NAME}]: [Skipped]: ${FUNCNAME[0]} has ran before" 2>&1 | tee -a "${REPORT_FILE}"
     echo "=~=~=~=~=~=~=~=~=~" 2>&1 | tee -a "${REPORT_FILE}"
   fi
-  if [[ "${option}" == "--run-force-exit" || "${option}" == "--run-exit" ]]; then
+  if [[ "$(echo "${option}" | awk -F'-' '{ print $NF}')" == "exit" ]]; then
     _echo "$(msg yellow)Warning, script terminated due to the supplied option ${option}$(msg end)" --name
     exit 0
   fi
@@ -14561,11 +14704,11 @@ function configure_da_admin_security() {
   option="$1"
   run="no"
   executed_function="${CONF_PATH}/${FUNCNAME[0]}_executed"
-  if [ "${option}" == "--skip-mark" ]; then
+  if [[ "${option}" == "--skip-mark" || "${option}" == "--skip-mark-exit" ]]; then
     cat /dev/null >"${executed_function}"
     #run="no"
     return 0
-  elif [ "${option}" == "--skip" ]; then
+  elif [[ "${option}" == "--skip" || "${option}" == "--skip-exit" ]]; then
     #run="no"
     return 0
   fi
@@ -14634,7 +14777,7 @@ function configure_da_admin_security() {
     echo "[${SCRIPT_NAME}]: [Skipped]: ${FUNCNAME[0]} has ran before" 2>&1 | tee -a "${REPORT_FILE}"
     echo "=~=~=~=~=~=~=~=~=~" 2>&1 | tee -a "${REPORT_FILE}"
   fi
-  if [[ "${option}" == "--run-force-exit" || "${option}" == "--run-exit" ]]; then
+  if [[ "$(echo "${option}" | awk -F'-' '{ print $NF}')" == "exit" ]]; then
     _echo "$(msg yellow)Warning, script terminated due to the supplied option ${option}$(msg end)" --name
     exit 0
   fi
@@ -14647,11 +14790,11 @@ function configure_da_reseller_security() {
   option="$1"
   run="no"
   executed_function="${CONF_PATH}/${FUNCNAME[0]}_executed"
-  if [ "${option}" == "--skip-mark" ]; then
+  if [[ "${option}" == "--skip-mark" || "${option}" == "--skip-mark-exit" ]]; then
     cat /dev/null >"${executed_function}"
     #run="no"
     return 0
-  elif [ "${option}" == "--skip" ]; then
+  elif [[ "${option}" == "--skip" || "${option}" == "--skip-exit" ]]; then
     #run="no"
     return 0
   fi
@@ -14720,7 +14863,7 @@ function configure_da_reseller_security() {
     echo "[${SCRIPT_NAME}]: [Skipped]: ${FUNCNAME[0]} has ran before" 2>&1 | tee -a "${REPORT_FILE}"
     echo "=~=~=~=~=~=~=~=~=~" 2>&1 | tee -a "${REPORT_FILE}"
   fi
-  if [[ "${option}" == "--run-force-exit" || "${option}" == "--run-exit" ]]; then
+  if [[ "$(echo "${option}" | awk -F'-' '{ print $NF}')" == "exit" ]]; then
     _echo "$(msg yellow)Warning, script terminated due to the supplied option ${option}$(msg end)" --name
     exit 0
   fi
@@ -14735,11 +14878,11 @@ function configure_da_user_security() {
   option="$1"
   run="no"
   executed_function="${CONF_PATH}/${FUNCNAME[0]}_executed"
-  if [ "${option}" == "--skip-mark" ]; then
+  if [[ "${option}" == "--skip-mark" || "${option}" == "--skip-mark-exit" ]]; then
     cat /dev/null >"${executed_function}"
     #run="no"
     return 0
-  elif [ "${option}" == "--skip" ]; then
+  elif [[ "${option}" == "--skip" || "${option}" == "--skip-exit" ]]; then
     #run="no"
     return 0
   fi
@@ -14807,7 +14950,7 @@ function configure_da_user_security() {
     echo "[${SCRIPT_NAME}]: [Skipped]: ${FUNCNAME[0]} has ran before" 2>&1 | tee -a "${REPORT_FILE}"
     echo "=~=~=~=~=~=~=~=~=~" 2>&1 | tee -a "${REPORT_FILE}"
   fi
-  if [[ "${option}" == "--run-force-exit" || "${option}" == "--run-exit" ]]; then
+  if [[ "$(echo "${option}" | awk -F'-' '{ print $NF}')" == "exit" ]]; then
     _echo "$(msg yellow)Warning, script terminated due to the supplied option ${option}$(msg end)" --name
     exit 0
   fi
@@ -14819,11 +14962,11 @@ function configure_da_reseller_databases() {
   option="$1"
   run="no"
   executed_function="${CONF_PATH}/${FUNCNAME[0]}_executed"
-  if [ "${option}" == "--skip-mark" ]; then
+  if [[ "${option}" == "--skip-mark" || "${option}" == "--skip-mark-exit" ]]; then
     cat /dev/null >"${executed_function}"
     #run="no"
     return 0
-  elif [ "${option}" == "--skip" ]; then
+  elif [[ "${option}" == "--skip" || "${option}" == "--skip-exit" ]]; then
     #run="no"
     return 0
   fi
@@ -14911,7 +15054,7 @@ function configure_da_reseller_databases() {
     echo "[${SCRIPT_NAME}]: [Skipped]: ${FUNCNAME[0]} has ran before" 2>&1 | tee -a "${REPORT_FILE}"
     echo "=~=~=~=~=~=~=~=~=~" 2>&1 | tee -a "${REPORT_FILE}"
   fi
-  if [[ "${option}" == "--run-force-exit" || "${option}" == "--run-exit" ]]; then
+  if [[ "$(echo "${option}" | awk -F'-' '{ print $NF}')" == "exit" ]]; then
     _echo "$(msg yellow)Warning, script terminated due to the supplied option ${option}$(msg end)" --name
     exit 0
   fi
@@ -14923,11 +15066,11 @@ function configure_da_user_databases() {
   option="$1"
   run="no"
   executed_function="${CONF_PATH}/${FUNCNAME[0]}_executed"
-  if [ "${option}" == "--skip-mark" ]; then
+  if [[ "${option}" == "--skip-mark" || "${option}" == "--skip-mark-exit" ]]; then
     cat /dev/null >"${executed_function}"
     #run="no"
     return 0
-  elif [ "${option}" == "--skip" ]; then
+  elif [[ "${option}" == "--skip" || "${option}" == "--skip-exit" ]]; then
     #run="no"
     return 0
   fi
@@ -15016,7 +15159,7 @@ function configure_da_user_databases() {
     echo "[${SCRIPT_NAME}]: [Skipped]: ${FUNCNAME[0]} has ran before" 2>&1 | tee -a "${REPORT_FILE}"
     echo "=~=~=~=~=~=~=~=~=~" 2>&1 | tee -a "${REPORT_FILE}"
   fi
-  if [[ "${option}" == "--run-force-exit" || "${option}" == "--run-exit" ]]; then
+  if [[ "$(echo "${option}" | awk -F'-' '{ print $NF}')" == "exit" ]]; then
     _echo "$(msg yellow)Warning, script terminated due to the supplied option ${option}$(msg end)" --name
     exit 0
   fi
@@ -15027,11 +15170,11 @@ function configure_da_custom_webs() {
   option="$1"
   run="no"
   executed_function="${CONF_PATH}/${FUNCNAME[0]}_executed"
-  if [ "${option}" == "--skip-mark" ]; then
+  if [[ "${option}" == "--skip-mark" || "${option}" == "--skip-mark-exit" ]]; then
     cat /dev/null >"${executed_function}"
     #run="no"
     return 0
-  elif [ "${option}" == "--skip" ]; then
+  elif [[ "${option}" == "--skip" || "${option}" == "--skip-exit" ]]; then
     #run="no"
     return 0
   fi
@@ -15062,7 +15205,7 @@ function configure_da_custom_webs() {
     echo "[${SCRIPT_NAME}]: [Skipped]: ${FUNCNAME[0]} has ran before" 2>&1 | tee -a "${REPORT_FILE}"
     echo "=~=~=~=~=~=~=~=~=~" 2>&1 | tee -a "${REPORT_FILE}"
   fi
-  if [[ "${option}" == "--run-force-exit" || "${option}" == "--run-exit" ]]; then
+  if [[ "$(echo "${option}" | awk -F'-' '{ print $NF}')" == "exit" ]]; then
     _echo "$(msg yellow)Warning, script terminated due to the supplied option ${option}$(msg end)" --name
     exit 0
   fi
@@ -15073,11 +15216,11 @@ function harden_with_lynis() {
   option="$1"
   run="no"
   executed_function="${CONF_PATH}/${FUNCNAME[0]}_executed"
-  if [ "${option}" == "--skip-mark" ]; then
+  if [[ "${option}" == "--skip-mark" || "${option}" == "--skip-mark-exit" ]]; then
     cat /dev/null >"${executed_function}"
     #run="no"
     return 0
-  elif [ "${option}" == "--skip" ]; then
+  elif [[ "${option}" == "--skip" || "${option}" == "--skip-exit" ]]; then
     #run="no"
     return 0
   fi
@@ -15114,7 +15257,7 @@ function harden_with_lynis() {
     echo "[${SCRIPT_NAME}]: [Skipped]: ${FUNCNAME[0]} has ran before" 2>&1 | tee -a "${REPORT_FILE}"
     echo "=~=~=~=~=~=~=~=~=~" 2>&1 | tee -a "${REPORT_FILE}"
   fi
-  if [[ "${option}" == "--run-force-exit" || "${option}" == "--run-exit" ]]; then
+  if [[ "$(echo "${option}" | awk -F'-' '{ print $NF}')" == "exit" ]]; then
     _echo "$(msg yellow)Warning, script terminated due to the supplied option ${option}$(msg end)" --name
     exit 0
   fi
@@ -15125,11 +15268,11 @@ function configure_cronjobs() {
   option="$1"
   run="no"
   executed_function="${CONF_PATH}/${FUNCNAME[0]}_executed"
-  if [ "${option}" == "--skip-mark" ]; then
+  if [[ "${option}" == "--skip-mark" || "${option}" == "--skip-mark-exit" ]]; then
     cat /dev/null >"${executed_function}"
     #run="no"
     return 0
-  elif [ "${option}" == "--skip" ]; then
+  elif [[ "${option}" == "--skip" || "${option}" == "--skip-exit" ]]; then
     #run="no"
     return 0
   fi
@@ -15155,7 +15298,7 @@ function configure_cronjobs() {
     echo "[${SCRIPT_NAME}]: [Skipped]: ${FUNCNAME[0]} has ran before" 2>&1 | tee -a "${REPORT_FILE}"
     echo "=~=~=~=~=~=~=~=~=~" 2>&1 | tee -a "${REPORT_FILE}"
   fi
-  if [[ "${option}" == "--run-force-exit" || "${option}" == "--run-exit" ]]; then
+  if [[ "$(echo "${option}" | awk -F'-' '{ print $NF}')" == "exit" ]]; then
     _echo "$(msg yellow)Warning, script terminated due to the supplied option ${option}$(msg end)" --name
     exit 0
   fi
@@ -15167,11 +15310,11 @@ function setup_post() {
   option="$1"
   run="no"
   executed_function="${CONF_PATH}/${FUNCNAME[0]}_executed"
-  if [ "${option}" == "--skip-mark" ]; then
+  if [[ "${option}" == "--skip-mark" || "${option}" == "--skip-mark-exit" ]]; then
     cat /dev/null >"${executed_function}"
     #run="no"
     return 0
-  elif [ "${option}" == "--skip" ]; then
+  elif [[ "${option}" == "--skip" || "${option}" == "--skip-exit" ]]; then
     #run="no"
     return 0
   fi
@@ -15199,7 +15342,7 @@ function setup_post() {
     echo "=~=~=~=~=~=~=~=~=~" 2>&1 | tee -a "${REPORT_FILE}"
   fi
 
-  if [[ "${option}" == "--run-force-exit" || "${option}" == "--run-exit" ]]; then
+  if [[ "$(echo "${option}" | awk -F'-' '{ print $NF}')" == "exit" ]]; then
     _echo "$(msg yellow)Warning, script terminated due to the supplied option ${option}$(msg end)" --name
     exit 0
   fi
@@ -15272,7 +15415,7 @@ function setup() {
     # function_name +<option>
     # + means optional
     # EXAMPLE:
-    # eg: secure_box --run-force
+    # eg: secure_os --run-force
     # DESCRIPTION:
     # <option> lists:
     # --run - normal run, after it has finished executed, it is marked as executed and continue to the next function_name call
@@ -15280,7 +15423,9 @@ function setup() {
     # --run--force - force run (even after being executed previously), after it has finished executed, it is marked as executed and continue to the next function_name call
     # --run--force-exit - force run (even after being executed previously), after it has finished executed, it is marked as executed and then exit or halt (no next function_name call)
     # --skip - do not run the current function_name and do not mark it as executed
+    # --skip-exit - do not run the current function_name, do not mark it as executed and then exit or halt (no next function_name call)
     # --skip-mark - do not run the current function_name but mark it as executed
+    # --skip-mark-exit - do not run the current function_name but mark it as executed and then exit or halt (no next function_name call)
     # EXTRA INFO:
     # Without <option> argument it is similar to using --run
     # eg: configure_net is equivalent to configure_net --run
@@ -15290,11 +15435,11 @@ function setup() {
     # Note 1: setup_pre can be used to install screen, disable Selinux in CentOS or other necessary pre install components
     setup_pre --run
     # Note 1: Clone all setup script from git (recommend to run as --run-force instead of --run so we always get the latest security update)
-    get_latest_code --run
+    get_latest_code --run-force
     # Note 1: Get the latest security codes from maxicode (recommend to run as --run-force instead of --run so we always get the latest security update)
-    update_latest_maxicode --run
+    update_latest_maxicode --run-force
     # Note 1: This call contains security hardening server
-    secure_box --run
+    secure_os --run
     # Note 1: This is for push notification (eg: to receive notification via android phone)
     configure_gotify --run
     # Note 1: This will configure grub such as setting up password for grub bootloader
@@ -15335,11 +15480,12 @@ function setup() {
       configure_nginx_apache --run
       build_da_custom_settings --run
       configure_web_apps --run
-      configure_da_settings --run-force-exit
-      configure_da_memcached --skip # Deprecated
-      configure_da_geoip --run
+      configure_da_settings --run
+      configure_da_redis --run
+      configure_da_memcached --skip  # Deprecated
+      configure_da_geoip --skip-exit # Wait first
       # we configure dns template before creating admin, reseller and user accounts so they can use new DNS template
-      configure_da_dns_templates --run
+      configure_da_dns_templates --skip-exit
       configure_da_owner_accounts --run
       configure_da_admin_accounts --run
       configure_da_reseller_accounts --run
@@ -15400,13 +15546,13 @@ function setup() {
     setup_post --run
     # End of function_name call
 
-    echo "" 2>&1 | tee -a "${REPORT_FILE}"
+    echo ""
     if [ "${C_SERVER_TYPE}" == "directadmin" ]; then
-      echo "==============" 2>&1 | tee -a "${REPORT_FILE}"
+      echo "=============="
       echo "Directadmin now can be accessed through this URL: " 2>&1 | tee -a "${REPORT_FILE}"
       echo "http://${LABEL_C_IPV4_ADD0}:${LABEL_C_DA_PORT} or http://${LABEL_C_BOX_HOSTNAME_FQHN}:${LABEL_C_DA_PORT}"
       echo "Username: ${LABEL_C_DA_OWNER_USERNAME1}"
-      echo "Password: *******"
+      echo "Password: ${LABEL_C_DA_OWNER_USERPASS1}"
       echo "=============="
       echo ""
       echo ""
@@ -15831,7 +15977,7 @@ ENDSSH
     break
     ;;
   # lish-login <option>
-  -ll | --lish-console | --lish)
+  -ll | --lish-console | --lish | --lish-login)
     shift
     lish_console "$@"
     exit 0
@@ -15886,7 +16032,6 @@ ENDSSH
     break
     ;;
   -t | --test)
-    configure_gotify --run-force
     exit 0
     break
     ;;
