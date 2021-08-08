@@ -58,6 +58,7 @@ C_HIDE_SENSITIVE_TEXT=false
 # For advanced or expert logging use 8 (expert) to display everything and use 7 (debug) for development.
 # Using 6 is the the default log level (this will ignore level 7 (debug) logging, so any debugging display will be hidden)
 # Some of their possible values are: ([0]="emerg" [1]="alert" [2]="crit" [3]="err" [4]="warning" [5]="notice" [6]="info" [7]="debug" [8]="expert")
+# Warning, verbose level 7 and more might contain sensitive information.
 C_LOG_VERBOSITY_LEVEL="6"
 
 #C_AUTO_DESTROY_CONFIG:
@@ -158,6 +159,8 @@ C_USE_CUSTOM_WEB_CONFIG=true
 # Possible values are: true, false
 C_DISK_ENCRYPTION=true
 
+C_DISK_QUOTA=true
+
 # C_LVM_GROUP_NAME:
 # This variable is used to give the volume group name for Logical Volume Manager.
 # This name will be used by fstab, such as to configure secure mount option that is required for security
@@ -220,7 +223,7 @@ C_ROOT_EMAIL="user@domain.com"
 C_ADMIN_NAME="Arafat Ali"
 
 # C_ADMIN_EMAIL:
-# This varialbe is used to specify admin global email.
+# This variable is used to specify admin global email.
 # Various script functions will use this email such as for displaying script header, sending email in CSF, GPG key identifier and directadmin ticket notification
 C_ADMIN_EMAIL="user@domain.com"
 
@@ -586,9 +589,9 @@ C_LINODE_RESCUE_DISK_LABEL="Rescue_Disk"
 C_INSTALL_RUSTC_VERSION="1.52.0"
 
 # GOTIFY configuration
+C_GOTIFY_INSTALLATION=true
 C_GOTIFY_SYSTEM_USERNAME="gotify"
 C_GOTIFY_SYSTEM_GROUP="gotify"
-C_GOTIFY_INSTALLATION=true
 C_GOTIFY_VERSION="2.0.23"
 C_GOTIFY_PLATFORM="linux-amd64"
 C_GOTIFY_PORT="8222"
