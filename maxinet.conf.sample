@@ -158,7 +158,7 @@ C_USE_CUSTOM_WEB_CONFIG=true
 # The encryption will use LUKS method. This option should be enabled for VPS that support full disk encryption such as linode
 # Possible values are: true, false
 C_DISK_ENCRYPTION=true
-
+# Disable this might improve performance (quota is optional feature to be used for server)
 C_DISK_QUOTA=true
 
 # C_LVM_GROUP_NAME:
@@ -244,7 +244,9 @@ C_DA_LICENSE_ID="123456"
 # Use custom port for Directadmin (Default one is not secure but using this custom port you will lose the ability to use one click sign in feature because that works only with 2222)
 C_DA_PORT="8132"
 C_DA_MODSECURITY_RULESET="comodo" # or owasp
-C_DA_HELP_DOMAIN="help.sofibox.com/directadmin"
+C_DA_ADMIN_HELPER="help.sofibox.com/directadmin/admin"
+C_DA_RESELLER_HELPER="help.sofibox.com/directadmin/reseller"
+C_DA_USER_HELPER="help.sofibox.com/directadmin/user"
 C_DA_WEB_SERVER_SOFTWARE="nginx_apache"
 C_DA_FTP_SOFTWARE="pureftpd"
 C_DA_CUSTOMBUILD_VERSION="2.0"
@@ -275,7 +277,162 @@ C_DA_AUTO_LINK_IP=true
 # direct-login = login directly using username and password (disadvantage: need to know directadmin client username and password)
 C_DA_LOGIN_METHOD="sign-as"
 
-C_DA_MAX_UNAME_LENGTH="30"
+# UNLISTED variable for API using CMD_API_ADMIN_SETTINGS:
+C_DA_USER_BRUTECOUNT=100
+# Start directadmin.conf settings (these are recommended values): version 1.62 (updated)
+C_DA_TIMEOUT="120"
+C_DA_SESSION_MINUTES="2880"
+C_DA_ADMIN_MAXFILESIZE="5368709120"
+C_DA_ADMIN_LOGS_TO_KEEP="2"
+# Default is 14
+C_DA_MAX_USERNAME_LENGTH="30"
+C_DA_LOGIN_HISTORY="10"
+C_DA_DISABLE_IPCHECK="0"
+C_DA_ALLOW_FOREIGN_KEY="0"
+# Default is 0
+C_DA_SIMPLE_DISK_USAGE="1"
+# Planned variable
+#C_DA_HARD_QUOTA_MULTIPLER="1.1"
+# Planned variable
+#C_DA_USERSDIR="./data/users"
+C_DA_ZIP="1"
+# Default is 0
+C_DA_AWSTATS="0"
+# Default is 0
+C_DA_WEBALIZER="0"
+# Default is 1
+C_DA_ROTATION="0"
+# Default is 0 (disable),
+# 1 Enable automatically when creating domain, 2 Enable DKIM option in UI for user
+C_DA_DKIM=2
+# Default is 1 (enable),
+C_DA_COUNT_POP_USAGE=0
+# Default is 0 (disabled)
+C_DA_PURGE_SPAM_DAYS=1
+# Default is 0 (disabled)
+C_DA_SKIP_HOMETARGZ_IN_BACKUPS=1
+# Default is 0 (disabled)
+C_DA_SKIP_DOMAINS_IN_BACKUPS=1
+# Default is 0 (disabled)
+C_DA_SKIP_IMAP_IN_BACKUPS=1
+# Default is 0 (disabled)
+C_DA_SKIP_DATABASES_IN_BACKUPS=1
+# Default is 1 (show all)
+C_DA_SHOW_DB_USAGE=0
+# Default is 1 (enabled)
+C_DA_SHOW_POINTERS_IN_LIST=1
+# Default is 1 (enabled)
+C_DA_CHECK_SUBDOMAIN_OWNER=1
+# Enable or disable bruteforce
+C_DA_BRUTEFORCE=1
+C_DA_USER_BRUTECOUNT=0
+C_DA_EXEMPT_LOCAL_BLOCK=1
+C_DA_BRUTE_FORCE_TIME_LIMIT=120
+C_DA_CLEAR_BLACKLIST_IP_TIME=86400
+C_DA_HIDE_BRUTE_FORCE_NOTIFICATIONS=1
+C_DA_IP_BRUTECOUNT=100
+#  In days
+C_DA_CLEAR_BRUTE_LOG_ENTRY_TIME=4
+# In hours
+C_DA_CLEAR_BRUTE_LOG_TIME=24
+# In hours
+C_DA_UNBLOCK_BRUTE_IP_TIME=4320
+C_DA_BRUTE_FORCE_LOG_SCANNER=1
+C_DA_BRUTE_FORCE_SCAN_APACHE_LOGS=2
+C_DA_BRUTE_DOS_COUNT=100
+C_DA_CHECK_PARTITIONS=2
+C_DA_PARTITION_USAGE_THRESHOLD=95
+# 1 = tar.gz, 0 = .tar, 2 = .zstd
+C_DA_BACKUP_GZIP=1
+C_DA_DEMODOCSROOT="./data/skins/evolution"
+C_DA_LOST_PASSWORD=0
+# Default is -1 equal to rely on user file, 0 is unlimited, or specify value like 500
+C_DA_MAX_PER_EMAIL_SEND_LIMIT=0
+C_DA_USER_CAN_SET_EMAIL_LIMIT=1
+C_DA_WEBMAIL_LINK=roundcube
+
+# Unused directadmin.conf variables (some enabled by default and some not important, some are not listed here)
+# C_DA_MAILDIR_WITH_NEW=1
+# C_DA_COUNT_EMAIL_USAGE=0
+# C_DA_EMAILSPOOLVIRTUAL=/var/spool/virtual
+# C_DA_EMAILVIRTUAL=/etc/virtual
+# C_DA_ADDIP=/usr/local/directadmin/scripts/addip
+# C_DA_REMOVEIP=/usr/local/directadmin/scripts/removeip
+# C_DA_SEND_USAGE_MESSAGE=1
+# C_DA_DISK_USAGE_SUSPEND=0
+# C_DA_USER_CAN_SELECT_SKIN=0
+# C_DA_HIDE_IP_USER_NUMBERS=0
+# C_DA_FILEMANAGER_DU=0
+# C_DA_HIDE_OUTLOOK=0
+# C_DA_QUOTA_UPDATE_INTERVAL=10
+# C_DA_RESELLER_BACKUP_BANDWIDTH=1
+# C_DA_BACKUP_NICE=19
+# C_DA_IP_BLACKLIST=/usr/local/directadmin/data/admin/ip_blacklist
+# C_DA_IP_WHITELIST=/usr/local/directadmin/data/admin/ip_whitelist
+# C_DA_NAMEDDIR=/var/named
+# C_DA_NAMEDCONFIG=/etc/named.conf
+# C_DA_FTPSEP=@
+# C_DA_FTPPASSWD=/etc/proftpd.passwd
+# C_DA_FTPVHOSTS=/etc/proftpd.vhosts.conf
+# C_DA_FTPCONFIG=/etc/proftpd.conf
+# C_DA_SSHDCONFIG=/etc/ssh/sshd_config
+# This value has not much information and it might have outdated value
+# C_DA_OWSADM=/usr/local/frontpage/version5.0/bin/owsadm.exe
+# C_DA_FM_OWNERS=|USER|:|GROUP|
+# C_DA_FM_FILE_PERMISSIONS=644
+# C_DA_FM_DIR_PERMISSONS=755
+# C_DA_SAFEMODE=OFF
+# C_DA_OPEN_BASEDIR=ON
+# C_DA_GRACEFUL_RESTARTS=0
+# C_DA_APACHE_PUBLIC_HTML=0
+# C_DA_SECURE_ACCESS_GROUP= # This default is null
+# C_DA_APACHECERT=/etc/httpd/conf/ssl.crt/server.crt
+# C_DA_APACHEKEY=/etc/httpd/conf/ssl.key/server.key
+# C_DA_APACHEIPS=/etc/httpd/conf/ips.conf
+# C_DA_APACHEMIMETYPES=/etc/mime.types
+# C_DA_APACHE_PID=/var/run/httpd.pid
+# C_DA_APACHECONF=/etc/httpd/conf/httpd.conf
+# C_DA_APACHELOGDIR=/var/log/httpd/domains
+# C_DA_APACHE_VER="2.0"
+# force_hostname=(null)
+# C_DA_BIND_ADDRESS=# This default is null
+# C_DA_ETHERNET_DEV="eth0"
+# C_DA_EXTRA_BACKUP_OPTION= # This default is null
+# C_DA_EXT_QUOTA_PARTITIONS= # This default is null
+# C_DA_QUOTA_PARTITION="/home"
+# C_DA_TASKQUEUEDA="/usr/local/directadmin/data/task.queue.da"
+# C_DA_TASKQUEUE="/usr/local/directadmin/data/task.queue"
+# C_DA_CAROOTCERT= # This default is null
+# C_DA_SSL_CIPHER= # This default is null
+# C_DA_SSL="0"
+# C_DA_CACERT="/usr/local/directadmin/conf/cacert.pem"
+# C_DA_CAKEY="/usr/local/directadmin/conf/cakey.pem"
+# C_DA_language="en"
+# C_DA_internal_lang="/usr/local/directadmin/data/skins/evolution/lang"
+# C_DA_SKINSDIR="./data/skins"
+# C_DA_DOCSROOT="./data/skins/evolution"
+# C_DA_BLOCK_TOKEN_CHARS=$[]<>:#
+# C_DA_SESSIONS_DIR="/usr/local/directadmin/data/sessions"
+# C_DA_TEMPLATES="/usr/local/directadmin/data/templates"
+# C_DA_LICENSE="/usr/local/directadmin/conf/license.key"
+# C_DA_TICKETSDIR="/usr/local/directadmin/data/tickets"
+# C_DA_SERVERPATH="/usr/local/directadmin"
+# C_DA_ADMINDIR="./data/admin"
+# C_DA_LOGHOSTNAME=0
+# C_DA_LOGDIR="/var/log/directadmin"
+# C_DA_PROCESS_LIST_DEBUG
+# C_DA_USE_UID_COUNTING=1
+# C_DA_USE_SYSLOGD=0
+# C_DA_CLUSTER=0
+# C_DA_REMOTE_DNS_RETRIES=0
+# C_DA_ALLOW_TTL_OVERRIDE=1
+# C_DA_NAMED_CHECKZONE=1
+# C_DA_ALLOW_DNS_UNDERSCORE=0
+# C_DA_WRAP_LONG_DNS_VALUES=1
+# C_DA_DOVECOT=1
+# C_DA_POP_DISK_USAGE_CACHE=0
+# End directadmin.conf settings
+
 # DA_ADMIN_SQLPASS is for DA sql password (eg: phpmyadmin login) Password cannot contains this character [ ] <> and )
 C_DA_ADMIN_SQLPASS="ADMIN_SQL_PASSWORD"
 # Remember cannot contains this character & for DA_ROOT_SQL_PASS
@@ -289,7 +446,7 @@ C_DA_ROUNDCUBE_SQLPASS="ROUNDCUBE_SQL_PASSWORD"
 # However, you are not supposed to declare more than 1 owner user. Currently owner should only have 1 user in the directadmin system but admin and user should can have multiple users
 C_DA_OWNER_NAME1="Arafat Ali"
 
-# C_DA_OWNER_USERNAMEN:
+# C_DA_OWNER_USERNAME[N]:
 # This variable defined directadmin owner username.
 # The default username in directadmin is admin which is not secure. Setup will change the default directadmin username from admin into this value.
 # You must set this variable other than admin, so directadmin will not contains any admin username for security reason
@@ -331,7 +488,7 @@ C_DA_RESELLER_MAIL_USER1=("webmaster@testreseller.com" "info@test.com")
 C_DA_RESELLER_MAIL_PASSWORD1=("mail 1 password" "mail 2 password")
 # This is the main reseller package
 C_DA_RESELLER_PACKAGE_NAME1="RESELLER_UNLIMITED"
-# This is different from BOX_DOMAIN
+# This is different from BOX_DOMAIN, remember that this can be one or more domains, the first array is the default domain
 C_DA_RESELLER_DOMAIN1=("testreseller.com")
 # Put wildcard record for this domain. To disable just let this variable empty with ""
 # Format <domain.com>:<anotherdomain.com>:<anotheronedomain.com>: ...
@@ -486,7 +643,7 @@ C_BOX_ROOT_SIZE="size-in-MB"
 C_BOX_TMP_SIZE="size-in-MB"
 C_BOX_SWAP_SIZE="size-in-MB"
 # -1 = largest available size (put last so can expand easier), -1 means infinity
-C_BOX_HOME_SIZE="size-in-MB" # or put -1 for infinity
+C_BOX_HOME_SIZE="-1" #"size-in-MB" # or put -1 for infinity
 C_BOX_RAM="32GB"
 C_BOX_DOMAIN="test.com"
 C_BOX_HOSTNAME_FQHN="server.test.com"
@@ -568,6 +725,7 @@ C_DNS_PROVIDER_NAME=""
 # Leave this variable empty for technical reason
 C_DNS_PROVIDER_USER=""
 # Format <provider_name>:<provider_username>:<api_key>
+# If you change the API key, remove this file /root/.config/linode-cli, and linode will re-add the new key automatically
 C_DNS_PROVIDER_API1="linode:maxibi:LINODE_API_HERE"
 C_DNS_PROVIDER_TERMINAL_SERVER="lish-usa1.linode.com"
 

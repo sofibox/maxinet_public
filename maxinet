@@ -5,9 +5,15 @@
 # Author: Arafat Ali | Email: webmaster@sofibox.com | Website: sofibox.com
 _APP_SPECIFIC_NAME="Maxinet"
 # Note some minor versions are not published
-_APP_VERSION="0.5.6.6"
+_APP_VERSION="0.5.7.0"
 _APP_STATUS="alpha"
 _APP_VERSION_STATUS="${_APP_VERSION}-${_APP_STATUS}"
+
+### START TEMPORARY NOTE
+
+# TODO add option create-server --reupload-iso, so we can remove ISO from dropbox after installation for security then we can use this --reupload option to reupload from backup or final folder
+
+### END TEMPORARY NOTE
 
 # Hello there, this is a powerful script that able initialize one or more server installation from scratch. From configuring the server disk, until you got the full working server with a live website.
 # It also includes many security and hardening script.
@@ -1034,26 +1040,29 @@ function init_server() {
     # Boot into the new OS
     _echo "Booting into operating system (make sure to unlock LUKS)" --name
     linode_api_admin boot-linode --linode-label "${C_BOX_HOSTNAME_FQHN}" --linode-config-label "${C_LINODE_OS_CONFIG_LABEL}"
-    _echo "$(msg cyan)Checking if initial boot port ${LABEL_C_DROP_BEAR_PORT} is open from --server ${LABEL_C_BOX_HOSTNAME_FQHN} ...$(msg end)" --name
-    count=0
-    while :; do
-      sleep 1
-      ((count++))
-      _echo "$(msg yellow) Waiting for LUKS boot port ${LABEL_C_DROP_BEAR_PORT} to be available ...$(msg end)" --start-spin --name
 
-      if is_valid available_port "${C_BOX_HOSTNAME_FQHN}" "${C_DROP_BEAR_PORT}"; then
-        _echo "$(msg green)OK, LUKS boot port ${LABEL_C_DROP_BEAR_PORT} is now available. Unlocking encrypted LUKS disk on boot ...$(msg end)" --stop-spin --name
-        # Wait 5 seconds
-        sleep 5
-        ssh_api unlock-luks --port "${C_DROP_BEAR_PORT}" --password "${C_LUKS_PASS}"
-        break
-      fi
+    if [ "${C_DISK_ENCRYPTION}" == "true" ]; then
+      _echo "$(msg cyan)Checking if initial boot port ${LABEL_C_DROP_BEAR_PORT} is open from --server ${LABEL_C_BOX_HOSTNAME_FQHN} ...$(msg end)" --name
+      count=0
+      while :; do
+        sleep 1
+        ((count++))
+        _echo "$(msg yellow) Waiting for LUKS boot port ${LABEL_C_DROP_BEAR_PORT} to be available ...$(msg end)" --start-spin --name
 
-      if [ "${count}" -gt 60 ]; then
-        _echo "$(msg red)Error, failed to detect drop bear port ${LABEL_C_DROP_BEAR_PORT} because the port is closed. Please inspect this manually (make sure firewall is not blocking this port)!$(msg end)" --name
-        _exit 1
-      fi
-    done
+        if is_valid available_port "${C_BOX_HOSTNAME_FQHN}" "${C_DROP_BEAR_PORT}"; then
+          _echo "$(msg green)OK, LUKS boot port ${LABEL_C_DROP_BEAR_PORT} is now available. Unlocking encrypted LUKS disk on boot ...$(msg end)" --stop-spin --name
+          # Wait 5 seconds
+          sleep 5
+          ssh_api unlock-luks --port "${C_DROP_BEAR_PORT}" --password "${C_LUKS_PASS}"
+          break
+        fi
+
+        if [ "${count}" -gt 60 ]; then
+          _echo "$(msg red)Error, failed to detect drop bear port ${LABEL_C_DROP_BEAR_PORT} because the port is closed. Please inspect this manually (make sure firewall is not blocking this port)!$(msg end)" --name
+          _exit 1
+        fi
+      done
+    fi
 
     _echo "$(msg cyan)Copying maxinet, maxinet.conf and readme.txt into remote server ... $(msg end)" --name
     ssh_api transfer-files --server-port "${C_BOX_HOSTNAME_FQHN}:${C_SSH_PORT}" --group-user "root:${C_ROOT_USERNAME}" --local-files "${SCRIPT_PATH}/maxinet ${SCRIPT_PATH}/maxinet.conf ${SCRIPT_PATH}/readme.txt" --remote-path ~/
@@ -1086,25 +1095,28 @@ function init_server() {
 
     _echo "$(msg cyan)Booting into operating system (LUKS console might be appeared and unlocked automatically) ...$(msg end)" --name
     linode_api_admin reboot-linode --linode-label "${C_BOX_HOSTNAME_FQHN}" --linode-config-label "${C_LINODE_OS_CONFIG_LABEL}"
-    # check server and port if available in order to auto unlock it
-    _echo "$(msg cyan)Checking if dropbear port ${LABEL_C_DROP_BEAR_PORT} is open from --server ${LABEL_C_BOX_HOSTNAME_FQHN} ...$(msg end)" --name
-    count=0
-    while :; do
-      sleep 1
-      ((count++))
-      _echo "$(msg yellow) Waiting for dropbear port ${LABEL_C_DROP_BEAR_PORT} to be available ...$(msg end)" --start-spin --name
-      if is_valid available_port "${C_BOX_HOSTNAME_FQHN}" "${C_DROP_BEAR_PORT}"; then
-        _echo "$(msg green)OK, dropbear port ${LABEL_C_DROP_BEAR_PORT} is now available. Unlocking encrypted LUKS disk on boot ...$(msg end)" --stop-spin --name
-        # Wait 5 seconds
-        sleep 5
-        ssh_api unlock-luks --port "${C_DROP_BEAR_PORT}" --password "${C_LUKS_PASS}"
-        break
-      fi
-      if [ "${count}" -gt 60 ]; then
-        _echo "$(msg red)Error, failed to detect drop bear port ${LABEL_C_DROP_BEAR_PORT} because the port is closed. Please inspect this manually (make sure firewall is not blocking this port)!$(msg end)" --name
-        _exit 1
-      fi
-    done
+
+    if [ "${C_DISK_ENCRYPTION}" == "true" ]; then
+      # check server and port if available in order to auto unlock it
+      _echo "$(msg cyan)Checking if dropbear port ${LABEL_C_DROP_BEAR_PORT} is open from --server ${LABEL_C_BOX_HOSTNAME_FQHN} ...$(msg end)" --name
+      count=0
+      while :; do
+        sleep 1
+        ((count++))
+        _echo "$(msg yellow) Waiting for dropbear port ${LABEL_C_DROP_BEAR_PORT} to be available ...$(msg end)" --start-spin --name
+        if is_valid available_port "${C_BOX_HOSTNAME_FQHN}" "${C_DROP_BEAR_PORT}"; then
+          _echo "$(msg green)OK, dropbear port ${LABEL_C_DROP_BEAR_PORT} is now available. Unlocking encrypted LUKS disk on boot ...$(msg end)" --stop-spin --name
+          # Wait 5 seconds
+          sleep 5
+          ssh_api unlock-luks --port "${C_DROP_BEAR_PORT}" --password "${C_LUKS_PASS}"
+          break
+        fi
+        if [ "${count}" -gt 60 ]; then
+          _echo "$(msg red)Error, failed to detect drop bear port ${LABEL_C_DROP_BEAR_PORT} because the port is closed. Please inspect this manually (make sure firewall is not blocking this port)!$(msg end)" --name
+          _exit 1
+        fi
+      done
+    fi
     if [ "${C_PRE_AUTORUN_SETUP}" == "false" ]; then
       _echo "$(msg cyan) Notice, C_PRE_AUTORUN_SETUP variable is not set in config file. Hence, auto installation script is disabled! Please run --setup manually$(msg end)" --name
     else
@@ -1335,7 +1347,7 @@ function ssh_api() {
     fi
 
     # Do not quote local_path to enable multiple file transfers
-    _echo "$(msg cyan)Getting remote files(s) from ${local_path} via SSH ...$(msg end)" --name
+    _echo "$(msg cyan)Getting remote files(s) from remote path ${remote_path} to ${local_path} via SSH ...$(msg end)" --name
     scp -o "StrictHostKeyChecking no" -P "${port}" -i "${rsa_key}" "${user}@${server}:${remote_path}" "${local_path}" 2> >(grep -v 'Permanently' 1>&2)
 
   elif [[ "${action}" == "file-upload" || "${action}" == "upload-files" || "${action}" == "transfer-files" || "${action}" == "transfer-file" || "${action}" == "file-transfer" || "${action}" == "files-transfer" ]]; then
@@ -1853,8 +1865,8 @@ function validate_config() {
   if [[ "${#this_da_owner_uname}" -lt 2 ]]; then
     echo "[${SCRIPT_NAME}]: [Skipped]: Warning owner username length is ${#this_da_owner_uname} but the minimum should be 2. Please check configuration file "
     _exit 1
-  elif [[ "${#this_da_owner_uname}" -gt ${C_DA_MAX_UNAME_LENGTH} ]]; then
-    echo "[${SCRIPT_NAME}]: [Skipped]: Warning owner username length is ${#this_da_owner_uname} but the maximum should be ${C_DA_MAX_UNAME_LENGTH}. Please check configuration file "
+  elif [[ "${#this_da_owner_uname}" -gt ${C_DA_MAX_USERNAME_LENGTH} ]]; then
+    echo "[${SCRIPT_NAME}]: [Skipped]: Warning owner username length is ${#this_da_owner_uname} but the maximum should be ${C_DA_MAX_USERNAME_LENGTH}. Please check configuration file "
     _exit 1
   elif [[ -z "${this_da_owner_name+x}" ]]; then
     echo "[${SCRIPT_NAME}]: [Skipped]: Warning owner ${this_da_owner_uname} doesn't have name set in config file. Please check configuration file"
@@ -1910,8 +1922,8 @@ function validate_config() {
     if [[ "${#this_da_admin_uname}" -lt 2 ]]; then
       echo "[${SCRIPT_NAME}]: [Skipped]: Warning admin username length is ${#this_da_admin_uname} but the minimum should be 2. Please check configuration file "
       _exit 1
-    elif [[ "${#this_da_admin_uname}" -gt ${C_DA_MAX_UNAME_LENGTH} ]]; then
-      echo "[${SCRIPT_NAME}]: [Skipped]: Warning admin username length is ${#this_da_admin_uname} but the maximum should be ${C_DA_MAX_UNAME_LENGTH}. Please check configuration file "
+    elif [[ "${#this_da_admin_uname}" -gt ${C_DA_MAX_USERNAME_LENGTH} ]]; then
+      echo "[${SCRIPT_NAME}]: [Skipped]: Warning admin username length is ${#this_da_admin_uname} but the maximum should be ${C_DA_MAX_USERNAME_LENGTH}. Please check configuration file "
       _exit 1
 
     elif [[ -z "${this_da_admin_password+x}" ]]; then
@@ -1977,8 +1989,8 @@ function validate_config() {
     if [[ "${#this_da_reseller_uname}" -lt 2 ]]; then
       echo "[${SCRIPT_NAME}]: [Skipped]: Warning reseller username length is ${#this_da_reseller_uname} but the minimum should be 2. Please check configuration file "
       _exit 1
-    elif [[ "${#this_da_reseller_uname}" -gt ${C_DA_MAX_UNAME_LENGTH} ]]; then
-      echo "[${SCRIPT_NAME}]: [Skipped]: Warning reseller username length is ${#this_da_reseller_uname} but the maximum should be ${C_DA_MAX_UNAME_LENGTH}. Please check configuration file "
+    elif [[ "${#this_da_reseller_uname}" -gt ${C_DA_MAX_USERNAME_LENGTH} ]]; then
+      echo "[${SCRIPT_NAME}]: [Skipped]: Warning reseller username length is ${#this_da_reseller_uname} but the maximum should be ${C_DA_MAX_USERNAME_LENGTH}. Please check configuration file "
       _exit 1
 
     elif [[ -z "${this_da_reseller_password+x}" ]]; then
@@ -2080,8 +2092,8 @@ function validate_config() {
     if [[ "${#this_da_user_uname}" -lt 2 ]]; then
       echo "[${SCRIPT_NAME}]: [Skipped]: Warning user username length is ${#this_da_user_uname} but the minimum should be 2. Please check configuration file "
       _exit 1
-    elif [[ "${#this_da_user_uname}" -gt ${C_DA_MAX_UNAME_LENGTH} ]]; then
-      echo "[${SCRIPT_NAME}]: [Skipped]: Warning user username length is ${#this_da_user_uname} but the maximum should be ${C_DA_MAX_UNAME_LENGTH}. Please check configuration file "
+    elif [[ "${#this_da_user_uname}" -gt ${C_DA_MAX_USERNAME_LENGTH} ]]; then
+      echo "[${SCRIPT_NAME}]: [Skipped]: Warning user username length is ${#this_da_user_uname} but the maximum should be ${C_DA_MAX_USERNAME_LENGTH}. Please check configuration file "
       _exit 1
     elif [[ -z "${this_da_user_password+x}" ]]; then
       echo "[${SCRIPT_NAME}]: [Skipped]: Warning user ${this_da_user_uname} doesn't have password set in config file. Please check configuration file"
@@ -3172,7 +3184,7 @@ function create_file() {
         echo "cp /cdrom/os_initialize.sh /target/root/os_initialize.sh; \\"
         echo "chmod +x /target/root/os_initialize.sh; \\"
         # TODO test if this is executed
-        echo "in-target /target/root/os_initialize.sh; \\"
+        echo "in-target /root/os_initialize.sh; \\"
         # Configuring SSH
         echo "chmod -R go-rwx /target/root/.ssh; \\"
         echo "sed -i 's/^#PermitRootLogin.*/PermitRootLogin prohibit-password/g' /target/etc/ssh/sshd_config; \\"
@@ -5963,6 +5975,7 @@ function da_api_admin() {
     email name nameserver1 nameserver2 where_username_is \
     package_name \
     domain ip_type \
+    record_type record_name record_value record_ttl affect_pointers \
     text_output recommend_values \
     api_username api_password
 
@@ -5972,7 +5985,8 @@ function da_api_admin() {
   #echo "${action}"
   short_opts="h"
   long_opts="help,sign-as:,username:,password:,ip-address:,netmask:,email:,name:,nameserver1:,nameserver2:,where-username-is:,text-output:,package-name:, \
-  recommend-values,domain:,ip-type:,da-api-username:,da-api-password"
+  recommend-values,domain:,ip-type:, record-type:, record-name:, record-value:, record-ttl:, affect-pointers:, \
+  da-api-username:,da-api-password"
 
   options=$(getopt -o "${short_opts}" --long "${long_opts}" -n "${FUNCNAME[0]}@${action} in ${SCRIPT_NAME}" -- "$@")
   retval=$?
@@ -5995,10 +6009,16 @@ function da_api_admin() {
   text_output=""       # post
   package_name=""      # UNLIMITED_PACKAGE
   recommend_values=false
-  domain=""       # sofibox.com
-  ip_type=""      # shared, server etc
-  api_username="" # arafatx
-  api_password="" # 1234x
+  domain=""          # sofibox.com
+  ip_type=""         # shared, server etc
+  api_username=""    # arafatx
+  api_password=""    # 1234x
+  record_type=""     # txt,a,aaaa etc
+  record_name=""     # _domainkey
+  record_value=""    # value
+  record_ttl=""      # 36000
+  affect_pointers="" #yes or no
+
   while true; do
     case "$1" in
     -h | --help)
@@ -6066,6 +6086,27 @@ function da_api_admin() {
       ip_type="$2"
       shift 2
       ;;
+    --record-type)
+      record_type="$2"
+      shift 2
+      ;;
+    --record-name)
+      record_name="$2"
+      shift 2
+      ;;
+    --record-value)
+      record_value="$2"
+      shift 2
+      ;;
+    --record-ttl)
+      record_ttl="$2"
+      shift 2
+      ;;
+    --affect-pointers)
+      affect_pointers="$2"
+      shift 2
+      ;;
+    # This is not used but for reference, api_username will be automatically
     --api-username)
       # API use --sign-as, --signas
       api_username="$2"
@@ -6084,28 +6125,45 @@ function da_api_admin() {
       ;;
     esac
   done
+
+  # da_api_admin debug --text-output "test"
+  if [[ "${action}" == "debug" ]]; then
+    da_bin="/usr/local/directadmin/directadmin"
+    # This trap function is used to restore directadmin service back to normal once this debugging status is terminated
+    _traps end_da_debug INT
+    killall -9 directadmin
+    if [ -n "${text_output}" ]; then
+      echo "[${SCRIPT_NAME}]: Running directadmin debug mode with filtered output ..."
+      echo "FILTERED OUTPUT:"
+      echo "${text_output}"
+      echo ""
+      echo "=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~"
+      echo "                            **START DEBUG**                       "
+      echo "PRESS CTRL+C to exit"
+      echo ""
+      ${da_bin} b3000 | grep "${text_output}"
+    else
+      echo "[${SCRIPT_NAME}]: Running directadmin debug mode with full output ..."
+      echo "=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~"
+      echo "                            **START DEBUG**                       "
+      echo ""
+      ${da_bin} b3000
+    fi
+    _exit 0
+  fi
+
   local da_api_username da_api_password
   local owner_admin_list_file reseller_list_file user_list_path
-  local owner_first_user admin_first_user reseller_first_user user_first_user
+  local first_owner_list first_admin_list first_reseller_list first_user_list
   #local owner_main_auth admin_main_auth reseller_main_auth user_main_auth user_extra_auth
   local ssl_protocol
+  owner_original_list_file="/usr/local/directadmin/scripts/setup.txt"
   # This file contains list of directadmin admins (including owner) per-line
   owner_admin_list_file="/usr/local/directadmin/data/admin/admin.list"
   # This file contains list of directadmin resellers per-line
   reseller_list_file="/usr/local/directadmin/data/admin/reseller.list"
   # This folder contains list of directadmin users as folder name
   user_list_path="/usr/local/directadmin/data/users/"
-
-  # This owner_first_user variable will store the first username of owner that match in the admin.list file.
-  # Owner role is my own term (not officially used by Directadmin) where it has the same access level as admin where he is the original user that was created during directadmin setup
-  # There is only one owner in directadmin system
-  owner_first_user="$(grep -w "${C_DA_OWNER_USERNAME1}" "${owner_admin_list_file}" | tail -n 1)"
-  # This admin_first_user variable will store the first username of admin that match C_DA_ADMIN_USERNAME1 in the admin.list file.
-  admin_first_user="$(grep -w "${C_DA_ADMIN_USERNAME1}" "${owner_admin_list_file}" | tail -n 1)"
-  # This reseller_first_user variable will store the first username of reseller that match C_DA_RESELLER_USERNAME1 in the reseller.list file.
-  reseller_first_user="$(grep -w "${C_DA_RESELLER_USERNAME1}" "${reseller_list_file}" | tail -n 1)"
-  # This user_first_user variable will store the first username of user that match C_DA_USER_USERNAME1 in the path /usr/local/directadmin/data/users/
-  user_first_user="$(basename "$(find ${user_list_path} -name "${C_DA_USER_USERNAME1}" -type d | tail -n 1)")"
 
   if is_valid ssl_site "${C_BOX_HOSTNAME_FQHN}:${C_DA_PORT}"; then
     #echo "OK, ${C_BOX_HOSTNAME_FQHN} is a valid SSL/https site"
@@ -6115,11 +6173,24 @@ function da_api_admin() {
     ssl_protocol="http"
   fi
 
+  # This first_owner_list variable will store the sign_as username of owner that match in the admin.list file.
+  # Owner role is my own term (not officially used by Directadmin) where it has the same access level as admin where he is the original user that was created during directadmin setup
+  # There is only one owner in directadmin system
+  first_owner_list="$(grep -w "${C_DA_OWNER_USERNAME1}" "${owner_admin_list_file}" | tail -n 1)"
+  # This first_admin_list variable will store the first username of admin that match sign_as in the admin.list file.
+  first_admin_list="$(grep -w "${C_DA_ADMIN_USERNAME1}" "${owner_admin_list_file}" | tail -n 1)"
+  # This first_reseller_list variable will store the first username of reseller that match sign_as in the reseller.list file.
+  first_reseller_list="$(grep -w "${C_DA_RESELLER_USERNAME1}" "${reseller_list_file}" | tail -n 1)"
+  # This first_user_list variable will store the username of user that match sign_as in the path /usr/local/directadmin/data/users/
+  first_user_list="$(basename "$(find ${user_list_path} -name "${C_DA_USER_USERNAME1}" -type d | tail -n 1)")"
+  other_user_list="$(basename "$(find ${user_list_path} -name "${sign_as}" -type d | tail -n 1)")"
+
   #END OF
   _echo "$(msg newline)" --plain --verbose 7
   _echo "API_DETAILS:" --name --verbose 7
   _echo "$(msg magenta)=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=$(msg end)" --name --verbose 7
-  if [ "${sign_as}" == "owner1" ]; then
+  # Also check if it exist in the file system
+  if [[ "${sign_as}" == "owner1" && -n "${first_owner_list}" ]]; then
     _echo "Signed as first owner: " --name --verbose 7
     da_api_username="${C_DA_OWNER_USERNAME1}"
     if [ -z "${api_password}" ]; then
@@ -6127,7 +6198,8 @@ function da_api_admin() {
     else
       da_api_password="${api_password}"
     fi
-  elif [ "${sign_as}" == "admin1" ]; then
+  # Also check if it exist in the file system
+  elif [[ "${sign_as}" == "admin1" && -n "${first_admin_list}" ]]; then
     _echo "Sign as first admin: " --name --verbose 7
     da_api_username="${C_DA_ADMIN_USERNAME1}"
     if [ -z "${api_password}" ]; then
@@ -6135,7 +6207,7 @@ function da_api_admin() {
     else
       da_api_password="${api_password}"
     fi
-  elif [ "${sign_as}" == "reseller1" ]; then
+  elif [[ "${sign_as}" == "reseller1" && -n "${first_reseller_list}" ]]; then
     _echo "Sign as first reseller: " --name --verbose 7
     da_api_username="${C_DA_RESELLER_USERNAME1}"
     if [ -z "${api_password}" ]; then
@@ -6143,7 +6215,7 @@ function da_api_admin() {
     else
       da_api_password="${api_password}"
     fi
-  elif [ "${sign_as}" == "user1" ]; then
+  elif [[ "${sign_as}" == "user1" && -n "${first_user_list}" ]]; then
     _echo "Sign as first user: " --name --verbose 7
     da_api_username="${C_DA_USER_USERNAME1}"
     if [ -z "${api_password}" ]; then
@@ -6151,103 +6223,120 @@ function da_api_admin() {
     else
       da_api_password="${api_password}"
     fi
+    # If user is in the file and sign_as can be anything else ...
   else
-    # This is when using authentication by username: --sign-as arafatx
-    local da_owner_username da_owner_password da_admin_username da_admin_password da_reseller_username da_reseller_password \
-      da_user_username da_user_password owner_index admin_index reseller_index user_index
-    ((owner_index = admin_index = reseller_index = user_index = 1))
-    # Get list of all da user usernames for looping
-    #echo "da_user_usernames: ${da_user_usernames}"
-    #echo ""
-    # initial value to loop
-    while [[ ${owner_index} -le $(echo "${!C_DA_OWNER_USERNAME@}" | wc -w) ]]; do
-      #echo "owner_index: ${owner_index}"
-      #echo ""
-      typeset -n "da_owner_username=C_DA_OWNER_USERNAME${owner_index}"
-      typeset -n "da_owner_password=C_DA_OWNER_USERPASS${owner_index}"
-      ((owner_index++))
-      #echo ""
-      #echo ""
-      #echo "NEW da_owner_username: ${da_owner_username}"
-      #echo "NWE da_owner_password ${da_owner_password}"
-      #echo "==============="
-      if [ "${sign_as}" == "${da_owner_username}" ]; then
-        da_api_username="${da_owner_username}"
-        if [ -z "${api_password}" ]; then
-          da_api_password="${da_owner_password}"
-        else
-          da_api_password="${api_password}"
-        fi
-        break
-      else
-        # Badass search like heap tree, if user not found, it will pause searching the current role and search the next role
-        # then it will come back if the next search not found until we found it.
-        while [[ ${admin_index} -le $(echo "${!C_DA_ADMIN_USERNAME@}" | wc -w) ]]; do
-          typeset -n "da_admin_username=C_DA_ADMIN_USERNAME${admin_index}"
-          typeset -n "da_admin_password=C_DA_ADMIN_USERPASS${admin_index}"
-          ((admin_index++))
-          if [ "${sign_as}" == "${da_admin_username}" ]; then
-            da_api_username="${da_admin_username}"
-            if [ -z "${api_password}" ]; then
-              da_api_password="${da_admin_password}"
-            else
-              da_api_password="${api_password}"
-            fi
-            break
-          else
-            while [[ ${reseller_index} -le $(echo "${!C_DA_ADMIN_USERNAME@}" | wc -w) ]]; do
-              typeset -n "da_reseller_username=C_DA_RESELLER_USERNAME${reseller_index}"
-              typeset -n "da_reseller_password=C_DA_RESELLER_USERPASS${reseller_index}"
-              ((reseller_index++))
-              if [ "${sign_as}" == "${da_reseller_username}" ]; then
-                da_api_username="${da_reseller_username}"
-                if [ -z "${api_password}" ]; then
-                  da_api_password="${da_reseller_password}"
-                else
-                  da_api_password="${api_password}"
-                fi
-                break
-              else
-                while [[ ${user_index} -le $(echo "${!C_DA_USER_USERNAME@}" | wc -w) ]]; do
-                  typeset -n "da_user_username=C_DA_USER_USERNAME${user_index}"
-                  typeset -n "da_user_password=C_DA_USER_USERPASS${user_index}"
-                  ((user_index++))
-                  if [ "${sign_as}" == "${da_user_username}" ]; then
-                    da_api_username="${da_user_username}"
-                    if [ -z "${api_password}" ]; then
-                      da_api_password="${da_user_password}"
-                    else
-                      da_api_password="${api_password}"
-                    fi
-                    break
-                  fi
-                done
-              fi
-            done
-          fi
-        done
-      fi
-    done
 
-    # Enable this if want to verify user based on config file only (directadmin API also has its own validation if user is not found. So this is not useful):
-    #if [ -z "${da_api_username}" ]; then
-    #  _echo "$(msg red)Error, directadmin user not found! $(msg end)" --name
-    #  _exit 147
-    #fi
+    if [[ -n "${other_user_list}" ]]; then
+
+      # This is when using authentication by username: --sign-as arafatx
+      local da_owner_username da_owner_password da_admin_username da_admin_password da_reseller_username da_reseller_password \
+        da_user_username da_user_password owner_index admin_index reseller_index user_index
+      ((owner_index = admin_index = reseller_index = user_index = 1))
+
+      # Get list of all da user usernames for looping
+      #echo "da_user_usernames: ${da_user_usernames}"
+      #echo ""
+      # initial value to loop
+      while [[ ${owner_index} -le $(echo "${!C_DA_OWNER_USERNAME@}" | wc -w) ]]; do
+        #echo "owner_index: ${owner_index}"
+        #echo ""
+        typeset -n "da_owner_username=C_DA_OWNER_USERNAME${owner_index}"
+        typeset -n "da_owner_password=C_DA_OWNER_USERPASS${owner_index}"
+        ((owner_index++))
+        #echo ""
+        #echo ""
+        #echo "NEW da_owner_username: ${da_owner_username}"
+        #echo "NWE da_owner_password ${da_owner_password}"
+        #echo "==============="
+        if [ "${sign_as}" == "${da_owner_username}" ]; then
+          da_api_username="${da_owner_username}"
+          if [ -z "${api_password}" ]; then
+            da_api_password="${da_owner_password}"
+          else
+            da_api_password="${api_password}"
+          fi
+          break
+        else
+          # Badass search like heap tree, if user not found, it will pause searching the current role and search the next role
+          # then it will come back if the next search not found until we found it.
+          while [[ ${admin_index} -le $(echo "${!C_DA_ADMIN_USERNAME@}" | wc -w) ]]; do
+            typeset -n "da_admin_username=C_DA_ADMIN_USERNAME${admin_index}"
+            typeset -n "da_admin_password=C_DA_ADMIN_USERPASS${admin_index}"
+            ((admin_index++))
+            if [ "${sign_as}" == "${da_admin_username}" ]; then
+              da_api_username="${da_admin_username}"
+              if [ -z "${api_password}" ]; then
+                da_api_password="${da_admin_password}"
+              else
+                da_api_password="${api_password}"
+              fi
+              break
+            else
+              while [[ ${reseller_index} -le $(echo "${!C_DA_ADMIN_USERNAME@}" | wc -w) ]]; do
+                typeset -n "da_reseller_username=C_DA_RESELLER_USERNAME${reseller_index}"
+                typeset -n "da_reseller_password=C_DA_RESELLER_USERPASS${reseller_index}"
+                ((reseller_index++))
+                if [ "${sign_as}" == "${da_reseller_username}" ]; then
+                  da_api_username="${da_reseller_username}"
+                  if [ -z "${api_password}" ]; then
+                    da_api_password="${da_reseller_password}"
+                  else
+                    da_api_password="${api_password}"
+                  fi
+                  break
+                else
+                  while [[ ${user_index} -le $(echo "${!C_DA_USER_USERNAME@}" | wc -w) ]]; do
+                    typeset -n "da_user_username=C_DA_USER_USERNAME${user_index}"
+                    typeset -n "da_user_password=C_DA_USER_USERPASS${user_index}"
+                    ((user_index++))
+                    if [ "${sign_as}" == "${da_user_username}" ]; then
+                      da_api_username="${da_user_username}"
+                      if [ -z "${api_password}" ]; then
+                        da_api_password="${da_user_password}"
+                      else
+                        da_api_password="${api_password}"
+                      fi
+                      break
+                    fi
+                  done
+                fi
+              done
+            fi
+          done
+        fi
+      done
+
+    fi
+
   fi
-  # TODO this one contains sensitive information, hide later
+
+  # TODO this one contains sensitive information, hide later or suggesting to use  --verbose less than 7
 
   _echo "ALL ARGS: $*" --name --verbose 7
   _echo "ACTION: ${action}" --name --verbose 7
-  #_echo "OWNER_FIRST_USER: ${owner_first_user}" --name --verbose 7
-  #_echo "ADMIN_FIRST_USER: ${admin_first_user}" --name --verbose 7
-  #_echo "RESELLER_FIRST_USER: ${reseller_first_user}" --name --verbose 7
-  #_echo "USER_FIRST_USER: ${user_first_user}" --name --verbose 7
-  _echo "$(msg newline)" --plain --verbose 7
   _echo "SIGN_AS or EXECUTE_AS: ${sign_as}" --name --verbose 7
+  [[ -n "${first_owner_list}" ]] && _echo "FIRST_OWNER_LIST: ${first_owner_list}" --name --verbose 7
+  [[ -n "${first_admin_list}" ]] && _echo "FIRST_ADMIN_LIST: ${first_admin_list}" --name --verbose 7
+  [[ -n "${first_reseller_list}" ]] && _echo "FIRST_RESELLER_LIST: ${first_reseller_list}" --name --verbose 7
+  [[ -n "${first_user_list}" ]] && _echo "FIRST_USER_LIST: ${first_user_list}" --name --verbose 7
+  _echo "$(msg newline)" --plain --verbose 7
   _echo "DA_API_USERNAME: ${da_api_username}" --name --verbose 7
   _echo "DA_API_PASSWORD: ${da_api_password}" --name --verbose 7
   _echo "API PROTOCOL SELECTED: ${ssl_protocol}" --name --verbose 7
+
+  # Enable this if want to verify user based on config file only (directadmin API also has its own validation if user is not found. So this is not useful):
+  if [[ -z "${da_api_username}" ]]; then
+    if [ -s "${owner_original_list_file}" ]; then
+      da_api_username=$(grep "^adminname" "${owner_original_list_file}" | cut -d= -f2)
+      da_api_password=$(grep "^adminpass" "${owner_original_list_file}" | cut -d= -f2)
+      echo ""
+      _echo "DA_API_USERNAME (from SETUP.TXT): ${da_api_username}" --name --verbose 7
+      _echo "DA_API_PASSWORD (from SETUP.TXT): ${da_api_password}" --name --verbose 7
+    else
+      _echo "$(msg red)Error, no user found even in the original directadmin setup file ${owner_original_list_file}$(msg end)" --name
+      _exit 147
+    fi
+  fi
   _echo "$(msg magenta)=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=$(msg end)" --name --verbose 7
   _echo "$(msg newline)" --plain --verbose 7
 
@@ -6265,29 +6354,6 @@ function da_api_admin() {
     else
       _echo "$(msg green)OK, API with action ${action} executed with the following status: $(msg end)" --name
       _echo "$(msg green)${da_api_exec}$(msg end)" --plain | urldecode
-    fi
-
-  # da_api_admin debug --text-output "test"
-  elif [[ "${action}" == "debug" ]]; then
-    da_bin="/usr/local/directadmin/directadmin"
-    # This trap function is used to restore directadmin service back to normal once this debugging status is terminated
-    _traps end_da_debug INT
-    killall -9 directadmin
-    if [ -n "${text_output}" ]; then
-      echo "[${SCRIPT_NAME}]: Running directadmin debug mode with filtered output ..."
-      echo "FILTERED OUTPUT:"
-      echo "${text_output}"
-      echo ""
-      echo "=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~"
-      echo "                            **START DEBUG**                       "
-      echo ""
-      ${da_bin} b2000 | grep "${text_output}"
-    else
-      echo "[${SCRIPT_NAME}]: Running directadmin debug mode with full output ..."
-      echo "=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~"
-      echo "                            **START DEBUG**                       "
-      echo ""
-      ${da_bin} b2000
     fi
 
   # da_api_admin test-login --sign-as owner1
@@ -6347,13 +6413,18 @@ function da_api_admin() {
     fi
     #da_api_admin set-da-admin-settings --recommend-values
   elif [[ "${action}" == "set-da-admin-settings" ]]; then
-    local cmd_api data method retval da_api_exec has_success
+    # Big NOTE! directadmin does not have CMD_API_ADMIN_SETTINGS
+    local cmd_api data method retval da_api_exec has_success cmd_api_not_release
+    cmd_api_not_release=true
+    _echo "$(msg yellow)Note, directadmin does not have CMD_API_ADMIN_SETTINGS (https://forum.directadmin.com/threads/api-set-server-hostname.37872/post-188426). Using CMD_ADMIN_SETTINGS ...$(msg end)" --name
     # Note CMD_API_ADMIN_SETTINGS does not work, will get the following error:
     #error=1&text=You%20cannot%20execute%20that%20command&details=The%20request%20you%27ve%20made%20cannot%20be%20executed%20because%20it%20does%20not%20exist%20in%20your%20authority%20level
     cmd_api="CMD_ADMIN_SETTINGS"
-    _echo "$(msg yellow)Directadmin might have bug with CMD_API_ADMIN_SETTINGS or API for this has not been fully released yet. Using CMD_ADMIN_SETTINGS ...$(msg end)" --name
     if [ "${recommend_values}" == "true" ]; then
-      data="auto_update=yes&backup_threshold=90&demo_admin=no&demo_reseller=no&demo_user=no&oversell=yes&service_email_active=yes&suspend=yes&user_backup=yes&action=save"
+      # TODO: Note the auto_update=yes might be part of custombuild setting (check that)
+      # Remember to use json=yes, if not no output or weird output because API has not released
+      data="auto_update=yes&backup_threshold=90&demo_admin=no&demo_reseller=no&demo_user=no&oversell=yes \
+      &service_email_active=yes&suspend=yes&user_backup=yes&action=save&json=yes"
     else
       _echo "$(msg red)Error, please temporarily use the option --recommend-values for this action ${action} $(msg end)" --name
       # Add single values here
@@ -6362,51 +6433,69 @@ function da_api_admin() {
     #echo "DATA is: ${data}"
     method="POST"
     # This API includes security settings and email settings (DA combined this)
-    da_api_exec=$(curl --silent --request "${method}" --user "${da_api_username}":"${da_api_password}" --data "${data}" "${ssl_protocol}://${C_BOX_HOSTNAME_FQHN}:${C_DA_PORT}/${cmd_api}")
-    has_success=$(echo "${da_api_exec}" | grep -w '^error=0')
-
-    if [ -z "${has_success}" ]; then
-      _echo "$(msg red)Error, API with action ${action} executed with the following error: $(msg end)" --name
-      _echo "$(msg red)${da_api_exec}$(msg end)" --plain | urldecode
-    #_exit 147
+    if [ "${cmd_api_not_release}" == "true" ]; then
+      curl --silent --request "${method}" --user "${da_api_username}":"${da_api_password}" --data "${data}" "${ssl_protocol}://${C_BOX_HOSTNAME_FQHN}:${C_DA_PORT}/${cmd_api}"
     else
-      _echo "$(msg green)OK, API with action ${action} executed with the following status: $(msg end)" --name
-      _echo "$(msg green)${da_api_exec}$(msg end)" --plain | urldecode
+      da_api_exec=$(curl --silent --request "${method}" --user "${da_api_username}":"${da_api_password}" --data "${data}" "${ssl_protocol}://${C_BOX_HOSTNAME_FQHN}:${C_DA_PORT}/${cmd_api}")
+      has_success=$(echo "${da_api_exec}" | grep -w '^error=0')
+
+      if [ -z "${has_success}" ]; then
+        _echo "$(msg red)Error, API with action ${action} executed with the following error: $(msg end)" --name
+        _echo "$(msg red)${da_api_exec}$(msg end)" --plain | urldecode
+      #_exit 147
+      else
+        _echo "$(msg green)OK, API with action ${action} executed with the following status: $(msg end)" --name
+        _echo "$(msg green)${da_api_exec}$(msg end)" --plain | urldecode
+      fi
     fi
   elif [[ "${action}" == "set-da-server-settings" ]]; then
-    local cmd_api data data_encode method retval da_api_exec has_success
-    cmd_api="CMD_API_ADMIN_SETTINGS"
+    local cmd_api data method retval da_api_exec has_success cmd_api_not_release
+    cmd_api_not_release=true
+    cmd_api="CMD_ADMIN_SETTINGS"
+    _echo "$(msg yellow)Note, directadmin does not have CMD_API_ADMIN_SETTINGS (https://forum.directadmin.com/threads/api-set-server-hostname.37872/post-188426). Using CMD_ADMIN_SETTINGS ...$(msg end)" --name
 
     if [ "${recommend_values}" == "true" ]; then
       # Recommend values
+      # Remember to use json=yes, if not no output or weird output because API has not released
       data="brute_force_log_scanner=yes&brute_force_scan_apache_logs=2&brute_force_time_limit=1200&brutecount=20 \
     &brute_dos_count=100&bruteforce=yes&check_partitions=2&check_subdomain_owner=yes&clear_blacklist_ip_time=86400 \
     &clear_brute_log_entry_time=4&clear_brute_log_time=24&demodocsroot=.%2Fdata%2Fskins%2Fevolution \
-    &enforce_difficult_passwords=yes&exempt_local_block=no&ip_brutecount=100&logs_to_keep=3&lost_password=no \
+    &enforce_difficult_passwords=yes&exempt_local_block=yes&ip_brutecount=${C_DA_IP_BRUTECOUNT}&logs_to_keep=${C_DA_ADMIN_LOGS_TO_KEEP}&lost_password=no \
     &max_per_email_send_limit=-1&maxfilesize=5368709120&ns1=${C_BOX_NS1}&ns2=${C_BOX_NS2}&partition_usage_threshold=95 \
-    &per_email_limit=200&purge_spam_days=0&rbl_enabled=yes&servername=${C_BOX_HOSTNAME_FQHN}&session_minutes=35791 \
-    &timeout=35791&user_brutecount=100&user_can_set_email_limit=yes&virtual_limit=1000&unblock_brute_ip_time=86400 \
-    &timezone=${C_BOX_TIMEZONE}&max_username_length=${C_DA_MAX_UNAME_LENGTH}&action=config"
+    &per_email_limit=200&purge_spam_days=0&rbl_enabled=yes&servername=${C_BOX_HOSTNAME_FQHN}&session_minutes=${C_DA_SESSION_MINUTES} \
+    &timeout=35791&user_brutecount=${C_DA_USER_BRUTECOUNT}&user_can_set_email_limit=yes&virtual_limit=1000&unblock_brute_ip_time=86400 \
+    &timezone=${C_BOX_TIMEZONE}&max_username_length=${C_DA_MAX_USERNAME_LENGTH}&action=config&json=yes"
+      #_echo "DECODED data: " --name --verbose 7
+      #_echo "${data}" --plain --verbose 7
+      #echo ""
+      #data=$(echo "${data}" | urlencode)
+      #_echo "ENCODED data: " --name --verbose 7
+      #_echo "${data}" --plain --verbose 7
     else
       _echo "$(msg red)Error, please temporarily use the option --recommend-values for this action ${action} $(msg end)" --name
       # Add single values here
       _exit 147
     fi
     method="POST"
-    da_api_exec=$(curl --silent --request "${method}" --user "${da_api_username}":"${da_api_password}" --data "${data}" "${ssl_protocol}://${C_BOX_HOSTNAME_FQHN}:${C_DA_PORT}/${cmd_api}")
-    has_success=$(echo "${da_api_exec}" | grep -w '^error=0')
-
-    if [ -z "${has_success}" ]; then
-      _echo "$(msg red)Error, API with action ${action} executed with the following error: $(msg end)" --name
-      _echo "$(msg red)${da_api_exec}$(msg end)" --plain | urldecode
-    #_exit 147
+    if [ "${cmd_api_not_release}" == "true" ]; then
+      curl --silent --request "${method}" --user "${da_api_username}":"${da_api_password}" --data "${data}" "${ssl_protocol}://${C_BOX_HOSTNAME_FQHN}:${C_DA_PORT}/${cmd_api}"
     else
-      _echo "$(msg green)OK, API with action ${action} executed with the following status: $(msg end)" --name
-      _echo "$(msg green)${da_api_exec}$(msg end)" --plain | urldecode
+      da_api_exec=$(curl --silent --request "${method}" --user "${da_api_username}":"${da_api_password}" --data "${data}" "${ssl_protocol}://${C_BOX_HOSTNAME_FQHN}:${C_DA_PORT}/${cmd_api}")
+
+      has_success=$(echo "${da_api_exec}" | grep -w '^error=0')
+
+      if [ -z "${has_success}" ]; then
+        _echo "$(msg red)Error, API with action ${action} executed with the following error: $(msg end)" --name
+        _echo "$(msg red)${da_api_exec}$(msg end)" --plain | urldecode
+      #_exit 147
+      else
+        _echo "$(msg green)OK, API with action ${action} executed with the following status: $(msg end)" --name
+        _echo "$(msg green)${da_api_exec}$(msg end)" --plain | urldecode
+      fi
     fi
     # da_api_admin modify-user --sign-as owner1 --where-username-is admin --email abc@dsaa.com --name Arafat Ali --nameserver1 ns1.test.com --nameserver2 ns2.test.com
   elif [[ "${action}" == "modify-user" || "${action}" == "change-user" || "${action}" == "update-user" ]]; then
-    local cmd_api method retval da_api_exec has_success data data_encode data1 data2 data3 data4
+    local cmd_api method retval da_api_exec has_success data data1 data2 data3 data4
     cmd_api="CMD_API_MODIFY_USER"
     method="POST"
     #echo "Email: ${email}"
@@ -6479,7 +6568,9 @@ function da_api_admin() {
     data="username=${username}&email=${email}&passwd=${password}&passwd2=${password}&domain=${domain}&package=${package_name}&notify=yes&ip=${ip_type}&action=create&add=yes"
     echo "data: ${data}"
     method="POST"
-    da_api_exec=$(curl --silent --request "${method}" --user "${da_api_username}":"${da_api_password}" --data "${data}" "${ssl_protocol}://${C_BOX_HOSTNAME_FQHN}:${C_DA_PORT}/${cmd_api}")
+    #da_api_exec=$(curl --silent --request "${method}" --user "${da_api_username}":"${da_api_password}" --data "${data}" "${ssl_protocol}://${C_BOX_HOSTNAME_FQHN}:${C_DA_PORT}/${cmd_api}")
+    da_api_exec=$(curl --verbose --request "${method}" --user "${da_api_username}":"${da_api_password}" --data "${data}" "${ssl_protocol}://${C_BOX_HOSTNAME_FQHN}:${C_DA_PORT}/${cmd_api}")
+
     has_success=$(echo "${da_api_exec}" | grep -w '^error=0')
     if [ -z "${has_success}" ]; then
       _echo "$(msg red)Error, API with action ${action} executed with the following error: $(msg end)" --name
@@ -6506,6 +6597,37 @@ function da_api_admin() {
     fi
     method="POST"
     da_api_exec=$(curl --silent --request "${method}" --user "${da_api_username}":"${da_api_password}" --data "${data}" "${ssl_protocol}://${C_BOX_HOSTNAME_FQHN}:${C_DA_PORT}/${cmd_api}")
+    #da_api_exec=$(curl --verbose --request "${method}" --user "${da_api_username}":"${da_api_password}" --data "${data}" "${ssl_protocol}://${C_BOX_HOSTNAME_FQHN}:${C_DA_PORT}/${cmd_api}")
+
+    has_success=$(echo "${da_api_exec}" | grep -w '^error=0')
+
+    if [ -z "${has_success}" ]; then
+      _echo "$(msg red)Error, API with action ${action} executed with the following error: $(msg end)" --name
+      _echo "$(msg red)${da_api_exec}$(msg end)" --plain | urldecode
+    #_exit 147
+    else
+      _echo "$(msg green)OK, API with action ${action} executed with the following status: $(msg end)" --name
+      _echo "$(msg green)${da_api_exec}$(msg end)" --plain | urldecode
+    fi
+  elif [ "${action}" == "create-user-package" ]; then
+    local cmd_api data method retval da_api_exec has_success
+    # This is unlimited USER package:
+    cmd_api="CMD_API_MANAGE_USER_PACKAGES"
+    if [ "${recommend_values}" == "true" ]; then
+      data="bandwidth=1000&ubandwidth=yes&quota=100&uquota=yes&inode=&uinode=yes&vdomains=1&uvdomains=yes \
+      &nsubdomains=10&unsubdomains=yes&nemails=10&unemails=yes&unemailf=yes&nemailml=0&unemailml=yes&nemailr=10 \
+      &unemailr=yes&mysql=5&umysql=yes&domainptr=0&udomainptr=yes&ftp=1&uftp=yes&php=ON&spam=ON&catchall=ON&ssl=ON \
+      &cron=ON&sysinfo=ON&login_keys=ON&dnscontrol=ON&suspend_at_limit=ON&language=en&skin=evolution&packagename=${package_name} \
+      &add=save"
+    else
+      _echo "$(msg red)Error, please temporarily use the option --recommend-values for this action ${action} $(msg end)" --name
+      # Add single values here
+      _exit 147
+    fi
+
+    method="POST"
+
+    da_api_exec=$(curl --silent --request "${method}" --user "${da_api_username}":"${da_api_password}" --data "${data}" "${ssl_protocol}://${C_BOX_HOSTNAME_FQHN}:${C_DA_PORT}/${cmd_api}")
     has_success=$(echo "${da_api_exec}" | grep -w '^error=0')
 
     if [ -z "${has_success}" ]; then
@@ -6517,6 +6639,44 @@ function da_api_admin() {
       _echo "$(msg green)${da_api_exec}$(msg end)" --plain | urldecode
     fi
 
+  elif [[ "${action}" == "enable-domain-dkim" || "${action}" == "enable-email-dkim" ]]; then
+    local cmd_api data method retval da_api_exec has_success
+    cmd_api="CMD_API_EMAIL_POP"
+    data="action=set_dkim&domain=${domain}&enable=yes"
+    method="POST"
+    da_api_exec=$(curl --verbose --request "${method}" --user "${da_api_username}":"${da_api_password}" --data "${data}" "${ssl_protocol}://${C_BOX_HOSTNAME_FQHN}:${C_DA_PORT}/${cmd_api}")
+
+    #da_api_exec=$(curl --silent --request "${method}" --user "${da_api_username}":"${da_api_password}" --data "${data}" "${ssl_protocol}://${C_BOX_HOSTNAME_FQHN}:${C_DA_PORT}/${cmd_api}")
+    has_success=$(echo "${da_api_exec}" | grep -w '^error=0')
+
+    if [ -z "${has_success}" ]; then
+      _echo "$(msg red)Error, API with action ${action} executed with the following error: $(msg end)" --name
+      _echo "$(msg red)${da_api_exec}$(msg end)" --plain | urldecode
+    #_exit 147
+    else
+      _echo "$(msg green)OK, API with action ${action} executed with the following status: $(msg end)" --name
+      _echo "$(msg green)${da_api_exec}$(msg end)" --plain | urldecode
+    fi
+  # da_api_admin create-dns-record --domain test.com --record-type TXT --record-name name11 --record-value value1 --record-ttl 3600 --affect-pointers yes
+  elif [ "${action}" == "create-dns-record" ]; then
+    local cmd_api data method retval da_api_exec has_success
+    cmd_api="CMD_API_DNS_CONTROL"
+    affect_pointers=yes
+    data="domain=${domain}&type=${record_type}&name=${record_name}&value=${record_value}&ttl=${record_ttl}&affect_pointers=${affect_pointers}&action=add"
+    method="POST"
+    da_api_exec=$(curl --verbose --request "${method}" --user "${da_api_username}":"${da_api_password}" --data "${data}" "${ssl_protocol}://${C_BOX_HOSTNAME_FQHN}:${C_DA_PORT}/${cmd_api}")
+
+    #da_api_exec=$(curl --silent --request "${method}" --user "${da_api_username}":"${da_api_password}" --data "${data}" "${ssl_protocol}://${C_BOX_HOSTNAME_FQHN}:${C_DA_PORT}/${cmd_api}")
+    has_success=$(echo "${da_api_exec}" | grep -w '^error=0')
+
+    if [ -z "${has_success}" ]; then
+      _echo "$(msg red)Error, API with action ${action} executed with the following error: $(msg end)" --name
+      _echo "$(msg red)${da_api_exec}$(msg end)" --plain | urldecode
+    #_exit 147
+    else
+      _echo "$(msg green)OK, API with action ${action} executed with the following status: $(msg end)" --name
+      _echo "$(msg green)${da_api_exec}$(msg end)" --plain | urldecode
+    fi
   else
     _echo "$(msg red)The API action ${action} does not exist!$(msg end)" --name
     _exit 147
@@ -6561,13 +6721,7 @@ function da_api_admin() {
     elif [ "${action}" == "create-reseller-package" ]; then
       :
     elif [ "${action}" == "create-user-package" ]; then
-      shift
-      package_name="$1"
-      # This is unlimited USER package:
-      command="CMD_API_MANAGE_USER_PACKAGES"
-      data="bandwidth=1000&ubandwidth=yes&quota=100&uquota=yes&inode=&uinode=yes&vdomains=1&uvdomains=yes&nsubdomains=10&unsubdomains=yes&nemails=10&unemails=yes&unemailf=yes&nemailml=0&unemailml=yes&nemailr=10&unemailr=yes&mysql=5&umysql=yes&domainptr=0&udomainptr=yes&ftp=1&uftp=yes&php=ON&spam=ON&catchall=ON&ssl=ON&cron=ON&sysinfo=ON&login_keys=ON&dnscontrol=ON&suspend_at_limit=ON&language=en&skin=evolution&packagename=${package_name}&add=save&json=yes"
-      method="POST"
-      echo "Now, executing API with action name: ${action}"
+      :
     elif [ "${action}" == "create-user-domain" ]; then
       shift
       domain="$1"
@@ -6576,12 +6730,7 @@ function da_api_admin() {
       method="POST"
       echo "Now, executing API with action name: ${action}"
     elif [ "${action}" == "enable-email-dkim" ]; then
-      shift
-      domain="$1"
-      command="CMD_API_EMAIL_POP"
-      data="action=set_dkim&domain=${domain}&enable=yes&json=yes"
-      method="POST"
-      echo "Now, executing API with action name: ${action}"
+      :
     #da_api_admin "get-dns-zone" "maxibi.com" "_domainkey+TXT+o=+.value"
     elif [ "${action}" == "get-dns-zone" ]; then
       local record_name record_type record_contains_val record_out_display
@@ -6618,17 +6767,8 @@ function da_api_admin() {
       # da_api_admin "create-dns-record" "maxibi.com" "TXT" "_domainkey" "o%3D%7E%3B+r%3Dwebmaster%40sofibox.com"
       # The last one equal to: o=~; r=webmaster@sofibox.com (use https://www.url-encode-decode.com/ to decode)
     elif [ "${action}" == "create-dns-record" ]; then
-      local domain name ttl type value domain_id dis_args retval
-      shift
-      domain="$1"
-      type="$2"
-      name="$3"
-      value="$4" #value=o%3D%7E%3B+r%3Dwebmaster%40
-      data="domain=${domain}&type=${type}&name=${name}&value=${value}&ttl=3600&affect_pointers=yes&json=yes&action=add"
-      command="CMD_API_DNS_CONTROL"
-      method="POST"
+      :
       # da_api_admin "create-user-email" "maxibi.com" "webmaster" "1232123" "0" "200"
-      echo "Now, executing API with action name: ${action}"
     elif [ "${action}" == "create-user-email" ]; then
       local mail_domain mail_user mail_pass mail_quota mail_limit
       shift
@@ -6724,22 +6864,9 @@ function da_api_admin() {
       echo "Now, executing API with action name: ${action}"
 
     elif [ "${action}" == "set-admin-settings" ]; then
-      shift
-      command="CMD_API_ADMIN_SETTINGS"
-      data="auto_update=yes&backup_threshold=90&demo_admin=no&demo_reseller=no&demo_user=no&oversell=yes&service_email_active=yes&suspend=yes&user_backup=yes&json=yes&action=save"
-      method="POST"
-      # da_api_admin "set-server-settings"
-      # This API includes security settings and email settings (DA combined this)
-      echo "Now, executing API with action name: ${action}"
-
+      :
     elif [ "${action}" == "set-server-settings" ]; then
-      command="CMD_API_ADMIN_SETTINGS"
-      data="brute_force_log_scanner=yes&brute_force_scan_apache_logs=2&brute_force_time_limit=1200&brutecount=20&brute_dos_count=100&bruteforce=yes&check_partitions=2&check_subdomain_owner=yes&clear_blacklist_ip_time=86400&clear_brute_log_entry_time=4&clear_brute_log_time=24&demodocsroot=.%2Fdata%2Fskins%2Fevolution&enforce_difficult_passwords=yes&exempt_local_block=no&ip_brutecount=100&logs_to_keep=3&lost_password=no&max_per_email_send_limit=-1&maxfilesize=5368709120&ns1=${C_BOX_NS1}&ns2=${C_BOX_NS2}&partition_usage_threshold=95&per_email_limit=200&purge_spam_days=0&rbl_enabled=yes&servername=${C_BOX_HOSTNAME_FQHN}&session_minutes=35791&timeout=35791&user_brutecount=100&user_can_set_email_limit=yes&virtual_limit=1000&unblock_brute_ip_time=86400&timezone=${C_BOX_TIMEZONE}&max_username_length=${C_DA_MAX_UNAME_LENGTH}&json=yes&action=config"
-      method="POST"
-      # da_api_admin "create-database" <db_name> <db_username> <db_password> <domain>
-      # This will create new database with new user
-      echo "Now, executing API with action name: ${action}"
-
+      :
     elif [ "${action}" == "create-database" ]; then
       shift
       local db_name db_username db_password db_domain
@@ -6912,9 +7039,13 @@ function restart_da_web_server() {
   if [ "${C_DA_WEB_SERVER_SOFTWARE}" == "nginx_apache" ]; then
     _echo "$(msg magenta)Restarting httpd and nginx for new httpd config ...$(msg end)" --name
     systemctl restart httpd
+    sudo pkill -f nginx &
+    wait $!
     systemctl restart nginx
   elif [ "${C_DA_WEB_SERVER_SOFTWARE}" == "nginx" ]; then
     _echo "$(msg magenta)Restarting nginx  ...$(msg end)" --name
+    sudo pkill -f nginx &
+    wait $!
     systemctl restart nginx
   elif [ "${C_DA_WEB_SERVER_SOFTWARE}" == "apache" ]; then
     _echo "$(msg magenta)Restarting httpd for new httpd config ...$(msg end)" --name
@@ -7764,9 +7895,7 @@ function configure_net() {
         _echo "$(msg cyan)Executing configure_net2 with --run-force option to setup system network interface to ${LABEL_C_NIC_INTERFACE_NAME} before rebooting to prevent locked out ...$(msg end)" --name
         configure_net2 --run-force
         echo ""
-
         _echo "$(msg cyan)Creating background script ${CODE_PATH}/ssh_scripts/lan_interface_rename.sh to rename LAN interface when the SSH disconnected ...$(msg end)" --name
-
         mkdir -p "${CODE_PATH}/ssh_scripts"
         {
           echo "#!/bin/bash"
@@ -7786,7 +7915,6 @@ function configure_net() {
         _echo "$(msg cyan)Allowing execution permission for background script ${CODE_PATH}/ssh_scripts/lan_interface_rename.sh ...$(msg end)" --name
         chmod +x "${CODE_PATH}/ssh_scripts/lan_interface_rename.sh"
         echo ""
-
         _echo "$(msg red)*Warning$(msg yellow), background script will be executed to rename network interface to ${LABEL_C_NIC_INTERFACE_NAME} ...$(msg end)" --name
         _echo "$(msg red)**Warning$(msg yellow), active LAN interface ${current_active_lan} will be disconnected ...$(msg end)" --name
         _echo "$(msg red)***Warning$(msg yellow), the current active network needs to be turned off in order to be able to rename a new LAN interface$(msg end)" --name
@@ -8428,10 +8556,14 @@ function install_da() {
   start_execute_options "${option}" "${func_name}"
   [[ "${SKIP_RUN}" == "true" ]] && return 0
   if [[ ! -f "${CONF_PATH}/${func_name}_executed" && "${FUNCTION_RUN}" == "true" ]]; then
-    local da_install_log da_cb_bin
-    da_cb_bin="/usr/local/directadmin/custombuild/build"
+    local da_install_log da_bin da_cb_bin da_script_path id_bin
     da_install_log="${LOG_PATH}/da-install.log"
+    da_script_path="/usr/local/directadmin/scripts"
+    da_bin="/usr/local/directadmin/directadmin"
+    da_cb_bin="/usr/local/directadmin/custombuild/build"
+    id_bin="$(command -v id)"
     touch "${da_install_log}"
+    mkdir -p "${da_script_path}/custom/profile"
     _echo "$(msg cyan)Downloading directadmin setup script ...$(msg end)" --name
     cd_to_path "${INST_TEMP_DIR}"
     wget -O setup.sh http://www.directadmin.com/setup.sh
@@ -8463,6 +8595,19 @@ function install_da() {
     # ... 23:19:06 test.server.com systemd[1]: Failed to start The nginx HTTP and reverse proxy server.
     # After finished installation do this to fix above:
     echo ""
+
+    _echo "$(msg cyan)Checking if directadmin binary and custombuild are presents ...$(msg end)" --name
+
+    if [[ -f "${da_bin}" || -f "${da_cb_bin}" ]]; then
+      _echo "$(msg green)OK, directadmin binary or custombuild exist!$(msg end)" --name
+
+    else
+      _echo "$(msg Error)Error, directadmin binary or custombuild does not exist! Installation might have been corrupted!$(msg end)" --name
+      _exit 147
+    fi
+
+    _echo "$(msg cyan)Storing original admin UID into a file at ${da_script_path}/custom/profile/owneruid} ...$(msg end)" --name
+    ${id_bin} -u admin >"${da_script_path}/custom/profile/owneruid"
     _echo "$(msg cyan)Rewriting virtual host files ... $(msg end)" --name
     ${da_cb_bin} rewrite_confs
     echo ""
@@ -8491,13 +8636,11 @@ function install_da_post() {
     da_script_path="/usr/local/directadmin/scripts"
     da_install_log="${LOG_PATH}/da-install.log"
     touch "${da_install_log}"
-    if [ ! -f "${da_bin}" ]; then
-      _echo "$(msg red)Error, directadmin binary file does not exist in the system. Make sure directadmin is installed properly!$(msg end)" --name
-      _exit 147
-    fi
 
-    if [ ! -f "${da_cb_bin}" ]; then
-      _echo "$(msg red)Error, directadmin custombuild binary file does not exist in the system. Make sure directadmin custombuild is installed properly!$(msg end)" --name
+    if [[ -f "${da_bin}" || -f "${da_cb_bin}" ]]; then
+      :
+    else
+      _echo "$(msg Error)Error, directadmin binary or custombuild does not exist!$(msg end)" --name
       _exit 147
     fi
 
@@ -8512,12 +8655,16 @@ function install_da_post() {
     ${da_cb_bin} update
     echo ""
     # ClamAV and exim rebuild
-    _echo "$(msg cyan)Configuring directadmin custombuild to install ClamAV and exim ...$(msg end)" --name
+    _echo "$(msg cyan)Configuring directadmin custombuild to install ClamAV and exim and enabling DKIM ...$(msg end)" --name
+    # TODO make this setting in variable
     ${da_cb_bin} set clamav yes
     ${da_cb_bin} set clamav_exim yes
     ${da_cb_bin} set exim yes
     ${da_cb_bin} set eximconf yes
     ${da_cb_bin} set eximconf_release 4.5
+    # Enable DKIM for all domain (need to rebuild exim and exim_conf as stated somewhere)
+    ${da_bin} set dkim "${C_DA_DKIM}"
+    echo ""
     echo ""
     _echo "$(msg cyan)Rebuilding ClamAV and exim ...$(msg end)" --name
     {
@@ -8568,8 +8715,9 @@ function install_da_post() {
     } >>"${da_install_log}"
     echo ""
     # Need this before changing or adding directadmin username
-    _echo "$(msg cyan)Setting directadmin max username to ${LABEL_C_DA_MAX_UNAME_LENGTH} ...$(msg end)" --name
-    ${da_bin} set max_username_length "${C_DA_MAX_UNAME_LENGTH}"
+    # Set the maximum length of directadmin username (default is 14) for higher than 14 make sure mariadb or mysql is latest version
+    _echo "$(msg cyan)Setting directadmin max username to ${LABEL_C_DA_MAX_USERNAME_LENGTH} ...$(msg end)" --name
+    ${da_bin} set max_username_length "${C_DA_MAX_USERNAME_LENGTH}"
     echo ""
     # Need to enable ipv6 after install by default DA don't do anything about ipv6
     _echo "$(msg cyan)Enabling ipv6 in directadmin.conf config ...$(msg end)" --name
@@ -8655,21 +8803,24 @@ function secure_da_auth() {
   start_execute_options "${option}" "${func_name}"
   [[ "${SKIP_RUN}" == "true" ]] && return 0
   if [[ ! -f "${CONF_PATH}/${func_name}_executed" && "${FUNCTION_RUN}" == "true" ]]; then
-    local da_scripts_path id_bin default_da_admin_username retval
+    local da_scripts_path da_bin da_cb_bin current_da_owner_username retval
     da_scripts_path="/usr/local/directadmin/scripts"
-    id_bin=$(command -v id)
-    default_da_admin_username="admin"
-    _echo "$(msg cyan)Checking if directadmin admin username exist in the system ...$(msg end)" --name
-    # Directadmin script on changing username required username argument, but when username does not exist, it could not handle the script return status (bug). So using below fixed it:
-    ${id_bin} "${default_da_admin_username}" &>/dev/null
-    retval=$?
-    if [ "${retval}" -ne 0 ]; then
-      _echo "$(msg yellow)[Skipped]: Warning, cannot find the user ${default_da_admin_username}. The username might have been changed to other username previously$(msg end)" --name
+    da_bin="/usr/local/directadmin/directadmin"
+    da_cb_bin="/usr/local/directadmin/custombuild/build"
+
+    if [[ -f "${da_bin}" || -f "${da_cb_bin}" ]]; then
+      :
     else
-      # This will change Directadmin admin account:
-      _echo "$(msg cyan)Changing the first directadmin admin username from default admin username to ${LABEL_C_DA_OWNER_USERNAME1} ...$(msg end)" --name
-      ${da_scripts_path}/change_username.sh "${default_da_admin_username}" "${C_DA_OWNER_USERNAME1}"
+      _echo "$(msg Error)Error, directadmin binary or custombuild does not exist!$(msg end)" --name
+      _exit 147
     fi
+    # https://www.directadmin.com/features.php?id=2832
+
+    current_da_owner_username=$(grep ":$(head -n 1 "${da_scripts_path}/custom/profile/owneruid"):" /etc/passwd | awk -F: '{print $1}')
+
+    # This will change Directadmin admin account:
+    _echo "$(msg cyan)Changing the first directadmin admin username from default ${current_da_owner_username} username to ${LABEL_C_DA_OWNER_USERNAME1} ...$(msg end)" --name
+    ${da_scripts_path}/change_username.sh "${current_da_owner_username}" "${C_DA_OWNER_USERNAME1}"
     echo ""
     # By default, directadmin installation uses a short password which is not secured. Change it here
     _echo "$(msg cyan)Changing the first admin (${LABEL_C_DA_OWNER_USERNAME1})'s password ...$(msg end)" --name
@@ -8710,11 +8861,19 @@ function configure_da_ips() {
   start_execute_options "${option}" "${func_name}"
   [[ "${SKIP_RUN}" == "true" ]] && return 0
   if [[ ! -f "${CONF_PATH}/${func_name}_executed" && "${FUNCTION_RUN}" == "true" ]]; then
-    local da_ip_list da_cb_bin \
+    local da_ip_list da_bin da_cb_bin \
       da_ipv4_adds da_ipv4 c_da_ipv4 da_ipv4_file ipv4_found \
       da_ipv6_adds da_ipv6 c_da_ipv6 da_ipv6_file ipv6_found linked_ips
 
+    da_bin="/usr/local/directadmin/directadmin"
     da_cb_bin="/usr/local/directadmin/custombuild/build"
+
+    if [[ -f "${da_bin}" || -f "${da_cb_bin}" ]]; then
+      :
+    else
+      _echo "$(msg Error)Error, directadmin binary or custombuild does not exist!$(msg end)" --name
+      _exit 147
+    fi
     da_ip_list="/usr/local/directadmin/data/admin/ip.list"
 
     da_ipv4_adds=$(ls /usr/local/directadmin/data/admin/ips/*.* 2>/dev/null)
@@ -8742,7 +8901,7 @@ function configure_da_ips() {
       #_echo "$(msg yellow)Warning, there is no IPv4 IP address file is found inside /usr/local/directadmin/data/admin/ips/ $(msg end)" --name
       #if [ "${C_DA_AUTO_ADD_IPV46_ENTRY}" == "true" ]; then
       #  _echo "$(msg cyan)Automatically added missing IPv4 IP address using directadmin API ... $(msg end)" --name
-      da_api_admin add-ip --ip-address "${C_IPV4_ADD0}"--netmask-ip "${C_IPV4_NETMASK_IP0}"
+      da_api_admin add-ip --ip-address "${C_IPV4_ADD0}" --netmask "${C_IPV4_NETMASK_IP0}"
       #else
       #  _echo "$(msg yellow)Warning, C_DA_AUTO_ADD_IPV46_ENTRY is not set. Please manually add missing IPv4 IP address via GUI$(msg end)" --name
       #  # Give details how to login and add here
@@ -9025,11 +9184,12 @@ function install_da_csf() {
         touch /root/blocked_ips.txt
         touch /root/exempt_ips.txt
         echo ""
-        _echo "$(msg cyan)Hiding directadmin bruteforce notification ...$(msg end)" --name
-        grep_count=$(grep -c hide_brute_force_notifications /usr/local/directadmin/conf/directadmin.conf)
-        if [ "${grep_count}" = "0" ]; then
-          echo "hide_brute_force_notifications=1" >>/usr/local/directadmin/conf/directadmin.conf
-        fi
+        # This set using directadmin binary
+        #_echo "$(msg cyan)Hiding directadmin bruteforce notification ...$(msg end)" --name
+        #grep_count=$(grep -c hide_brute_force_notifications /usr/local/directadmin/conf/directadmin.conf)
+        #if [ "${grep_count}" = "0" ]; then
+        #  echo "hide_brute_force_notifications=1" >>/usr/local/directadmin/conf/directadmin.conf
+        #fi
         # Credit to poralix for giving idea how to integrate CSF on directadmin:
         echo ""
         echo ""
@@ -10130,14 +10290,23 @@ function build_da_custom_settings() {
   [[ "${SKIP_RUN}" == "true" ]] && return 0
   if [[ ! -f "${CONF_PATH}/${func_name}_executed" && "${FUNCTION_RUN}" == "true" ]]; then
     # This will build custom config for DA with secured settings
-    local da_cb_bin da_cb_custom_conf_path httpd_alias_conf httpd_include_conf phpmyadmin_path roundcube_path
-    da_cb_bin="/usr/local/directadmin/custombuild/build"
+    local da_bin da_cb_bin da_cb_custom_conf_path httpd_alias_conf httpd_include_conf phpmyadmin_path roundcube_path
+
     da_cb_custom_conf_path="/usr/local/directadmin/custombuild/custom"
     httpd_alias_conf="/etc/httpd/conf/extra/httpd-alias.conf"
     httpd_include_conf="/etc/httpd/conf/extra/httpd-includes.conf"
     httpd_default_conf="/etc/httpd/conf/extra/httpd-default.conf"
     phpmyadmin_path="/var/www/html/phpMyAdmin"
     roundcube_path="/var/www/html/roundcube"
+    da_bin="/usr/local/directadmin/directadmin"
+    da_cb_bin="/usr/local/directadmin/custombuild/build"
+
+    if [[ -f "${da_bin}" || -f "${da_cb_bin}" ]]; then
+      :
+    else
+      _echo "$(msg Error)Error, directadmin binary or custombuild does not exist!$(msg end)" --name
+      _exit 147
+    fi
 
     # 1) create custom folder at /usr/local/directadmin/custombuild/custom/ap2/conf/extra
     _echo "$(msg cyan)Creating a custom config folder for apache/httpd (ap2) at ${da_cb_custom_conf_path}/ap2/conf/extra ...$(msg end)" --name
@@ -10262,6 +10431,7 @@ function configure_web_apps() {
   end_execute_options "${option}" "${func_name}"
 }
 
+# This is for configuring all directadmin.conf settings
 # For configuring admin setting and extra hardening any DA related installation
 function configure_da_settings() {
   local option func_name
@@ -10281,6 +10451,14 @@ function configure_da_settings() {
       _exit 147
     fi
 
+    # Using API (some values are not present in directadmin.conf), so we use this extra API
+    # For DA Administrator Settings:
+    _echo "$(msg cyan)Configuring Directadmin Admin settings with recommend values ...$(msg end)" -- name
+    da_api_admin set-da-admin-settings --sign-as owner1 --recommend-values
+    echo ""
+    _echo "$(msg cyan)Configuring Directadmin Server, Security and Email settings with recommend values ...$(msg end)" --name
+    da_api_admin set-da-server-settings --sign-as owner1 --recommend-values
+
     _echo "$(msg cyan)Enforcing Directadmin difficult password ...$(msg end)" --name
     ${da_bin} set enforce_difficult_passwords 1
     echo ""
@@ -10292,24 +10470,118 @@ function configure_da_settings() {
     _echo "$(msg cyan)Enabling directadmin to force login with only hostname ${LABEL_C_BOX_HOSTNAME_FQHN} ...$(msg end)" --name
     ${da_bin} set force_hostname "${C_BOX_HOSTNAME_FQHN}"
     echo ""
-    _echo "$(msg cyan)Securing all php installation ...$(msg end)" --name
-    ${da_cb_bin} secure_php
-    echo ""
     _echo "$(msg cyan)Enabling directadmin backup encryption ...$(msg end)" --name
     ${da_bin} set allow_backup_encryption 1
     echo ""
     _echo "$(msg cyan)Setting Directadmin online help ...$(msg end)" --name
-    ${da_bin} set admin_helper "${C_DA_HELP_DOMAIN}"
-    ${da_bin} set reseller_helper "${C_DA_HELP_DOMAIN}"
-    ${da_bin} set user_helper "${C_DA_HELP_DOMAIN}"
+    ${da_bin} set admin_helper "${C_DA_ADMIN_HELPER}"
+    ${da_bin} set reseller_helper "${C_DA_RESELLER_HELPER}"
+    ${da_bin} set user_helper "${C_DA_USER_HELPER}"
     echo ""
-    # For DA Administrator Settings:
-    _echo "$(msg cyan)Configuring Directadmin Admin settings with recommend values ...$(msg end)" -- name
-    da_api_admin set-da-admin-settings --sign-as owner1 --recommend-values
+    # Set directadmin hostname
+    ${da_bin} set servername "${C_BOX_HOSTNAME_FQHN}"
     echo ""
-    _echo "$(msg cyan)Configuring Directadmin Server, Security and Email settings with recommend values ...$(msg end)" --name
-    da_api_admin set-da-server-settings --sign-as owner1 --recommend-values
+    # Set directadmin name server
+    ${da_bin} set ns1 "${C_BOX_NS1}"
+    ${da_bin} set ns2 "${C_BOX_NS1}"
+    echo ""
+
+    # Set the timeout setting in second for directadmin execution before generating a timeout signal and aborting (default 60 seconds)
+    ${da_bin} set timeout "${C_DA_TIMEOUT}"
+    # Set the login session timeout in minutes (when idle), session counter reset to 0 if any da page is reload (default 60 minutes / 1 hour)
+    # 2880 = 2 days / 48 hours
+    echo ""
+    # TODO comment this for bug checking (enable later): https://forum.directadmin.com/threads/bug-cannot-set-session_minutes-using-directadmin-set-command.64280/#post-334271
+    # This one session_minutes has bug, wait until there is a fix
+    #${da_bin} set session_minutes "${C_DA_SESSION_MINUTES}"
+    echo ""
+    # Increase upload max file size in bytes
+    # 5368709120 = 5GB
+    echo ""
+    ${da_bin} set maxfilesize "${C_DA_ADMIN_MAXFILESIZE}"
+    echo""
+    # Set number of apache log to keep for user
+    ${da_bin} set logs_to_keep "${C_DA_ADMIN_LOGS_TO_KEEP}"
+    echo ""
+    # Set directadmin login history (default 10)
+    ${da_bin} set login_history "${C_DA_LOGIN_HISTORY}"
+    echo ""
+    # Do not disable disable_ip_check (this one is session security) - default is 0
+    ${da_bin} set disable_ip_check "${C_DA_DISABLE_IPCHECK}"
+    echo ""
+    # Disable foreign IP when login - default is 0
+    ${da_bin} set allow_foreign_key "${C_DA_ALLOW_FOREIGN_KEY}"
+    echo ""
+    # Enable simple disk usage - lowering disk access (this might increase performance)
+    ${da_bin} set simple_disk_usage "${C_DA_SIMPLE_DISK_USAGE}"
+    echo ""
+    # Enable zip compression in file manager (allow zip and unzip feature)
+    ${da_bin} set zip "${C_DA_ZIP}"
+    # Disable awstats (disable by default) and webalizer (enabled by default) and rotation (enabled by default)
+    ${da_bin} set awstats "${C_DA_AWSTATS}"
+    ${da_bin} set webalizer "${C_DA_WEBALIZER}"
+    ${da_bin} set rotation "${C_DA_ROTATION}"
+    echo ""
+
+    # Disable this feature increase performance (default is enabled)
+    ${da_bin} set count_pop_usage "${C_DA_COUNT_POP_USAGE}"
+    echo ""
+    # Purge spam email every 1 day (this can increase performance if value is low)
+    ${da_bin} set purge_spam_days "${C_DA_PURGE_SPAM_DAYS}"
+    echo ""
+    # Skip some backups path
+    ${da_bin} set skip_hometargz_in_backups "${C_DA_SKIP_HOMETARGZ_IN_BACKUPS}"
+    ${da_bin} set skip_domains_in_backups "${C_DA_SKIP_DOMAINS_IN_BACKUPS}"
+    ${da_bin} set skip_imap_in_backups "${C_DA_SKIP_IMAP_IN_BACKUPS}"
+    ${da_bin} set skip_databases_in_backups "${C_DA_SKIP_DATABASES_IN_BACKUPS}"
+    echo ""
+    # Skip database usage show (default 1 - show all databases size)
+    ${da_bin} set show_db_usage "${C_DA_SHOW_DB_USAGE}"
+    echo ""
+    # Enable domain owner checking for unique subdomain
+    ${da_bin} set check_subdomain_owner "${C_DA_CHECK_SUBDOMAIN_OWNER}"
+    echo ""
+    # Set bruteforce and blacklist setting
+    ${da_bin} set bruteforce "${C_DA_BRUTEFORCE}"
+    # Prevent local IP block:
+    ${da_bin} set exempt_local_block "${C_DA_EXEMPT_LOCAL_BLOCK}"
+    ${da_bin} set brute_force_time_limit "${C_DA_BRUTE_FORCE_TIME_LIMIT}"
+    ${da_bin} set clear_blacklist_ip_time "${C_DA_CLEAR_BLACKLIST_IP_TIME}"
+    ${da_bin} set clear_brute_log_entry_time "${C_DA_CLEAR_BRUTE_LOG_ENTRY_TIME}"
+    ${da_bin} set clear_brute_log_time "${C_DA_CLEAR_BRUTE_LOG_TIME}"
+    ${da_bin} set hide_brute_force_notifications "${C_DA_HIDE_BRUTE_FORCE_NOTIFICATIONS}"
+    ${da_bin} set ip_brutecount "${C_DA_IP_BRUTECOUNT}"
+    ${da_bin} set unblock_brute_ip_time "${C_DA_UNBLOCK_BRUTE_IP_TIME}"
+    ${da_bin} set brute_dos_count "${C_DA_BRUTE_DOS_COUNT}"
+    # Set ability for directadmin to scan bruteforce log
+    ${da_bin} set brute_force_log_scanner "${C_DA_BRUTE_FORCE_LOG_SCANNER}"
+    # Scan domain log for bruteforce like wordpress, 1=manual entry, 2=auto entry in /usr/local/directadmin/data/admin/brute.conf
+    ${da_bin} set brute_force_scan_apache_logs "${C_DA_BRUTE_FORCE_SCAN_APACHE_LOGS}"
+    # Don't bother the bruteforce count (increase performance for bruteforce page in directadmin)
+    ${da_bin} set user_brutecount "${C_DA_USER_BRUTECOUNT}"
+    # Check partition usage
+    ${da_bin} set check_partitions "${C_DA_CHECK_PARTITIONS}"
+    ${da_bin} set partition_usage_threshold "${C_DA_PARTITION_USAGE_THRESHOLD}"
+    echo ""
+    # Set backup compression format
+    ${da_bin} set backup_gzip "${C_DA_BACKUP_GZIP}"
+    echo ""
+    # Demo for skin
+    ${da_bin} set demodocsroot "${C_DA_DEMODOCSROOT}"
+    echo ""
+    # Do not allow password reset in UI (default is not set to allow)
+    ${da_bin} set lost_password "${C_DA_LOST_PASSWORD}"
+    # Set servername
+    ${da_bin} set servername "${C_BOX_HOSTNAME_FQHN}"
+    # Set user can set email limit sent
+    ${da_bin} set user_can_set_email_limit "${C_DA_USER_CAN_SET_EMAIL_LIMIT}"
+    # Set max per email send limit
+    ${da_bin} set max_per_email_send_limit "${C_DA_MAX_PER_EMAIL_SEND_LIMIT}"
+    # Set webmail link
+    ${da_bin} set webmail_link "${C_DA_WEBMAIL_LINK}"
+
     # Add more security concern here for directadmin installation
+
     echo ""
     check_finish_reboot "${func_name}"
   else
@@ -10320,6 +10592,38 @@ function configure_da_settings() {
   end_execute_options "${option}" "${func_name}"
 }
 
+# This is for configuring all the custombuild extra settings
+function configure_da_cb_settings() {
+  local option func_name
+  option="$1"
+  func_name="${FUNCNAME[0]}"
+  start_execute_options "${option}" "${func_name}"
+  [[ "${SKIP_RUN}" == "true" ]] && return 0
+  if [[ ! -f "${CONF_PATH}/${func_name}_executed" && "${FUNCTION_RUN}" == "true" ]]; then
+    local da_bin da_cb_bin
+    da_bin="/usr/local/directadmin/directadmin"
+    da_cb_bin="/usr/local/directadmin/custombuild/build"
+    if [[ -f "${da_bin}" || -f "${da_cb_bin}" ]]; then
+      :
+    else
+      _echo "$(msg Error)Error, directadmin binary or custombuild does not exist!$(msg end)" --name
+      _exit 147
+    fi
+
+    _echo "$(msg cyan)Securing all php installation ...$(msg end)" --name
+    ${da_cb_bin} secure_php
+    echo ""
+    echo ""
+    check_finish_reboot "${func_name}"
+  else
+    _echo "$(msg yellow)[Skipped by system]: $(msg magenta)${func_name}()$(msg end) $(msg yellow)with current option ${option} has ran before $(msg end)" --name
+    _echo "$(msg yellow)=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=$(msg end)" --plain
+  fi
+
+  end_execute_options "${option}" "${func_name}"
+
+}
+
 function configure_da_redis() {
   local option func_name
   option="$1"
@@ -10328,8 +10632,16 @@ function configure_da_redis() {
   [[ "${SKIP_RUN}" == "true" ]] && return 0
   if [[ ! -f "${CONF_PATH}/${func_name}_executed" && "${FUNCTION_RUN}" == "true" ]]; then
     if [ "${C_DA_INSTALL_REDIS}" == "true" ]; then
-      local da_cb_bin da_install_log
+      local da_bin da_cb_bin
+      da_bin="/usr/local/directadmin/directadmin"
       da_cb_bin="/usr/local/directadmin/custombuild/build"
+      if [[ -f "${da_bin}" || -f "${da_cb_bin}" ]]; then
+        :
+      else
+        _echo "$(msg Error)Error, directadmin binary or custombuild does not exist!$(msg end)" --name
+        _exit 147
+      fi
+
       da_install_log="${LOG_PATH}/da-install.log"
       touch "${da_install_log}"
       _echo "$(msg cyan)Installing redis in system level ...$(msg end)" --name
@@ -10548,21 +10860,22 @@ function configure_da_owner_accounts() {
   start_execute_options "${option}" "${func_name}"
   [[ "${SKIP_RUN}" == "true" ]] && return 0
   if [[ ! -f "${CONF_PATH}/${func_name}_executed" && "${FUNCTION_RUN}" == "true" ]]; then
-    local da_scripts_path id_bin default_da_admin_username retval
+    local da_scripts_path da_bin da_cb_bin current_da_owner_username retval
     da_scripts_path="/usr/local/directadmin/scripts"
-    id_bin=$(command -v id)
-    default_da_admin_username="admin"
-    _echo "$(msg cyan)Checking if directadmin admin username exist in the system ...$(msg end)" --name
-    # Directadmin script on changing username required username argument, but when username does not exist, it could not handle the script return status (bug). So using below fixed it:
-    ${id_bin} "${LABEL_C_DA_OWNER_USERNAME1}" &>/dev/null
-    retval=$?
-    if [ "${retval}" -ne 0 ]; then
-      _echo "$(msg yellow)[Skipped]: Warning, cannot find the user ${LABEL_C_DA_OWNER_USERNAME1}. The username might have been changed to other username previously$(msg end)" --name
-    else
-      _echo "$(msg cyan)Renaming owner account name from admin to ${LABEL_C_DA_OWNER_NAME1} ...$(msg end)" --name
-      da_api_admin modify-user --sign-as owner1 --where-username-is "${C_DA_OWNER_USERNAME1}" --name "${C_DA_OWNER_NAME1}"
+    da_bin="/usr/local/directadmin/directadmin"
+    da_cb_bin="/usr/local/directadmin/custombuild/build"
 
+    if [[ -f "${da_bin}" || -f "${da_cb_bin}" ]]; then
+      :
+    else
+      _echo "$(msg Error)Error, directadmin binary or custombuild does not exist!$(msg end)" --name
+      _exit 147
     fi
+
+    current_da_owner_username=$(grep ":$(head -n 1 "${da_scripts_path}/custom/profile/owneruid"):" /etc/passwd | awk -F: '{print $1}')
+
+    _echo "$(msg cyan)Renaming owner account name to ${LABEL_C_DA_OWNER_NAME1} ...$(msg end)" --name
+    da_api_admin modify-user --sign-as owner1 --where-username-is "${current_da_owner_username}" --name "${C_DA_OWNER_NAME1}"
     echo ""
 
     check_finish_reboot "${func_name}"
@@ -10666,6 +10979,7 @@ function configure_da_reseller_accounts() {
         _echo "$(msg yellow)Warning this information contains sensitive data due to verbosity level was set to 7 or more$(msg end)" --name --verbose 7
         _echo "$(msg magenta)=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=$(msg end)" --name --verbose 7
         _echo "Reseller config variables:" --name --verbose 7
+        _echo "Reseller count ${count_reseller1}/$(echo "${!C_DA_RESELLER_USERNAME@}" | wc -w)" --name --verbose 7
         _echo "da_reseller_uname: ${da_reseller_uname}" --name --verbose 7
         _echo "da_reseller_password: ${da_reseller_password}" --name --verbose 7
         _echo "da_reseller_name: ${da_reseller_name}" --name --verbose 7
@@ -10684,34 +10998,24 @@ function configure_da_reseller_accounts() {
         _echo "$(msg magenta)=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=$(msg end)" --name --verbose 7
         _echo "$(msg newline)" --plain --verbose 7
         # Note 1: To create a reseller, we need to use an admin account:
-        _echo "$(msg cyan)Creating a new reseller account ${this_da_reseller_uname} ${count_reseller1}/$(echo "${!C_DA_RESELLER_USERNAME@}" | wc -w) ... "
+        _echo "$(msg cyan)Creating a new reseller account ${da_reseller_uname} ${count_reseller1}/$(echo "${!C_DA_RESELLER_USERNAME@}" | wc -w) ... "
         da_api_admin create-reseller-account --sign-as admin1 --username "${da_reseller_uname}" --email "${da_reseller_system_email}" --password "${da_reseller_password}" --domain "${da_reseller_domain_first}" --package-name "${da_reseller_package_name}" --ip-type "${da_reseller_ip_type}"
+        echo ""
+        _echo "$(msg cyan)Renaming reseller account name to ${da_reseller_name} ...$(msg end)" --name
+        da_api_admin modify-user --sign-as admin1 --where-username-is "${da_reseller_uname}" --name "${da_reseller_name}"
+        echo ""
+        # Now login as reseller and enable its own email DKIM. We can use reseller account to configure its own user-level variable settings like DKIM or DNS records
+        _echo "$(msg cyan)Enabling email/domain DKIM for user ${da_reseller_uname} with default domain of ${da_reseller_domain_first} ...$(msg end)" --name
+        # Note 1: We dont use reseller1 because currently reseller can have 1 or more (this script support multiple creation of reseller)
+        # eg: --sign-as ${da_reseller_uname}
+        da_api_admin enable-email-dkim --sign-as "${da_reseller_uname}" --domain "${da_reseller_domain_first}"
+        echo ""
         exit 1
-
-        echo "~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~"
-        echo ""
-        echo ""
-        echo "[${SCRIPT_NAME}]: Renaming reseller account name to ${this_da_reseller_name} ..."
-        echo "~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~"
-        # Still use the admin signas above to modify reseller info here:
-        da_api_admin "modify-user" "${this_da_reseller_uname}" "name" "${this_da_reseller_name}"
-        echo "~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~"
-        echo ""
-        echo ""
-        # Use each reseller account to enable its own email DKIM
-        # Use reseller account to configure its own user-level variable settings like DKIM or DNS
-        echo "[${SCRIPT_NAME}]: Enabling email DKIM for the domain ${da_reseller_domain_first} ..."
-        echo "~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~"
-        #_pause 2
-        da_api_admin "signas+${this_da_reseller_uname}+${this_da_reseller_password}"
-        da_api_admin "enable-email-dkim" "${da_reseller_domain_first}"
-        echo "~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~"
-        echo ""
-        echo ""
-
+        # TODO inspect if this is still needed or the new version already have this
         # Still use the signas login above to create TXT record _domainkey for DKIM signing policy
         echo "[${SCRIPT_NAME}]: Creating DA TXT DNS for DKIM signing policy for ${da_reseller_domain_first} ..."
         echo "~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~"
+        #da_api_admin create-dns-record --domain test.com --record-type TXT --record-name name11 --record-value value1 --record-ttl 3600 --affect-pointers yes
         da_api_admin "create-dns-record" "${da_reseller_domain_first}" "TXT" "_domainkey" "o%3D%7E%3B+r%3Dwebmaster%40${da_reseller_domain_first}"
         echo "~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~"
         echo ""
@@ -10963,16 +11267,17 @@ function configure_da_reseller_accounts() {
               echo "-----"
               echo ""
               echo "End of creation DNS record on linode ======= "
-              echo "~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~"
-              echo ""
               echo ""
 
             elif [ "${DNS_PROVIDER_NAME}" == "digitalocean" ]; then
-              echo "[${SCRIPT_NAME}]: External DNS provider for domain ${extra_domain} is set to digitalocean [Using digitalocean API ...]"
+              # Implement later
+              _echo "$(msg cyan)External DNS provider for domain ${extra_domain} is set to digitalocean [Using digitalocean API ...]$(msg end)" --name
               # Call digitalocean_api_admin
+            elif [ "${DNS_PROVIDER_NAME}" == "amazonaws" ]; then
+              :
             #elif other provider
             elif [ "${DNS_PROVIDER_NAME}" == "local" ]; then
-              echo "[${SCRIPT_NAME}]: External DNS provider for domain ${extra_domain} is set to local"
+              _echo "$(msg cyan)External DNS provider for domain ${extra_domain} is set to local$(msg end)" --name
               # Do nothing because it's local DNS managed by Directadmin
             fi
           done # End looping for adding extra domains
@@ -10981,25 +11286,17 @@ function configure_da_reseller_accounts() {
         echo "[${SCRIPT_NAME}]: Warning, ${this_da_reseller_package_name} does not exist in ${da_reseller_packages_list}. Please inspect why!"
         _exit 147
       fi
-      echo "*** Total count: ${count_reseller} ***"
-      ((count_reseller++))
+      ((count_reseller1++))
       #sleep 10
-      echo "--"
       echo ""
     done # End looping
-
+    echo ""
     # Now we create user unlimited package. A reseller account is needed to create user package (da_api_admin will check this condition)
+    # Note here we user package name from C_DA_USER_PACKAGE_NAME1 (user1) because it's the first package for for first user
     # We use reseller account to create user package:
-
-    # Assign C_DA_USER_PACKAGE_NAME1 because it's the first package for user
-    echo "[${SCRIPT_NAME}]: Creating user unlimited package with the following name: ${C_DA_USER_PACKAGE_NAME1} ..."
-    echo "~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~"
-    #_pause 2
-    #echo "[${SCRIPT_NAME}]: Authenticating DA API for user for default reseller user ..."
-    da_api_admin "signas+reseller"
-    da_api_admin "create-user-package" "${C_DA_USER_PACKAGE_NAME1}"
-    echo "~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~"
-
+    # TODO testing this
+    _echo "$(msg cyan)Creating user unlimited package with the following name: ${C_DA_USER_PACKAGE_NAME1} ...$(msg end)" --name
+    da_api_admin create-user-package --sign-as reseller1 --package-name "${C_DA_USER_PACKAGE_NAME1}"
     echo ""
     check_finish_reboot "${func_name}"
   else
@@ -11020,8 +11317,17 @@ function configure_da_ssl_pre() {
   [[ "${SKIP_RUN}" == "true" ]] && return 0
   if [[ ! -f "${CONF_PATH}/${func_name}_executed" && "${FUNCTION_RUN}" == "true" ]]; then
     local da_bin da_cb_bin
+
     da_bin="/usr/local/directadmin/directadmin"
     da_cb_bin="/usr/local/directadmin/custombuild/build"
+
+    if [[ -f "${da_bin}" || -f "${da_cb_bin}" ]]; then
+      :
+    else
+      _echo "$(msg Error)Error, directadmin binary or custombuild does not exist!$(msg end)" --name
+      _exit 147
+    fi
+
     # Not enabling this yet
     # echo "[${SCRIPT_NAME}]: Setting directadmin ddns_ttl=1 at directadmin.conf ..."
     # sleep 1
@@ -11060,11 +11366,19 @@ function configure_da_ssl() {
       local da_bin da_cb_bin da_script_path
       da_bin="/usr/local/directadmin/directadmin"
       da_cb_bin="/usr/local/directadmin/custombuild/build"
+      if [[ -f "${da_bin}" || -f "${da_cb_bin}" ]]; then
+        :
+      else
+        _echo "$(msg Error)Error, directadmin binary or custombuild does not exist!$(msg end)" --name
+        _exit 147
+      fi
+
       da_script_path="/usr/local/directadmin/scripts"
       echo "[${SCRIPT_NAME}]: Configuring Directadmin SSL Certificate ..."
-      #0) Set the ssl_redirect_host
-      echo "[${SCRIPT_NAME}]: Setting ssl_redirect_host to ${LABEL_C_BOX_HOSTNAME_FQHN} in directadmin.conf config ..."
-      ${da_bin} set ssl_redirect_host "${C_BOX_HOSTNAME_FQHN}"
+      #0) Set the ssl_redirect_host :
+      # This options is deprecated in directadmin 1.62+ https://www.directadmin.com/features.php?id=801 (it replaced with javascript redirection)
+      # echo "[${SCRIPT_NAME}]: Setting ssl_redirect_host to ${LABEL_C_BOX_HOSTNAME_FQHN} in directadmin.conf config ..."
+      # ${da_bin} set ssl_redirect_host "${C_BOX_HOSTNAME_FQHN}"
 
       echo "[${SCRIPT_NAME}]: Setting redirect_host_https no in Directadmin options.conf config ..."
       ${da_cb_bin} set redirect_host_https no
@@ -14423,13 +14737,14 @@ function setup() {
       build_da_custom_settings --run
       configure_web_apps --run
       configure_da_settings --run
+      configure_da_cb_settings --run
       configure_da_redis --run
       configure_da_memcached --skip # Deprecated
       configure_da_geoip --skip     # Wait first
       # we configure dns template before creating admin, reseller and user accounts so they can use new DNS template
       configure_da_dns_templates --skip
       configure_da_owner_accounts --run
-      configure_da_admin_accounts --run-exit
+      configure_da_admin_accounts --run
       # TODO until here
       configure_da_reseller_accounts --run-force-exit
       configure_da_reseller_root_domains --run
@@ -14565,6 +14880,7 @@ CONF_PATH="${SCRIPT_PATH}/conf"
 DATA_PATH="${SCRIPT_PATH}/data"
 CODE_PATH="${SCRIPT_PATH}/code"
 ISO_PATH="${SCRIPT_PATH}/iso"
+DOWNLOAD_PATH="${SCRIPT_PATH}/download"
 SECURE_PATH="${SCRIPT_PATH}/secure"
 TEMP_PATH="${SCRIPT_PATH}/temp"
 INST_TEMP_DIR="${TEMP_PATH}/src"
@@ -14575,6 +14891,7 @@ mkdir -p "${CONF_PATH}"
 mkdir -p "${DATA_PATH}"
 mkdir -p "${CODE_PATH}"
 mkdir -p "${ISO_PATH}"
+mkdir -p "${DOWNLOAD_PATH}"
 mkdir -p "${SECURE_PATH}"
 mkdir -p "${TEMP_PATH}"
 mkdir -p "${INST_TEMP_DIR}"
@@ -14887,8 +15204,31 @@ ENDSSH
     exit 0
     break
     ;;
+  # maxinet --get-remote-files "~/maxinet.log"
+  --get-remote-files | --download-remote-files | --get-remote-file | --download-remote-file)
+    shift
+    #eg: ~/maxinet.log
+    remote_files_path="$1"
+    echo "Downloading file(s) ${remote_files_path} into ${DOWNLOAD_PATH}/..."
+    ssh_api file-download --server-port "${C_BOX_HOSTNAME_FQHN}:${C_SSH_PORT}" --group-user root:root --remote-path "${remote_files_path}" --local-path "${DOWNLOAD_PATH}/"
+    retval=$?
+    if [ "${retval}" -eq 0 ]; then
+      _echo "$(msg green)Success, file ${remote_file_path} downloaded into ${DOWNLOAD_PATH}/${remote_file_path}$(msg end)" --name
+    else
+      _echo "$(msg red)Error, something is wrong when trying to download remote file$(msg end)" --name
+    fi
+    exit 0
+    break
+    ;;
     # ./maxinet --ssh-login <optional_hostname> <optional_port> <optional_user>
     # If hostname or port are not provided, they will use the default ones from config file
+
+  --generate-port)
+    shift
+    comm -23 <(seq 49152 65535 | sort) <(ss -Htan | awk '{print $4}' | cut -d':' -f2 | sort -u) | shuf | head -n 3
+    exit 0
+    break
+    ;;
   --ssh-login | --login-to-server | --login)
     shift
     ssh_api login "$@"
@@ -14950,6 +15290,60 @@ ENDSSH
     shift
     iso_api "$@"
     exit 0
+    break
+    ;;
+  --remove-da-domain)
+    shift
+    domain="$1"
+    echo "Removing domain from /etc/virtual/domains ..."
+    grep -v "^${domain}" /etc/virtual/domains >tmpfile
+    cat tmpfile >/etc/virtual/domains
+    echo ""
+    echo "Removing domain from /etc/virtual/domainowners ..."
+    grep -v "^${domain}" /etc/virtual/domainowners >tmpfile
+    cat tmpfile >/etc/virtual/domainowners
+    echo ""
+    echo "Removing domain from /etc/virtual/${domain} ..."
+    rm -rf /etc/virtual/${domain}
+    echo ""
+    exit 0
+    break
+    ;;
+  --remove-da-user)
+    shift
+    username="$1"
+    user_directory="/usr/local/directadmin/data/users/${username}"
+    echo "Removing user directadmin directory at ${user_directory} ..."
+    if [ -d "${user_directory}" ]; then
+      rm -rf "${user_directory}"
+    else
+      echo "Warning, path ${user_directory} not found"
+    fi
+    echo ""
+    all_user_cache="/usr/local/directadmin/data/admin/show_all_users_cache"
+    echo "Removing all directadmin user cache at ${user_directory} ..."
+    if [ -f "${all_user_cache}" ]; then
+      rm -rf "${all_user_cache}"
+    else
+      echo "Warning, path ${all_user_cache} not found"
+    fi
+    echo ""
+    quotaoff_bin="$(command -v quotaoff)"
+    _echo "$(msg cyan)Turning off system quota ...$(msg end)" --name
+    ${quotaoff_bin} -a
+    echo ""
+    user_home_directory="/home/${user}"
+    echo "Removing user home directory at ${user_home_directory} ..."
+    if [ -d "${user_home_directory}" ]; then
+      rm -rf "${user_home_directory}"
+    else
+      echo "Warning, path ${user_home_directory} not found"
+    fi
+    echo ""
+    exit 0
+    echo "Removing user or group ${user} from system ..."
+    deluser ${user}
+    echo ""
     break
     ;;
     # Test or user linode API here
