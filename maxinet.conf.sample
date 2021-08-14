@@ -507,9 +507,35 @@ C_DA_RESELLER_SECURITY_A1=("STHAM" "MMU")
 #DA_RESELLER_ROOT_WEB_TYPE1=("testreseller.com:wordpress:5.6")
 #<domain_name>:<db_name>:<db_user>:<db_password>
 C_DA_RESELLER_DB1=("testreseller.com:wwwdb:wwwusr:password_here" "testreseller.com:wwwdb2:wwwusr:password_here" "testreseller.com:testdb:testusr:password_here")
-# Whether to enable or disable modesecurity for the subdomain
+# Whether to enable or disable modsecurity for the subdomain
 C_DA_RESELLER_MODSEC1=("testreseller.com:sales+OFF:login+ON")
 # === DA reseller end ===
+
+# To create another N resellers use the following template (you can have unlimited DA reseller users based on your license:
+
+# C_DA_RESELLER_NAME2=
+# C_DA_RESELLER_USERNAME2=
+# C_DA_RESELLER_USERPASS2=
+# C_DA_RESELLER_SYSTEM_EMAIL2=
+# C_DA_RESELLER_MAIL_USER2=
+# C_DA_RESELLER_MAIL_PASSWORD2=
+## This is the main reseller package
+# C_DA_RESELLER_PACKAGE_NAME2=
+# C_DA_RESELLER_DOMAIN2=
+# C_DA_RESELLER_WILDCARD_DOMAIN2=
+## Required at least one subdomain for now
+# C_DA_RESELLER_SUBDOMAIN2=
+# C_DA_RESELLER_IP_TYPE2=
+# C_DA_RESELLER_ENABLE_DOMAIN_SSL2=
+# C_DA_RESELLER_SSL_SUB_NAME2=
+## Security question and answers
+## Can be empty with ""
+#C_DA_RESELLER_SECURITY_Q2=
+#C_DA_RESELLER_SECURITY_A2=
+#C_DA_RESELLER_DB2=
+## Whether to enable or disable modsecurity for the subdomain
+#C_DA_RESELLER_MODSEC2=
+
 
 # === DA user start ===
 # user name, where the main username variable should have variable postfix of 1
