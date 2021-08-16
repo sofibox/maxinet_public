@@ -94,12 +94,6 @@ C_COMPANY_ID="codegix"
 # Possible values are: true, false
 C_USE_MULTI_LOG_FILE=true
 
-# C_USE_LATEST_ISO:
-# This variable is used to enable the --create-iso option to use latest ISO file from the web to create OS server automated installation.
-# Currently only Debian operating system is supported
-# Possible values are: true, false
-C_USE_LATEST_ISO=true
-
 # C_ENABLE_DNSSEC:
 # This option enable the DNS feature of DNSSEC for a server
 # Note that this feature is only tested in Directadmin. Default value is false
@@ -653,7 +647,15 @@ C_SSH_USERPASS="*long-secured-password*"
 C_SSH_PUBLIC_KEY="ssh-rsa AAAAB3N***AAAQE***nsAQENik/Al***G/8***Y sofibox-auth-test.sofibox.com-v1"
 # Planned feature
 C_SSH_PASSPHRASE="**SSH_PASSPHRASE***"
+
+# C_USE_LATEST_ISO:
+# This variable is used to enable the --create-iso option to use latest ISO file from the web to create OS server automated installation.
+# Currently only Debian operating system is supported
+# Possible values are: true, false
+C_USE_LATEST_ISO=false
 C_BOX_ISO_OS_TYPE="debian"
+C_DEBIAN_OS_SELECT_VERSION="11.0.0"
+C_DEBIAN_OS_CODE_NAME="bullseye"
 # values: custom, normal, console | do not use console if system support GUI, else you will see blank UI
 # only use console for system that does not support graphic display, for example linode lish without glish.
 # This feature has been removed temporarily from the script (will leave this variable for technical reason)

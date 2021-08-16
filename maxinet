@@ -5,7 +5,7 @@
 # Author: Arafat Ali | Email: webmaster@sofibox.com | Website: sofibox.com
 _APP_SPECIFIC_NAME="Maxinet"
 # Note some minor versions are not published
-_APP_VERSION="0.5.7.4"
+_APP_VERSION="0.5.7.5"
 _APP_STATUS="alpha"
 _APP_VERSION_STATUS="${_APP_VERSION}-${_APP_STATUS}"
 
@@ -2928,7 +2928,11 @@ function create_file() {
         echo "# Author: ${C_ADMIN_NAME} | Email: ${C_ADMIN_EMAIL} | Web: ${C_BOX_DOMAIN}"
         echo "# Warning, this preseed configuration file contains sensitive information about a server. Do not share this file to public"
         echo "# ==============================================="
-        echo "#### Preseed preconfiguration file (for Debian buster)"
+        if [ "${C_DEBIAN_OS_CODE_NAME}" == "buster" ]; then
+          echo "#### Preseed preconfiguration file (for Debian buster)"
+        elif [ "${C_DEBIAN_OS_CODE_NAME}" == "bullseye" ]; then
+          echo "#### Preseed preconfiguration file (for Debian bullseye)"
+        fi
         echo "### Partman early command"
 
         #echo "d-i partman/early_command \\"
@@ -3404,8 +3408,8 @@ function iso_api() {
         debian_isofile_final_base_name
 
       debian_name="debian"
-      debian_release="buster"
-      debian_select_version="10.10.0"
+      debian_release="${C_DEBIAN_OS_CODE_NAME}"
+      debian_select_version="${C_DEBIAN_OS_SELECT_VERSION}"
       debian_latest_version=$(curl -s 'http://cdimage.debian.org/cdimage/release/current/amd64/iso-cd/' | grep -oP 'href="debian-\K[0-9]+\.[0-9]+\.[0-9]+' | sort -t. -rn -k1,1 -k2,2 -k3,3 | head -1)
       debian_select_platform="amd64"
       debian_image_type="iso-cd"
@@ -3423,8 +3427,8 @@ function iso_api() {
       fi
 
       debian_iso_url="http://cdimage.debian.org/cdimage/release/current/${debian_select_platform}/${debian_image_type}/${debian_name}-${debian_select_version}-${debian_select_platform}-${debian_iso_installation_type}.iso"
-      debian_initrd_gz_url="http://ftp.debian.org/debian/dists/buster/main/installer-amd64/current/images/hd-media/initrd.gz"
-      debian_vmlinuz_url="http://ftp.debian.org/debian/dists/buster/main/installer-amd64/current/images/hd-media/vmlinuz"
+      debian_initrd_gz_url="http://ftp.debian.org/debian/dists/${debian_release}/main/installer-amd64/current/images/hd-media/initrd.gz"
+      debian_vmlinuz_url="http://ftp.debian.org/debian/dists/${debian_release}/main/installer-amd64/current/images/hd-media/vmlinuz"
 
       debian_base_iso_256sum_online_value=$(curl -s https://cdimage.debian.org/debian-cd/current/amd64/iso-cd/SHA256SUMS | grep "debian-${debian_select_version}-${debian_select_platform}-${debian_iso_installation_type}.iso" | awk '{ print $1 }')
 
@@ -3481,9 +3485,18 @@ function iso_api() {
       fi
 
       if [ "${iso_base}" == "web" ]; then
-        _echo "The Latest version of Debian detected is ${debian_latest_version} (selected version is ${debian_select_version})" --name
-        _echo "Setup will download the most recent version of Debian regardless of the selected version because C_USE_LATEST_ISO is set to yes from the config file!" --name
-        _pause 5
+        if [ "${C_USE_LATEST_ISO}" == "true" ]; then
+          _echo "The Latest version of Debian detected is ${debian_latest_version} (auto selected version is ${debian_select_version})" --name
+          _echo "Setup will download the most recent version of Debian regardless of the selected version because C_USE_LATEST_ISO is set to yes from the config file!" --name
+          _pause 5
+        else
+          if [ "${debian_latest_version}" != "${C_DEBIAN_OS_SELECT_VERSION}" ]; then
+            _echo "$(msg yellow)Warning, OS version mismatch. The Latest version of Debian detected is ${debian_latest_version} but the selected version is ${debian_select_version}$(msg end)" --name
+            _echo "The installation might fail due to the new changes in latest version of Debian. Please inspect the current OS by assigning the C_DEBIAN_OS_SELECT_VERSION to the latest version" --name
+            _echo "You can re-run this script once you did that"
+            _exit 147
+          fi
+        fi
         _echo "$(msg cyan)Downloading ISO file from ${debian_iso_url} ...$(msg end)" --name
         rm -rf "${debian_isofile}"
         wget -nc -O "${debian_isofile}" "${debian_iso_url}" || true
@@ -4701,6 +4714,7 @@ function linode_api_admin() {
     # For adding linode TXT record, record name is considered as hostname whereas record value is considered as record value
     # record name and record value can be empty
     # If we specify the value for record name, it must not contains invalid character
+
     if [ "${record_type}" == "TXT" ]; then
       # Scope completed v1
       if is_valid server_record_valid_character "${record_name}"; then
@@ -11962,9 +11976,16 @@ function configure_maxiwall() {
 
     if [ "${suricata_preferred_version}" == "backport" ]; then
       if [ "${DISTRO_ID}" == "debian" ]; then
-        _echo "Installing suricata backport version on Debian ..."
-        echo "deb http://http.debian.net/debian buster-backports main" >/etc/apt/sources.list.d/backports.list
-        apt-get -y install suricata -t buster-backports
+        if [ ${C_DEBIAN_OS_CODE_NAME} == "buster" ]; then
+          _echo "Installing suricata backport version on Debian ..."
+          echo "deb http://http.debian.net/debian buster-backports main" >/etc/apt/sources.list.d/backports.list
+          apt-get -y install suricata -t buster-backports
+        else
+          _echo "$(msg yellow)Warning, this backport is not supported in this debian code name ${C_DEBIAN_OS_CODE_NAME}.$(msg end)" --name
+          echo "Please go to suricata website to get the new instruction how to install the backport for debian!"
+          _exit 147
+
+        fi
       else
         _echo warning "Invalid DISTRO_ID selection. This DISTRO ${DISTRO_ID} is not supported in ${SCRIPT_NAME} to install suricata!"
         _exit 147
@@ -14649,15 +14670,11 @@ function setup() {
       # TODO test this
       configure_da_reseller_wildcard_domains --run-force-exit
 
-
       configure_da_reseller_subdomains --run
       configure_da_reseller_emails --run
       configure_da_reseller_databases --run
       configure_da_reseller_skins --skip #copy from admin or owner skin TODO
       configure_da_reseller_security --run
-
-
-
 
       echo " -- user ---"
       configure_da_user_accounts --run
