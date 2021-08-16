@@ -5,7 +5,7 @@
 # Author: Arafat Ali | Email: webmaster@sofibox.com | Website: sofibox.com
 _APP_SPECIFIC_NAME="Maxinet"
 # Note some minor versions are not published
-_APP_VERSION="0.5.7.3"
+_APP_VERSION="0.5.7.4"
 _APP_STATUS="alpha"
 _APP_VERSION_STATUS="${_APP_VERSION}-${_APP_STATUS}"
 
@@ -4795,6 +4795,7 @@ function linode_api_admin() {
         retval=$?
       fi
       # Linode use the same entry for A and AAAA
+      # linode_api_admin create-dns-record --domain test.com --record-type A --record-name name --record-value value --record-ttl 300
     elif [[ "${record_type}" == "A" ]]; then
       if is_valid server_record_valid_character "${record_name}"; then
         [[ ${scripting} == "false" ]] && _echo "$(msg green)OK, the given --record-name $(msg red)${record_name}$(msg green) (for hostname) is valid character$(msg end)" --name --verbose 7
@@ -4823,6 +4824,7 @@ function linode_api_admin() {
           --target "${record_value}" --ttl_sec "${record_ttl}" &>/dev/null
         retval=$?
       fi
+      # linode_api_admin create-dns-record --domain test.com --record-type AAAA --record-name name --record-value value --record-ttl 300
 
     elif [[ "${record_type}" == "AAAA" ]]; then
       if is_valid server_record_valid_character "${record_name}"; then
@@ -4841,7 +4843,7 @@ function linode_api_admin() {
         return 147
       fi
 
-      [[ ${scripting} == "false" ]] && _echo "$(msg cyan)Creating A record name $(msg red)[${record_name}]$(msg end) $(msg cyan)...$(msg end)" --name
+      [[ ${scripting} == "false" ]] && _echo "$(msg cyan)Creating AAAA record name $(msg red)[${record_name}]$(msg end) $(msg cyan)...$(msg end)" --name
 
       if [[ ${scripting} == "false" ]]; then
         ${LINODE_CLI_BIN} --pretty --json --suppress-warnings domains records-create "${domain_id}" --type "${record_type}" --name "${record_name}" \
@@ -6016,7 +6018,9 @@ function digitalocean_api_admin() {
 function amazonaws_api_admin() {
   :
 }
+
 # da_api_admin <action> <action-option-arguments>
+# For curl do not use --max-time or decrease time out because letsencrypt API will need more time to request cert
 function da_api_admin() {
   local action argnum short_opts long_opts options retval sign_as username password \
     ip_address netmask \
@@ -6025,6 +6029,8 @@ function da_api_admin() {
     domain ip_type \
     record_type record_name record_value record_ttl affect_pointers \
     special_type \
+    skin_name logo_mode logo_file \
+    answer question \
     text_output recommend_values \
     api_username api_password
 
@@ -6034,8 +6040,8 @@ function da_api_admin() {
   #echo "${action}"
   short_opts="h"
   long_opts="help,sign-as:,username:,password:,ip-address:,netmask:,email:,name:,nameserver1:,nameserver2:,where-username-is:,text-output:,package-name:, \
-  recommend-values,domain:,ip-type:, record-type:, record-name:, record-value:, record-ttl:, affect-pointers:, special-type:, \
-  api-username:,api-password:"
+  recommend-values,domain:,ip-type:, record-type:, record-name:, record-value:, record-ttl:, affect-pointers:, special-type:, skin-name:, \
+  logo-mode:,logo-file:,question:,answer:,api-username:,api-password:"
 
   options=$(getopt -o "${short_opts}" --long "${long_opts}" -n "${FUNCNAME[0]}@${action} in ${SCRIPT_NAME}" -- "$@")
   retval=$?
@@ -6068,6 +6074,11 @@ function da_api_admin() {
   record_ttl=""      # 36000
   affect_pointers="" #yes or no
   special_type=""    # dkim, dmarc, spf, dkim-policy
+  skin_name=""       # evolution, enhanced etc
+  logo_mode=""       # default-logo, dark-logo, favicon
+  logo_file=""       # /tmp/logo.png
+  question=""        # Kau dah lama hidup?
+  answer=""          # Belum
   while true; do
     case "$1" in
     -h | --help)
@@ -6157,6 +6168,26 @@ function da_api_admin() {
       ;;
     --special-type)
       special_type="$2"
+      shift 2
+      ;;
+    --skin-name)
+      skin_name="$2"
+      shift 2
+      ;;
+    --logo-mode)
+      logo_mode="$2"
+      shift 2
+      ;;
+    --logo-file)
+      logo_file="$2"
+      shift 2
+      ;;
+    --question)
+      question="$2"
+      shift 2
+      ;;
+    --answer)
+      answer="$2"
       shift 2
       ;;
     # This is not used but for reference, api_username will be automatically
@@ -6255,6 +6286,8 @@ function da_api_admin() {
     _exit 147
   fi
 
+  da_user="$(basename "$(find ${user_list_path} -name "${sign_as}" -type d | tail -n 1)")"
+
   if [[ -n "${api_username}" && -n "${api_password}" ]]; then
     da_user="$(basename "$(find ${user_list_path} -name "${api_username}" -type d | tail -n 1)")"
     if [[ -n "${da_user}" ]]; then
@@ -6265,19 +6298,17 @@ function da_api_admin() {
       _echo "$(msg red)Error, user ${api_username} does not exist in directadmin system!$(msg end)" --name
       _exit 147
     fi
-  # If the user is called admin (have not changed), then the password might be stored in setup.txt
-  elif [ "${sign_as}" == "${C_DA_OWNER_USERNAME1}" ]; then
+  # if sign_as == the first owner username and it exist in system use that first owner
+  elif [[ "${sign_as}" == "${C_DA_OWNER_USERNAME1}" && -n "${da_user}" ]]; then
     da_api_username="${C_DA_OWNER_USERNAME1}"
     da_api_password="${C_DA_OWNER_USERPASS1}"
     _echo "DA_API_USERNAME: ${da_api_username}" --name --verbose 7
-  else
-    da_user="$(basename "$(find ${user_list_path} -name "${sign_as}" -type d | tail -n 1)")"
+  else # For other users other than owner but it must exist in the system
     if [[ -n "${da_user}" ]]; then
       da_api_username="${C_DA_OWNER_USERNAME1}|${da_user}"
       da_api_password="${C_DA_OWNER_USERPASS1}"
       _echo "DA_API_USERNAME: ${da_api_username} (Login-as)" --name --verbose 7
-    else
-      # TODO testing this
+    else # If it does not exist in the system, we use default admin
       # If the above authentication does not exist, we try to use old admin from setup.txt (first check if old admin exist)
       da_user="$(basename "$(find ${user_list_path} -name "admin" -type d | tail -n 1)")"
       if [[ -n "${da_user}" ]]; then
@@ -6312,11 +6343,12 @@ function da_api_admin() {
       _echo "$(msg green)${da_api_exec}$(msg end)" --plain | urldecode | awksep '&'
     fi
 
-  # da_api_admin test-login --sign-as owner1
+  # da_api_admin test-login --username username_to_check
+  # it will return exist=1 if found or exist=0 if not found
   elif [[ "${action}" == "test-login" || "${action}" == "login" ]]; then
     local cmd_api data method retval da_api_exec has_success
-    cmd_api="CMD_LOGIN"
-    data="username=${da_api_username}&password=${da_api_password}"
+    cmd_api="CMD_API_USER_EXISTS"
+    data="user=${username}"
     method="POST"
     da_api_exec=$(curl --silent --request "${method}" --user "${da_api_username}":"${da_api_password}" --data "${data}" "${ssl_protocol}://${C_BOX_HOSTNAME_FQHN}:${C_DA_PORT}/${cmd_api}")
     has_success=$(echo "${da_api_exec}" | grep -w '^error=0')
@@ -6330,6 +6362,7 @@ function da_api_admin() {
       _echo "$(msg green)${da_api_exec}$(msg end)" --plain | urldecode | awksep '&'
     fi
     # eg: for ipv4 -> maxinet --da-api add-ip --sign-as owner1 --ip-address 1.1.1.1 --netmask 255.255.255.0
+  # eg: for ipv6 -> maxinet --da-api add-ip --ip-address 2001:0db8:3c4d:0015:0000:0000:1a2f:1a2b --netmask /64 for ipv4 -> maxinet --da-api add-ip --sign-as owner1 --ip-address 1.1.1.1 --netmask 255.255.255.0
   # eg: for ipv6 -> maxinet --da-api add-ip --ip-address 2001:0db8:3c4d:0015:0000:0000:1a2f:1a2b --netmask /64
   elif [[ "${action}" == "add-ip" ]]; then
     local cmd_api data method retval da_api_exec has_success
@@ -6369,28 +6402,38 @@ function da_api_admin() {
     #da_api_admin set-da-admin-settings --recommend-values
   elif [[ "${action}" == "set-da-admin-settings" ]]; then
     # Big NOTE! directadmin does not have CMD_API_ADMIN_SETTINGS
-    local cmd_api data method retval da_api_exec has_success cmd_api_not_release
-    cmd_api_not_release=true
+    local cmd_api data method retval da_api_exec has_success cmd_api_release
+    cmd_api_release=false
     _echo "$(msg yellow)Note, directadmin does not have CMD_API_ADMIN_SETTINGS (https://forum.directadmin.com/threads/api-set-server-hostname.37872/post-188426). Using CMD_ADMIN_SETTINGS ...$(msg end)" --name
-    # Note CMD_API_ADMIN_SETTINGS does not work, will get the following error:
     #error=1&text=You%20cannot%20execute%20that%20command&details=The%20request%20you%27ve%20made%20cannot%20be%20executed%20because%20it%20does%20not%20exist%20in%20your%20authority%20level
-    cmd_api="CMD_ADMIN_SETTINGS"
-    if [ "${recommend_values}" == "true" ]; then
-      # TODO: Note the auto_update=yes might be part of custombuild setting (check that)
-      # Remember to use json=yes, if not no output or weird output because API has not released
-      data="auto_update=yes&backup_threshold=90&demo_admin=no&demo_reseller=no&demo_user=no&oversell=yes \
-      &service_email_active=yes&suspend=yes&user_backup=yes&action=save&json=yes"
-    else
-      _echo "$(msg red)Error, please temporarily use the option --recommend-values for this action ${action} $(msg end)" --name
-      # Add single values here
-      _exit 147
-    fi
-    #echo "DATA is: ${data}"
+    # Note this CMD_API_ADMIN_SETTINGS have not been released. So, we need to use json and ignore error checking
+    # If the API is released, just put cmd_api_release=true, this will automatically use the new API
     method="POST"
     # This API includes security settings and email settings (DA combined this)
-    if [ "${cmd_api_not_release}" == "true" ]; then
+    if [ "${cmd_api_release}" == "false" ]; then
+      cmd_api="CMD_ADMIN_SETTINGS"
+      if [ "${recommend_values}" == "true" ]; then
+        # TODO: Note the auto_update=yes here might be part of custombuild setting (check that)
+        # Remember to use json=yes, if not no output or weird output because API has not released
+        data="auto_update=yes&backup_threshold=90&demo_admin=no&demo_reseller=no&demo_user=no&oversell=yes \
+      &service_email_active=yes&suspend=yes&user_backup=yes&action=save&json=yes"
+      else
+        _echo "$(msg red)Error, please temporarily use the option --recommend-values for this action ${action} $(msg end)" --name
+        # Add single values here
+        _exit 147
+      fi
       curl --silent --request "${method}" --user "${da_api_username}":"${da_api_password}" --data "${data}" "${ssl_protocol}://${C_BOX_HOSTNAME_FQHN}:${C_DA_PORT}/${cmd_api}"
     else
+      cmd_api="CMD_API_ADMIN_SETTINGS"
+      if [ "${recommend_values}" == "true" ]; then
+        data="auto_update=yes&backup_threshold=90&demo_admin=no&demo_reseller=no&demo_user=no&oversell=yes \
+      &service_email_active=yes&suspend=yes&user_backup=yes&action=save"
+      else
+        _echo "$(msg red)Error, please temporarily use the option --recommend-values for this action ${action} $(msg end)" --name
+        # Add single values here
+        _exit 147
+      fi
+
       da_api_exec=$(curl --silent --request "${method}" --user "${da_api_username}":"${da_api_password}" --data "${data}" "${ssl_protocol}://${C_BOX_HOSTNAME_FQHN}:${C_DA_PORT}/${cmd_api}")
       has_success=$(echo "${da_api_exec}" | grep -w '^error=0')
 
@@ -6412,14 +6455,7 @@ function da_api_admin() {
     if [ "${recommend_values}" == "true" ]; then
       # Recommend values
       # Remember to use json=yes, if not no output or weird output because API has not released
-      data="brute_force_log_scanner=yes&brute_force_scan_apache_logs=2&brute_force_time_limit=1200&brutecount=20 \
-    &brute_dos_count=100&bruteforce=yes&check_partitions=2&check_subdomain_owner=no&clear_blacklist_ip_time=86400 \
-    &clear_brute_log_entry_time=4&clear_brute_log_time=24&demodocsroot=.%2Fdata%2Fskins%2Fevolution \
-    &enforce_difficult_passwords=yes&exempt_local_block=yes&ip_brutecount=${C_DA_IP_BRUTECOUNT}&logs_to_keep=${C_DA_ADMIN_LOGS_TO_KEEP}&lost_password=no \
-    &max_per_email_send_limit=-1&maxfilesize=5368709120&ns1=${C_BOX_NS1}&ns2=${C_BOX_NS2}&partition_usage_threshold=95 \
-    &per_email_limit=200&purge_spam_days=0&rbl_enabled=yes&servername=${C_BOX_HOSTNAME_FQHN}&session_minutes=${C_DA_SESSION_MINUTES} \
-    &timeout=35791&user_brutecount=${C_DA_USER_BRUTECOUNT}&user_can_set_email_limit=yes&virtual_limit=1000&unblock_brute_ip_time=86400 \
-    &timezone=${C_BOX_TIMEZONE}&max_username_length=${C_DA_MAX_USERNAME_LENGTH}&action=config&json=yes"
+      data="per_email_limit=200&rbl_enabled=yes&session_minutes=${C_DA_SESSION_MINUTES}&virtual_limit=1000&action=config&json=yes"
     else
       _echo "$(msg red)Error, please temporarily use the option --recommend-values for this action ${action} $(msg end)" --name
       # Add single values here
@@ -6430,9 +6466,7 @@ function da_api_admin() {
       curl --silent --request "${method}" --user "${da_api_username}":"${da_api_password}" --data "${data}" "${ssl_protocol}://${C_BOX_HOSTNAME_FQHN}:${C_DA_PORT}/${cmd_api}"
     else
       da_api_exec=$(curl --silent --request "${method}" --user "${da_api_username}":"${da_api_password}" --data "${data}" "${ssl_protocol}://${C_BOX_HOSTNAME_FQHN}:${C_DA_PORT}/${cmd_api}")
-
       has_success=$(echo "${da_api_exec}" | grep -w '^error=0')
-
       if [ -z "${has_success}" ]; then
         _echo "$(msg red)Error, API with action ${action} executed with the following error: $(msg end)" --name
         _echo "$(msg red)${da_api_exec}$(msg end)" --plain | urldecode | awksep '&'
@@ -6675,6 +6709,127 @@ function da_api_admin() {
       _echo "$(msg green)OK, API with action ${action} executed with the following status: $(msg end)" --name
       _echo "$(msg green)${da_api_exec}$(msg end)" --plain | urldecode | awksep '&'
     fi
+    # da_api_admin set-da-skin-settings --skin-name="evolution"
+  elif [[ "${action}" == "set-da-skin-settings" || "${action}" == "set-da-skin-setting" ]]; then
+    local cmd_api data method retval da_api_exec has_success
+    cmd_api="CMD_API_SKINS"
+    #config will be stored in: username/skin_customizations/evolution/config.json
+    db_route_name=$(echo "${C_PHPMYADMIN_LOGIN_ROUTE}" | sed 's/^\///')
+    rc_route_name=$(echo "${C_ROUNDCUBE_LOGIN_ROUTE}" | sed 's/^\///')
+    # This value I got from da-debug, removed the json=yes inside that json, validate that json file online, then add extra json=yes&name=evolution&action=save_config_json&config.json=
+    if [ "${recommend_values}" == "true" ]; then
+      # TODO shorten this long json
+      if [ "${skin_name}" == "evolution" ]; then
+        data="name=${skin_name}&action=save_config_json&config.json=%7B%22menu%22%3A%7B%22user%22%3A%5B%7B%22name%22%3A%22Account%20Manager%22%2C%22icon%22%3A%22account-manager%22%2C%22enabled%22%3Atrue%2C%22columnSize%22%3A5%2C%22entries%22%3A%5B%7B%22route%22%3A%22%2Fuser%2Fdomains%22%2C%22name%22%3A%22Domain%20Setup%22%2C%22icon%22%3A%22domain-setup%22%2C%22enabled%22%3Atrue%7D%2C%7B%22route%22%3A%22%2Fuser%2Fsubdomains%22%2C%22name%22%3A%22Subdomain%20Management%22%2C%22icon%22%3A%22subdomain-management%22%2C%22enabled%22%3Atrue%7D%2C%7B%22route%22%3A%22%2Fuser%2Fdns%22%2C%22name%22%3A%22DNS%20Management%22%2C%22icon%22%3A%22dns-management%22%2C%22enabled%22%3Atrue%7D%2C%7B%22route%22%3A%22%2Fuser%2Fssl%22%2C%22name%22%3A%22SSL%20Certificates%22%2C%22icon%22%3A%22ssl%22%2C%22enabled%22%3Atrue%7D%2C%7B%22route%22%3A%22%2Fuser%2Fftp-accounts%22%2C%22name%22%3A%22FTP%20Management%22%2C%22icon%22%3A%22ftp-management%22%2C%22enabled%22%3Atrue%7D%2C%7B%22route%22%3A%22%2Fuser%2Fdatabase%22%2C%22name%22%3A%22MySQL%20Management%22%2C%22icon%22%3A%22mysql-management%22%2C%22enabled%22%3Atrue%7D%2C%7B%22route%22%3A%22%2Fuser%2Fdomain-pointers%22%2C%22name%22%3A%22Domain%20Pointers%22%2C%22icon%22%3A%22domain-pointers%22%2C%22enabled%22%3Atrue%7D%2C%7B%22route%22%3A%22%2Fuser%2Fredirects%22%2C%22name%22%3A%22Site%20Redirection%22%2C%22icon%22%3A%22site-redirection%22%2C%22enabled%22%3Atrue%7D%2C%7B%22route%22%3A%22%2Fuser%2Fhotlinks%22%2C%22name%22%3A%22Hotlinks%20Protection%22%2C%22icon%22%3A%22hotlinks%22%2C%22enabled%22%3Atrue%7D%2C%7B%22route%22%3A%22%2Fuser%2Fphp-settings%22%2C%22name%22%3A%22PHP%20Settings%22%2C%22icon%22%3A%22php-configuration%22%2C%22enabled%22%3Atrue%7D%5D%7D%2C%7B%22name%22%3A%22E-mail%20Manager%22%2C%22icon%22%3A%22email-manager%22%2C%22enabled%22%3Atrue%2C%22columnSize%22%3A5%2C%22entries%22%3A%5B%7B%22route%22%3A%22%2Fuser%2Femail%2Faccounts%22%2C%22name%22%3A%22E-mail%20Accounts%22%2C%22icon%22%3A%22email-accounts%22%2C%22enabled%22%3Atrue%7D%2C%7B%22route%22%3A%22%2Fuser%2Femail%2Fforwarders%22%2C%22name%22%3A%22Forwarders%22%2C%22icon%22%3A%22forwarders%22%2C%22enabled%22%3Atrue%7D%2C%7B%22route%22%3A%22%2Fuser%2Femail%2Fautoresponders%22%2C%22name%22%3A%22Autoresponders%22%2C%22icon%22%3A%22autoresponders%22%2C%22enabled%22%3Atrue%7D%2C%7B%22route%22%3A%22%2Fuser%2Femail%2Fvacations%22%2C%22name%22%3A%22Vacation%20Messages%22%2C%22icon%22%3A%22vacation-messages%22%2C%22enabled%22%3Atrue%7D%2C%7B%22route%22%3A%22%2Fuser%2Femail%2Fspamassassin%22%2C%22name%22%3A%22Spamassassin%20Setup%22%2C%22icon%22%3A%22spamassassin%22%2C%22enabled%22%3Atrue%7D%2C%7B%22route%22%3A%22%2Fuser%2Femail%2Ffilters%22%2C%22name%22%3A%22SPAM%20Filters%22%2C%22icon%22%3A%22spam-filters%22%2C%22enabled%22%3Atrue%7D%2C%7B%22route%22%3A%22%2Fuser%2Femail%2Flists%22%2C%22name%22%3A%22Mailing%20Lists%22%2C%22icon%22%3A%22mailing-lists%22%2C%22enabled%22%3Atrue%7D%2C%7B%22route%22%3A%22%2Fuser%2Fdns%2Fmx-records%22%2C%22name%22%3A%22MX%20Records%22%2C%22icon%22%3A%22mx-records%22%2C%22enabled%22%3Atrue%7D%2C%7B%22route%22%3A%22%2Fuser%2Femail%2Ftracking%22%2C%22name%22%3A%22E-mail%20Tracking%22%2C%22icon%22%3A%22email-tracking%22%2C%22enabled%22%3Atrue%7D%5D%7D%2C%7B%22icon%22%3A%22advanced-features%22%2C%22name%22%3A%22Advanced%20Features%22%2C%22enabled%22%3Atrue%2C%22columnSize%22%3A5%2C%22entries%22%3A%5B%7B%22route%22%3A%22%2Fuser%2Fhandlers%22%2C%22name%22%3A%22Apache%20Handlers%22%2C%22icon%22%3A%22apache-handlers%22%2C%22enabled%22%3Atrue%7D%2C%7B%22route%22%3A%22%2Fuser%2Femail%2Fcatch-all%22%2C%22name%22%3A%22Catch-All%20E-mail%22%2C%22icon%22%3A%22catch-all-email%22%2C%22enabled%22%3Atrue%7D%2C%7B%22route%22%3A%22%2Fuser%2Fbackup%22%2C%22name%22%3A%22Create%2FRestore%20Backups%22%2C%22icon%22%3A%22create-restore-backup%22%2C%22enabled%22%3Atrue%7D%2C%7B%22route%22%3A%22%2Fuser%2Fcronjobs%22%2C%22name%22%3A%22Cron%20Jobs%22%2C%22icon%22%3A%22cron-jobs%22%2C%22enabled%22%3Atrue%7D%2C%7B%22route%22%3A%22%2Fuser%2Ferror-pages%22%2C%22name%22%3A%22Custom%20Error%20Pages%22%2C%22icon%22%3A%22custom-error-pages%22%2C%22enabled%22%3Atrue%7D%2C%7B%22route%22%3A%22%2Fuser%2Fmimetypes%22%2C%22name%22%3A%22Mime%20Types%22%2C%22icon%22%3A%22mime-types%22%2C%22enabled%22%3Atrue%7D%2C%7B%22route%22%3A%22%2Fuser%2Fsecurity-questions%22%2C%22name%22%3A%22Security%20Questions%22%2C%22icon%22%3A%22security-questions%22%2C%22enabled%22%3Atrue%7D%2C%7B%22route%22%3A%22%2Fuser%2Ftwo-step-auth%22%2C%22name%22%3A%22Two-Step%20Authentication%22%2C%22icon%22%3A%22two-step-auth%22%2C%22enabled%22%3Atrue%7D%2C%7B%22route%22%3A%22%2Fuser%2Fprotected-directories%22%2C%22name%22%3A%22Password%20Protected%20Directories%22%2C%22icon%22%3A%22password-protected-directories%22%2C%22enabled%22%3Atrue%7D%2C%7B%22route%22%3A%22%2Fuser%2Fssh-keys%22%2C%22name%22%3A%22SSH%20Keys%22%2C%22icon%22%3A%22ssh-keys%22%2C%22enabled%22%3Atrue%7D%2C%7B%22route%22%3A%22%2Fuser%2Fmodsecurity%22%2C%22name%22%3A%22ModSecurity%22%2C%22icon%22%3A%22mod-security%22%2C%22enabled%22%3Atrue%7D%2C%7B%22route%22%3A%22%2Fuser%2Funit%22%2C%22name%22%3A%22Nginx%20Unit%22%2C%22icon%22%3A%22nginx-unit%22%2C%22enabled%22%3Atrue%7D%2C%7B%22route%22%3A%22%2Fuser%2Fnginx-templates%22%2C%22name%22%3A%22Nginx%20URL%20Rewrites%22%2C%22icon%22%3A%22nginx-templates%22%2C%22enabled%22%3Atrue%7D%2C%7B%22route%22%3A%22%2Fuser%2Fredis%22%2C%22name%22%3A%22Redis%22%2C%22icon%22%3A%22redis%22%2C%22enabled%22%3Atrue%7D%2C%7B%22route%22%3A%22%2Fuser%2Fgit%22%2C%22name%22%3A%22Git%22%2C%22enabled%22%3Atrue%2C%22icon%22%3A%22resource-limits%22%7D%5D%7D%2C%7B%22icon%22%3A%22system-information%22%2C%22name%22%3A%22System%20Info%20%26%20Files%22%2C%22enabled%22%3Atrue%2C%22columnSize%22%3A5%2C%22entries%22%3A%5B%7B%22href%22%3A%22%2FCMD_FILE_MANAGER%22%2C%22newTab%22%3Atrue%2C%22name%22%3A%22File%20Manager%22%2C%22icon%22%3A%22file-manager%22%2C%22enabled%22%3Atrue%7D%2C%7B%22route%22%3A%22%2Fuser%2Fperl-modules%22%2C%22name%22%3A%22Installed%20Perl%20Modules%22%2C%22icon%22%3A%22installed-perl-modules%22%2C%22enabled%22%3Atrue%7D%2C%7B%22route%22%3A%22%2Fuser%2Fsystem-info%22%2C%22name%22%3A%22System%20Information%22%2C%22icon%22%3A%22server-information%22%2C%22enabled%22%3Atrue%7D%2C%7B%22route%22%3A%22%2Fuser%2Fstats%22%2C%22name%22%3A%22Site%20Summary%20%2F%20Statistics%20%2F%20Logs%22%2C%22icon%22%3A%22site-summary%22%2C%22enabled%22%3Atrue%7D%2C%7B%22route%22%3A%22%2Fuser%2Fresource-limits%22%2C%22name%22%3A%22Resource%20Limits%22%2C%22enabled%22%3Atrue%2C%22icon%22%3A%22resource-limits%22%7D%5D%7D%2C%7B%22icon%22%3A%22extra-features%22%2C%22name%22%3A%22Extra%20Features%22%2C%22enabled%22%3Atrue%2C%22columnSize%22%3A5%2C%22entries%22%3A%5B%7B%22href%22%3A%22%7CWEBAPPS_SSL%7C%3A%2F%2F%7CHOSTNAME%7C%2Fsquirrelmail%22%2C%22name%22%3A%22Webmail%3A%20Squirrelmail%22%2C%22enabled%22%3Afalse%2C%22newTab%22%3Atrue%2C%22slug%22%3A%22squirrelmail%22%2C%22icon%22%3A%22squirellmail%22%7D%2C%7B%22href%22%3A%22%7CWEBAPPS_SSL%7C%3A%2F%2F%7CHOSTNAME%7C%2F${rc_route_name}%22%2C%22name%22%3A%22Webmail%3A%20${C_ROUNDCUBE_CUSTOM_NAME}%22%2C%22enabled%22%3Atrue%2C%22newTab%22%3Atrue%2C%22slug%22%3A%22roundcube%22%2C%22icon%22%3A%22roundcube%22%7D%2C%7B%22route%22%3A%22phpmyadmin%22%2C%22name%22%3A%22phpMyAdmin%22%2C%22enabled%22%3Afalse%2C%22icon%22%3A%22phpmyadmin%22%7D%2C%7B%22route%22%3A%22plugins%22%2C%22name%22%3A%22Plugins%20will%20be%20inserted%20after%20this%20entry%22%2C%22enabled%22%3Afalse%7D%2C%7B%22name%22%3A%22Database%3A%20${C_PHPMYADMIN_CUSTOM_NAME}%22%2C%22href%22%3A%22%7CWEBAPPS_SSL%7C%3A%2F%2F%7CHOSTNAME%7C%2F${db_route_name}%22%2C%22newTab%22%3Atrue%2C%22enabled%22%3Atrue%2C%22icon%22%3A%22phpmyadmin%22%7D%5D%7D%2C%7B%22icon%22%3A%22support-help%22%2C%22name%22%3A%22Support%20%26%20Help%22%2C%22enabled%22%3Atrue%2C%22columnSize%22%3A5%2C%22entries%22%3A%5B%7B%22href%22%3A%22%7B%7Bhelp%7D%7D%22%2C%22name%22%3A%22Help%22%2C%22enabled%22%3Atrue%2C%22newTab%22%3Atrue%2C%22icon%22%3A%22help%22%7D%2C%7B%22route%22%3A%22%2Fuser%2Fcreate-ticket%22%2C%22name%22%3A%22Create%20Ticket%22%2C%22enabled%22%3Atrue%2C%22icon%22%3A%22create-ticket%22%7D%2C%7B%22route%22%3A%22%2Fuser%2Fmessages%22%2C%22name%22%3A%22Support%20Center%22%2C%22enabled%22%3Atrue%2C%22icon%22%3A%22support-center%22%7D%5D%7D%5D%2C%22reseller%22%3A%5B%7B%22name%22%3A%22Account%20Manager%22%2C%22icon%22%3A%22account-manager%22%2C%22enabled%22%3Atrue%2C%22columnSize%22%3A3%2C%22entries%22%3A%5B%7B%22route%22%3A%22%2Freseller%2Fcreate-user%22%2C%22name%22%3A%22Add%20New%20User%22%2C%22enabled%22%3Atrue%2C%22icon%22%3A%22add-new-user%22%7D%2C%7B%22route%22%3A%22%2Freseller%2Fusers%22%2C%22name%22%3A%22List%20Users%22%2C%22enabled%22%3Atrue%2C%22icon%22%3A%22list-users%22%7D%2C%7B%22route%22%3A%22%2Freseller%2Fuser-packages%22%2C%22name%22%3A%22Manage%20User%20Packages%22%2C%22enabled%22%3Atrue%2C%22icon%22%3A%22manage-user-packages%22%7D%2C%7B%22route%22%3A%22%2Freseller%2Fpasswords%22%2C%22name%22%3A%22Change%20Passwords%22%2C%22enabled%22%3Atrue%2C%22icon%22%3A%22change-passwords%22%7D%2C%7B%22route%22%3A%22%2Freseller%2Fedit-user-message%22%2C%22name%22%3A%22Edit%20User%20Message%22%2C%22enabled%22%3Atrue%2C%22icon%22%3A%22edit-user-message%22%7D%2C%7B%22route%22%3A%22%2Freseller%2Fsuspension-message%22%2C%22name%22%3A%22Suspension%20Message%22%2C%22enabled%22%3Atrue%2C%22icon%22%3A%22edit-user-message%22%7D%5D%7D%2C%7B%22name%22%3A%22Server%20Manager%22%2C%22icon%22%3A%22server-manager%22%2C%22enabled%22%3Atrue%2C%22columnSize%22%3A5%2C%22entries%22%3A%5B%7B%22route%22%3A%22%2Freseller%2Fip-config%22%2C%22name%22%3A%22IP%20Management%22%2C%22enabled%22%3Atrue%2C%22icon%22%3A%22ip-management%22%7D%2C%7B%22route%22%3A%22%2Freseller%2Fnameservers%22%2C%22name%22%3A%22Name%20Servers%22%2C%22enabled%22%3Atrue%2C%22icon%22%3A%22name-servers%22%7D%2C%7B%22route%22%3A%22%2Fuser%2Fssh-keys%22%2C%22name%22%3A%22SSH%20Keys%22%2C%22enabled%22%3Atrue%2C%22icon%22%3A%22ssh-keys%22%7D%5D%7D%2C%7B%22name%22%3A%22Reseller%20Tools%22%2C%22icon%22%3A%22admin-tools%22%2C%22enabled%22%3Atrue%2C%22columnSize%22%3A5%2C%22entries%22%3A%5B%7B%22route%22%3A%22%2Freseller%2Fbackups%22%2C%22name%22%3A%22Manage%20User%20Backups%22%2C%22enabled%22%3Atrue%2C%22icon%22%3A%22manage-user-backups%22%7D%2C%7B%22route%22%3A%22%2Freseller%2Fmessage-users%22%2C%22name%22%3A%22Message%20All%20Users%22%2C%22enabled%22%3Atrue%2C%22icon%22%3A%22message-all-users%22%7D%2C%7B%22route%22%3A%22%2Freseller%2Fskins%22%2C%22name%22%3A%22Skin%20Manager%22%2C%22enabled%22%3Atrue%2C%22icon%22%3A%22skin-manager%22%7D%2C%7B%22route%22%3A%22%2Freseller%2Fcustomize-skin%22%2C%22name%22%3A%22Customize%20Evolution%20Skin%22%2C%22enabled%22%3Atrue%2C%22icon%22%3A%22customize-evolution-skin%22%7D%5D%7D%2C%7B%22name%22%3A%22System%20Info%20%26%20Files%22%2C%22icon%22%3A%22system-information%22%2C%22enabled%22%3Atrue%2C%22columnSize%22%3A5%2C%22entries%22%3A%5B%7B%22href%22%3A%22%2FCMD_FILE_MANAGER%22%2C%22newTab%22%3Atrue%2C%22name%22%3A%22File%20Manager%22%2C%22enabled%22%3Atrue%2C%22icon%22%3A%22file-manager%22%7D%2C%7B%22route%22%3A%22%2Freseller%2Fsystem-info%22%2C%22name%22%3A%22System%20Information%22%2C%22enabled%22%3Atrue%2C%22icon%22%3A%22system-info%22%7D%2C%7B%22route%22%3A%22%2Freseller%2Fstats%22%2C%22name%22%3A%22Reseller%20Statistics%22%2C%22enabled%22%3Atrue%2C%22icon%22%3A%22reseller-statistics%22%7D%2C%7B%22route%22%3A%22%2Freseller%2Fresource-limits%22%2C%22name%22%3A%22Resource%20Limits%22%2C%22enabled%22%3Atrue%2C%22icon%22%3A%22resource-limits%22%7D%5D%7D%2C%7B%22name%22%3A%22Extra%20Features%22%2C%22icon%22%3A%22extra-features%22%2C%22enabled%22%3Atrue%2C%22columnSize%22%3A5%2C%22entries%22%3A%5B%7B%22href%22%3A%22%7CWEBAPPS_SSL%7C%3A%2F%2F%7CHOSTNAME%7C%2Fsquirrelmail%22%2C%22name%22%3A%22Webmail%3A%20Squirrelmail%22%2C%22enabled%22%3Afalse%2C%22newTab%22%3Atrue%2C%22slug%22%3A%22squirrelmail%22%2C%22icon%22%3A%22squirellmail%22%7D%2C%7B%22href%22%3A%22%7CWEBAPPS_SSL%7C%3A%2F%2F%7CHOSTNAME%7C%2Fwebmail%22%2C%22name%22%3A%22Webmail%3A%20UebiMiau%22%2C%22enabled%22%3Afalse%2C%22newTab%22%3Atrue%2C%22slug%22%3A%22uebimiau%22%2C%22icon%22%3A%22uebimiau%22%7D%2C%7B%22href%22%3A%22%7CWEBAPPS_SSL%7C%3A%2F%2F%7CHOSTNAME%7C%2F${rc_route_name}%22%2C%22name%22%3A%22Webmail%3A%20${C_ROUNDCUBE_CUSTOM_NAME}%22%2C%22enabled%22%3Atrue%2C%22newTab%22%3Atrue%2C%22slug%22%3A%22roundcube%22%2C%22icon%22%3A%22roundcube%22%7D%2C%7B%22route%22%3A%22phpmyadmin%22%2C%22name%22%3A%22phpMyAdmin%22%2C%22enabled%22%3Afalse%2C%22icon%22%3A%22phpmyadmin%22%7D%2C%7B%22route%22%3A%22plugins%22%2C%22name%22%3A%22Plugins%20will%20be%20inserted%20after%20this%20entry%22%2C%22enabled%22%3Afalse%7D%2C%7B%22name%22%3A%22Database%3A%20${C_PHPMYADMIN_CUSTOM_NAME}%22%2C%22href%22%3A%22%7CWEBAPPS_SSL%7C%3A%2F%2F%7CHOSTNAME%7C%2F${db_route_name}%22%2C%22newTab%22%3Atrue%2C%22enabled%22%3Atrue%2C%22icon%22%3A%22phpmyadmin%22%7D%5D%7D%2C%7B%22name%22%3A%22Support%20%26%20Help%22%2C%22icon%22%3A%22support-help%22%2C%22enabled%22%3Atrue%2C%22columnSize%22%3A5%2C%22entries%22%3A%5B%7B%22href%22%3A%22%7B%7Bhelp%7D%7D%22%2C%22name%22%3A%22Help%22%2C%22enabled%22%3Atrue%2C%22newTab%22%3Atrue%2C%22icon%22%3A%22help%22%7D%2C%7B%22route%22%3A%22%2Freseller%2Ftickets%22%2C%22name%22%3A%22Manage%20Tickets%22%2C%22enabled%22%3Atrue%2C%22icon%22%3A%22manage-tickets%22%7D%2C%7B%22route%22%3A%22%2Freseller%2Ftickets%2Fcreate%22%2C%22name%22%3A%22Create%20Ticket%22%2C%22enabled%22%3Atrue%2C%22icon%22%3A%22create-ticket%22%7D%5D%7D%5D%2C%22admin%22%3A%5B%7B%22name%22%3A%22Account%20Manager%22%2C%22icon%22%3A%22account-manager%22%2C%22enabled%22%3Atrue%2C%22columnSize%22%3A4%2C%22entries%22%3A%5B%7B%22route%22%3A%22%2Freseller%2Fcreate-user%22%2C%22name%22%3A%22Add%20New%20User%22%2C%22enabled%22%3Atrue%2C%22icon%22%3A%22add-new-user%22%7D%2C%7B%22route%22%3A%22%2Fadmin%2Fusers%22%2C%22name%22%3A%22Show%20All%20Users%22%2C%22enabled%22%3Atrue%2C%22icon%22%3A%22show-all-users%22%7D%2C%7B%22route%22%3A%22%2Freseller%2Fusers%22%2C%22name%22%3A%22My%20Users%22%2C%22enabled%22%3Atrue%2C%22icon%22%3A%22list-users%22%7D%2C%7B%22route%22%3A%22%2Freseller%2Fuser-packages%22%2C%22name%22%3A%22Manage%20User%20Packages%22%2C%22enabled%22%3Atrue%2C%22icon%22%3A%22manage-user-packages%22%7D%2C%7B%22route%22%3A%22%2Fadmin%2Fusers%2Fmove%22%2C%22name%22%3A%22Move%20Users%20between%20Resellers%22%2C%22enabled%22%3Atrue%2C%22icon%22%3A%22move-users-between-resellers%22%7D%2C%7B%22route%22%3A%22%2Freseller%2Fedit-user-message%22%2C%22name%22%3A%22Edit%20User%20Message%22%2C%22enabled%22%3Atrue%2C%22icon%22%3A%22edit-user-message%22%7D%2C%7B%22route%22%3A%22%2Fadmin%2Fpasswords%22%2C%22name%22%3A%22Change%20Passwords%22%2C%22enabled%22%3Atrue%2C%22icon%22%3A%22change-passwords%22%7D%2C%7B%22route%22%3A%22%2Fadmin%2Fusers%2Fresellers%2Fcreate%22%2C%22name%22%3A%22Create%20Reseller%22%2C%22enabled%22%3Atrue%2C%22icon%22%3A%22create-reseller%22%7D%2C%7B%22route%22%3A%22%2Fadmin%2Fusers%2Fresellers%22%2C%22name%22%3A%22List%20Resellers%22%2C%22enabled%22%3Atrue%2C%22icon%22%3A%22list-resellers%22%7D%2C%7B%22route%22%3A%22%2Fadmin%2Freseller-packages%22%2C%22name%22%3A%22Manage%20Reseller%20Packages%22%2C%22enabled%22%3Atrue%2C%22icon%22%3A%22manage-reseller-packages%22%7D%2C%7B%22route%22%3A%22%2Fadmin%2Fusers%2Fadmins%2Fcreate%22%2C%22name%22%3A%22Create%20Administrator%22%2C%22enabled%22%3Atrue%2C%22icon%22%3A%22create-administrator%22%7D%2C%7B%22route%22%3A%22%2Fadmin%2Fusers%2Fadmins%22%2C%22name%22%3A%22List%20Administrators%22%2C%22enabled%22%3Atrue%2C%22icon%22%3A%22list-administrators%22%7D%2C%7B%22route%22%3A%22%2Fadmin%2Fsuspension-message%22%2C%22name%22%3A%22Suspension%20Message%22%2C%22enabled%22%3Atrue%2C%22icon%22%3A%22edit-user-message%22%7D%5D%7D%2C%7B%22name%22%3A%22Server%20Manager%22%2C%22icon%22%3A%22server-manager%22%2C%22enabled%22%3Atrue%2C%22columnSize%22%3A3%2C%22entries%22%3A%5B%7B%22route%22%3A%22%2Fadmin%2Fsettings%22%2C%22name%22%3A%22Administrator%20Settings%22%2C%22enabled%22%3Atrue%2C%22icon%22%3A%22administrator-settings%22%7D%2C%7B%22route%22%3A%22%2Fadmin%2Fcustom-httpd%22%2C%22name%22%3A%22Custom%20HTTPD%20Configurations%22%2C%22enabled%22%3Atrue%2C%22icon%22%3A%22custom-httpd-configuration%22%7D%2C%7B%22route%22%3A%22%2Fadmin%2Fdns%22%2C%22name%22%3A%22DNS%20Administration%22%2C%22enabled%22%3Atrue%2C%22icon%22%3A%22dns-administration%22%7D%2C%7B%22route%22%3A%22%2Fadmin%2Fip-manager%22%2C%22name%22%3A%22IP%20Management%22%2C%22enabled%22%3Atrue%2C%22icon%22%3A%22ip-management%22%7D%2C%7B%22route%22%3A%22%2Freseller%2Fnameservers%22%2C%22name%22%3A%22Name%20Servers%22%2C%22enabled%22%3Atrue%2C%22icon%22%3A%22name-servers%22%7D%2C%7B%22route%22%3A%22%2Fadmin%2Fmulti-server%22%2C%22name%22%3A%22Multi%20Server%20Setup%22%2C%22enabled%22%3Atrue%2C%22icon%22%3A%22multi-server-setup%22%7D%2C%7B%22route%22%3A%22%2Fadmin%2Fphp-safe-mode%22%2C%22name%22%3A%22PHP%20Configuration%22%2C%22enabled%22%3Atrue%2C%22icon%22%3A%22php-configuration%22%7D%2C%7B%22route%22%3A%22%2Fuser%2Fssh-keys%22%2C%22name%22%3A%22SSH%20Keys%22%2C%22enabled%22%3Atrue%2C%22icon%22%3A%22ssh-keys%22%7D%2C%7B%22route%22%3A%22%2Fadmin%2Fssl%22%2C%22name%22%3A%22Admin%20SSL%22%2C%22enabled%22%3Atrue%2C%22icon%22%3A%22admin-ssl%22%7D%2C%7B%22route%22%3A%22%2Fadmin%2Fmodsecurity%22%2C%22name%22%3A%22ModSecurity%22%2C%22enabled%22%3Atrue%7D%5D%7D%2C%7B%22name%22%3A%22Admin%20Tools%22%2C%22icon%22%3A%22admin-tools%22%2C%22enabled%22%3Atrue%2C%22columnSize%22%3A3%2C%22entries%22%3A%5B%7B%22route%22%3A%22%2Fadmin%2Fbackups%22%2C%22name%22%3A%22Admin%20Backup%2FTransfer%22%2C%22enabled%22%3Atrue%2C%22icon%22%3A%22admin-backup-transfer%22%7D%2C%7B%22route%22%3A%22%2Fadmin%2Fbrute-force-monitor%22%2C%22name%22%3A%22Brute%20Force%20Monitor%22%2C%22enabled%22%3Atrue%2C%22icon%22%3A%22brute-force-monitor%22%7D%2C%7B%22route%22%3A%22%2Fadmin%2Fprocess-monitor%22%2C%22name%22%3A%22Process%20Monitor%22%2C%22enabled%22%3Atrue%2C%22icon%22%3A%22process-monitor%22%7D%2C%7B%22route%22%3A%22%2Fadmin%2Fmail-queue%22%2C%22name%22%3A%22Mail%20Queue%20Administration%22%2C%22enabled%22%3Atrue%2C%22icon%22%3A%22mail-queue-administration%22%7D%2C%7B%22route%22%3A%22%2Fadmin%2Femail-tracking%22%2C%22name%22%3A%22E-mail%20Tracking%22%2C%22enabled%22%3Atrue%2C%22icon%22%3A%22email-tracking%22%7D%2C%7B%22route%22%3A%22%2Fadmin%2Fservices%22%2C%22name%22%3A%22Service%20Monitor%22%2C%22enabled%22%3Atrue%2C%22icon%22%3A%22service-monitor%22%7D%2C%7B%22route%22%3A%22%2Fadmin%2Fsystem-backup%22%2C%22name%22%3A%22System%20Backup%22%2C%22enabled%22%3Atrue%2C%22icon%22%3A%22system-backup%22%7D%2C%7B%22route%22%3A%22%2Freseller%2Fmessage-users%22%2C%22name%22%3A%22Message%20All%20Users%22%2C%22enabled%22%3Atrue%2C%22icon%22%3A%22message-all-users%22%7D%2C%7B%22route%22%3A%22%2Freseller%2Fskins%22%2C%22name%22%3A%22Skin%20Manager%22%2C%22enabled%22%3Atrue%2C%22icon%22%3A%22skin-manager%22%7D%2C%7B%22route%22%3A%22%2Freseller%2Fcustomize-skin%22%2C%22name%22%3A%22Customize%20Evolution%20Skin%22%2C%22enabled%22%3Atrue%2C%22icon%22%3A%22customize-evolution-skin%22%7D%2C%7B%22slug%22%3A%22rspamd%22%2C%22href%22%3A%22%2FCMD_RSPAMD_SOCK%2F%22%2C%22name%22%3A%22Rspamd%20spam%20filtering%20system%22%2C%22enabled%22%3Atrue%2C%22icon%22%3A%22spam-metrics%22%2C%22newTab%22%3Atrue%7D%2C%7B%22slug%22%3A%22netdata%22%2C%22href%22%3A%22%2FCMD_NETDATA_SOCK%2F%22%2C%22name%22%3A%22Netdata%20server%20metrics%22%2C%22enabled%22%3Atrue%2C%22icon%22%3A%22netdata%22%2C%22newTab%22%3Atrue%7D%5D%7D%2C%7B%22name%22%3A%22System%20Info%20%26%20Files%22%2C%22icon%22%3A%22system-information%22%2C%22enabled%22%3Atrue%2C%22columnSize%22%3A3%2C%22entries%22%3A%5B%7B%22route%22%3A%22%2Fadmin%2Fcron-jobs%22%2C%22name%22%3A%22All%20User%20Cron%20Jobs%22%2C%22enabled%22%3Atrue%2C%22icon%22%3A%22all-user-cron-jobs%22%7D%2C%7B%22href%22%3A%22%2FCMD_FILE_MANAGER%22%2C%22newTab%22%3Atrue%2C%22name%22%3A%22File%20Manager%22%2C%22enabled%22%3Atrue%2C%22icon%22%3A%22file-manager%22%7D%2C%7B%22route%22%3A%22%2Fadmin%2Ffile-editor%22%2C%22name%22%3A%22File%20Editor%22%2C%22enabled%22%3Atrue%2C%22icon%22%3A%22file-editor%22%7D%2C%7B%22route%22%3A%22%2Fadmin%2Fsystem-info%22%2C%22name%22%3A%22System%20Information%22%2C%22enabled%22%3Atrue%2C%22icon%22%3A%22system-info%22%7D%2C%7B%22route%22%3A%22%2Fadmin%2Flog-viewer%22%2C%22name%22%3A%22Log%20Viewer%22%2C%22enabled%22%3Atrue%2C%22icon%22%3A%22log-viewer%22%7D%2C%7B%22route%22%3A%22%2Fadmin%2Fstats%22%2C%22name%22%3A%22Complete%20Usage%20Statistics%22%2C%22enabled%22%3Atrue%2C%22icon%22%3A%22complete-usage-statistics%22%7D%2C%7B%22route%22%3A%22%2Fadmin%2Fresource-limits%22%2C%22name%22%3A%22Resource%20Limits%22%2C%22enabled%22%3Atrue%2C%22icon%22%3A%22resource-limits%22%7D%5D%7D%2C%7B%22name%22%3A%22Extra%20Features%22%2C%22icon%22%3A%22extra-features%22%2C%22enabled%22%3Atrue%2C%22columnSize%22%3A5%2C%22entries%22%3A%5B%7B%22slug%22%3A%22squirrelmail%22%2C%22href%22%3A%22%7CWEBAPPS_SSL%7C%3A%2F%2F%7CHOSTNAME%7C%2Fsquirrelmail%22%2C%22name%22%3A%22Webmail%3A%20Squirrelmail%22%2C%22enabled%22%3Afalse%2C%22newTab%22%3Atrue%2C%22icon%22%3A%22squirellmail%22%7D%2C%7B%22slug%22%3A%22uebimiau%22%2C%22href%22%3A%22%7CWEBAPPS_SSL%7C%3A%2F%2F%7CHOSTNAME%7C%2Fwebmail%22%2C%22name%22%3A%22Webmail%3A%20UebiMiau%22%2C%22enabled%22%3Afalse%2C%22newTab%22%3Atrue%2C%22icon%22%3A%22uebimiau%22%7D%2C%7B%22slug%22%3A%22roundcube%22%2C%22href%22%3A%22%7CWEBAPPS_SSL%7C%3A%2F%2F%7CHOSTNAME%7C%2F${rc_route_name}%22%2C%22name%22%3A%22Webmail%3A%20${C_ROUNDCUBE_CUSTOM_NAME}%22%2C%22enabled%22%3Atrue%2C%22newTab%22%3Atrue%2C%22icon%22%3A%22roundcube%22%7D%2C%7B%22route%22%3A%22phpmyadmin%22%2C%22name%22%3A%22phpMyAdmin%22%2C%22enabled%22%3Afalse%2C%22icon%22%3A%22phpmyadmin%22%7D%2C%7B%22route%22%3A%22%2Fadmin%2Fplugin-manager%22%2C%22name%22%3A%22Plugin%20Manager%22%2C%22enabled%22%3Atrue%2C%22icon%22%3A%22plugin-manager%22%7D%2C%7B%22route%22%3A%22plugins%22%2C%22name%22%3A%22Plugins%20will%20be%20inserted%20after%20this%20entry%22%2C%22enabled%22%3Afalse%7D%2C%7B%22name%22%3A%22Database%3A%20${C_PHPMYADMIN_CUSTOM_NAME}%22%2C%22href%22%3A%22%7CWEBAPPS_SSL%7C%3A%2F%2F%7CHOSTNAME%7C%2F${rc_route_name}%22%2C%22newTab%22%3Atrue%2C%22enabled%22%3Atrue%2C%22icon%22%3A%22phpmyadmin%22%7D%5D%7D%2C%7B%22name%22%3A%22Support%20%26%20Help%22%2C%22icon%22%3A%22support-help%22%2C%22enabled%22%3Atrue%2C%22columnSize%22%3A5%2C%22entries%22%3A%5B%7B%22href%22%3A%22%7B%7Bhelp%7D%7D%22%2C%22name%22%3A%22Help%22%2C%22enabled%22%3Atrue%2C%22newTab%22%3Atrue%2C%22icon%22%3A%22help%22%7D%2C%7B%22route%22%3A%22%2Freseller%2Ftickets%22%2C%22name%22%3A%22Manage%20Tickets%22%2C%22enabled%22%3Atrue%2C%22icon%22%3A%22manage-tickets%22%7D%2C%7B%22route%22%3A%22%2Fadmin%2Flicense%22%2C%22name%22%3A%22Licensing%20%2F%20Updates%22%2C%22enabled%22%3Atrue%2C%22icon%22%3A%22licensing-updates%22%7D%5D%7D%5D%7D%2C%22colors%22%3A%7B%22primary-dark%22%3A%7B%22hue%22%3A196%2C%22saturation%22%3A99%2C%22lightness%22%3A23.078751857348%2C%22alpha%22%3A100%7D%2C%22safe%22%3A%7B%22hue%22%3A140%2C%22saturation%22%3A41%2C%22lightness%22%3A56%7D%2C%22danger%22%3A%7B%22hue%22%3A20%2C%22saturation%22%3A76%2C%22lightness%22%3A47%7D%2C%22neutral%22%3A%7B%22hue%22%3A180%2C%22saturation%22%3A0.448430493273541%2C%22lightness%22%3A43.72549019607843%7D%7D%2C%22dateFormats%22%3A%7B%22datetime%22%3A%22dd-MMM-yyy%20HH%3Amm%20a%22%2C%22date%22%3A%22dd-MM-yyy%22%2C%22weekStart%22%3A%22monday%22%7D%2C%22theme%22%3A%22%22%2C%22adsense%22%3A%7B%22enabled%22%3Atrue%2C%22client%22%3A%22%22%2C%22slot%22%3A%22%22%2C%22css%22%3A%22display%3A%20block%3B%22%7D%2C%22mergedMenu%22%3Atrue%7D" method="POST"
+      else
+        _echo "$(msg red)Error, only --skin-name evolution is supported at this moment${action} $(msg end)" --name
+        _exit 147
+      fi
+    else
+      _echo "$(msg red)Error, please temporarily use the option --recommend-values for this action ${action} $(msg end)" --name
+      # Add single values here
+      _exit 147
+    fi
+    method="POST"
+    da_api_exec=$(curl --silent --request "${method}" --user "${da_api_username}":"${da_api_password}" --data "${data}" "${ssl_protocol}://${C_BOX_HOSTNAME_FQHN}:${C_DA_PORT}/${cmd_api}")
+    has_success=$(echo "${da_api_exec}" | grep -w '^error=0')
+    if [ -z "${has_success}" ]; then
+      _echo "$(msg red)Error, API with action ${action} executed with the following error: $(msg end)" --name
+      _echo "$(msg red)${da_api_exec}$(msg end)" --plain | urldecode | awksep '&'
+    #_exit 147
+    else
+      _echo "$(msg green)OK, API with action ${action} executed with the following status: $(msg end)" --name
+      _echo "$(msg green)${da_api_exec}$(msg end)" --plain | urldecode | awksep '&'
+    fi
+    # da_api_admin set-da-logo --skin-name "evolution" --logo-mode "default-logo" --logo-file "/tmp/logo.png"
+  # --logo-mode with version 1.62 is default-logo, dark-logo, favicon
+  # This is my own unofficial method to set logo because there is no documentation how to set this in directadmin
+  # https://forum.directadmin.com/threads/cmd_api_skins-upload-skin-logo-via-curl-issue.63127/
+  elif [[ "${action}" == "set-da-logo" ]]; then
+    local cmd_api data method retval da_api_exec has_success logo_file_temp
+    if [ ! -f "${logo_file}" ]; then
+      _echo "$(msg red)Error, logo file does not exist! Please make sure the file exist!$(msg end)" --name
+      _exit 147
+    fi
+    # Reference: https://www.directadmin.com/features.php?id=2923
+    if [[ "${logo_mode}" == "default-logo" || -z "${logo_mode}" ]]; then
+      logo_mode="1"
+      # The upload file need to have random string append to it else it won't work:
+      # I use random length of 6 because I saw directadmin always generated length of 6 when append this random string to a file
+      logo_file_temp="${da_temp_dir}/logo.png$(get_rnd_alpha 6)"
+    elif [ "${logo_mode}" == "dark-logo" ]; then
+      logo_mode="2"
+      logo_file_temp="${da_temp_dir}/logo2.png$(get_rnd_alpha 6)"
+    elif [ "${logo_mode}" == "favicon" ]; then
+      logo_mode="3"
+      logo_file_temp="${da_temp_dir}/favicon.png$(get_rnd_alpha 6)"
+    elif [ "${logo_mode}" == "default-symbol" ]; then
+      logo_mode="4"
+      logo_file_temp="${da_temp_dir}/symbol.png$(get_rnd_alpha 6)"
+    elif [ "${logo_mode}" == "dark-symbol" ]; then
+      logo_mode="5"
+      logo_file_temp="${da_temp_dir}/symbol2.png$(get_rnd_alpha 6)"
+    else
+      _echo "$(msg red)Error, invalid logo mode$(msg end)" --name
+    fi
+    _echo "Current logo mode is :${logo_mode}" --name --verbose 7
+    _echo "Current logo file is :${logo_file}" --name --verbose 7
+    _echo "Current logo_file_temp is :${logo_file_temp}" --name --verbose 7
+    # Copy the logo files (with extra string) from storage data to the temporary home directory
+    cp "${logo_file}" "${logo_file_temp}"
+    # Now assign the temporary logo as the logo_file
+    logo_file="${logo_file_temp}"
+    # The files that need to be uploaded from the temporary folder need to have nobody permission (else it wont work)
+    chown nobody:nogroup "${logo_file}"
+    _echo "Now the logo file is :${logo_file}" --name --verbose 7
+
+    cmd_api="CMD_API_SKINS"
+    data="action=upload_logo&file=${logo_file}&name=${skin_name}&which=${logo_mode}"
+    method="POST"
+    da_api_exec=$(curl --silent --request "${method}" --user "${da_api_username}":"${da_api_password}" --data "${data}" "${ssl_protocol}://${C_BOX_HOSTNAME_FQHN}:${C_DA_PORT}/${cmd_api}")
+    has_success=$(echo "${da_api_exec}" | grep -w '^error=0')
+    if [ -z "${has_success}" ]; then
+      _echo "$(msg red)Error, API with action ${action} executed with the following error: $(msg end)" --name
+      _echo "$(msg red)${da_api_exec}$(msg end)" --plain | urldecode | awksep '&'
+    #_exit 147
+    else
+      _echo "$(msg green)OK, API with action ${action} executed with the following status: $(msg end)" --name
+      _echo "$(msg green)${da_api_exec}$(msg end)" --plain | urldecode | awksep '&'
+    fi
+    rm -f "${logo_file}"
+  # da_api_admin set-security-question --question "Awak suka makan budu tak?" --answer "suka"
+  elif [[ "${action}" == "set-security-qna" || "${action}" == "set-security-question" ]]; then
+    local cmd_api data method retval da_api_exec has_success cmd_api_release
+    cmd_api_release=false
+    # Note this CMD_API_SECURITY_QUESTIONS have not been released. So, we need to use json and ignore error checking
+    # If the API is released, just put cmd_api_release=true
+    method="POST"
+    if [ "${cmd_api_release}" == "false" ]; then
+      cmd_api="CMD_SECURITY_QUESTIONS"
+      _echo "$(msg yellow)Note, directadmin does not have CMD_API_SECURITY_QUESTIONS (https://forum.directadmin.com/threads/cmd_api-have-way-to-change-php-version-of-unique-account.62965/#post-327435). Using CMD_SECURITY_QUESTIONS ...$(msg end)" --name
+
+      # Note This does not work. Posted here: https://forum.directadmin.com/threads/bug-in-api-cmd_security_questions-bug-with-parameter-order.64318/
+      #data="type=custom&value=${answer}&action=add&custom_question=${question}&json=yes"
+      # This work
+      data="type=custom&value=${answer}&json=yes&action=add&custom_question=${question}"
+
+      echo "DATA: ${data}"
+      curl --silent --request "${method}" --user "${da_api_username}":"${da_api_password}" --data "${data}" "${ssl_protocol}://${C_BOX_HOSTNAME_FQHN}:${C_DA_PORT}/${cmd_api}"
+    else
+      cmd_api="CMD_API_SECURITY_QUESTIONS"
+      data="type=custom&value=${answer}&action=add&custom_question=${question}"
+      echo "DATA: ${data}"
+      da_api_exec=$(curl --silent --request "${method}" --user "${da_api_username}":"${da_api_password}" --data "${data}" "${ssl_protocol}://${C_BOX_HOSTNAME_FQHN}:${C_DA_PORT}/${cmd_api}")
+      has_success=$(echo "${da_api_exec}" | grep -w '^error=0')
+      if [ -z "${has_success}" ]; then
+        _echo "$(msg red)Error, API with action ${action} executed with the following error: $(msg end)" --name
+        _echo "$(msg red)${da_api_exec}$(msg end)" --plain | urldecode | awksep '&'
+      #_exit 147
+      else
+        _echo "$(msg green)OK, API with action ${action} executed with the following status: $(msg end)" --name
+        _echo "$(msg green)${da_api_exec}$(msg end)" --plain | urldecode | awksep '&'
+      fi
+    fi
   else
     _echo "$(msg red)The API action ${action} does not exist!$(msg end)" --name
     _exit 147
@@ -6684,190 +6839,121 @@ function da_api_admin() {
   # Below code is deprecated ... will remove later:
 
   action="$1"
-
-  # Only run this if number of argument is more than 1 or at least 2
-  if [ "$#" -gt 1 ]; then
-    if [ "${action}" == "create-admin-account" ]; then
-      :
-    elif [ "${action}" == "create-reseller-account" ]; then
-      :
-    elif [ "${action}" == "create-user-account" ]; then
-      # da_api_admin "create-reseller-account" "user1" "user1@maxibi.com" "x1231aax" "maxibi.com" "USER_UNLIMITED"
-      shift
-      username="$1"
-      email="$2"
-      password="$3"
-      domain="$4"
-      package_name="$5"
-      # Normally IPv4 that has been set up in DA
-      command="CMD_API_ACCOUNT_USER"
-      data="username=${username}&email=${email}&passwd=${password}&passwd2=${password}&domain=${domain}&package=${package_name}&ip=${C_IPV4_ADD0}&notify=yes&add=yes&action=create&json=yes"
-      method="POST"
-      echo "Now, executing API with action name: ${action}"
-    elif [ "${action}" == "delete-users" ]; then
-      # da_api_admin "delete-users" "admin2"
-      shift
-      username="$1"
-      command="CMD_API_SELECT_USERS"
-      data="confirmed=Confirm&delete=yes&select0=${username}"
-      method="POST"
-      #echo "SSL: ${ssl} | Action: ${action} | username: ${username}"
-      #exit 147
-      echo "Now, executing API with action name: ${action}"
-    elif [ "${action}" == "create-user-domain" ]; then
-      :
-
+  if [ "${action}" == "create-user-account" ]; then
+    # da_api_admin "create-reseller-account" "user1" "user1@maxibi.com" "x1231aax" "maxibi.com" "USER_UNLIMITED"
+    shift
+    username="$1"
+    email="$2"
+    password="$3"
+    domain="$4"
+    package_name="$5"
+    # Normally IPv4 that has been set up in DA
+    command="CMD_API_ACCOUNT_USER"
+    data="username=${username}&email=${email}&passwd=${password}&passwd2=${password}&domain=${domain}&package=${package_name}&ip=${C_IPV4_ADD0}&notify=yes&add=yes&action=create&json=yes"
+    method="POST"
+    echo "Now, executing API with action name: ${action}"
+  elif [ "${action}" == "delete-users" ]; then
+    # da_api_admin "delete-users" "admin2"
+    shift
+    username="$1"
+    command="CMD_API_SELECT_USERS"
+    data="confirmed=Confirm&delete=yes&select0=${username}"
+    method="POST"
+    echo "Now, executing API with action name: ${action}"
     #da_api_admin "get-dns-zone" "maxibi.com" "_domainkey+TXT+o=+.value"
-    elif [ "${action}" == "get-dns-zone" ]; then
-      :
-      # da_api_admin "create-dns-record" "maxibi.com" "TXT" "_domainkey" "o%3D%7E%3B+r%3Dwebmaster%40sofibox.com"
-      # The last one equal to: o=~; r=webmaster@sofibox.com (use https://www.url-encode-decode.com/ to decode)
-    elif [ "${action}" == "create-dns-record" ]; then
-      :
-      # da_api_admin "create-user-email" "maxibi.com" "webmaster" "1232123" "0" "200"
-    elif [ "${action}" == "create-user-email" ]; then
-      local mail_domain mail_user mail_pass mail_quota mail_limit
-      shift
-      mail_domain="$1"
-      mail_user="$2"
-      mail_pass="$3"
-      mail_quota="$4"
-      mail_limit="$5"
-      command="CMD_API_EMAIL_POP"
-      #https://www.directadmin.com/features.php?id=2587 not sure if this useful
-      data="user=${mail_user}&passwd=${mail_pass}&passwd2=${mail_pass}&quota=${mail_quota}&limit=${mail_limit}&domain=${mail_domain}&json=yes&action=create"
-      method="POST"
-      echo "Now, executing API with action name: ${action}"
-    # da_api_admin "create-user-subdomain" "maxibi.com" "sales"
-    elif [ "${action}" == "create-user-subdomain" ]; then
-      local root_domain sub_domain
-      shift
-      root_domain="$1"
-      sub_domain="$2"
-      # CMD_API_SUBDOMAIN AND CMD_API_SUBDOMAINS are the same thing: https://www.directadmin.com/features.php?id=1589
-      command="CMD_API_SUBDOMAIN"
-      data="domain=${root_domain}&subdomain=${sub_domain}&json=yes&action=create"
-      method="POST"
-      # da_api_admin "request-domain-ssl" <provider> <root_domain> <keysize> <encryption> <ssl_sub_domains_query>
-      # da_api_admin "request-domain-ssl" letsencrypt codegix.com secp521r1 sha256 "le_select0=codegix.com&le_select1=www.codegix.com&le_select2=ftp.codegix.com \
-      # &le_select3=mail.codegix.com&le_select4=pop.codegix.com&le_select5=smtp.codegix.com&le_select6=dashboard.codegix.com&le_select7=secure.codegix.com"
-      echo "Now, executing API with action name: ${action}"
-    elif [ "${action}" == "request-domain-ssl" ]; then
-      local ssl_root_domain ssl_key_size ssl_encryption
-      shift
-      ssl_provider="$1"
-      ssl_root_domain="$2"
-      ssl_key_size="$3"
-      ssl_encryption="$4"
-      ssl_sub_domains_query="$5"
-      # CMD_API_SUBDOMAIN AND CMD_API_SUBDOMAINS are the same thing: https://www.directadmin.com/features.php?id=1589
-      command="CMD_API_SSL"
-      if [ "${ssl_provider}" == "letsencrypt" ]; then
-        data="type=create&request=letsencrypt&name=${ssl_root_domain}&keysize=${ssl_key_size}&encryption=${ssl_encryption} \
+    # da_api_admin "create-dns-record" "maxibi.com" "TXT" "_domainkey" "o%3D%7E%3B+r%3Dwebmaster%40sofibox.com"
+    # The last one equal to: o=~; r=webmaster@sofibox.com (use https://www.url-encode-decode.com/ to decode)
+    # da_api_admin "create-user-email" "maxibi.com" "webmaster" "1232123" "0" "200"
+  elif [ "${action}" == "create-user-email" ]; then
+    local mail_domain mail_user mail_pass mail_quota mail_limit
+    shift
+    mail_domain="$1"
+    mail_user="$2"
+    mail_pass="$3"
+    mail_quota="$4"
+    mail_limit="$5"
+    command="CMD_API_EMAIL_POP"
+    #https://www.directadmin.com/features.php?id=2587 not sure if this useful
+    data="user=${mail_user}&passwd=${mail_pass}&passwd2=${mail_pass}&quota=${mail_quota}&limit=${mail_limit}&domain=${mail_domain}&json=yes&action=create"
+    method="POST"
+    echo "Now, executing API with action name: ${action}"
+  # da_api_admin "create-user-subdomain" "maxibi.com" "sales"
+  elif [ "${action}" == "create-user-subdomain" ]; then
+    local root_domain sub_domain
+    shift
+    root_domain="$1"
+    sub_domain="$2"
+    # CMD_API_SUBDOMAIN AND CMD_API_SUBDOMAINS are the same thing: https://www.directadmin.com/features.php?id=1589
+    command="CMD_API_SUBDOMAIN"
+    data="domain=${root_domain}&subdomain=${sub_domain}&json=yes&action=create"
+    method="POST"
+    # da_api_admin "request-domain-ssl" <provider> <root_domain> <keysize> <encryption> <ssl_sub_domains_query>
+    # da_api_admin "request-domain-ssl" letsencrypt codegix.com secp521r1 sha256 "le_select0=codegix.com&le_select1=www.codegix.com&le_select2=ftp.codegix.com \
+    # &le_select3=mail.codegix.com&le_select4=pop.codegix.com&le_select5=smtp.codegix.com&le_select6=dashboard.codegix.com&le_select7=secure.codegix.com"
+    echo "Now, executing API with action name: ${action}"
+  elif [ "${action}" == "request-domain-ssl" ]; then
+    local ssl_root_domain ssl_key_size ssl_encryption
+    shift
+    ssl_provider="$1"
+    ssl_root_domain="$2"
+    ssl_key_size="$3"
+    ssl_encryption="$4"
+    ssl_sub_domains_query="$5"
+    # CMD_API_SUBDOMAIN AND CMD_API_SUBDOMAINS are the same thing: https://www.directadmin.com/features.php?id=1589
+    command="CMD_API_SSL"
+    if [ "${ssl_provider}" == "letsencrypt" ]; then
+      data="type=create&request=letsencrypt&name=${ssl_root_domain}&keysize=${ssl_key_size}&encryption=${ssl_encryption} \
       &wildcard=no&domain=${ssl_root_domain}&json=yes&action=save&background=auto&${ssl_sub_domains_query}"
-      else
-        # Give error because we focus on letsencrypt first
-        echo "[${SCRIPT_NAME}]: Error, this provider ${ssl_provider} has no API yet"
-        _exit 147
-      fi
-      method="POST"
-      echo "Now, executing API with action name: ${action}"
-    # da_api_admin "set-da-logo" <skin_name> <logo_mode> <path_to_logo.png>
-    # skin_name: evolution, enhanced | logo_mode: dark-logo, default-logo
-    # eg: da_api_admin "set-da-logo" evolution dark-logo /home/tmp/logo_dark.png
-    elif [ "${action}" == "set-da-logo" ]; then
-      local skin_name logo_mode logo_path
-      shift
-      skin_name="$1"
-      logo_mode="$2"
-      logo_path="$3"
-      if [ "${logo_mode}" == "default-logo" ]; then
-        logo_mode="1"
-      else
-        logo_mode="2"
-      fi
-      command="CMD_SKINS"
-      data="action=upload_logo&file=${logo_path}&json=yes&name=${skin_name}&which=${logo_mode}"
-      method="POST"
-      # da_api_admin "set-da-options" evolution
-      echo "Now, executing API with action name: ${action}"
-    elif [ "${action}" == "set-da-options" ]; then
-      # Customize
-      shift
-      local skin_name
-      skin_name="$1"
-      command="CMD_SKINS"
-      #config will be stored in: username/skin_customizations/evolution/config.json
-      db_route=$(echo "${C_PHPMYADMIN_LOGIN_ROUTE}" | sed 's/^\///')
-      rc_route=$(echo "${C_ROUNDCUBE_LOGIN_ROUTE}" | sed 's/^\///')
-      # Set the grid layout
-      default_layout="defaultLayout%22%3A%22grid%22%2C%22"
-      data="json=yes&name=evolution&action=save_config_json&config.json=%7B%22menu%22%3A%7B%22user%22%3A%5B%7B%22name%22%3A%22Account+Manager%22%2C%22icon%22%3A%22account-manager%22%2C%22enabled%22%3Atrue%2C%22columnSize%22%3A5%2C%22entries%22%3A%5B%7B%22route%22%3A%22%2Fuser%2Fdomains%22%2C%22name%22%3A%22Domain+Setup%22%2C%22icon%22%3A%22domain-setup%22%2C%22enabled%22%3Atrue%7D%2C%7B%22route%22%3A%22%2Fuser%2Fsubdomains%22%2C%22name%22%3A%22Subdomain+Management%22%2C%22icon%22%3A%22subdomain-management%22%2C%22enabled%22%3Atrue%7D%2C%7B%22route%22%3A%22%2Fuser%2Fdns%22%2C%22name%22%3A%22DNS+Management%22%2C%22icon%22%3A%22dns-management%22%2C%22enabled%22%3Atrue%7D%2C%7B%22route%22%3A%22%2Fuser%2Fssl%22%2C%22name%22%3A%22SSL+Certificates%22%2C%22icon%22%3A%22ssl%22%2C%22enabled%22%3Atrue%7D%2C%7B%22route%22%3A%22%2Fuser%2Fftp-accounts%22%2C%22name%22%3A%22FTP+Management%22%2C%22icon%22%3A%22ftp-management%22%2C%22enabled%22%3Atrue%7D%2C%7B%22route%22%3A%22%2Fuser%2Fdatabase%22%2C%22name%22%3A%22MySQL+Management%22%2C%22icon%22%3A%22mysql-management%22%2C%22enabled%22%3Atrue%7D%2C%7B%22route%22%3A%22%2Fuser%2Fdomain-pointers%22%2C%22name%22%3A%22Domain+Pointers%22%2C%22icon%22%3A%22domain-pointers%22%2C%22enabled%22%3Atrue%7D%2C%7B%22route%22%3A%22%2Fuser%2Fredirects%22%2C%22name%22%3A%22Site+Redirection%22%2C%22icon%22%3A%22site-redirection%22%2C%22enabled%22%3Atrue%7D%2C%7B%22route%22%3A%22%2Fuser%2Fhotlinks%22%2C%22name%22%3A%22Hotlinks+Protection%22%2C%22icon%22%3A%22hotlinks%22%2C%22enabled%22%3Atrue%7D%2C%7B%22route%22%3A%22%2Fuser%2Fphp-settings%22%2C%22name%22%3A%22PHP+Settings%22%2C%22icon%22%3A%22php-configuration%22%2C%22enabled%22%3Atrue%7D%5D%7D%2C%7B%22name%22%3A%22E-mail+Manager%22%2C%22icon%22%3A%22email-manager%22%2C%22enabled%22%3Atrue%2C%22columnSize%22%3A5%2C%22entries%22%3A%5B%7B%22route%22%3A%22%2Fuser%2Femail%2Faccounts%22%2C%22name%22%3A%22E-mail+Accounts%22%2C%22icon%22%3A%22email-accounts%22%2C%22enabled%22%3Atrue%7D%2C%7B%22route%22%3A%22%2Fuser%2Femail%2Fforwarders%22%2C%22name%22%3A%22Forwarders%22%2C%22icon%22%3A%22forwarders%22%2C%22enabled%22%3Atrue%7D%2C%7B%22route%22%3A%22%2Fuser%2Femail%2Fautoresponders%22%2C%22name%22%3A%22Autoresponders%22%2C%22icon%22%3A%22autoresponders%22%2C%22enabled%22%3Atrue%7D%2C%7B%22route%22%3A%22%2Fuser%2Femail%2Fvacations%22%2C%22name%22%3A%22Vacation+Messages%22%2C%22icon%22%3A%22vacation-messages%22%2C%22enabled%22%3Atrue%7D%2C%7B%22route%22%3A%22%2Fuser%2Femail%2Fspamassassin%22%2C%22name%22%3A%22Spamassassin+Setup%22%2C%22icon%22%3A%22spamassassin%22%2C%22enabled%22%3Atrue%7D%2C%7B%22route%22%3A%22%2Fuser%2Femail%2Ffilters%22%2C%22name%22%3A%22SPAM+Filters%22%2C%22icon%22%3A%22spam-filters%22%2C%22enabled%22%3Atrue%7D%2C%7B%22route%22%3A%22%2Fuser%2Femail%2Flists%22%2C%22name%22%3A%22Mailing+Lists%22%2C%22icon%22%3A%22mailing-lists%22%2C%22enabled%22%3Atrue%7D%2C%7B%22route%22%3A%22%2Fuser%2Fdns%2Fmx-records%22%2C%22name%22%3A%22MX+Records%22%2C%22icon%22%3A%22mx-records%22%2C%22enabled%22%3Atrue%7D%5D%7D%2C%7B%22icon%22%3A%22advanced-features%22%2C%22name%22%3A%22Advanced+Features%22%2C%22enabled%22%3Atrue%2C%22columnSize%22%3A5%2C%22entries%22%3A%5B%7B%22route%22%3A%22%2Fuser%2Fhandlers%22%2C%22name%22%3A%22Apache+Handlers%22%2C%22icon%22%3A%22apache-handlers%22%2C%22enabled%22%3Atrue%7D%2C%7B%22route%22%3A%22%2Fuser%2Femail%2Fcatch-all%22%2C%22name%22%3A%22Catch-All+E-mail%22%2C%22icon%22%3A%22catch-all-email%22%2C%22enabled%22%3Atrue%7D%2C%7B%22route%22%3A%22%2Fuser%2Fbackup%22%2C%22name%22%3A%22Create%2FRestore+Backups%22%2C%22icon%22%3A%22create-restore-backup%22%2C%22enabled%22%3Atrue%7D%2C%7B%22route%22%3A%22%2Fuser%2Fcronjobs%22%2C%22name%22%3A%22Cron+Jobs%22%2C%22icon%22%3A%22cron-jobs%22%2C%22enabled%22%3Atrue%7D%2C%7B%22route%22%3A%22%2Fuser%2Ferror-pages%22%2C%22name%22%3A%22Custom+Error+Pages%22%2C%22icon%22%3A%22custom-error-pages%22%2C%22enabled%22%3Atrue%7D%2C%7B%22route%22%3A%22%2Fuser%2Fmimetypes%22%2C%22name%22%3A%22Mime+Types%22%2C%22icon%22%3A%22mime-types%22%2C%22enabled%22%3Atrue%7D%2C%7B%22route%22%3A%22%2Fuser%2Fsecurity-questions%22%2C%22name%22%3A%22Security+Questions%22%2C%22icon%22%3A%22security-questions%22%2C%22enabled%22%3Atrue%7D%2C%7B%22route%22%3A%22%2Fuser%2Ftwo-step-auth%22%2C%22name%22%3A%22Two-Step+Authentication%22%2C%22icon%22%3A%22two-step-auth%22%2C%22enabled%22%3Atrue%7D%2C%7B%22route%22%3A%22%2Fuser%2Fprotected-directories%22%2C%22name%22%3A%22Password+Protected+Directories%22%2C%22icon%22%3A%22password-protected-directories%22%2C%22enabled%22%3Atrue%7D%2C%7B%22route%22%3A%22%2Fuser%2Fssh-keys%22%2C%22name%22%3A%22SSH+Keys%22%2C%22icon%22%3A%22ssh-keys%22%2C%22enabled%22%3Atrue%7D%2C%7B%22route%22%3A%22%2Fuser%2Fmodsecurity%22%2C%22name%22%3A%22ModSecurity%22%2C%22icon%22%3A%22mod-security%22%2C%22enabled%22%3Atrue%7D%5D%7D%2C%7B%22icon%22%3A%22system-information%22%2C%22name%22%3A%22System+Info+%26+Files%22%2C%22enabled%22%3Atrue%2C%22columnSize%22%3A5%2C%22entries%22%3A%5B%7B%22href%22%3A%22%2FCMD_FILE_MANAGER%22%2C%22newTab%22%3Atrue%2C%22name%22%3A%22File+Manager%22%2C%22icon%22%3A%22file-manager%22%2C%22enabled%22%3Atrue%7D%2C%7B%22route%22%3A%22%2Fuser%2Fperl-modules%22%2C%22name%22%3A%22Installed+Perl+Modules%22%2C%22icon%22%3A%22installed-perl-modules%22%2C%22enabled%22%3Atrue%7D%2C%7B%22route%22%3A%22%2Fuser%2Fsystem-info%22%2C%22name%22%3A%22System+Information%22%2C%22icon%22%3A%22server-information%22%2C%22enabled%22%3Atrue%7D%2C%7B%22route%22%3A%22%2Fuser%2Fstats%22%2C%22name%22%3A%22Site+Summary+%2F+Statistics+%2F+Logs%22%2C%22icon%22%3A%22site-summary%22%2C%22enabled%22%3Atrue%7D%5D%7D%2C%7B%22icon%22%3A%22extra-features%22%2C%22name%22%3A%22Extra+Features%22%2C%22enabled%22%3Atrue%2C%22columnSize%22%3A5%2C%22entries%22%3A%5B%7B%22href%22%3A%22%7CWEBAPPS_SSL%7C%3A%2F%2F%7CHOSTNAME%7C%2Fsquirrelmail%22%2C%22name%22%3A%22Webmail%3A+Squirrelmail%22%2C%22enabled%22%3Afalse%2C%22newTab%22%3Atrue%2C%22slug%22%3A%22squirrelmail%22%2C%22icon%22%3A%22squirellmail%22%7D%2C%7B%22href%22%3A%22%7CWEBAPPS_SSL%7C%3A%2F%2F%7CHOSTNAME%7C%2F${rc_route}%22%2C%22name%22%3A%22Mail%3A+${C_ROUNDCUBE_CUSTOM_NAME}%22%2C%22enabled%22%3Atrue%2C%22newTab%22%3Atrue%2C%22slug%22%3A%22roundcube%22%2C%22icon%22%3A%22roundcube%22%7D%2C%7B%22route%22%3A%22phpmyadmin%22%2C%22name%22%3A%22phpMyAdmin%22%2C%22enabled%22%3Afalse%2C%22icon%22%3A%22phpmyadmin%22%7D%2C%7B%22route%22%3A%22plugins%22%2C%22name%22%3A%22Plugins+will+be+inserted+after+this+entry%22%2C%22enabled%22%3Afalse%2C%22icon%22%3A%22%22%7D%2C%7B%22name%22%3A%22DB%3A++${C_PHPMYADMIN_CUSTOM_NAME}%22%2C%22href%22%3A%22%7CWEBAPPS_SSL%7C%3A%2F%2F%7CHOSTNAME%7C%2F${db_route}%22%2C%22newTab%22%3Atrue%2C%22enabled%22%3Atrue%2C%22icon%22%3A%22phpmyadmin%22%7D%5D%7D%2C%7B%22icon%22%3A%22support-help%22%2C%22name%22%3A%22Support+%26+Help%22%2C%22enabled%22%3Atrue%2C%22columnSize%22%3A5%2C%22entries%22%3A%5B%7B%22href%22%3A%22%7B%7Bhelp%7D%7D%22%2C%22name%22%3A%22Help%22%2C%22enabled%22%3Atrue%2C%22newTab%22%3Atrue%2C%22icon%22%3A%22help%22%7D%2C%7B%22route%22%3A%22%2Fuser%2Fcreate-ticket%22%2C%22name%22%3A%22Create+Ticket%22%2C%22enabled%22%3Atrue%2C%22icon%22%3A%22create-ticket%22%7D%2C%7B%22route%22%3A%22%2Fuser%2Fmessages%22%2C%22name%22%3A%22Support+Center%22%2C%22enabled%22%3Atrue%2C%22icon%22%3A%22support-center%22%7D%5D%7D%5D%2C%22reseller%22%3A%5B%7B%22name%22%3A%22Account+Manager%22%2C%22icon%22%3A%22account-manager%22%2C%22enabled%22%3Atrue%2C%22columnSize%22%3A3%2C%22entries%22%3A%5B%7B%22route%22%3A%22%2Freseller%2Fcreate-user%22%2C%22name%22%3A%22Add+New+User%22%2C%22enabled%22%3Atrue%2C%22icon%22%3A%22add-new-user%22%7D%2C%7B%22route%22%3A%22%2Freseller%2Fusers%22%2C%22name%22%3A%22List+Users%22%2C%22enabled%22%3Atrue%2C%22icon%22%3A%22list-users%22%7D%2C%7B%22route%22%3A%22%2Freseller%2Fuser-packages%22%2C%22name%22%3A%22Manage+User+Packages%22%2C%22enabled%22%3Atrue%2C%22icon%22%3A%22manage-user-packages%22%7D%2C%7B%22route%22%3A%22%2Freseller%2Fpasswords%22%2C%22name%22%3A%22Change+Passwords%22%2C%22enabled%22%3Atrue%2C%22icon%22%3A%22change-passwords%22%7D%2C%7B%22route%22%3A%22%2Freseller%2Fedit-user-message%22%2C%22name%22%3A%22Edit+User+Message%22%2C%22enabled%22%3Atrue%2C%22icon%22%3A%22edit-user-message%22%7D%2C%7B%22route%22%3A%22%2Freseller%2Fsuspension-message%22%2C%22name%22%3A%22Suspension+Message%22%2C%22enabled%22%3Atrue%2C%22icon%22%3A%22edit-user-message%22%7D%5D%7D%2C%7B%22name%22%3A%22Server+Manager%22%2C%22icon%22%3A%22server-manager%22%2C%22enabled%22%3Atrue%2C%22columnSize%22%3A5%2C%22entries%22%3A%5B%7B%22route%22%3A%22%2Freseller%2Fip-config%22%2C%22name%22%3A%22IP+Management%22%2C%22enabled%22%3Atrue%2C%22icon%22%3A%22ip-management%22%7D%2C%7B%22route%22%3A%22%2Freseller%2Fnameservers%22%2C%22name%22%3A%22Name+Servers%22%2C%22enabled%22%3Atrue%2C%22icon%22%3A%22name-servers%22%7D%2C%7B%22route%22%3A%22%2Fuser%2Fssh-keys%22%2C%22name%22%3A%22SSH+Keys%22%2C%22enabled%22%3Atrue%2C%22icon%22%3A%22ssh-keys%22%7D%5D%7D%2C%7B%22name%22%3A%22Reseller+Tools%22%2C%22icon%22%3A%22reseller-tools%22%2C%22enabled%22%3Atrue%2C%22columnSize%22%3A5%2C%22entries%22%3A%5B%7B%22route%22%3A%22%2Freseller%2Fbackups%22%2C%22name%22%3A%22Manage+User+Backups%22%2C%22enabled%22%3Atrue%2C%22icon%22%3A%22manage-user-backups%22%7D%2C%7B%22route%22%3A%22%2Freseller%2Fmessage-users%22%2C%22name%22%3A%22Message+All+Users%22%2C%22enabled%22%3Atrue%2C%22icon%22%3A%22message-all-users%22%7D%2C%7B%22route%22%3A%22%2Freseller%2Fskins%22%2C%22name%22%3A%22Skin+Manager%22%2C%22enabled%22%3Atrue%2C%22icon%22%3A%22skin-manager%22%7D%2C%7B%22route%22%3A%22%2Freseller%2Fcustomize-skin%22%2C%22name%22%3A%22Customize+Evolution+Skin%22%2C%22enabled%22%3Atrue%2C%22icon%22%3A%22customize-evolution-skin%22%7D%5D%7D%2C%7B%22name%22%3A%22System+Info+%26+Files%22%2C%22icon%22%3A%22system-information%22%2C%22enabled%22%3Atrue%2C%22columnSize%22%3A5%2C%22entries%22%3A%5B%7B%22href%22%3A%22%2FCMD_FILE_MANAGER%22%2C%22newTab%22%3Atrue%2C%22name%22%3A%22File+Manager%22%2C%22enabled%22%3Atrue%2C%22icon%22%3A%22file-manager%22%7D%2C%7B%22route%22%3A%22%2Freseller%2Fsystem-info%22%2C%22name%22%3A%22System+Information%22%2C%22enabled%22%3Atrue%2C%22icon%22%3A%22system-info%22%7D%2C%7B%22route%22%3A%22%2Freseller%2Fstats%22%2C%22name%22%3A%22Reseller+Statistics%22%2C%22enabled%22%3Atrue%2C%22icon%22%3A%22reseller-statistics%22%7D%5D%7D%2C%7B%22name%22%3A%22Extra+Features%22%2C%22icon%22%3A%22extra-features%22%2C%22enabled%22%3Atrue%2C%22columnSize%22%3A5%2C%22entries%22%3A%5B%7B%22href%22%3A%22%7CWEBAPPS_SSL%7C%3A%2F%2F%7CHOSTNAME%7C%2Fsquirrelmail%22%2C%22name%22%3A%22Webmail%3A+Squirrelmail%22%2C%22enabled%22%3Afalse%2C%22newTab%22%3Atrue%2C%22slug%22%3A%22squirrelmail%22%2C%22icon%22%3A%22squirellmail%22%7D%2C%7B%22href%22%3A%22%7CWEBAPPS_SSL%7C%3A%2F%2F%7CHOSTNAME%7C%2Fwebmail%22%2C%22name%22%3A%22Webmail%3A+UebiMiau%22%2C%22enabled%22%3Afalse%2C%22newTab%22%3Atrue%2C%22slug%22%3A%22uebimiau%22%2C%22icon%22%3A%22uebimiau%22%7D%2C%7B%22href%22%3A%22%7CWEBAPPS_SSL%7C%3A%2F%2F%7CHOSTNAME%7C%2F${rc_route}%22%2C%22name%22%3A%22Mail%3A+${C_ROUNDCUBE_CUSTOM_NAME}%22%2C%22enabled%22%3Atrue%2C%22newTab%22%3Atrue%2C%22slug%22%3A%22roundcube%22%2C%22icon%22%3A%22roundcube%22%7D%2C%7B%22route%22%3A%22phpmyadmin%22%2C%22name%22%3A%22phpMyAdmin%22%2C%22enabled%22%3Afalse%2C%22icon%22%3A%22phpmyadmin%22%7D%2C%7B%22route%22%3A%22plugins%22%2C%22name%22%3A%22Plugins+will+be+inserted+after+this+entry%22%2C%22enabled%22%3Afalse%2C%22icon%22%3A%22%22%7D%2C%7B%22name%22%3A%22DB%3A+${C_PHPMYADMIN_CUSTOM_NAME}%22%2C%22href%22%3A%22%7CWEBAPPS_SSL%7C%3A%2F%2F%7CHOSTNAME%7C%2F${db_route}%22%2C%22newTab%22%3Atrue%2C%22enabled%22%3Atrue%2C%22icon%22%3A%22phpmyadmin%22%7D%5D%7D%2C%7B%22name%22%3A%22Support+%26+Help%22%2C%22icon%22%3A%22support-help%22%2C%22enabled%22%3Atrue%2C%22columnSize%22%3A5%2C%22entries%22%3A%5B%7B%22href%22%3A%22%7B%7Bhelp%7D%7D%22%2C%22name%22%3A%22Help%22%2C%22enabled%22%3Atrue%2C%22newTab%22%3Atrue%2C%22icon%22%3A%22help%22%7D%2C%7B%22route%22%3A%22%2Freseller%2Ftickets%22%2C%22name%22%3A%22Manage+Tickets%22%2C%22enabled%22%3Atrue%2C%22icon%22%3A%22manage-tickets%22%7D%2C%7B%22route%22%3A%22%2Freseller%2Ftickets%2Fcreate%22%2C%22name%22%3A%22Create+Ticket%22%2C%22enabled%22%3Atrue%2C%22icon%22%3A%22create-ticket%22%7D%5D%7D%5D%2C%22admin%22%3A%5B%7B%22name%22%3A%22Account+Manager%22%2C%22icon%22%3A%22account-manager%22%2C%22enabled%22%3Atrue%2C%22columnSize%22%3A4%2C%22entries%22%3A%5B%7B%22route%22%3A%22%2Fadmin%2Fusers%2Fadmins%2Fcreate%22%2C%22name%22%3A%22Create+Administrator%22%2C%22enabled%22%3Atrue%2C%22icon%22%3A%22create-administrator%22%7D%2C%7B%22route%22%3A%22%2Fadmin%2Fusers%2Fadmins%22%2C%22name%22%3A%22List+Administrators%22%2C%22enabled%22%3Atrue%2C%22icon%22%3A%22list-administrators%22%7D%2C%7B%22route%22%3A%22%2Fadmin%2Fpasswords%22%2C%22name%22%3A%22Change+Passwords%22%2C%22enabled%22%3Atrue%2C%22icon%22%3A%22change-passwords%22%7D%2C%7B%22route%22%3A%22%2Fadmin%2Fusers%2Fresellers%2Fcreate%22%2C%22name%22%3A%22Create+Reseller%22%2C%22enabled%22%3Atrue%2C%22icon%22%3A%22create-reseller%22%7D%2C%7B%22route%22%3A%22%2Fadmin%2Fusers%2Fresellers%22%2C%22name%22%3A%22List+Resellers%22%2C%22enabled%22%3Atrue%2C%22icon%22%3A%22list-resellers%22%7D%2C%7B%22route%22%3A%22%2Fadmin%2Freseller-packages%22%2C%22name%22%3A%22Manage+Reseller+Packages%22%2C%22enabled%22%3Atrue%2C%22icon%22%3A%22manage-reseller-packages%22%7D%2C%7B%22route%22%3A%22%2Fadmin%2Fusers%22%2C%22name%22%3A%22Show+All+Users%22%2C%22enabled%22%3Atrue%2C%22icon%22%3A%22show-all-users%22%7D%2C%7B%22route%22%3A%22%2Fadmin%2Fusers%2Fmove%22%2C%22name%22%3A%22Move+Users+between+Resellers%22%2C%22enabled%22%3Atrue%2C%22icon%22%3A%22move-users-between-resellers%22%7D%2C%7B%22route%22%3A%22%2Fadmin%2Fsuspension-message%22%2C%22name%22%3A%22Suspension+Message%22%2C%22enabled%22%3Atrue%2C%22icon%22%3A%22edit-user-message%22%7D%5D%7D%2C%7B%22name%22%3A%22Server+Manager%22%2C%22icon%22%3A%22server-manager%22%2C%22enabled%22%3Atrue%2C%22columnSize%22%3A3%2C%22entries%22%3A%5B%7B%22route%22%3A%22%2Fadmin%2Fsettings%22%2C%22name%22%3A%22Administrator+Settings%22%2C%22enabled%22%3Atrue%2C%22icon%22%3A%22administrator-settings%22%7D%2C%7B%22route%22%3A%22%2Fadmin%2Fcustom-httpd%22%2C%22name%22%3A%22Custom+HTTPD+Configurations%22%2C%22enabled%22%3Atrue%2C%22icon%22%3A%22custom-httpd-configuration%22%7D%2C%7B%22route%22%3A%22%2Fadmin%2Fdns%22%2C%22name%22%3A%22DNS+Administration%22%2C%22enabled%22%3Atrue%2C%22icon%22%3A%22dns-administration%22%7D%2C%7B%22route%22%3A%22%2Fadmin%2Fip-manager%22%2C%22name%22%3A%22IP+Management%22%2C%22enabled%22%3Atrue%2C%22icon%22%3A%22ip-management%22%7D%2C%7B%22route%22%3A%22%2Fadmin%2Fmulti-server%22%2C%22name%22%3A%22Multi+Server+Setup%22%2C%22enabled%22%3Atrue%2C%22icon%22%3A%22multi-server-setup%22%7D%2C%7B%22route%22%3A%22%2Fadmin%2Fphp-safe-mode%22%2C%22name%22%3A%22PHP+Configuration%22%2C%22enabled%22%3Atrue%2C%22icon%22%3A%22php-configuration%22%7D%2C%7B%22route%22%3A%22%2Fuser%2Fssh-keys%22%2C%22name%22%3A%22SSH+Keys%22%2C%22enabled%22%3Atrue%2C%22icon%22%3A%22ssh-keys%22%7D%2C%7B%22route%22%3A%22%2Fadmin%2Fmodsecurity%22%2C%22name%22%3A%22ModSecurity%22%2C%22enabled%22%3Atrue%2C%22icon%22%3A%22%22%7D%5D%7D%2C%7B%22name%22%3A%22Admin+Tools%22%2C%22icon%22%3A%22admin-tools%22%2C%22enabled%22%3Atrue%2C%22columnSize%22%3A3%2C%22entries%22%3A%5B%7B%22route%22%3A%22%2Fadmin%2Fbackups%22%2C%22name%22%3A%22Admin+Backup%2FTransfer%22%2C%22enabled%22%3Atrue%2C%22icon%22%3A%22admin-backup-transfer%22%7D%2C%7B%22route%22%3A%22%2Fadmin%2Fbrute-force-monitor%22%2C%22name%22%3A%22Brute+Force+Monitor%22%2C%22enabled%22%3Atrue%2C%22icon%22%3A%22brute-force-monitor%22%7D%2C%7B%22route%22%3A%22%2Fadmin%2Fprocess-monitor%22%2C%22name%22%3A%22Process+Monitor%22%2C%22enabled%22%3Atrue%2C%22icon%22%3A%22process-monitor%22%7D%2C%7B%22route%22%3A%22%2Fadmin%2Fmail-queue%22%2C%22name%22%3A%22Mail+Queue+Administration%22%2C%22enabled%22%3Atrue%2C%22icon%22%3A%22mail-queue-administration%22%7D%2C%7B%22route%22%3A%22%2Fadmin%2Fservices%22%2C%22name%22%3A%22Service+Monitor%22%2C%22enabled%22%3Atrue%2C%22icon%22%3A%22service-monitor%22%7D%2C%7B%22route%22%3A%22%2Fadmin%2Fsystem-backup%22%2C%22name%22%3A%22System+Backup%22%2C%22enabled%22%3Atrue%2C%22icon%22%3A%22system-backup%22%7D%2C%7B%22route%22%3A%22%2Freseller%2Fcustomize-skin%22%2C%22name%22%3A%22Customize+Evolution+Skin%22%2C%22enabled%22%3Atrue%2C%22icon%22%3A%22customize-evolution-skin%22%7D%2C%7B%22slug%22%3A%22rspamd%22%2C%22href%22%3A%22%2FCMD_RSPAMD_SOCK%2F%22%2C%22name%22%3A%22Rspamd+spam+filtering+system%22%2C%22enabled%22%3Atrue%2C%22icon%22%3A%22spam-metrics%22%2C%22newTab%22%3Atrue%7D%2C%7B%22slug%22%3A%22netdata%22%2C%22href%22%3A%22%2FCMD_NETDATA_SOCK%22%2C%22name%22%3A%22Netdata+server+metrics%22%2C%22enabled%22%3Atrue%2C%22icon%22%3A%22netdata%22%2C%22newTab%22%3Atrue%7D%5D%7D%2C%7B%22name%22%3A%22System+Info+%26+Files%22%2C%22icon%22%3A%22system-information%22%2C%22enabled%22%3Atrue%2C%22columnSize%22%3A3%2C%22entries%22%3A%5B%7B%22route%22%3A%22%2Fadmin%2Fcron-jobs%22%2C%22name%22%3A%22All+User+Cron+Jobs%22%2C%22enabled%22%3Atrue%2C%22icon%22%3A%22all-user-cron-jobs%22%7D%2C%7B%22href%22%3A%22%2FCMD_FILE_MANAGER%22%2C%22newTab%22%3Atrue%2C%22name%22%3A%22File+Manager%22%2C%22enabled%22%3Atrue%2C%22icon%22%3A%22file-manager%22%7D%2C%7B%22route%22%3A%22%2Fadmin%2Ffile-editor%22%2C%22name%22%3A%22File+Editor%22%2C%22enabled%22%3Atrue%2C%22icon%22%3A%22file-editor%22%7D%2C%7B%22route%22%3A%22%2Fadmin%2Fsystem-info%22%2C%22name%22%3A%22System+Information%22%2C%22enabled%22%3Atrue%2C%22icon%22%3A%22system-information%22%7D%2C%7B%22route%22%3A%22%2Fadmin%2Flog-viewer%22%2C%22name%22%3A%22Log+Viewer%22%2C%22enabled%22%3Atrue%2C%22icon%22%3A%22log-viewer%22%7D%2C%7B%22route%22%3A%22%2Fadmin%2Fstats%22%2C%22name%22%3A%22Complete+Usage+Statistics%22%2C%22enabled%22%3Atrue%2C%22icon%22%3A%22complete-usage-statistics%22%7D%5D%7D%2C%7B%22name%22%3A%22Extra+Features%22%2C%22icon%22%3A%22extra-features%22%2C%22enabled%22%3Atrue%2C%22columnSize%22%3A5%2C%22entries%22%3A%5B%7B%22slug%22%3A%22squirrelmail%22%2C%22href%22%3A%22%7CWEBAPPS_SSL%7C%3A%2F%2F%7CHOSTNAME%7C%2Fsquirrelmail%22%2C%22name%22%3A%22Webmail%3A+Squirrelmail%22%2C%22enabled%22%3Afalse%2C%22newTab%22%3Atrue%2C%22icon%22%3A%22squirellmail%22%7D%2C%7B%22slug%22%3A%22uebimiau%22%2C%22href%22%3A%22%7CWEBAPPS_SSL%7C%3A%2F%2F%7CHOSTNAME%7C%2Fwebmail%22%2C%22name%22%3A%22Webmail%3A+UebiMiau%22%2C%22enabled%22%3Afalse%2C%22newTab%22%3Atrue%2C%22icon%22%3A%22uebimiau%22%7D%2C%7B%22slug%22%3A%22roundcube%22%2C%22href%22%3A%22%7CWEBAPPS_SSL%7C%3A%2F%2F%7CHOSTNAME%7C%2F${rc_route}%22%2C%22name%22%3A%22Mail%3A+${C_ROUNDCUBE_CUSTOM_NAME}%22%2C%22enabled%22%3Atrue%2C%22newTab%22%3Atrue%2C%22icon%22%3A%22roundcube%22%7D%2C%7B%22name%22%3A%22DB%3A+${C_PHPMYADMIN_CUSTOM_NAME}%22%2C%22href%22%3A%22%7CWEBAPPS_SSL%7C%3A%2F%2F%7CHOSTNAME%7C%2F${db_route}%22%2C%22newTab%22%3Atrue%2C%22enabled%22%3Atrue%2C%22icon%22%3A%22phpmyadmin%22%7D%2C%7B%22route%22%3A%22phpmyadmin%22%2C%22name%22%3A%22phpMyAdmin%22%2C%22enabled%22%3Afalse%2C%22icon%22%3A%22phpmyadmin%22%7D%2C%7B%22route%22%3A%22plugins%22%2C%22name%22%3A%22Plugins+will+be+inserted+after+this+entry%22%2C%22enabled%22%3Afalse%2C%22icon%22%3A%22%22%7D%2C%7B%22route%22%3A%22%2Fadmin%2Fplugin-manager%22%2C%22name%22%3A%22Plugin+Manager%22%2C%22enabled%22%3Atrue%2C%22icon%22%3A%22plugin-manager%22%7D%5D%7D%2C%7B%22name%22%3A%22Support+%26+Help%22%2C%22icon%22%3A%22support-help%22%2C%22enabled%22%3Atrue%2C%22columnSize%22%3A5%2C%22entries%22%3A%5B%7B%22href%22%3A%22%7B%7Bhelp%7D%7D%22%2C%22name%22%3A%22Help%22%2C%22enabled%22%3Atrue%2C%22newTab%22%3Atrue%2C%22icon%22%3A%22help%22%7D%2C%7B%22route%22%3A%22%2Freseller%2Ftickets%22%2C%22name%22%3A%22Manage+Tickets%22%2C%22enabled%22%3Atrue%2C%22icon%22%3A%22manage-tickets%22%7D%2C%7B%22route%22%3A%22%2Fadmin%2Flicense%22%2C%22name%22%3A%22Licensing+%2F+Updates%22%2C%22enabled%22%3Atrue%2C%22icon%22%3A%22licensing-updates%22%7D%5D%7D%5D%7D%2C%22colors%22%3A%7B%22primary-dark%22%3A%7B%22hue%22%3A196%2C%22saturation%22%3A100%2C%22lightness%22%3A32.34%2C%22alpha%22%3A100%7D%2C%22safe%22%3A%7B%22hue%22%3A140%2C%22saturation%22%3A41%2C%22lightness%22%3A56%7D%2C%22danger%22%3A%7B%22hue%22%3A20%2C%22saturation%22%3A76%2C%22lightness%22%3A47%7D%2C%22neutral%22%3A%7B%22hue%22%3A180%2C%22saturation%22%3A0.448430493273541%2C%22lightness%22%3A43.72549019607843%7D%7D%2C%22${default_layout}dateFormats%22%3A%7B%22datetime%22%3A%22d%2FM%2Fyyyy+HH%3Amm%3Ass++a%22%2C%22date%22%3A%22d+MMM%2C+yyy%22%2C%22weekStart%22%3A%22monday%22%7D%2C%22theme%22%3A%22%22%2C%22forcedMode%22%3A%22dark%22%7D"
-      method="POST"
-      # da_api_admin "modify-user" da_user1 name "Arafat Ali"
-      # da_api_admin "modify-user" da_user2 nameserver "ns1.sofibox.com" "ns2.sofibox.com"
-      echo "Now, executing API with action name: ${action}"
-      # da_api_admin "set-security-qna" "Sekolah menengah dulu aliran apa ?" "sains"
-    elif [ "${action}" == "set-security-qna" ]; then
-      shift
-      local custom_question answer
-      custom_question="$1"
-      answer="$2"
-      command="CMD_SECURITY_QUESTIONS"
-      data="type=custom&value=${answer}&json=yes&action=add&custom_question=${custom_question}"
-      method="POST"
-      # da_api_admin "set-admin-settings"
-      echo "Now, executing API with action name: ${action}"
-
-    elif [ "${action}" == "set-admin-settings" ]; then
-      :
-    elif [ "${action}" == "set-server-settings" ]; then
-      :
-    elif [ "${action}" == "create-database" ]; then
-      shift
-      local db_name db_username db_password db_domain
-      db_name="$1"
-      db_username="$2"
-      db_password="$3"
-      db_domain="$4"
-      # CMD_API_DB not working but CMD_DB is working
-      command="CMD_DB"
-      data="name=${db_name}&user=${db_username}&passwd=${db_password}&passwd2=${db_password}&domain=${db_domain}&userlist=...&action=create&json=yes"
-      method="POST"
-      # da_api_admin "create-user-database" <db_name> <db_username> <domain>
-      # This will select existing user to create database
-      echo "Now, executing API with action name: ${action}"
-
-    elif [ "${action}" == "create-user-database" ]; then
-      shift
-      local db_name db_username db_password db_domain
-      db_name="$1"
-      db_username="$2"
-      db_domain="$3"
-      command="CMD_DB"
-      data="name=${db_name}&user=${db_username}&domain=${db_domain}&userlist=${db_username}&action=create&json=yes"
-      method="POST"
-      echo "Now, executing API with action name: ${action}"
-
     else
-      echo "[${SCRIPT_NAME}]: The API action '${action}' does not exist!"
+      # Give error because we focus on letsencrypt first
+      echo "[${SCRIPT_NAME}]: Error, this provider ${ssl_provider} has no API yet"
       _exit 147
     fi
+    method="POST"
+    echo "Now, executing API with action name: ${action}"
 
-    # REMOVE THIS LATER TODO
-    #_pause 2
-    echo "[${SCRIPT_NAME}]: API status: "
-    echo "----------------------------"
-    echo ""
-    #Don't use --max-time or decrease time out because letsencrypt API will need more time to request cert
-    #Don't use --silent here (it won't show result)
-    curl --request "${method}" --user "${da_api_username}":"${da_api_password}" --data "${data}" "${ssl}://${C_BOX_HOSTNAME_FQHN}:${C_DA_PORT}/${command}"
-    echo "----------------------------"
-    echo ""
+  elif [ "${action}" == "create-database" ]; then
+    shift
+    local db_name db_username db_password db_domain
+    db_name="$1"
+    db_username="$2"
+    db_password="$3"
+    db_domain="$4"
+    # CMD_API_DB not working but CMD_DB is working
+    command="CMD_DB"
+    data="name=${db_name}&user=${db_username}&passwd=${db_password}&passwd2=${db_password}&domain=${db_domain}&userlist=...&action=create&json=yes"
+    method="POST"
+    # da_api_admin "create-user-database" <db_name> <db_username> <domain>
+    # This will select existing user to create database
+    echo "Now, executing API with action name: ${action}"
+
+  elif [ "${action}" == "create-user-database" ]; then
+    shift
+    local db_name db_username db_password db_domain
+    db_name="$1"
+    db_username="$2"
+    db_domain="$3"
+    command="CMD_DB"
+    data="name=${db_name}&user=${db_username}&domain=${db_domain}&userlist=${db_username}&action=create&json=yes"
+    method="POST"
+    echo "Now, executing API with action name: ${action}"
 
   else
-    echo "da_api_admin first argument given was: $1"
+    echo "[${SCRIPT_NAME}]: The API action '${action}' does not exist!"
+    _exit 147
   fi
+
+  # REMOVE THIS LATER TODO
+  #_pause 2
+  echo "[${SCRIPT_NAME}]: API status: "
+  echo "----------------------------"
+  echo ""
+  #Don't use --max-time or decrease time out because letsencrypt API will need more time to request cert
+  #Don't use --silent here (it won't show result)
+  curl --request "${method}" --user "${da_api_username}":"${da_api_password}" --data "${data}" "${ssl}://${C_BOX_HOSTNAME_FQHN}:${C_DA_PORT}/${command}"
+  echo "----------------------------"
+  echo ""
+
 }
 
 # This will check if system needs to reboot based on /var/run/reboot-required file
@@ -8420,6 +8506,24 @@ function restart_da() {
   done
 
 }
+# This function will get the current directadmin original / owner username
+# Only execute this after directadmin has successfully installed (we know we got an admin account)
+function get_current_da_owner_username() {
+  local admin_list da_admins da_admin current_da_owner_username
+  admin_list="/usr/local/directadmin/data/admin/admin.list"
+  readarray -t da_admins <"${admin_list}"
+  for da_admin in "${da_admins[@]}"; do
+    # There must be 1 creator in directadmin, so this one must always have value
+    current_da_owner_username=$(grep -rl "^creator=root" "/usr/local/directadmin/data/users/${da_admin}/user.conf" | cut -d'/' -f7 | tail -n 1)
+  done
+  unset da_admins
+  if [ -z "${current_da_owner_username}" ]; then
+    _echo "$(msg red)Error, there is no admin created by root exist in directadmin user data! Please make sure it exist!$(msg end)" --name
+    _exit 147
+  else
+    echo "${current_da_owner_username}"
+  fi
+}
 
 function install_da_pre() {
   local option func_name
@@ -8459,6 +8563,7 @@ function install_da_pre() {
         _echo "$(msg red)Error, unknown value for distribution ID ${DISTRO_ID}. The distribution ID is not supported!$(msg end)" --name
         _exit 147
       fi
+
       if [[ -d "${LATEST_OS_CODE_PATH}/usr/local/directadmin/custombuild" ]]; then
         _echo "$(msg cyan)Copying the latest custombuild custom options.conf into /usr/local/directadmin/custombuild/options.conf ...$(msg end)" --name
         cp "${LATEST_OS_CODE_PATH}/usr/local/directadmin/custombuild/options.conf" "/usr/local/directadmin/custombuild/options.conf"
@@ -8756,8 +8861,7 @@ function secure_da_auth() {
   start_execute_options "${option}" "${func_name}"
   [[ "${SKIP_RUN}" == "true" ]] && return 0
   if [[ ! -f "${CONF_PATH}/${func_name}_executed" && "${FUNCTION_RUN}" == "true" ]]; then
-    local admin_list da_admin da_admins da_scripts_path da_bin da_cb_bin current_da_owner_username retval
-    admin_list="/usr/local/directadmin/data/admin/admin.list"
+    local da_scripts_path da_bin da_cb_bin retval
     da_scripts_path="/usr/local/directadmin/scripts"
     da_bin="/usr/local/directadmin/directadmin"
     da_cb_bin="/usr/local/directadmin/custombuild/build"
@@ -8769,25 +8873,14 @@ function secure_da_auth() {
       _exit 147
     fi
 
-    readarray -t da_admins <"${admin_list}"
-    for da_admin in "${da_admins[@]}"; do
-      # There must be 1 creator in directadmin, so this one must always have value
-      current_da_owner_username=$(grep -rl "^creator=root" "/usr/local/directadmin/data/users/${da_admin}/user.conf" | cut -d'/' -f7)
-    done
-    unset da_admins
-    if [ -z "${current_da_owner_username}" ]; then
-      _echo "$(msg red)Error, there is no admin created by root exist in directadmin user data!$(msg end)" --name
-      _exit 147
-    fi
-
     # This one moved to configure_da_owner_accounts()
     # This will change Directadmin admin account:
-    #_echo "$(msg cyan)Changing the first directadmin admin username from default ${current_da_owner_username} username to ${LABEL_C_DA_OWNER_USERNAME1} ...$(msg end)" --name
-    #${da_scripts_path}/change_username.sh "${current_da_owner_username}" "${C_DA_OWNER_USERNAME1}"
+    #_echo "$(msg cyan)Changing the first directadmin admin username from default $(get_current_da_owner_username) username to ${LABEL_C_DA_OWNER_USERNAME1} ...$(msg end)" --name
+    #${da_scripts_path}/change_username.sh "$(get_current_da_owner_username)" "${C_DA_OWNER_USERNAME1}"
     #echo ""
     # By default, directadmin installation uses a short password which is not secured. Change it here
     #_echo "$(msg cyan)Changing the first admin (${LABEL_C_DA_OWNER_USERNAME1})'s password ...$(msg end)" --name
-    #echo "${C_DA_OWNER_USERNAME1}:${C_DA_OWNER_USERPASS1}" | chpasswd
+    # echo "${C_DA_OWNER_USERNAME1}:${C_DA_OWNER_USERPASS1}" | chpasswd
     #echo ""
 
     # Create htpasswd for phpmyadmin URL: (only create user information but not enabled it)
@@ -8904,7 +8997,6 @@ function configure_da_ips() {
         _echo "$(msg cyan)Automatically adding missing IPv6 IP address using directadmin API ... $(msg end)" --name
         #1) First method: Create ipv6 file using directadmin API
 
-        # TODO test this
         da_api_admin "add-ip" --ip-address "${C_IPV6_ADD0}" --netmask "${C_IPV6_NETMASK0}"
 
         #2) Second method: Manually create ipv6 file (alternative way) if the above method API doesn't produce the IP file (just in case)
@@ -9141,7 +9233,7 @@ function install_da_csf() {
         wget --no-check-certificate -O show_blocked_ips.sh http://files.plugins-da.net/dl/csf_show_blocked_ips.sh.txt
         wget --no-check-certificate -O brute_force_notice_ip.sh http://files.directadmin.com/services/all/brute_force_notice_ip.sh
         echo ""
-        _echo "$(msg cyan)Correcting the permission of the downloaded scrips ...$(msg end)" --name
+        _echo "$(msg cyan)Correcting the permission of the downloaded scripts ...$(msg end)" --name
         chmod 700 block_ip.sh show_blocked_ips.sh unblock_ip.sh brute_force_notice_ip.sh
         echo ""
         _echo "$(msg cyan)Creating the empty block list and exempt list files ...$(msg end)" --name
@@ -9377,7 +9469,7 @@ function install_general_csf() {
       echo "[${SCRIPT_NAME}]: Setting CSF RESTRICT_SYSLOG from 0 to 3 to avoid warning ..."
       sed -i 's/RESTRICT_SYSLOG = "0"/RESTRICT_SYSLOG = "3"/g' /etc/csf/csf.conf
       echo "[${SCRIPT_NAME}]: Setting CSF SYSLOG_CHECK to ${C_CSF_SYSLOG_CHECK} ..."
-      sed -i "s/SYSLOG_CHECK = .*/SYSLOG_CHECK = '\"${C_CSF_SYSLOG_CHECK}\"'/" /etc/csf/csf.conf
+      sed -i "s/SYSLOG_CHECK = .*/SYSLOG_CHECK = \"${C_CSF_SYSLOG_CHECK}\"/" /etc/csf/csf.conf
       sleep 1
       echo "[${SCRIPT_NAME}]: Testing CSF after installation ..."
       echo ""
@@ -10414,14 +10506,11 @@ function configure_da_settings() {
     # Using API (some values are not present in directadmin.conf), so we use this extra API
     # For DA Administrator Settings:
     _echo "$(msg cyan)Configuring Directadmin Admin settings with recommend values ...$(msg end)" -- name
-    da_api_admin set-da-admin-settings --sign-as owner1 --recommend-values
-    echo ""
+    da_api_admin set-da-admin-settings --recommend-values
     _echo "$(msg cyan)Configuring Directadmin Server, Security and Email settings with recommend values ...$(msg end)" --name
-    da_api_admin set-da-server-settings --sign-as owner1 --recommend-values
-
+    da_api_admin set-da-server-settings --recommend-values
     _echo "$(msg cyan)Enforcing Directadmin difficult password ...$(msg end)" --name
-    ${da_bin} set enforce_difficult_passwords 1
-    echo ""
+    ${da_bin} set enforce_difficult_passwords "${C_DA_ENFORCE_DIFFICULT_PASSWORDS}"
     # This setting force_hostname will only allow hostname url login in Directadmin. For example, without this option you can use any domain within directadmin system to login.
     # eg: userdomain.com:2222 . Sometimes this user does not have valid certificate, thus this will cause security issue.
     # so, it is better to redirect to one hostname with a valid certificate:
@@ -10429,78 +10518,56 @@ function configure_da_settings() {
     # It is recommend to enable this option for security
     _echo "$(msg cyan)Enabling directadmin to force login with only hostname ${LABEL_C_BOX_HOSTNAME_FQHN} ...$(msg end)" --name
     ${da_bin} set force_hostname "${C_BOX_HOSTNAME_FQHN}"
-    echo ""
     _echo "$(msg cyan)Enabling directadmin backup encryption ...$(msg end)" --name
-    ${da_bin} set allow_backup_encryption 1
-    echo ""
+    ${da_bin} set allow_backup_encryption "${C_DA_ALLOW_BACKUP_ENCRYPTION}"
     _echo "$(msg cyan)Setting Directadmin online help ...$(msg end)" --name
     ${da_bin} set admin_helper "${C_DA_ADMIN_HELPER}"
     ${da_bin} set reseller_helper "${C_DA_RESELLER_HELPER}"
     ${da_bin} set user_helper "${C_DA_USER_HELPER}"
-    echo ""
     # Set directadmin hostname
     ${da_bin} set servername "${C_BOX_HOSTNAME_FQHN}"
-    echo ""
     # Set directadmin name server
     ${da_bin} set ns1 "${C_BOX_NS1}"
     ${da_bin} set ns2 "${C_BOX_NS1}"
-    echo ""
-
     # Set the timeout setting in second for directadmin execution before generating a timeout signal and aborting (default 60 seconds)
     ${da_bin} set timeout "${C_DA_TIMEOUT}"
     # Set the login session timeout in minutes (when idle), session counter reset to 0 if any da page is reload (default 60 minutes / 1 hour)
     # 2880 = 2 days / 48 hours
-    echo ""
     # TODO comment this for bug checking (enable later): https://forum.directadmin.com/threads/bug-cannot-set-session_minutes-using-directadmin-set-command.64280/#post-334271
     # This one session_minutes has bug, wait until there is a fix
-    #${da_bin} set session_minutes "${C_DA_SESSION_MINUTES}"
-    echo ""
+    # ${da_bin} set session_minutes "${C_DA_SESSION_MINUTES}"
     # Increase upload max file size in bytes
     # 5368709120 = 5GB
-    echo ""
-    ${da_bin} set maxfilesize "${C_DA_ADMIN_MAXFILESIZE}"
-    echo""
+    ${da_bin} set maxfilesize "${C_DA_MAXFILESIZE}"
     # Set number of apache log to keep for user
-    ${da_bin} set logs_to_keep "${C_DA_ADMIN_LOGS_TO_KEEP}"
-    echo ""
+    ${da_bin} set logs_to_keep "${C_DA_LOGS_TO_KEEP}"
     # Set directadmin login history (default 10)
     ${da_bin} set login_history "${C_DA_LOGIN_HISTORY}"
-    echo ""
     # Do not disable disable_ip_check (this one is session security) - default is 0
     ${da_bin} set disable_ip_check "${C_DA_DISABLE_IPCHECK}"
-    echo ""
     # Disable foreign IP when login - default is 0
     ${da_bin} set allow_foreign_key "${C_DA_ALLOW_FOREIGN_KEY}"
-    echo ""
     # Enable simple disk usage - lowering disk access (this might increase performance)
     ${da_bin} set simple_disk_usage "${C_DA_SIMPLE_DISK_USAGE}"
-    echo ""
     # Enable zip compression in file manager (allow zip and unzip feature)
     ${da_bin} set zip "${C_DA_ZIP}"
     # Disable awstats (disable by default) and webalizer (enabled by default) and rotation (enabled by default)
     ${da_bin} set awstats "${C_DA_AWSTATS}"
     ${da_bin} set webalizer "${C_DA_WEBALIZER}"
     ${da_bin} set rotation "${C_DA_ROTATION}"
-    echo ""
-
     # Disable this feature increase performance (default is enabled)
     ${da_bin} set count_pop_usage "${C_DA_COUNT_POP_USAGE}"
-    echo ""
     # Purge spam email every 1 day (this can increase performance if value is low)
     ${da_bin} set purge_spam_days "${C_DA_PURGE_SPAM_DAYS}"
-    echo ""
     # Skip some backups path
     ${da_bin} set skip_hometargz_in_backups "${C_DA_SKIP_HOMETARGZ_IN_BACKUPS}"
     ${da_bin} set skip_domains_in_backups "${C_DA_SKIP_DOMAINS_IN_BACKUPS}"
     ${da_bin} set skip_imap_in_backups "${C_DA_SKIP_IMAP_IN_BACKUPS}"
     ${da_bin} set skip_databases_in_backups "${C_DA_SKIP_DATABASES_IN_BACKUPS}"
-    echo ""
     # Skip database usage show (default 1 - show all databases size)
     ${da_bin} set show_db_usage "${C_DA_SHOW_DB_USAGE}"
-    echo ""
     # Enable domain owner checking for unique subdomain
     ${da_bin} set check_subdomain_owner "${C_DA_CHECK_SUBDOMAIN_OWNER}"
-    echo ""
     # Set bruteforce and blacklist setting
     ${da_bin} set bruteforce "${C_DA_BRUTEFORCE}"
     # Prevent local IP block:
@@ -10519,20 +10586,17 @@ function configure_da_settings() {
     ${da_bin} set brute_force_scan_apache_logs "${C_DA_BRUTE_FORCE_SCAN_APACHE_LOGS}"
     # Don't bother the bruteforce count (increase performance for bruteforce page in directadmin)
     ${da_bin} set user_brutecount "${C_DA_USER_BRUTECOUNT}"
+    # Enable directadmin security question
+    ${da_bin} set security_questions "${C_DA_SECURITY_QUESTIONS}"
     # Check partition usage
     ${da_bin} set check_partitions "${C_DA_CHECK_PARTITIONS}"
     ${da_bin} set partition_usage_threshold "${C_DA_PARTITION_USAGE_THRESHOLD}"
-    echo ""
     # Set backup compression format
     ${da_bin} set backup_gzip "${C_DA_BACKUP_GZIP}"
-    echo ""
     # Demo for skin
     ${da_bin} set demodocsroot "${C_DA_DEMODOCSROOT}"
-    echo ""
     # Do not allow password reset in UI (default is not set to allow)
     ${da_bin} set lost_password "${C_DA_LOST_PASSWORD}"
-    # Set servername
-    ${da_bin} set servername "${C_BOX_HOSTNAME_FQHN}"
     # Set user can set email limit sent
     ${da_bin} set user_can_set_email_limit "${C_DA_USER_CAN_SET_EMAIL_LIMIT}"
     # Set max per email send limit
@@ -10793,8 +10857,8 @@ function configure_da_owner_accounts() {
   start_execute_options "${option}" "${func_name}"
   [[ "${SKIP_RUN}" == "true" ]] && return 0
   if [[ ! -f "${CONF_PATH}/${func_name}_executed" && "${FUNCTION_RUN}" == "true" ]]; then
-    local admin_list da_admin da_admins da_scripts_path da_bin da_cb_bin current_da_owner_username retval
-    admin_list="/usr/local/directadmin/data/admin/admin.list"
+    local da_scripts_path da_bin da_cb_bin retval
+
     da_scripts_path="/usr/local/directadmin/scripts"
     da_bin="/usr/local/directadmin/directadmin"
     da_cb_bin="/usr/local/directadmin/custombuild/build"
@@ -10806,28 +10870,18 @@ function configure_da_owner_accounts() {
       _exit 147
     fi
 
-    readarray -t da_admins <"${admin_list}"
-    for da_admin in "${da_admins[@]}"; do
-      # There must be 1 creator in directadmin, so this one must always have value
-      current_da_owner_username=$(grep -rl "^creator=root" "/usr/local/directadmin/data/users/${da_admin}/user.conf" | cut -d'/' -f7 | tail -n 1)
-    done
-    unset da_admins
-
-    if [ -z "${current_da_owner_username}" ]; then
-      _echo "$(msg red)Error, there is no admin created by root exist in directadmin user data!$(msg end)" --name
-      _exit 147
-    fi
     # This will change Directadmin admin account username:
-    _echo "$(msg cyan)Changing the first directadmin admin username from default ${current_da_owner_username} username to ${LABEL_C_DA_OWNER_USERNAME1} ...$(msg end)" --name
-    ${da_scripts_path}/change_username.sh "${current_da_owner_username}" "${C_DA_OWNER_USERNAME1}"
+    _echo "$(msg cyan)Changing the first directadmin owner username from $(get_current_da_owner_username) username to ${LABEL_C_DA_OWNER_USERNAME1} ...$(msg end)" --name
+    ${da_scripts_path}/change_username.sh "$(get_current_da_owner_username)" "${C_DA_OWNER_USERNAME1}"
     echo ""
     # By default, directadmin installation uses a short password which is not secured. Change it here
-    _echo "$(msg cyan)Changing the first admin (${LABEL_C_DA_OWNER_USERNAME1})'s password ...$(msg end)" --name
-    echo "${C_DA_OWNER_USERNAME1}:${C_DA_OWNER_USERPASS1}" | chpasswd
+    _echo "$(msg cyan)Changing the first directadmin owner ($(get_current_da_owner_username))'s password ...$(msg end)" --name
+    echo "$(get_current_da_owner_username)":"${C_DA_OWNER_USERPASS1}" | chpasswd
     echo ""
 
     _echo "$(msg cyan)Renaming owner account name to ${LABEL_C_DA_OWNER_NAME1} ...$(msg end)" --name
-    da_api_admin modify-user --sign-as owner1 --where-username-is "${current_da_owner_username}" --name "${C_DA_OWNER_NAME1}"
+    # No need to sign as owner1 we dont know if owner1 has changed ts username
+    da_api_admin modify-user --where-username-is "$(get_current_da_owner_username)" --name "${C_DA_OWNER_NAME1}"
     echo ""
 
     check_finish_reboot "${func_name}"
@@ -10856,7 +10910,7 @@ function configure_da_admin_accounts() {
     _echo "$(msg cyan) Creating the first new directadmin admin account ${LABEL_C_ADMIN_USERNAME1} ...$(msg end)" --name
     # Must sign in as owner to create a new admin account. To use owner, account put --sign-as owner1 or --sign-as [owner_username] or leave --sign-as option
     # because by default, this script will use the first owner username and password for API if it is not supplied.
-    da_api_admin create-admin-account --sign-as owner1 --username "${C_DA_ADMIN_USERNAME1}" --email "${C_DA_ADMIN_SYSTEM_EMAIL1}" --password "${C_DA_ADMIN_USERPASS1}"
+    da_api_admin create-admin-account --username "${C_DA_ADMIN_USERNAME1}" --email "${C_DA_ADMIN_SYSTEM_EMAIL1}" --password "${C_DA_ADMIN_USERPASS1}"
     echo ""
     _echo "$(msg cyan)Renaming admin account default name to ${LABEL_C_DA_ADMIN_NAME1} ...$(msg end)" --name
     da_api_admin modify-user --sign-as admin1 --where-username-is "${C_DA_ADMIN_USERNAME1}" --name "${C_DA_ADMIN_NAME1}"
@@ -11171,6 +11225,8 @@ function configure_da_reseller_accounts() {
   end_execute_options "${option}" "${func_name}"
 }
 
+# By default the root domain were created in directadmin. Only add in external DNS
+# This function will scan the current domain list of reseller and automatically add root, A or AAAA records to external DNS
 function configure_da_reseller_root_domains() {
   local option func_name
   option="$1"
@@ -11196,7 +11252,6 @@ function configure_da_reseller_root_domains() {
       da_reseller_system_domain_list=$(cat "/usr/local/directadmin/data/users/${da_reseller_uname}/domains.list")
 
       # Debug:
-
       _echo "$(msg newline)" --plain --verbose 7
       _echo "$(msg yellow)Warning this information contains sensitive data due to verbosity level was set to 7 or more$(msg end)" --name --verbose 7
       _echo "$(msg magenta)=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=$(msg end)" --name
@@ -11214,65 +11269,20 @@ function configure_da_reseller_root_domains() {
       _echo "$(msg magenta)=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=$(msg end)" --name
       _echo "$(msg newline)" --plain --verbose 7
 
-      reseller_domain_count=1
+      #reseller_domain_count=1
       for da_reseller_system_domain in ${da_reseller_system_domain_list}; do
         echo "${da_reseller_system_domain}"
-      done
-
-      exit 1
-
-      count_n=1
-      while [ ${count_n} -le "${this_da_reseller_domains_count}" ]; do
-        echo "------------------------"
-        echo "Total count: ${count_n}"
-        count_o=0
-        for domain in ${this_da_reseller_domains}; do
-          echo "count_o: ${count_o}"
-          # Debug
-          echo "domain is set: ${domain}"
+        if [ "${DNS_PROVIDER_NAME}" == "linode" ]; then
+          # Since the record is supplied with --build option, we do not need to delete the record before adding
+          _echo "$(msg cyan)Adding root domain ${da_reseller_system_domain} record for IPv4 in linode$(msg end)" --name
+          linode_api_admin add-dns-record --domain "${da_reseller_system_domain}" --record-type "A" --record-name "" --record-value "${C_IPV4_ADD0}" --record-ttl 300
           echo ""
-
-          echo "[${SCRIPT_NAME}]: Creating root domain ${domain} for both IPv4 and IPv6 ..."
-          echo "~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~"
-          da_api_admin "signas+${this_da_reseller_username}+${this_da_reseller_userpass}"
-          # Note if record exist, it won't create in DA
-          da_api_admin "create-dns-record" "${domain}" "A" "${domain}." "${C_IPV4_ADD0}"
-          da_api_admin "create-dns-record" "${domain}" "AAAA" "${domain}." "$(ipv6calc --addr2uncompaddr "${C_IPV6_ADD0}")"
-          echo "~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~"
+          _echo "$(msg cyan)Adding root domain ${da_reseller_system_domain} record for IPv6 in linode$(msg end)" --name
+          linode_api_admin add-dns-record --domain "${da_reseller_system_domain}" --record-type "AAAA" --record-name "" --record-value "${C_IPV6_ADD0}" --record-ttl 300
           echo ""
-          if [ "${DNS_PROVIDER_NAME}" == "linode" ]; then
-            # In linode DNS record are duplicated, we don't want so must delete previous record first before adding new
-            echo "[${SCRIPT_NAME}]: DNS provider is set to linode. Using linode API"
-
-            echo "[${SCRIPT_NAME}]: Deleting root ${domain} record for IPv4 and IPv6 from linode"
-            echo "~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~"
-            # In linode empty there means hostname or I can use @ or try domain.com
-            linode_api_admin "delete-dns-record" "${domain}" "" "A"
-            linode_api_admin "delete-dns-record" "${domain}" "" "AAAA"
-            echo "~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~"
-            echo ""
-
-            # Also add wildcard domain for linode API here
-            echo "[${SCRIPT_NAME}]: Adding wildcard domain ${domain} record for IPv4 and IPv6 from linode"
-            echo "~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~"
-            #In linode empty there means hostname or I can use @ or try domain.com
-            linode_api_admin "add-dns-record" "${domain}" "A" "" "${C_IPV4_ADD0}" "5"
-            linode_api_admin "add-dns-record" "${domain}" "AAAA" "" "${C_IPV6_ADD0}" "5"
-            echo "~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~"
-            echo ""
-          elif [ "${DNS_PROVIDER_NAME}" == "digitalocean" ]; then
-            echo "[${SCRIPT_NAME}]: DNS provider is set to digitalocean"
-            # Call digitalocean_api_admin
-            #elif other provider
-          elif [ "${DNS_PROVIDER_NAME}" == "local" ]; then
-            echo "[${SCRIPT_NAME}]: DNS provider is set to local (Internal DNS)"
-            # Do nothing
-          fi
-          ((count_o++))
-        done
-        ((count_n++))
+        fi
       done
-      ((count_x++))
+      ((count_reseller1++))
     done
     echo ""
     check_finish_reboot "${func_name}"
@@ -12277,51 +12287,136 @@ function configure_da_owner_skins() {
   start_execute_options "${option}" "${func_name}"
   [[ "${SKIP_RUN}" == "true" ]] && return 0
   if [[ ! -f "${CONF_PATH}/${func_name}_executed" && "${FUNCTION_RUN}" == "true" ]]; then
-    da_api_admin "signas+owner"
-
-    # 1) misc options
-    # Set the predefined setting
-    da_api_admin "set-da-options" "evolution"
-
-    # 2) configure the Skin Options from menu
-    # a) Set logo
-    # There is no official documentation how to upload a directadmin logo using API.
-    # Da needs this home temporary folder to hold upload file
-    mkdir -p /home/tmp
-    default_logo_file="${DATA_PATH}/maxinet/storage/os/${DISTRO_ID}/usr/local/directadmin/logo/default_logo.png"
-    # The upload file need to have random string append to it else it won't work:
+    local da_conf_file da_temp_dir logo_path default_logo_file dark_mode_logo_file
+    da_conf_file="/usr/local/directadmin/conf/directadmin.conf"
+    if [ ! -f "${da_conf_file}" ]; then
+      _echo "$(msg red)Error, the directadmin configuration file does not exist!$(msg end)" --name
+      _exit 147
+    fi
+    _echo "$(msg cyan)Setting directadmin skin setting with recommend values for owner1 ...$(msg end)" --name
+    da_api_admin set-da-skin-settings --skin-name "evolution" --recommend-values
+    echo ""
+    # There is no official documentation how to upload a directadmin logo using API. This is my own method also written in here:
     # https://forum.directadmin.com/threads/cmd_api_skins-upload-skin-logo-via-curl-issue.63127/
-    # I use random length of 6 because I saw DA always generated length of 6 when append this random string to a file
-    default_logo_file_home="/home/tmp/logo.png$(get_rnd_alpha 6)"
-    dark_mode_logo_file="${DATA_PATH}/maxinet/storage/os/${DISTRO_ID}/usr/local/directadmin/logo/dark_mode_logo.png"
-    dark_mode_logo_file_home="/home/tmp/logo2.png$(get_rnd_alpha 6)"
 
-    # Copy the logo files from storage data to the temporary home directory
-    cp "${default_logo_file}" "${default_logo_file_home}"
-    cp "${dark_mode_logo_file}" "${dark_mode_logo_file_home}"
+    # This is the part to upload logo
+    # Directadmin needs this home temporary folder to hold upload file (this is a must)
+    da_temp_dir=$(grep "^tmpdir" "${da_conf_file}" | cut -d= -f2)
+    if [ -z "${da_temp_dir}" ]; then
+      da_temp_dir="/home/tmp"
+    fi
+    mkdir -p "${da_temp_dir}"
+    logo_path="${LATEST_OS_CODE_PATH}/usr/local/directadmin/logo"
 
-    # The files that need to be uploaded need to have nobody permission (else it wont work)
-    chown nobody:nogroup "${default_logo_file_home}"
-    chown nobody:nogroup "${dark_mode_logo_file_home}"
-
-    if [ -f "${default_logo_file_home}" ]; then
-      da_api_admin "set-da-logo" evolution default-logo "${default_logo_file_home}"
+    _echo "$(msg cyan)Setting directadmin default logo owner1 ...$(msg end)" --name
+    if [[ -f "${logo_path}/default_logo.png" ]]; then
+      da_api_admin set-da-logo --skin-name "evolution" --logo-mode default-logo --logo-file "${logo_path}/default_logo.png"
     else
-      echo "[${SCRIPT_NAME}]: Warning, file logo is missing from ${default_logo_file_home}"
-      _exit 147
+      _echo "$(msg yellow)Warning, missing logo file default_logo.png. Make sure this file exist in ${logo_path}/default_logo.png!" --name
+    fi
+    echo ""
+
+    _echo "$(msg cyan)Setting directadmin dark logo owner1 ...$(msg end)" --name
+    if [[ -f "${logo_path}/dark_mode_logo.png" ]]; then
+      da_api_admin set-da-logo --skin-name "evolution" --logo-mode default-logo --logo-file "${logo_path}/dark_mode_logo.png"
+    else
+      _echo "$(msg yellow)Warning, missing logo file dark_mode_logo.png. Make sure this file exist in ${logo_path}/dark_mode_logo.png!" --name
+    fi
+    echo ""
+
+    _echo "$(msg cyan)Setting directadmin favourite icon logo owner1 ...$(msg end)" --name
+    if [[ -f "${logo_path}/favicon.png" ]]; then
+      da_api_admin set-da-logo --skin-name "evolution" --logo-mode default-logo --logo-file "${logo_path}/favicon.png"
+    else
+      _echo "$(msg yellow)Warning, missing logo file favicon.png. Make sure this file exist in ${logo_path}/favicon.png!" --name
+    fi
+    echo ""
+
+    _echo "$(msg cyan)Setting directadmin default symbol logo owner1 ...$(msg end)" --name
+    if [[ -f "${logo_path}/default_symbol.png" ]]; then
+      da_api_admin set-da-logo --skin-name "evolution" --logo-mode default-logo --logo-file "${logo_path}/default_symbol.png"
+    else
+      _echo "$(msg yellow)Warning, missing logo file default_symbol.png. Make sure this file exist in ${logo_path}/default_symbol.png!" --name
+    fi
+    echo ""
+
+    _echo "$(msg cyan)Setting directadmin dark symbol logo owner1 ...$(msg end)" --name
+    if [[ -f "${logo_path}/dark_symbol.png" ]]; then
+      da_api_admin set-da-logo --skin-name "evolution" --logo-mode default-logo --logo-file "${logo_path}/dark_symbol.png"
+    else
+      _echo "$(msg yellow)Warning, missing logo file dark_symbol.png. Make sure this file exist in ${logo_path}/dark_symbol.png!" --name
     fi
 
-    if [ -f "${dark_mode_logo_file_home}" ]; then
-      da_api_admin "set-da-logo" evolution dark-logo "${dark_mode_logo_file_home}"
-    else
-      echo "[${SCRIPT_NAME}]: Warning, file logo is missing from ${dark_mode_logo_file_home}"
-      _exit 147
-    fi
+    echo ""
+    check_finish_reboot "${func_name}"
+  else
+    _echo "$(msg yellow)[Skipped by system]: $(msg magenta)${func_name}()$(msg end) $(msg yellow)with current option ${option} has ran before $(msg end)" --name
+    _echo "$(msg yellow)=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=$(msg end)" --plain
+  fi
 
-    # Remove both temporary logo from the home directory
-    rm -f "${default_logo_file_home}"
-    rm -f "${dark_mode_logo_file_home}"
+  end_execute_options "${option}" "${func_name}"
+}
 
+# Note this part contains bug from directadmin (cannot create more than 1 security question)
+# I posted here: https://forum.directadmin.com/threads/bad-documentation-on-cmd_security_questions-can-anyone-explain-this.64319/#post-334503
+# TODO reinstall server and test again, if still not solve open a ticket with no remorse
+# For now, the error will not halt the script just ignore it and we still have 1 security question
+# TODO the new setting security_questions on directadmin.conf will enable global setting of security question for all users
+# If not, then use API later.
+function configure_da_owner_security() {
+  # Set owner security and answer questions:
+  # da_api_admin "set-security-qna" "Sekolah menengah dulu aliran apa ?" "sains"
+  local option func_name
+  option="$1"
+  func_name="${FUNCNAME[0]}"
+  start_execute_options "${option}" "${func_name}"
+  [[ "${SKIP_RUN}" == "true" ]] && return 0
+  if [[ ! -f "${CONF_PATH}/${func_name}_executed" && "${FUNCTION_RUN}" == "true" ]]; then
+    local da_owner_username da_owner_security_qs da_owner_security_as \
+      da_owner_security_qs da_owner_security_qs_count owner_count question_count
+
+    da_owner_usernames_count=$(echo "${!C_DA_OWNER_USERNAME@}" | wc -w)
+    owner_count=1
+    while [ ${owner_count} -le "${da_owner_usernames_count}" ]; do
+      # Assign all variables from the config file as array index
+      typeset -n "da_owner_username=C_DA_OWNER_USERNAME${owner_count}"
+      typeset -n "da_owner_security_qs=C_DA_OWNER_SECURITY_Q${owner_count}"
+      typeset -n "da_owner_security_as=C_DA_OWNER_SECURITY_A${owner_count}"
+      da_owner_security_qs_count="${#da_owner_security_qs[@]}"
+
+      _echo "$(msg newline)" --plain --verbose 7
+      _echo "$(msg yellow)Warning this information contains sensitive data due to verbosity level was set to 7 or more$(msg end)" --name --verbose 7
+      _echo "$(msg magenta)=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=$(msg end)" --name --verbose 7
+      _echo "Owner security question details:" --name --verbose 7
+      _echo "Owner count ${owner_count} out of ${da_owner_usernames_count}" --name --verbose 7
+      _echo "da_owner_username: ${da_owner_username}" --name --verbose 7
+      _echo "da_owner_security_qs: ${da_owner_security_qs[*]}" --name --verbose 7
+      _echo "da_owner_security_as: ${da_owner_security_as[*]}" --name --verbose 7
+      _echo "da_owner_security_qs_count: ${da_owner_security_qs_count[*]}" --name --verbose 7
+      _echo "$(msg newline)" --plain --verbose 7
+
+      question_count=0
+      while [ "${question_count}" -le $((da_owner_security_qs_count - 1)) ]; do
+        local security_question security_answer
+        security_question=${da_owner_security_qs[question_count]}
+        security_answer=${da_owner_security_as[question_count]}
+        _echo "Security question for owner: ${da_owner_username}" --name --verbose 7
+        _echo "Security question: ${security_question}" --name --verbose 7
+        _echo "Security answer: ${security_answer}" --name --verbose 7
+        _echo "$(msg magenta)=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=$(msg end)" --name --verbose 7
+
+        if [[ "${#security_question}" == 0 || "${#security_answer}" == 0 ]]; then
+          echo "[${SCRIPT_NAME}]: [skipped]: Value defined for security_question or security answer (or both) are empty"
+          ((question_count++))
+          continue
+        fi
+        _echo "$(msg cyan)Setting up security questions and answers for user ${da_owner_username}$(msg end)" --name
+        da_api_admin set-security-qna --question "${security_question}" --answer "${security_answer}"
+        echo ""
+        ((question_count++))
+      done
+      ((owner_count++))
+    done
     echo ""
     check_finish_reboot "${func_name}"
   else
@@ -12341,51 +12436,65 @@ function configure_da_admin_skins() {
   start_execute_options "${option}" "${func_name}"
   [[ "${SKIP_RUN}" == "true" ]] && return 0
   if [[ ! -f "${CONF_PATH}/${func_name}_executed" && "${FUNCTION_RUN}" == "true" ]]; then
-    da_api_admin "signas+admin"
-
-    # 1) misc options
-    # Set the predefined setting
-    da_api_admin "set-da-options" "evolution"
-
-    # 2) configure the Skin Options from menu
-    # a) Set logo
-    # There is no official documentation how to upload a directadmin logo using API.
-    # Da needs this home temporary folder to hold upload file
-    mkdir -p /home/tmp
-    default_logo_file="${DATA_PATH}/maxinet/storage/os/${DISTRO_ID}/usr/local/directadmin/logo/default_logo.png"
-    # The upload file need to have random string append to it else it won't work:
+    local da_conf_file da_temp_dir logo_path default_logo_file dark_mode_logo_file
+    da_conf_file="/usr/local/directadmin/conf/directadmin.conf"
+    if [ ! -f "${da_conf_file}" ]; then
+      _echo "$(msg red)Error, the directadmin configuration file does not exist!$(msg end)" --name
+      _exit 147
+    fi
+    _echo "$(msg cyan)Setting directadmin skin setting with recommend values for admin1...$(msg end)" --name
+    da_api_admin set-da-skin-settings --sign-as "admin1" --skin-name "evolution" --recommend-values
+    echo ""
+    # There is no official documentation how to upload a directadmin logo using API. This is my own method also written in here:
     # https://forum.directadmin.com/threads/cmd_api_skins-upload-skin-logo-via-curl-issue.63127/
-    # I use random length of 6 because I saw DA always generated length of 6 when append this random string to a file
-    default_logo_file_home="/home/tmp/logo.png$(get_rnd_alpha 6)"
-    dark_mode_logo_file="${DATA_PATH}/maxinet/storage/os/${DISTRO_ID}/usr/local/directadmin/logo/dark_mode_logo.png"
-    dark_mode_logo_file_home="/home/tmp/logo2.png$(get_rnd_alpha 6)"
 
-    # Copy the logo files from storage data to the temporary home directory
-    cp "${default_logo_file}" "${default_logo_file_home}"
-    cp "${dark_mode_logo_file}" "${dark_mode_logo_file_home}"
-
-    # The files that need to be uploaded need to have nobody permission (else it wont work)
-    chown nobody:nogroup "${default_logo_file_home}"
-    chown nobody:nogroup "${dark_mode_logo_file_home}"
-
-    if [ -f "${default_logo_file_home}" ]; then
-      da_api_admin "set-da-logo" evolution default-logo "${default_logo_file_home}"
-    else
-      echo "[${SCRIPT_NAME}]: Warning, file logo is missing from ${default_logo_file_home}"
-      _exit 147
+    # This is the part to upload logo
+    # Directadmin needs this home temporary folder to hold upload file (this is a must)
+    da_temp_dir=$(grep "^tmpdir" "${da_conf_file}" | cut -d= -f2)
+    if [ -z "${da_temp_dir}" ]; then
+      da_temp_dir="/home/tmp"
     fi
+    mkdir -p "${da_temp_dir}"
+    logo_path="${LATEST_OS_CODE_PATH}/usr/local/directadmin/logo"
 
-    if [ -f "${dark_mode_logo_file_home}" ]; then
-      da_api_admin "set-da-logo" evolution dark-logo "${dark_mode_logo_file_home}"
+    _echo "$(msg cyan)Setting directadmin default logo for admin1 ...$(msg end)" --name
+    if [[ -f "${logo_path}/default_logo.png" ]]; then
+      da_api_admin set-da-logo --sign-as "admin1" --skin-name "evolution" --logo-mode default-logo --logo-file "${logo_path}/default_logo.png"
     else
-      echo "[${SCRIPT_NAME}]: Warning, file logo is missing from ${dark_mode_logo_file_home}"
-      _exit 147
+      _echo "$(msg yellow)Warning, missing logo file default_logo.png. Make sure this file exist in ${logo_path}/default_logo.png!" --name
     fi
+    echo ""
 
-    # Remove both temporary logo from the home directory
-    rm -f "${default_logo_file_home}"
-    rm -f "${dark_mode_logo_file_home}"
+    _echo "$(msg cyan)Setting directadmin dark logo for admin1 ...$(msg end)" --name
+    if [[ -f "${logo_path}/dark_mode_logo.png" ]]; then
+      da_api_admin set-da-logo --sign-as "admin1" --skin-name "evolution" --logo-mode default-logo --logo-file "${logo_path}/dark_mode_logo.png"
+    else
+      _echo "$(msg yellow)Warning, missing logo file dark_mode_logo.png. Make sure this file exist in ${logo_path}/dark_mode_logo.png!" --name
+    fi
+    echo ""
 
+    _echo "$(msg cyan)Setting directadmin favourite icon logo for admin1 ...$(msg end)" --name
+    if [[ -f "${logo_path}/favicon.png" ]]; then
+      da_api_admin set-da-logo --sign-as "admin1" --skin-name "evolution" --logo-mode default-logo --logo-file "${logo_path}/favicon.png"
+    else
+      _echo "$(msg yellow)Warning, missing logo file favicon.png. Make sure this file exist in ${logo_path}/favicon.png!" --name
+    fi
+    echo ""
+
+    _echo "$(msg cyan)Setting directadmin default symbol logo for admin1 ...$(msg end)" --name
+    if [[ -f "${logo_path}/default_symbol.png" ]]; then
+      da_api_admin set-da-logo --sign-as "admin1" --skin-name "evolution" --logo-mode default-logo --logo-file "${logo_path}/default_symbol.png"
+    else
+      _echo "$(msg yellow)Warning, missing logo file default_symbol.png. Make sure this file exist in ${logo_path}/default_symbol.png!" --name
+    fi
+    echo ""
+
+    _echo "$(msg cyan)Setting directadmin dark symbol logo for admin1 ...$(msg end)" --name
+    if [[ -f "${logo_path}/dark_symbol.png" ]]; then
+      da_api_admin set-da-logo --sign-as "admin1" --skin-name "evolution" --logo-mode default-logo --logo-file "${logo_path}/dark_symbol.png"
+    else
+      _echo "$(msg yellow)Warning, missing logo file dark_symbol.png. Make sure this file exist in ${logo_path}/dark_symbol.png!" --name
+    fi
     echo ""
     check_finish_reboot "${func_name}"
   else
@@ -12485,86 +12594,68 @@ function configure_da_reseller_wildcard_domains() {
   start_execute_options "${option}" "${func_name}"
   [[ "${SKIP_RUN}" == "true" ]] && return 0
   if [[ ! -f "${CONF_PATH}/${func_name}_executed" && "${FUNCTION_RUN}" == "true" ]]; then
-    local da_reseller_wildcard_domains da_reseller_wildcard_domains_count this_da_reseller_username this_da_reseller_userpass \
-      this_da_reseller_wildcard_domains this_da_reseller_wildcard_domains_count
-    local count_x count_n count_o wildcard_domain wildcard_domains
+    local da_reseller_wildcard_domains da_reseller_wildcard_domains_count reseller_count \
+      da_reseller_username
     # Get list of all reseller subdomains
     da_reseller_wildcard_domains="${!C_DA_RESELLER_WILDCARD_DOMAIN@}"
     # Count the total wildcard domains
     da_reseller_wildcard_domains_count=$(echo "${da_reseller_wildcard_domains}" | wc -w)
-    # Debug:
-    echo "da_reseller_wildcard_domains: ${da_reseller_wildcard_domains}"
-    echo "da_reseller_wildcard_domains_count ${da_reseller_wildcard_domains_count}"
-    # initial value to loop
-    count_x=1
-    while [[ ${count_x} -le ${da_reseller_wildcard_domains_count} ]]; do
-      echo "=~=~=~=~=~=~=~=~=~+~+~+~=~=~"
-      echo "count_reseller_wildcard_domain_loop = ${count_x}"
-      echo ""
-      typeset -n "this_da_reseller_username"="DA_RESELLER_USERNAME${count_x}"
-      typeset -n "this_da_reseller_userpass"="DA_RESELLER_USERPASS${count_x}"
-      typeset -n "this_da_reseller_wildcard_domains"="C_DA_RESELLER_WILDCARD_DOMAIN${count_x}"
+    reseller_count=1
+    while [[ ${reseller_count} -le ${da_reseller_wildcard_domains_count} ]]; do
+      typeset -n "da_reseller_username=DA_RESELLER_USERNAME${reseller_count}"
+      typeset -n "da_reseller_wildcard_domains=C_DA_RESELLER_WILDCARD_DOMAIN${reseller_count}"
+      da_reseller_wildcard_domains_count="${#da_reseller_wildcard_domains[@]}"
 
-      # Debug:
-      echo "this_da_reseller_username: ${this_da_reseller_username}"
-      echo "this_da_reseller_userpass: ${this_da_reseller_userpass}"
-      echo "this_da_reseller_wildcard_domains: ${this_da_reseller_wildcard_domains[*]}"
-      this_da_reseller_wildcard_domains_count="${#this_da_reseller_wildcard_domains[@]}"
+      _echo "$(msg newline)" --plain --verbose 7
+      _echo "$(msg yellow)Warning this information contains sensitive data due to verbosity level was set to 7 or more$(msg end)" --name --verbose 7
+      _echo "$(msg magenta)=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=$(msg end)" --name --verbose 7
+      _echo "Reseller domain wildcard details:" --name --verbose 7
+      _echo "Reseller count ${reseller_count} out of ${da_reseller_wildcard_domains_count}" --name --verbose 7
+      _echo "da_reseller_username: ${da_reseller_username}" --name --verbose 7
+      _echo "da_reseller_wildcard_domains: ${da_reseller_wildcard_domains[*]}" --name --verbose 7
+      _echo "da_reseller_wildcard_domains_count: ${#da_reseller_wildcard_domains[@]}" --name --verbose 7
+      _echo "$(msg newline)" --plain --verbose 7
 
-      count_n=0
-      while [ ${count_n} -le $((this_da_reseller_wildcard_domains_count - 1)) ]; do
-        echo "------------------------"
-        echo "Total count: ${count_n}"
-
-        wildcard_domains=$(echo "${this_da_reseller_wildcard_domains}" | awk -F':' '{for (i=1;i<=NF;i++)print $i}') #or tr ":" "\n"
-        count_o=0
+      wildcard_domain_count=0
+      while [ ${wildcard_domain_count} -le $((da_reseller_wildcard_domains_count - 1)) ]; do
+        local wildcard_domains
+        wildcard_domains=$(echo "${da_reseller_wildcard_domains}" | awk -F':' '{for (i=1;i<=NF;i++)print $i}') #or tr ":" "\n"
         for wildcard_domain in ${wildcard_domains}; do
-          echo "count_o: ${count_o}"
-          # Debug
-          echo "wildcard_domain is set for domain: ${wildcard_domain}"
-          echo ""
-
-          echo "[${SCRIPT_NAME}]: Creating wildcard entry for domain ${wildcard_domain} for both IPv4 and IPv6 ..."
-          echo "~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~"
-          da_api_admin "signas+${this_da_reseller_username}+${this_da_reseller_userpass}"
+          _echo "Wildcard domain for reseller: ${da_reseller_username}" --name --verbose 7
+          _echo "Wildcard domain: ${wildcard_domain}" --name --verbose 7
+          _echo "$(msg newline)" --plain --verbose 7
+          _echo "$(msg magenta)=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=$(msg end)" --name --verbose 7
+          _echo "$(msg cyan)Creating wildcard entry for domain ${wildcard_domain} for IPv4 in directadmin ...$(msg end)" --name
           # By default DA don't create wildcard entry for this domain (unless wildcard option is enabled)
-          # Note if record exist, it won't create in DA
-          da_api_admin "create-dns-record" "${wildcard_domain}" "A" "*" "${C_IPV4_ADD0}"
-          da_api_admin "create-dns-record" "${wildcard_domain}" "AAAA" "*" "$(ipv6calc --addr2uncompaddr "${C_IPV6_ADD0}")"
-          echo "~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~"
+          # Note, if record already exist, it won't create in directadmin DNS record
+          da_api_admin create-dns-record --domain "${wildcard_domain}" --record-type "A" --record-name "*" --record-value "${C_IPV4_ADD0}" --record-ttl 300 --affect-pointers yes
           echo ""
+          _echo "$(msg cyan)Creating wildcard entry for domain ${wildcard_domain} for IPv6 in directadmin ...$(msg end)" --name
+          # For directadmin need to convert IPv6 address, else it will not accept
+          da_api_admin create-dns-record --domain "${wildcard_domain}" --record-type "AAAA" --record-name "*" --record-value "$(ipv6calc --addr2uncompaddr "${C_IPV6_ADD0}")" --record-ttl 3600 --affect-pointers yes
+          echo ""
+
           if [ "${DNS_PROVIDER_NAME}" == "linode" ]; then
-            # In linode DNS record are duplicated, we don't want so must delete previous record first before adding new
-            echo "[${SCRIPT_NAME}]: DNS provider is set to linode. Using linode API"
-
-            echo "[${SCRIPT_NAME}]: Deleting subdomain ${wildcard_domain} record for IPv4 and IPv6 from linode"
-            echo "~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~"
-            linode_api_admin "delete-dns-record" "${wildcard_domain}" "*" "A"
-            linode_api_admin "delete-dns-record" "${wildcard_domain}" "*" "AAAA"
-            echo "~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~"
+            _echo "$(msg cyan)Notice, DNS provider is set to linode. Using linode API ...$(msg end)" --name
+            # We do not need to delete existing record in linode because we ran the --rebuild command to create this domain.
+            _echo "$(msg cyan)Adding wildcard domain ${wildcard_domain} record for IPv4 in linode$(msg end)" --name
+            linode_api_admin create-dns-record --domain "${wildcard_domain}" --record-type "A" --record-name "*" --record-value "${C_IPV4_ADD0}" --record-ttl 300
             echo ""
-
-            # Also add wildcard domain for linode API here
-            echo "[${SCRIPT_NAME}]: Adding wildcard domain ${wildcard_domain} record for IPv4 and IPv6 from linode"
-            echo "~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~"
-            #linode_api_admin "add-dns-record" "maxibi.com" "TXT" "x._domainkey" "*i..2uiu1KJM@#9IU@J()!@IJI92" "5"
-            linode_api_admin "add-dns-record" "${wildcard_domain}" "A" "*" "${C_IPV4_ADD0}" "5"
-            linode_api_admin "add-dns-record" "${wildcard_domain}" "AAAA" "*" "${C_IPV6_ADD0}" "5"
-            echo "~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~"
+            _echo "$(msg cyan)Adding wildcard domain ${wildcard_domain} record for IPv6 in linode$(msg end)" --name
+            linode_api_admin create-dns-record --domain "${wildcard_domain}" --record-type "AAAA" --record-name "*" --record-value "${C_IPV6_ADD0}" --record-ttl 300
             echo ""
           elif [ "${DNS_PROVIDER_NAME}" == "digitalocean" ]; then
-            echo "[${SCRIPT_NAME}]: DNS provider is set to digitalocean"
+            _echo "$(msg cyan)Notice, DNS provider is set to digitalocean$(msg end)" --name
             # Call digitalocean_api_admin
-            #elif other provider
+            # elif other provider
           elif [ "${DNS_PROVIDER_NAME}" == "local" ]; then
-            echo "[${SCRIPT_NAME}]: DNS provider is set to local (Internal DNS)"
+            _echo "$(msg cyan)Notice, DNS provider is set to local (Internal DNS)$(msg end)" --name
             # Do nothing
           fi
-          ((count_o++))
         done
-        ((count_n++))
+        ((wildcard_domain_count++))
       done
-      ((count_x++))
+      ((reseller_count++))
     done
     echo ""
     check_finish_reboot "${func_name}"
@@ -13894,77 +13985,6 @@ function configure_da_user_domain_ssl() {
   end_execute_options "${option}" "${func_name}"
 }
 
-function configure_da_owner_security() {
-  # Set owner security and answer questions:
-  # da_api_admin "set-security-qna" "Sekolah menengah dulu aliran apa ?" "sains"
-  local option func_name
-  option="$1"
-  func_name="${FUNCNAME[0]}"
-  start_execute_options "${option}" "${func_name}"
-  [[ "${SKIP_RUN}" == "true" ]] && return 0
-  if [[ ! -f "${CONF_PATH}/${func_name}_executed" && "${FUNCTION_RUN}" == "true" ]]; then
-    local da_owner_usernames da_owner_usernames_count this_da_owner_username this_da_owner_userpass
-    local this_da_owner_security_qs this_da_owner_security_as this_da_owner_security_qs_count count_n
-
-    da_owner_usernames="${!C_DA_OWNER_USERNAME@}"
-    da_owner_usernames_count=$(echo "${da_owner_usernames}" | wc -w)
-    count_n=1
-    echo "da_owner_usernames: ${da_owner_usernames}"
-    echo "da_owner_usernames_count: ${da_owner_usernames_count}"
-    # Debug:
-    while [ ${count_n} -le "${da_owner_usernames_count}" ]; do
-
-      echo "=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~="
-      echo "count_n INDEX = ${count_n}"
-      echo ""
-      # Assign all variables from the config file as array index
-      typeset -n "this_da_owner_username"="C_DA_OWNER_USERNAME${count_n}"
-      typeset -n "this_da_owner_userpass"="C_DA_OWNER_USERPASS${count_n}"
-      typeset -n "this_da_owner_security_qs"="C_DA_OWNER_SECURITY_Q${count_n}"
-      typeset -n "this_da_owner_security_as"="C_DA_OWNER_SECURITY_A${count_n}"
-
-      echo "this_da_owner_username: ${this_da_owner_username}"
-      echo "this_da_owner_userpass: ${this_da_owner_userpass}"
-      echo "this_da_owner_security_qs: ${this_da_owner_security_qs[*]}"
-      echo "this_da_owner_security_as: ${this_da_owner_security_as[*]}"
-
-      this_da_owner_security_qs_count="${#this_da_owner_security_qs[@]}"
-
-      count_o=0
-
-      while [ ${count_o} -le $((this_da_owner_security_qs_count - 1)) ]; do
-        security_question=${this_da_owner_security_qs[count_o]}
-        security_answer=${this_da_owner_security_as[count_o]}
-
-        echo "Security question for owner: ${this_da_owner_username}"
-        echo "Security question: ${security_question}"
-        echo "Security answer: ${security_answer}"
-        if [[ "${#security_question}" == 0 || "${#security_answer}" == 0 ]]; then
-          echo "[${SCRIPT_NAME}]: [skipped]: Value defined for security_question or security answer (or both) are empty"
-          ((count_o++))
-          continue
-        fi
-        echo "[${SCRIPT_NAME}]: Setting up security question and answer for owner ${this_da_owner_username}"
-        da_api_admin "signas+${this_da_owner_username}+${this_da_owner_userpass}"
-        da_api_admin "set-security-qna" "${security_question}" "${security_answer}"
-
-        ((count_o++))
-      done
-
-      ((count_n++))
-      echo "=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~="
-
-    done
-    echo ""
-    check_finish_reboot "${func_name}"
-  else
-    _echo "$(msg yellow)[Skipped by system]: $(msg magenta)${func_name}()$(msg end) $(msg yellow)with current option ${option} has ran before $(msg end)" --name
-    _echo "$(msg yellow)=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=$(msg end)" --plain
-  fi
-
-  end_execute_options "${option}" "${func_name}"
-}
-
 function configure_da_admin_security() {
   # Set admin security and answer questions:
   # da_api_admin "set-security-qna" "Sekolah menengah dulu aliran apa ?" "sains"
@@ -13974,57 +13994,49 @@ function configure_da_admin_security() {
   start_execute_options "${option}" "${func_name}"
   [[ "${SKIP_RUN}" == "true" ]] && return 0
   if [[ ! -f "${CONF_PATH}/${func_name}_executed" && "${FUNCTION_RUN}" == "true" ]]; then
-    local da_admin_usernames da_admin_usernames_count this_da_admin_username this_da_admin_userpass
-    local this_da_admin_security_qs this_da_admin_security_as this_da_admin_security_qs_count count_n
-
-    da_admin_usernames="${!C_DA_ADMIN_USERNAME@}"
-    da_admin_usernames_count=$(echo "${da_admin_usernames}" | wc -w)
-    count_n=1
-    echo "da_admin_usernames: ${da_admin_usernames}"
-    echo "da_admin_usernames_count: ${da_admin_usernames_count}"
-    # Debug:
-    while [ ${count_n} -le "${da_admin_usernames_count}" ]; do
-
-      echo "=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~="
-      echo "count_n INDEX = ${count_n}"
-      echo ""
+    local da_admin_username da_admin_security_qs da_admin_security_as \
+      da_admin_security_qs da_admin_security_qs_count admin_count question_count
+    da_admin_usernames_count=$(echo "${!C_DA_ADMIN_USERNAME@}" | wc -w)
+    admin_count=1
+    while [ ${admin_count} -le "${da_admin_usernames_count}" ]; do
       # Assign all variables from the config file as array index
-      typeset -n "this_da_admin_username"="C_DA_ADMIN_USERNAME${count_n}"
-      typeset -n "this_da_admin_userpass"="C_DA_ADMIN_USERPASS${count_n}"
-      typeset -n "this_da_admin_security_qs"="C_DA_ADMIN_SECURITY_Q${count_n}"
-      typeset -n "this_da_admin_security_as"="C_DA_ADMIN_SECURITY_A${count_n}"
+      typeset -n "da_admin_username=C_DA_ADMIN_USERNAME${admin_count}"
+      typeset -n "da_admin_security_qs=C_DA_ADMIN_SECURITY_Q${admin_count}"
+      typeset -n "da_admin_security_as=C_DA_ADMIN_SECURITY_A${admin_count}"
+      da_admin_security_qs_count="${#da_admin_security_qs[@]}"
 
-      echo "this_da_admin_username: ${this_da_admin_username}"
-      echo "this_da_admin_userpass: ${this_da_admin_userpass}"
-      echo "this_da_admin_security_qs: ${this_da_admin_security_qs[*]}"
-      echo "this_da_admin_security_as: ${this_da_admin_security_as[*]}"
+      _echo "$(msg newline)" --plain --verbose 7
+      _echo "$(msg yellow)Warning this information contains sensitive data due to verbosity level was set to 7 or more$(msg end)" --name --verbose 7
+      _echo "$(msg magenta)=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=$(msg end)" --name --verbose 7
+      _echo "Admin security question details:" --name --verbose 7
+      _echo "Admin count ${admin_count} out of ${da_admin_usernames_count}" --name --verbose 7
+      _echo "da_admin_username: ${da_admin_username}" --name --verbose 7
+      _echo "da_admin_security_qs: ${da_admin_security_qs[*]}" --name --verbose 7
+      _echo "da_admin_security_as: ${da_admin_security_as[*]}" --name --verbose 7
+      _echo "da_admin_security_qs_count: ${da_admin_security_qs_count[*]}" --name --verbose 7
+      _echo "$(msg newline)" --plain --verbose 7
 
-      this_da_admin_security_qs_count="${#this_da_admin_security_qs[@]}"
+      question_count=0
+      while [ "${question_count}" -le $((da_admin_security_qs_count - 1)) ]; do
+        local security_question security_answer
+        security_question=${da_admin_security_qs[question_count]}
+        security_answer=${da_admin_security_as[question_count]}
+        _echo "Security question for admin: ${da_admin_username}" --name --verbose 7
+        _echo "Security question: ${security_question}" --name --verbose 7
+        _echo "Security answer: ${security_answer}" --name --verbose 7
+        _echo "$(msg magenta)=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=$(msg end)" --name --verbose 7
 
-      count_o=0
-
-      while [ ${count_o} -le $((this_da_admin_security_qs_count - 1)) ]; do
-        security_question=${this_da_admin_security_qs[count_o]}
-        security_answer=${this_da_admin_security_as[count_o]}
-
-        echo "Security question for admin: ${this_da_admin_username}"
-        echo "Security question: ${security_question}"
-        echo "Security answer: ${security_answer}"
         if [[ "${#security_question}" == 0 || "${#security_answer}" == 0 ]]; then
           echo "[${SCRIPT_NAME}]: [skipped]: Value defined for security_question or security answer (or both) are empty"
-          ((count_o++))
+          ((question_count++))
           continue
         fi
-        echo "[${SCRIPT_NAME}]: Setting up security question and answer for admin ${this_da_admin_username}"
-        da_api_admin "signas+${this_da_admin_username}+${this_da_admin_userpass}"
-        da_api_admin "set-security-qna" "${security_question}" "${security_answer}"
-
-        ((count_o++))
+        _echo "$(msg cyan)Setting up security questions and answers for user ${da_admin_username}$(msg end)" --name
+        da_api_admin set-security-qna --question "${security_question}" --answer "${security_answer}"
+        echo ""
+        ((question_count++))
       done
-
-      ((count_n++))
-      echo "=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~="
-
+      ((admin_count++))
     done
     echo ""
     check_finish_reboot "${func_name}"
@@ -14545,7 +14557,8 @@ function setup() {
 
     echo ""
 
-    ############ Call function documentation ############
+    ############ Setup function call starts here ############
+    # Call function documentation #
     # SYNTAX:
     # function_name +<option>
     # + means optional
@@ -14566,7 +14579,6 @@ function setup() {
     # eg: configure_net is equivalent to configure_net --run
     #####################################################
 
-    ############ Function call starts here ############
     # Note 1: setup_pre can be used to install screen, disable Selinux in CentOS or other necessary pre install components
     setup_pre --run
     # Note 1: Clone all setup script from git (recommend to run as --run-force instead of --run so we always get the latest security update)
@@ -14604,8 +14616,8 @@ function setup() {
       install_da_pre --run
       install_da --run
       install_da_post --run
-      reboot
       secure_da_auth --run
+      reboot
       # Linking da ipv6 with ipv4 and vice versa
       configure_da_ips --run
       install_da_csf --run
@@ -14619,32 +14631,44 @@ function setup() {
       configure_da_settings --run
       configure_da_cb_settings --run
       configure_da_redis --run
-      configure_da_memcached --skip # Deprecated
-      configure_da_geoip --skip     # Wait first
-      # we configure dns template before creating admin, reseller and user accounts so they can use new DNS template
+      configure_da_memcached --skip # Deprecated (skip this use redis instead)
+      configure_da_geoip --skip     # Skip until found useful
+      # Important to run configure_da_dns_templates first before creating any domains so that the DNS record can use new template automatically
       configure_da_dns_templates --run
-      configure_da_owner_accounts --run
-      configure_da_admin_accounts --run
-      configure_da_reseller_accounts --run-force-exit
-      # Until here TODO
-      configure_da_reseller_root_domains --run
-      configure_da_reseller_wildcard_domains --run
+      # " -- owner --"
+      configure_da_owner_accounts --run-force
+      configure_da_owner_skins --run-force
+      configure_da_owner_security --run-force
+      # " -- admin --"
+      configure_da_admin_accounts --run-force
+      configure_da_admin_skins --run-force
+      configure_da_admin_security --run-force
+      # " -- reseller --"
+      configure_da_reseller_accounts --run-force
+      configure_da_reseller_root_domains --run-force
+      # TODO test this
+      configure_da_reseller_wildcard_domains --run-force-exit
+
+
       configure_da_reseller_subdomains --run
       configure_da_reseller_emails --run
+      configure_da_reseller_databases --run
+      configure_da_reseller_skins --skip #copy from admin or owner skin TODO
+      configure_da_reseller_security --run
+
+
+
+
+      echo " -- user ---"
       configure_da_user_accounts --run
       configure_da_user_root_domains --run
-      configure_da_user_wildcard_domains --run
+      configure_da_user_wildcard_domains --skip # Do not use wildcard
       configure_da_user_subdomains --run
       configure_da_user_emails --run
-      configure_da_owner_skins --run
-      configure_da_admin_skins --run
-      configure_da_reseller_skins ""
-      configure_da_owner_security --run
-      configure_da_admin_security --run
-      configure_da_reseller_security --run
-      configure_da_user_security --run
-      configure_da_reseller_databases --run
       configure_da_user_databases --run
+      #configure_da_user_skins "" #  --skip # complicated not important
+      configure_da_user_security --run
+
       configure_da_custom_webs --run
 
       # Must run this functions (configure_da_ssl) after running CSF because we need to make sure all appropriate ports are opened to request certs
@@ -14660,8 +14684,11 @@ function setup() {
       configure_da_reseller_domain_ssl --run
       configure_da_user_domain_ssl_pre --run
       configure_da_user_domain_ssl --run
+    elif [ "${C_SERVER_TYPE}" == "general" ]; then
+
+      configure_csf --run
     fi
-    configure_csf --skip # Skipped this is not for directadmin (but others)
+
     configure_maxibox --run
     configure_maxicode_pre --run
     configure_maxicode --run
@@ -14677,12 +14704,10 @@ function setup() {
     configure_maxify --skip #-- disable temporarily
     configure_logs --skip   #-- skip temporarily
     configure_cronjobs --run
-
     # Still need to add more based on lynis suggestion
     harden_with_lynis --run
-
     setup_post --run
-    # End of function_name call
+    ############ Setup function call end here ############
 
     echo ""
     if [ "${C_SERVER_TYPE}" == "directadmin" ]; then
@@ -14694,9 +14719,13 @@ function setup() {
       echo "=============="
       echo ""
       echo ""
+    elif [ "${C_SERVER_TYPE}" == "general" ]; then
+      :
     fi
+    # Show script running time
+
     script_time
-    echo "========== Installation Completed =========="
+    _echo "$(msg green)========== Installation Completed ==========$(msg end)" --plain
     echo ""
 
     # Destroy the setup config deeply
@@ -14705,7 +14734,7 @@ function setup() {
       _pause 120
       shred -uvz "${CONFIG_FILE}"
     else
-      _echo "$(msg yellow)Warning, C_AUTO_DESTROY_CONFIG is not set. So, please manually backup and destroy the setup configuration information in ${CONFIG_FILE}$(msg end)" --name
+      _echo "$(msg yellow)Warning, C_AUTO_DESTROY_CONFIG is not set to auto destroy config file. Please manually backup and destroy the setup configuration information in ${CONFIG_FILE}$(msg end)" --name
       sleep 5
     fi
     # Remove all setup information except CONF_PATH because CONF_PATH and CODE_PATH
@@ -15093,7 +15122,7 @@ ENDSSH
     ssh_api file-download --server-port "${C_BOX_HOSTNAME_FQHN}:${C_SSH_PORT}" --group-user root:root --remote-path "${remote_files_path}" --local-path "${DOWNLOAD_PATH}/"
     retval=$?
     if [ "${retval}" -eq 0 ]; then
-      _echo "$(msg green)Success, file ${remote_file_path} downloaded into ${DOWNLOAD_PATH}/${remote_file_path}$(msg end)" --name
+      _echo "$(msg green)Success, file ${remote_files_path} downloaded into ${DOWNLOAD_PATH}/${remote_files_path}$(msg end)" --name
     else
       _echo "$(msg red)Error, something is wrong when trying to download remote file$(msg end)" --name
     fi

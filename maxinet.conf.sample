@@ -282,12 +282,12 @@ C_DA_USER_BRUTECOUNT=100
 # Start directadmin.conf settings (these are recommended values): version 1.62 (updated)
 C_DA_TIMEOUT="120"
 C_DA_SESSION_MINUTES="2880"
-C_DA_ADMIN_MAXFILESIZE="5368709120"
-C_DA_ADMIN_LOGS_TO_KEEP="2"
+C_DA_MAXFILESIZE="5368709120"
+C_DA_LOGS_TO_KEEP="2"
 # Default is 14
 C_DA_MAX_USERNAME_LENGTH="30"
 C_DA_LOGIN_HISTORY="10"
-C_DA_DISABLE_IPCHECK="0"
+C_DA_DISABLE_IPCHECK="1"
 C_DA_ALLOW_FOREIGN_KEY="0"
 # Default is 0
 C_DA_SIMPLE_DISK_USAGE="1"
@@ -327,7 +327,7 @@ C_DA_CHECK_SUBDOMAIN_OWNER=1
 C_DA_BRUTEFORCE=1
 C_DA_USER_BRUTECOUNT=0
 C_DA_EXEMPT_LOCAL_BLOCK=1
-C_DA_BRUTE_FORCE_TIME_LIMIT=120
+C_DA_BRUTE_FORCE_TIME_LIMIT=1200
 C_DA_CLEAR_BLACKLIST_IP_TIME=86400
 C_DA_HIDE_BRUTE_FORCE_NOTIFICATIONS=1
 C_DA_IP_BRUTECOUNT=100
@@ -340,6 +340,9 @@ C_DA_UNBLOCK_BRUTE_IP_TIME=4320
 C_DA_BRUTE_FORCE_LOG_SCANNER=1
 C_DA_BRUTE_FORCE_SCAN_APACHE_LOGS=2
 C_DA_BRUTE_DOS_COUNT=100
+C_DA_SECURITY_QUESTIONS=1
+C_DA_ENFORCE_DIFFICULT_PASSWORDS=1
+C_DA_ALLOW_BACKUP_ENCRYPTION=1
 C_DA_CHECK_PARTITIONS=2
 C_DA_PARTITION_USAGE_THRESHOLD=95
 # 1 = tar.gz, 0 = .tar, 2 = .zstd
@@ -440,8 +443,8 @@ C_DA_ROOT_SQLPASS="ROOT_SQL_PASSWORD"
 C_DA_ROUNDCUBE_SQLPASS="ROUNDCUBE_SQL_PASSWORD"
 
 # ==== Start directadmin OWNER information ====
-# C_DA_OWNER_NAMEN:
-# This variable defined the directadmin owner full name. The owner full name is the initial admin installation created during directadmin istallation
+# C_DA_OWNER_NAME[N]:
+# This variable defined the directadmin owner full name. The owner full name is the initial admin installation created during directadmin installation
 # The last character of N from the variable C_DA_OWNER_NAMEN is the total number of user as owner. For example to define the second owner's full name the next variable will be: C_DA_OWNER_NAME2
 # However, you are not supposed to declare more than 1 owner user. Currently owner should only have 1 user in the directadmin system but admin and user should can have multiple users
 C_DA_OWNER_NAME1="Arafat Ali"
