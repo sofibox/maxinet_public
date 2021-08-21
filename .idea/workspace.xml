@@ -10,9 +10,33 @@
     <select />
   </component>
   <component name="ChangeListManager">
-    <list default="true" id="113c828c-9a32-4b24-ab1e-978ce50c6320" name="Default Changelist" comment="New: Update information (Fixed missing assignment): &#10; &#10;debian_release=&quot;stable&quot;&#10;&#10;Script is now fully compatible with latest debian version, &#10;&#10;You can change the version of Debian like this (if you know the version number and code name):&#10;&#10;C_DEBIAN_OS_SELECT_VERSION=&quot;11.0.0&quot;&#10;C_DEBIAN_OS_CODE_NAME=&quot;bullseye&quot;&#10;&#10;or if you don't care, you can set this variable to download latest version of Debian (will ignore the above 2 variables), for example if Debian 12 is released, it will download this one and you don't have to do anything. Just set this to true:&#10;&#10;USE_LATEST_ISO=true&#10;&#10;New variables:&#10;C_DEBIAN_OS_SELECT_VERSION=&quot;11.0.0&quot;&#10;C_DEBIAN_OS_CODE_NAME=&quot;bullseye&quot;">
+    <list default="true" id="113c828c-9a32-4b24-ab1e-978ce50c6320" name="Default Changelist" comment="Added my old scripts for directadmin pre and post hook (extra functionalities)&#10;&#10;Added php_extensions.conf custom installation">
+      <change afterPath="$PROJECT_DIR$/storage/os/debian/usr/local/directadmin/custombuild/php_extensions.conf" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/storage/os/debian/usr/local/directadmin/data/blacklisted_ip.html" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/storage/os/debian/usr/local/directadmin/data/readme.md" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/storage/os/debian/usr/local/directadmin/logo/dark_mode_logo.jpg" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/storage/os/debian/usr/local/directadmin/logo/dark_mode_logo.png" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/storage/os/debian/usr/local/directadmin/logo/default_logo.jpg" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/storage/os/debian/usr/local/directadmin/logo/default_logo.png" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/storage/os/debian/usr/local/directadmin/logo/readme.md" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/storage/os/debian/usr/local/directadmin/scripts/custom/all_backups_post/all_backups_post.sh" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/storage/os/debian/usr/local/directadmin/scripts/custom/all_backups_post/test.sh" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/storage/os/debian/usr/local/directadmin/scripts/custom/cmd_site_backup_pre/test.sh" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/storage/os/debian/usr/local/directadmin/scripts/custom/domain_create_post/configure_spamass_filter.sh" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/storage/os/debian/usr/local/directadmin/scripts/custom/domain_create_post/create_dns_records.sh" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/storage/os/debian/usr/local/directadmin/scripts/custom/important.md" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/storage/os/debian/usr/local/directadmin/scripts/custom/user_backup_post/user_backup_post.sh" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/storage/os/debian/usr/local/directadmin/scripts/custom/user_backup_success/user_backup_success.sh" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/storage/os/debian/usr/local/directadmin/scripts/custom/user_bakup_pre/user_backup_pre.sh" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/storage/os/debian/usr/local/directadmin/scripts/custom/user_create_post/generate_spamass_config.sh" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/storage/os/debian/usr/local/directadmin/scripts/custom/user_create_post/test.sh" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/storage/os/debian/usr/local/directadmin/scripts/custom/user_create_pre/test.sh" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/code/ssh_scripts/shutdown_command.sh" beforeDir="false" afterPath="$PROJECT_DIR$/code/ssh_scripts/shutdown_command.sh" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/code/ssh_scripts/test_script.sh" beforeDir="false" afterPath="$PROJECT_DIR$/code/ssh_scripts/test_script.sh" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/maxinet" beforeDir="false" afterPath="$PROJECT_DIR$/maxinet" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/maxinet.conf.sample" beforeDir="false" afterPath="$PROJECT_DIR$/maxinet.conf.sample" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/storage/os/debian/usr/local/directadmin/custombuild/options.conf" beforeDir="false" afterPath="$PROJECT_DIR$/storage/os/debian/usr/local/directadmin/custombuild/options.conf" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -46,13 +70,15 @@
     <property name="RunOnceActivity.ShowReadmeOnStart" value="true" />
     <property name="WebServerToolWindowFactoryState" value="false" />
     <property name="aspect.path.notification.shown" value="true" />
-    <property name="last_opened_file_path" value="$PROJECT_DIR$/code/ssh_scripts" />
+    <property name="last_opened_file_path" value="$PROJECT_DIR$/storage/os/debian/usr/local/directadmin" />
     <property name="project.structure.last.edited" value="Project" />
     <property name="project.structure.proportion" value="0.0" />
     <property name="project.structure.side.proportion" value="0.0" />
   </component>
   <component name="RecentsManager">
     <key name="CopyFile.RECENT_KEYS">
+      <recent name="C:\Users\Maxibi\IdeaProjects\maxinet_public\storage\os\debian\usr\local\directadmin" />
+      <recent name="C:\Users\Maxibi\IdeaProjects\maxinet_public\storage\os\debian\usr\local\directadmin\logo" />
       <recent name="C:\Users\Maxibi\IdeaProjects\maxinet_public\code\ssh_scripts" />
       <recent name="C:\Users\Maxibi\IdeaProjects\maxisetup_public" />
     </key>
@@ -215,13 +241,9 @@
       <workItem from="1628917776220" duration="3563000" />
       <workItem from="1629119642597" duration="1117000" />
       <workItem from="1629126116798" duration="1479000" />
-    </task>
-    <task id="LOCAL-00073" summary="Install Dropbear and added new function to unlock LUKS password on boot ssh_luks_unlock&#10;Improved ssh_login function&#10;Changed old code for creating ssh key to just call function ssh_key_manager &quot;create-key&quot;">
-      <created>1618772682452</created>
-      <option name="number" value="00073" />
-      <option name="presentableId" value="LOCAL-00073" />
-      <option name="project" value="LOCAL" />
-      <updated>1618772682452</updated>
+      <workItem from="1629127690339" duration="662000" />
+      <workItem from="1629525835084" duration="3771000" />
+      <workItem from="1629530977158" duration="2008000" />
     </task>
     <task id="LOCAL-00074" summary="Improved ssh_key_manager() function&#10;&#10;Improved ssh_login() funciton&#10;&#10;Added new function ssh_transfer() to transfer file via SSH using scp protocol&#10;&#10;Added user ssh key, to disable root login and use user to login in preseed config and save public key directly in ISO file to auto copy.&#10;&#10;Fixed extra curly bracket on line 1135 (might be due to hand shaking)&#10;&#10;Added new remote script maxisetup_ssh.sh&#10;&#10;New variables in maxisetup.conf.sample&#10;&#10;DROP_BEAR_PORT=&quot;1234&quot;&#10;DNS_PROVIDER_TERMINAL_SERVER=&quot;lish-singapore.linode.com&quot;">
       <created>1618841230694</created>
@@ -559,7 +581,14 @@
       <option name="project" value="LOCAL" />
       <updated>1629127602718</updated>
     </task>
-    <option name="localTasksCounter" value="122" />
+    <task id="LOCAL-00122" summary="New: Update information (Fixed missing assignment): &#10; &#10;debian_release=&quot;stable&quot;&#10;&#10;Script is now fully compatible with latest debian version, &#10;&#10;You can change the version of Debian like this (if you know the version number and code name):&#10;&#10;C_DEBIAN_OS_SELECT_VERSION=&quot;11.0.0&quot;&#10;C_DEBIAN_OS_CODE_NAME=&quot;bullseye&quot;&#10;&#10;or if you don't care, you can set this variable to download latest version of Debian (will ignore the above 2 variables), for example if Debian 12 is released, it will download this one and you don't have to do anything. Just set this to true:&#10;&#10;USE_LATEST_ISO=true&#10;&#10;New variables:&#10;C_DEBIAN_OS_SELECT_VERSION=&quot;11.0.0&quot;&#10;C_DEBIAN_OS_CODE_NAME=&quot;bullseye&quot;">
+      <created>1629127788454</created>
+      <option name="number" value="00122" />
+      <option name="presentableId" value="LOCAL-00122" />
+      <option name="project" value="LOCAL" />
+      <updated>1629127788454</updated>
+    </task>
+    <option name="localTasksCounter" value="123" />
     <servers />
   </component>
   <component name="TypeScriptGeneratedFilesManager">

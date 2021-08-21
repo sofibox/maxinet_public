@@ -36,6 +36,9 @@
 #    eg: This is OK: ADMIN_USERNAME1 -> ADMIN_USERNAME2 -> ADMIN_USERNAME3 -> ADMIN_USERNAME[N+1]
 #    eg: This is not OK: ADMIN_USERNAME1 -> ADMIN_USERNAME4
 # =~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~="
+# C_DA_CONFIG_VERSION:
+# This variable is the version of this config file. This is the main variable used by script to determine if source contain valid value
+C_DA_CONFIG_VERSION="1.0"
 
 # C_HIDE_SENSITIVE_TEXT:
 # This variable is used to hide sensitive information on the terminal such as username, password, port.
@@ -61,7 +64,7 @@ C_HIDE_SENSITIVE_TEXT=false
 # Warning, verbose level 7 and more might contain sensitive information.
 C_LOG_VERBOSITY_LEVEL="6"
 
-#C_AUTO_DESTROY_CONFIG:
+# C_AUTO_DESTROY_CONFIG:
 # This variable is used to destroy this main config file after it has finished installation at the end of the script.
 # By default the script will notify within 120 seconds that it will destroy the config file (you can cancel this operation within the terminal by pressing CTRL+C)
 # If no action is taken during 120 seconds, it will execute a low level deletion using shred command to completely destroy the file (unrecoverable).
@@ -84,7 +87,7 @@ C_PIP_ALWAYS_UPDATE=true
 
 # C_COMPANY_ID:
 # This variable is used to store company ID that the script requires for display purpose.
-C_COMPANY_ID="codegix"
+C_COMPANY_ID="maxibi"
 
 # USE_MULTI_LOG_FILE:
 # This variable is used to enable mulple lof files or single log file
@@ -125,6 +128,7 @@ C_HOST_MAX_PROCESSOR="2"
 # This IP address is useful for example to allow firewall to ignore this IP during setup
 # The possible values are any IPv4 or IPv6
 # If you leave this variable empty, it will automatically retrieve your current host public IP from the script.
+# possible values are any IPv6 or IPv4 host public IP
 C_HOST_PUBLIC_IP=""
 
 # C_SERVER_TYPE:
@@ -152,6 +156,7 @@ C_USE_CUSTOM_WEB_CONFIG=true
 # The encryption will use LUKS method. This option should be enabled for VPS that support full disk encryption such as linode
 # Possible values are: true, false
 C_DISK_ENCRYPTION=true
+
 # Disable this might improve performance (quota is optional feature to be used for server)
 C_DISK_QUOTA=true
 
@@ -167,7 +172,7 @@ C_LVM_GROUP_NAME="box1"
 # C_LUKS_PASS:
 # This variable is used to store LUKS disk encryption password
 # If C_DISK_ENCRYPTION is set, it will use this password to encrypt disk partition during OS installation
-C_LUKS_PASS="arafatx_the_ripper"
+C_LUKS_PASS="abc12321aa"
 
 # SECURE_GRUB:
 # This variable is used whether to secure the bootloader with password during boot:
@@ -179,11 +184,11 @@ C_SECURE_GRUB=false
 
 # C_GRUB_UNAME:
 # This variable is used to specify username to set for grub bootloader user
-C_GRUB_UNAME="GRUB_USERNAME"
+C_GRUB_UNAME="arafatx"
 
 # C_GRUB_PASS:
 # This variable is used to specify password to set for grub bootloader password
-C_GRUB_PASS="GRUB_PASSWORD"
+C_GRUB_PASS="abc12321aa"
 
 # C_ROOT_USERNAME:
 # This variable is used to specify the root username
@@ -194,8 +199,11 @@ C_ROOT_USERNAME="root"
 # C_INITIAL_ROOT_PASSWORD:
 # This variable is used to specify the root password temporarily during operating system installation
 # The password should not be used for deployment or login purpose
-C_INITIAL_ROOT_PASSWORD="INITIAL_ROOT_PASSWORD"
+C_INITIAL_ROOT_PASSWORD="abc12321aa"
 
+# C_INITIAL_ROOT_RESCUE_PASSWORD:
+# Similar like C_INITIAL_ROOT_PASSWORD but it is for rescue operating system
+# The password should not be used for deployment or login purpose
 C_INITIAL_ROOT_RESCUE_PASSWORD="INITIAL_RESCUE_PASSWORD"
 
 # C_ROOT_USERPASS:
@@ -203,41 +211,53 @@ C_INITIAL_ROOT_RESCUE_PASSWORD="INITIAL_RESCUE_PASSWORD"
 # The password should secure and it will be used for deployment
 # The script will change the operating system root password from C_INITIAL_ROOT_PASSWORD into this password
 # You might need to update this value if you changed root password manually in the system and you are intended to use this script for managing server
-# eg: <script_name> --ssh-login root , this will login into the server using C_ROOT_USERPASS
-C_ROOT_USERPASS="ROOT_USERPASS"
+# eg: <script_name> --ssh-login root (or maxinet --login) , this will login into the server using C_ROOT_USERPASS
+C_ROOT_USERPASS="abc12321aa"
 
 # C_ROOT_EMAIL:
 # This variable is used to specify email used by both root operating system and directadmin server owner
-C_ROOT_EMAIL="user@domain.com"
+C_ROOT_EMAIL="root@maxibi.com"
 
 # C_ADMIN_NAME:
 # This variable is used to specify admin global full name.
-# The purpose of this is for display purpose in system or various function in the scripts
+# The purpose of this is for display purpose in system and various function in the scripts
 # By default, for directadmin installation, it will use this name as the owner of the system
 C_ADMIN_NAME="Arafat Ali"
 
 # C_ADMIN_EMAIL:
 # This variable is used to specify admin global email.
 # Various script functions will use this email such as for displaying script header, sending email in CSF, GPG key identifier and directadmin ticket notification
-C_ADMIN_EMAIL="user@domain.com"
-
-
+C_ADMIN_EMAIL="admin@maxibi.com"
 
 # =========================== Start directadmin related configuration ===========================
-# ===============================================================================================
-# If INSTALL TYPE for DA:
-# custom = use your own setting during DA installation (provide options.conf and php_extensions.conf),
-# ori = let DA decide what to install default things prividing some details using auto
-# interactive = ask question what to install
-# auto = Automated everything by DA (include auto CSF installation) -- Warning, AUTO is under testing (might have conflict with maxinet)
+
+# C_DA_INSTALL_TYPE:
+# This variable is used to specify directadmin installation type. Currently it has 4 types:
+# 1) custom = use your own setting during DA installation (provide options.conf and php_extensions.conf),
+# 2) ori = let DA decide what to install default things prividing some details using auto
+# 3) interactive = ask question what to install
+# 4) auto = Automated everything by directadmin as default packages (include CSF installation)
+# Note, this script was designed to use custom type.
 C_DA_INSTALL_TYPE="custom"
-#This is Directadmin client/user ID
+
+# C_DA_CLIENT_ID:
+# This is the directadmin client/user ID license obtained in the directadmin client area
 C_DA_CLIENT_ID="12345"
-#This is Directadmin license ID
+
+# C_DA_LICENSE_ID:
+# This is the directadmin license ID obtained in the directadmin client area
 C_DA_LICENSE_ID="123456"
-# Use custom port for Directadmin (Default one is not secure but using this custom port you will lose the ability to use one click sign in feature because that works only with 2222)
-C_DA_PORT="8132"
-C_DA_MODSECURITY_RULESET="comodo" # or owasp
+
+# C_DA_PORT:
+# This is the directadmin port. You should change this port to reduce bruteforce attack
+# The default port is 2222 which is less secure
+# Please note that if you use custom port other than 2222, you will lose the ability to use one click sign in feature in directadmin
+# because one click sign in feature only with 2222
+C_DA_PORT="2222"
+
+# TODO documentation will be written more starting here ...
+" # or owasp
+C_DA_MODSECURITY_RULESET="comodo
 C_DA_ADMIN_HELPER="help.sofibox.com/directadmin/admin"
 C_DA_RESELLER_HELPER="help.sofibox.com/directadmin/reseller"
 C_DA_USER_HELPER="help.sofibox.com/directadmin/user"
@@ -343,6 +363,9 @@ C_DA_PARTITION_USAGE_THRESHOLD=95
 C_DA_BACKUP_GZIP=1
 C_DA_DEMODOCSROOT="./data/skins/evolution"
 C_DA_LOST_PASSWORD=0
+C_DA_RBL_ENABLED=1
+C_DA_VIRTUAL_LIMIT=1000
+C_DA_PER_EMAIL_LIMIT=300
 # Default is -1 equal to rely on user file, 0 is unlimited, or specify value like 500
 C_DA_MAX_PER_EMAIL_SEND_LIMIT=0
 C_DA_USER_CAN_SET_EMAIL_LIMIT=1
@@ -430,6 +453,10 @@ C_DA_WEBMAIL_LINK=roundcube
 # C_DA_POP_DISK_USAGE_CACHE=0
 # End directadmin.conf settings
 
+# Custombuild setting
+
+C_DA_CB_EXIMCONF_RELEASE="4.5"
+
 # DA_ADMIN_SQLPASS is for DA sql password (eg: phpmyadmin login) Password cannot contains this character [ ] <> and )
 C_DA_ADMIN_SQLPASS="ADMIN_SQL_PASSWORD"
 # Remember cannot contains this character & for DA_ROOT_SQL_PASS
@@ -509,7 +536,6 @@ C_DA_RESELLER_MODSEC1=("testreseller.com:sales+OFF:login+ON")
 # === DA reseller end ===
 
 # To create another N resellers use the following template (you can have unlimited DA reseller users based on your license:
-
 # C_DA_RESELLER_NAME2=
 # C_DA_RESELLER_USERNAME2=
 # C_DA_RESELLER_USERPASS2=
@@ -532,7 +558,6 @@ C_DA_RESELLER_MODSEC1=("testreseller.com:sales+OFF:login+ON")
 #C_DA_RESELLER_DB2=
 ## Whether to enable or disable modsecurity for the subdomain
 #C_DA_RESELLER_MODSEC2=
-
 
 # === DA user start ===
 # user name, where the main username variable should have variable postfix of 1
@@ -578,10 +603,10 @@ C_DA_USER_SECURITY_A1=("entah" "ok je" "tak ada ape")
 C_DA_USER_DB1=("testuser.com:wwwdb:wwwusr:DB_PASSWORD_HERE")
 # New planned feature enable or disable MOD SECURITY
 C_DA_USER_MODSEC1=("testuser.com:sales+OFF:login+ON")
+
 # Add more user from here (using the same format above):
 # Can add multiple domains, and emails
-
-To create another N users use the following template (you can have unlimited DA users based on your license:
+# To create another N users use the following template (you can have unlimited DA users based on your license:
 
 C_DA_USER_NAME2=
 C_C_DA_USER_USERNAME2=
@@ -653,9 +678,9 @@ C_SSH_PASSPHRASE="**SSH_PASSPHRASE***"
 # Currently only Debian operating system is supported
 # Possible values are: true, false
 C_USE_LATEST_ISO=false
-C_BOX_ISO_OS_TYPE="debian"
-C_DEBIAN_OS_SELECT_VERSION="11.0.0"
-C_DEBIAN_OS_CODE_NAME="bullseye"
+C_BOX_ISO_OS_NAME="debian"
+C_OS_SELECT_VERSION="11.0.0"
+C_OS_CODE_NAME="bullseye"
 # values: custom, normal, console | do not use console if system support GUI, else you will see blank UI
 # only use console for system that does not support graphic display, for example linode lish without glish.
 # This feature has been removed temporarily from the script (will leave this variable for technical reason)
@@ -722,7 +747,7 @@ C_ENABLE_SETUP_REBOOT="interactive"
 C_CSF_EXTRA_ALLOW_PORTS="30000:35999,11211,8080,5060"
 #CONNLIMIT="22;5,80;20,443;20"
 #PORTFLOOD="22;tcp;5;300,80;tcp;20;5,443;tcp;20;5"
-C_CSF_SYSLOG_CHECK="600"
+C_CSF_SYSLOG_CHECK="3600"
 C_CSF_DENY_IP_LIMIT="2500"
 #Google Recaptcha useful to setting up messenger v1 for Directadmin
 C_GOOGLE_RECAPTCHA_SITE_V2="*recaptcha-v2-site-key*"
@@ -745,7 +770,7 @@ C_SURICATA_SELECT_VERSION="6.0.2"
 C_MAXIWALL_AIPDB_CHECK_URL="https://api.abuseipdb.com/api/v2/check"
 C_MAXIWALL_AIPDB_REPORT_URL="https://api.abuseipdb.com/api/v2/report"
 # The main abuseAIPDB key
-C_MAXIWALL_AIPDB_API_KEY="AIPDB_API_HERE"
+C_MAXIWALL_AIPDB_API_KEY="AIPDB_API_TOKEN_HERE"
 # =~=~ End maxiwall =~=~#
 
 # External/Internal DNS provider
@@ -757,7 +782,7 @@ C_DNS_PROVIDER_NAME=""
 C_DNS_PROVIDER_USER=""
 # Format <provider_name>:<provider_username>:<api_key>
 # If you change the API key, remove this file /root/.config/linode-cli, and linode will re-add the new key automatically
-C_DNS_PROVIDER_API1="linode:maxibi:LINODE_API_HERE"
+C_DNS_PROVIDER_API1="linode:linode_username:LINODE_API_TOKEN_HERE"
 C_DNS_PROVIDER_TERMINAL_SERVER="lish-usa1.linode.com"
 
 # For linode configuration
@@ -781,6 +806,9 @@ C_INSTALL_RUSTC_VERSION="1.52.0"
 C_GOTIFY_INSTALLATION=true
 C_GOTIFY_SYSTEM_USERNAME="gotify"
 C_GOTIFY_SYSTEM_GROUP="gotify"
+# 0 (No notification) , 1-3 (Icon in notification bar)
+# 4-7 (Icon in notification bar + Sound), 8-10 (Icon in notification bar + Sound + Vibration)
+C_GOTIFY_PUSH_PRIORITY=10
 C_GOTIFY_VERSION="2.0.23"
 C_GOTIFY_PLATFORM="linux-amd64"
 C_GOTIFY_PORT="8222"
@@ -790,3 +818,10 @@ C_GOTIFY_APP_NAME="test.server.com"
 # This variable C_GOTIFY_APP_DESCRIPTION is optional and be empty
 C_GOTIFY_APP_DESCRIPTION=""
 C_GOTIFY_CLI_VERSION="2.2.0"
+
+# Dropbox (This value can be obtained first from dbxcli)
+# For security reason, do not use full scope dropbox, use app scope
+DROPBOX_CONFIGFILE_VERSION="2.0"
+DROPBOX_OAUTH_APP_KEY="12321aa"
+DROPBOX_OAUTH_APP_SECRET="12321aa"
+DROPBOX_OAUTH_REFRESH_TOKEN="12321aa"
