@@ -10,10 +10,6 @@ _APP_VERSION_STATUS="${_APP_VERSION}-${_APP_STATUS}"
 
 ### START TEMPORARY NOTE
 
-# TODO add option create-server --reupload-iso, so we can remove ISO from dropbox after installation for security then we can use this --reupload option to reupload from backup or final folder
-
-# TODO server domain need to have its own DKIM, SPF, DMARC, setup in both linode and da... same like reseller. but this one specific for server.
-
 ### END TEMPORARY NOTE
 
 # Hello there, this is a powerful script that able initialize one or more server installation from scratch. From configuring the server disk, until you got the full working server with a live website.
@@ -641,11 +637,44 @@ function is_valid() {
   distro_id="${DISTRO_ID}"
 
   required "debian@@apt:ipcalc,iproute2"
+  # is_valid ipv4-resolved 1.1.1.1 sun.server.com
+  # is_valid ipv4_resolved
+  if [[ "${type}" == "ipv4-resolved" || "${type}" == "ipv4_resolved" ]]; then
+    local ipv4 ipv4_propagated domain
+    ipv4="${data1}"
+    domain="${data2}"
+    if [ -z "${domain}" ]; then
+      domain="${C_BOX_HOSTNAME_FQHN}"
+    fi
+    ipv4_propagated=$(dig ${domain} A +short)
+    if [ "${ipv4_propagated}" = "${ipv4}" ]; then
+      return 0
+    else
+      return 1
+    fi
+
+    # is_valid ipv6-resolved 1.1.1.1 sun.server.com
+    # is_valid ipv6_resolved
+  elif [[ "${type}" == "ipv6-resolved" || "${type}" == "ipv6_resolved" ]]; then
+    local ipv6 ipv6_propagated domain
+    ipv6="${data1}"
+    domain="${data2}"
+    if [ -z "${domain}" ]; then
+      domain="${C_BOX_HOSTNAME_FQHN}"
+    fi
+    ipv6_propagated=$(dig ${domain} AAAA +short)
+    if [ "${ipv6_propagated}" == "${ipv6}" ]; then
+      return 0
+    else
+      return 1
+    fi
+
   #if is_valid ssl_site "${C_BOX_HOSTNAME_FQHN}:${C_DA_PORT}"; then
-  if [[ "${type}" == "ipv6_prefix" || "${type}" == "ipv6_subnet" ]]; then
+  elif [[ "${type}" == "ipv6_prefix" || "${type}" == "ipv6_subnet" ]]; then
     local ipv6_prefix ipv6_prefix_pattern
     ipv6_prefix="${data1}"
-    ipv6_prefix_pattern='^(\/)\b([1-9]|[1-5][0-9]|6[0-4])\b'
+    #ipv6_prefix_pattern='^(\/)\b([1-9]|[1-5][0-9]|6[0-4])\b'
+    ipv6_prefix_pattern='^(\/)\b(1?[1-9]{1,2}|2[0-4][0-9]|25[0-5])\b'
     if [[ ${ipv6_prefix} =~ ${ipv6_prefix_pattern} ]]; then
       return 0
     else
@@ -920,7 +949,7 @@ function configure_dropbox_cli() {
   rm -rf "${INST_TEMP_DIR}/dropbox_cli"
   mkdir -p "${INST_TEMP_DIR}/dropbox_cli"
   _echo "$(msg cyan)Installing new version of dropbox-CLI forked from andreafabrizi/Dropbox-Uploader ... $(msg end)" --name
-  git clone https://github.com/arafatx/Dropbox-Uploader.git "${INST_TEMP_DIR}/dropbox_cli"
+  git clone https://github.com/sofibox/Dropbox-Uploader.git "${INST_TEMP_DIR}/dropbox_cli"
   mv "${INST_TEMP_DIR}/dropbox_cli/dropbox_uploader.sh" "${INST_TEMP_DIR}/dropbox_cli/dbxcli"
   chmod +x "${INST_TEMP_DIR}/dropbox_cli/dbxcli"
   cp "${INST_TEMP_DIR}/dropbox_cli/dbxcli" /usr/local/bin
@@ -940,6 +969,54 @@ function configure_dropbox_cli() {
     echo ""
     dbxcli space
   fi
+}
+
+function ensure_host_domain_ip_resolved() {
+  echo -n "Checking ${LABEL_C_BOX_HOSTNAME_FQHN} A record resolves with IPv4 ${LABEL_C_IPV4_ADD0} ... "
+  while :; do
+    if is_valid ipv4_resolved "${C_IPV4_ADD0}" "${C_BOX_HOSTNAME_FQHN}"; then
+      _echo "$(msg green) [OK]$(msg end)" --plain
+      break
+    else
+      local check_duration
+      _echo "$(msg red) [FAILED]$(msg end)" --plain
+      #_echo "$(msg red)Please create / check for domain ${C_BOX_HOSTNAME_FQHN} that it must have an A record pointing to ${LABEL_C_IPV4_ADD0}$(msg end)" --name
+      #_exit 147
+      check_duration=120
+      while :; do
+        ((check_duration--))
+        _echo "Re-checking ${LABEL_C_BOX_HOSTNAME_FQHN} A record resolves with IPv4 ${LABEL_C_IPV4_ADD0} within ${check_duration} seconds ... " --name --start-spin
+        if [ "${check_duration}" -le 0 ]; then
+          # echo -n "Re-checking ${LABEL_C_BOX_HOSTNAME_FQHN} A record resolves with IPv4 ${LABEL_C_IPV4_ADD0} in 120 seconds ... "
+          break
+        fi
+        sleep 1
+      done
+    fi
+  done
+
+  echo -n "Checking ${LABEL_C_BOX_HOSTNAME_FQHN} AAAA record resolves with IPv4 ${LABEL_C_IPV6_ADD0} ... "
+  while :; do
+    if is_valid ipv6_resolved "${C_IPV6_ADD0}" "${C_BOX_HOSTNAME_FQHN}"; then
+      _echo "$(msg green) [OK]$(msg end)" --plain
+      break
+    else
+      local check_duration
+      _echo "$(msg red) [FAILED]$(msg end)" --plain
+      #_echo "$(msg red)Please create / check for domain ${C_BOX_HOSTNAME_FQHN} that it must have an AAAA record pointing to ${LABEL_C_IPV6_ADD0}$(msg end)" --name
+      #_exit 147
+      check_duration=120
+      while :; do
+        ((check_duration--))
+        _echo "Re-checking ${LABEL_C_BOX_HOSTNAME_FQHN} AAAA record resolves with IPv6 ${LABEL_C_IPV6_ADD0} within ${check_duration} seconds ... " --name --start-spin
+        if [ "${check_duration}" -le 0 ]; then
+          break
+        fi
+        sleep 1
+      done
+    fi
+  done
+
 }
 
 # This function initialize or deploy server installation from scratch with few options
@@ -1009,16 +1086,20 @@ function init_server() {
       ;;
     esac
   done
+
   echo "Server Physical Information:"
 
   # Get all of this from provider
   echo "Provider: ${DNS_PROVIDER_NAME}"
   echo "Provider type: ${LABEL_C_BOX_TYPE^^}"
   echo "IPv4 address: ${LABEL_C_IPV4_ADD0}"
+  echo "IPv6 address: ${LABEL_C_IPV6_ADD0}"
+  echo "============="
   #echo "Disk space: "
   #echo "Memory/RAM: "
-  echo "Checking IP and domain propagation ..."
-  # TODO validate IP address and check IP or domain propagation here before proceeding ...
+
+  ensure_host_domain_ip_resolved
+
   sleep 1
   if [ ${backup} == "true" ]; then
     _echo "$(msg blue)Notice, the option --backup-all is set. The following backup events will be triggered automatically: $(msg end)" --name --plain
@@ -2593,6 +2674,7 @@ function required() {
     fi
   done
 }
+
 # This is a random string that will return alphabet character (lower and uppercase)
 # syntax: get_rnd_alpha <length>
 # eg: get_rnd_alpha 10
@@ -4639,7 +4721,7 @@ function linode_api_admin() {
       return 147
     fi
     [[ ${scripting} == "false" ]] && _echo "$(msg cyan)Getting linode status for ${linode_label} ...$(msg end)" --name --verbose 7
-    linode_status=$(${LINODE_CLI_BIN} --pretty --json --suppress-warnings linodes list | ${JQ_BIN} -r ".[] | select(.label == \"${linode_label}\") | .status")
+    linode_status=$(${LINODE_CLI_BIN} --pretty --json linodes list | ${JQ_BIN} -r ".[] | select(.label == \"${linode_label}\") | .status")
     if [ -n "${linode_status}" ]; then
       # Here is the result for linode status:
       echo "${linode_status}"
@@ -4886,7 +4968,7 @@ function linode_api_admin() {
         return 147
       fi
 
-      if is_valid domain "${record_value}" && is_valid server_record_valid_character "${record_value}"; then
+      if is_valid server_record_valid_character "${record_value}"; then
         [[ ${scripting} == "false" ]] && _echo "$(msg green)OK, the given --record-value $(msg red)${record_value}$(msg green) (for subdomain) is FQDN and valid character$(msg end)" --name --verbose 7
       else
         _echo "$(msg yellow)Warning, the given --record-value $(msg red)${record_value}$(msg green) (for subdomain) is not FQDN or valid character$(msg end)" --name --verbose 4
@@ -4951,7 +5033,7 @@ function linode_api_admin() {
       # Linode use the same entry for A and AAAA
       # linode_api_admin create-dns-record --domain test.com --record-type A --record-name name --record-value value --record-ttl 300
     elif [[ "${record_type}" == "A" ]]; then
-      # Extra validation to include wildcard character in DNS record * for root domain
+      # Extra validation to include wildcard character in DNS record * and @ for root domain
       if [[ $(is_valid server_record_valid_character "${record_name}") -eq 0 || "${record_name}" == "*" ]]; then
         [[ ${scripting} == "false" ]] && _echo "$(msg green)OK, the given --record-name $(msg red)${record_name}$(msg green) (for hostname) is valid character$(msg end)" --name --verbose 7
       else
@@ -4982,7 +5064,7 @@ function linode_api_admin() {
       # linode_api_admin create-dns-record --domain test.com --record-type AAAA --record-name name --record-value value --record-ttl 300
 
     elif [[ "${record_type}" == "AAAA" ]]; then
-      # Extra validation to include wildcard character in DNS record * for root domain
+      # Extra validation to include wildcard character in DNS record * and @ for root domain
       if [[ $(is_valid server_record_valid_character "${record_name}") -eq 0 || "${record_name}" == "*" ]]; then
         [[ ${scripting} == "false" ]] && _echo "$(msg green)OK, the given --record-name $(msg red)${record_name}$(msg green) (for hostname) is valid character$(msg end)" --name --verbose 7
       else
@@ -5012,10 +5094,40 @@ function linode_api_admin() {
       fi
 
     elif [ "${record_type}" == "CNAME" ]; then
-      :
+      # Extra validation to include wildcard character in DNS record * and @ for root domain
+      if [[ $(is_valid server_record_valid_character "${record_name}") -eq 0 ]]; then
+        [[ ${scripting} == "false" ]] && _echo "$(msg green)OK, the given --record-name $(msg red)${record_name}$(msg green) (for hostname) is valid character$(msg end)" --name --verbose 7
+      else
+        _echo "$(msg yellow)Warning, the given --record-name $(msg red)${record_name}$(msg green) (for hostname) is not valid character$(msg end)" --name --verbose 4
+        [[ ${scripting} == "false" ]] && exec_time total "linode_api_admin"
+        return 147
+      fi
+
+      if [[ $(is_valid server_record_valid_character "${record_value}") -eq 0 ]]; then
+        [[ ${scripting} == "false" ]] && _echo "$(msg green)OK, the given --record-value $(msg red)${record_value}$(msg green) (for hostname) is valid character$(msg end)" --name --verbose 7
+      else
+        _echo "$(msg yellow)Warning, the given --record-value $(msg red)${record_value}$(msg green) (for hostname) is not valid character$(msg end)" --name --verbose 4
+
+        [[ ${scripting} == "false" ]] && exec_time total "linode_api_admin"
+        return 147
+      fi
+
+      [[ ${scripting} == "false" ]] && _echo "$(msg cyan)Creating CNAME record name $(msg red)[${record_name}]$(msg end) $(msg cyan)...$(msg end)" --name
+      if [[ ${scripting} == "false" ]]; then
+        ${LINODE_CLI_BIN} --pretty --json --suppress-warnings domains records-create "${domain_id}" --type "${record_type}" --name "${record_name}" \
+          --target "${record_value}" --ttl_sec "${record_ttl}"
+        retval=$?
+      else
+        ${LINODE_CLI_BIN} --pretty --json --suppress-warnings domains records-create "${domain_id}" --type "${record_type}" --name "${record_name}" \
+          --target "${record_value}" --ttl_sec "${record_ttl}" &>/dev/null
+        retval=$?
+      fi
+
     elif [ "${record_type}" == "SRV" ]; then
       :
     elif [ "${record_type}" == "CAA" ]; then
+      :
+    elif [ "${record_type}" == "PTR" ]; then
       :
     fi
 
@@ -6192,7 +6304,8 @@ function da_api_admin() {
     skin_name logo_mode logo_file \
     answer question \
     text_output recommend_values \
-    api_username api_password
+    api_username api_password \
+    scripting
 
   action="$1"
   argnum="$#"
@@ -6201,7 +6314,7 @@ function da_api_admin() {
   short_opts="h"
   long_opts="help,sign-as:,username:,password:,ip-address:,netmask:,email:,name:,nameserver1:,nameserver2:,where-username-is:,text-output:,package-name:, \
   recommend-values,domain:,subdomain:,ip-type:, record-type:, record-name:, record-value:, record-ttl:, affect-pointers:, special-type:, skin-name:, \
-  logo-mode:,logo-file:,question:,answer:,api-username:,api-password:"
+  logo-mode:,logo-file:,question:,answer:,api-username:,api-password:,scripting"
 
   options=$(getopt -o "${short_opts}" --long "${long_opts}" -n "${FUNCNAME[0]}@${action} in ${SCRIPT_NAME}" -- "$@")
   retval=$?
@@ -6240,6 +6353,7 @@ function da_api_admin() {
   logo_file=""       # /tmp/logo.png
   question=""        # Kau dah lama hidup?
   answer=""          # Belum
+  scripting=false
   while true; do
     case "$1" in
     -h | --help)
@@ -6365,6 +6479,10 @@ function da_api_admin() {
       api_password="$2"
       shift 2
       ;;
+    --scripting)
+      scripting=true
+      shift
+      ;;
     --)
       shift
       break
@@ -6428,18 +6546,20 @@ function da_api_admin() {
     #echo "OK, ${C_BOX_HOSTNAME_FQHN} is a valid SSL/https site"
     ssl_protocol="https"
   else
-    _echo "$(msg yellow)Warning, using unsecured connection for directadmin API because ${C_BOX_HOSTNAME_FQHN} is currently not a valid SSL/https site$(msg end)" --name --verbose 7
+    [[ "${scripting}" == "false" ]] && _echo "$(msg yellow)Warning, using unsecured connection for directadmin API because ${C_BOX_HOSTNAME_FQHN} is currently not a valid SSL/https site$(msg end)" --name --verbose 7
     ssl_protocol="http"
   fi
 
   # TODO this one contains sensitive information, hide later or suggesting to use  --verbose less than 7
-  _echo "$(msg newline)" --plain --verbose 7
-  _echo "API_DETAILS:" --name --verbose 7
-  _echo "$(msg magenta)=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=$(msg end)" --name --verbose 7
-  _echo "ALL ARGS: $*" --name --verbose 7
-  _echo "ACTION: ${action}" --name --verbose 7
-  _echo "SIGN_AS or EXECUTE_AS: ${sign_as}" --name --verbose 7
-  _echo "$(msg newline)" --plain --verbose 7
+  if [[ "${scripting}" == "false" ]]; then
+    _echo "$(msg newline)" --plain --verbose 7
+    _echo "API_DETAILS:" --name --verbose 7
+    _echo "$(msg magenta)=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=$(msg end)" --name --verbose 7
+    _echo "ALL ARGS: $*" --name --verbose 7
+    _echo "ACTION: ${action}" --name --verbose 7
+    _echo "SIGN_AS or EXECUTE_AS: ${sign_as}" --name --verbose 7
+    _echo "$(msg newline)" --plain --verbose 7
+  fi
   if [ "${sign_as}" == "owner1" ]; then
     sign_as="${C_DA_OWNER_USERNAME1}"
   elif [ "${sign_as}" == "admin1" ]; then
@@ -6465,7 +6585,7 @@ function da_api_admin() {
     if [[ -n "${da_user}" ]]; then
       da_api_username="${api_username}"
       da_api_password="${api_password}"
-      _echo "DA_API_USERNAME: ${da_api_username}" --name --verbose 7
+      [[ "${scripting}" == "false" ]] && _echo "DA_API_USERNAME: ${da_api_username}" --name --verbose 7
     else
       _echo "$(msg red)Error, user ${api_username} does not exist in directadmin system!$(msg end)" --name
       _exit 147
@@ -6474,19 +6594,19 @@ function da_api_admin() {
   elif [[ "${sign_as}" == "${C_DA_OWNER_USERNAME1}" && -n "${da_user}" ]]; then
     da_api_username="${C_DA_OWNER_USERNAME1}"
     da_api_password="${C_DA_OWNER_USERPASS1}"
-    _echo "DA_API_USERNAME: ${da_api_username}" --name --verbose 7
+    [[ "${scripting}" == "false" ]] && _echo "DA_API_USERNAME: ${da_api_username}" --name --verbose 7
   else # For other users other than owner but it must exist in the system
     if [[ -n "${da_user}" ]]; then
       da_api_username="${C_DA_OWNER_USERNAME1}|${da_user}"
       da_api_password="${C_DA_OWNER_USERPASS1}"
-      _echo "DA_API_USERNAME: ${da_api_username} (Login-as)" --name --verbose 7
+      [[ "${scripting}" == "false" ]] && _echo "DA_API_USERNAME: ${da_api_username} (Login-as)" --name --verbose 7
     else # If it does not exist in the system, we use default admin
       # If the above authentication does not exist, we try to use old admin from setup.txt (first check if old admin exist)
       da_user="$(basename "$(find ${user_list_path} -name "admin" -type d | tail -n 1)")"
       if [[ -n "${da_user}" ]]; then
         da_api_username=$(grep "^adminname" "${admin_original_auth_file}" | cut -d= -f2)
         da_api_password=$(grep "^adminpass" "${admin_original_auth_file}" | cut -d= -f2)
-        _echo "DA_API_USERNAME: ${da_api_username} (from original admin setup.txt)" --name --verbose 7
+        [[ "${scripting}" == "false" ]] && _echo "DA_API_USERNAME: ${da_api_username} (from original admin setup.txt)" --name --verbose 7
       else
         _echo "$(msg red)Error, user ${sign_as} does not exist in directadmin system!$(msg end)" --name
         _exit 147
@@ -6494,10 +6614,10 @@ function da_api_admin() {
     fi
   fi
 
-  _echo "DA_API_PASSWORD: ${da_api_password}" --name --verbose 7
-  _echo "API PROTOCOL SELECTED: ${ssl_protocol}" --name --verbose 7
-  _echo "$(msg magenta)=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=$(msg end)" --name --verbose 7
-  _echo "$(msg newline)" --plain --verbose 7
+  [[ "${scripting}" == "false" ]] && _echo "DA_API_PASSWORD: ${da_api_password}" --name --verbose 7
+  [[ "${scripting}" == "false" ]] && _echo "API PROTOCOL SELECTED: ${ssl_protocol}" --name --verbose 7
+  [[ "${scripting}" == "false" ]] && _echo "$(msg magenta)=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=$(msg end)" --name --verbose 7
+  [[ "${scripting}" == "false" ]] && _echo "$(msg newline)" --plain --verbose 7
 
   if [[ "${action}" == "get-user-package" ]]; then
     local cmd_api data method da_api_exec has_success
@@ -6869,6 +6989,61 @@ function da_api_admin() {
       echo "${has_record}"
       return 0
     fi
+
+  elif [[ "${action}" == "get-dns-zone" || "${action}" == "get-dns-records" ]]; then
+    local cmd_api data method da_api_exec has_success
+    cmd_api="CMD_API_DNS_ADMIN"
+    # Need to pass full_max_records to display full list of mx records
+    data="domain=${domain}&json=yes&full_mx_records=yes"
+    method="POST"
+
+    if [ "${special_type^^}" == "A" ]; then
+      has_record=$(curl --silent --request "${method}" --user "${da_api_username}":"${da_api_password}" --data "${data}" "${ssl_protocol}://${C_BOX_HOSTNAME_FQHN}:${C_DA_PORT}/${cmd_api}" |
+        jq -r ".records[] \
+        | select(.type==\"A\")")
+    elif [ "${special_type^^}" == "AAAA" ]; then
+      has_record=$(curl --silent --request "${method}" --user "${da_api_username}":"${da_api_password}" --data "${data}" "${ssl_protocol}://${C_BOX_HOSTNAME_FQHN}:${C_DA_PORT}/${cmd_api}" |
+        jq -r ".records[] \
+        | select(.type==\"AAAA\")")
+    elif [ "${special_type^^}" == "CNAME" ]; then
+      has_record=$(curl --silent --request "${method}" --user "${da_api_username}":"${da_api_password}" --data "${data}" "${ssl_protocol}://${C_BOX_HOSTNAME_FQHN}:${C_DA_PORT}/${cmd_api}" |
+        jq -r ".records[] \
+        | select(.type==\"CNAME\")")
+      # This wil list all TXT record
+    elif [ "${special_type^^}" == "TXT" ]; then
+      has_record=$(curl --silent --request "${method}" --user "${da_api_username}":"${da_api_password}" --data "${data}" "${ssl_protocol}://${C_BOX_HOSTNAME_FQHN}:${C_DA_PORT}/${cmd_api}" |
+        jq -r ".records[] \
+        | select(.type==\"TXT\")")
+    elif [ "${special_type^^}" == "NS" ]; then
+      has_record=$(curl --silent --request "${method}" --user "${da_api_username}":"${da_api_password}" --data "${data}" "${ssl_protocol}://${C_BOX_HOSTNAME_FQHN}:${C_DA_PORT}/${cmd_api}" |
+        jq -r ".records[] \
+        | select(.type==\"NS\")")
+    elif [ "${special_type^^}" == "MX" ]; then
+      has_record=$(curl --silent --request "${method}" --user "${da_api_username}":"${da_api_password}" --data "${data}" "${ssl_protocol}://${C_BOX_HOSTNAME_FQHN}:${C_DA_PORT}/${cmd_api}" |
+        jq -r ".records[] \
+        | select(.type==\"MX\")")
+    elif [ "${special_type^^}" == "SRV" ]; then
+      has_record=$(curl --silent --request "${method}" --user "${da_api_username}":"${da_api_password}" --data "${data}" "${ssl_protocol}://${C_BOX_HOSTNAME_FQHN}:${C_DA_PORT}/${cmd_api}" |
+        jq -r ".records[] \
+        | select(.type==\"SRV\")")
+    elif [ "${special_type^^}" == "CAA" ]; then
+      has_record=$(curl --silent --request "${method}" --user "${da_api_username}":"${da_api_password}" --data "${data}" "${ssl_protocol}://${C_BOX_HOSTNAME_FQHN}:${C_DA_PORT}/${cmd_api}" |
+        jq -r ".records[] \
+        | select(.type==\"CAA\")")
+    elif [ "${special_type^^}" == "PTR" ]; then
+      has_record=$(curl --silent --request "${method}" --user "${da_api_username}":"${da_api_password}" --data "${data}" "${ssl_protocol}://${C_BOX_HOSTNAME_FQHN}:${C_DA_PORT}/${cmd_api}" |
+        jq -r ".records[] \
+        | select(.type==\"PTR\")")
+    fi
+
+    if [ -z "${has_record}" ]; then
+      [[ "${scripting}" == "false" ]] && _echo "$(msg red)Warning, no record found for the dns special record ${special_type} $(msg end)" --name
+      return 147
+    else
+      echo "${has_record}"
+      return 0
+    fi
+
   # da_api_admin create-domain --domain test.com --recommend-values
   elif [ "${action}" == "create-domain" ]; then
     local cmd_api data method da_api_exec has_success
@@ -7016,6 +7191,22 @@ function da_api_admin() {
     # Special note: CMD_API_SUBDOMAIN AND CMD_API_SUBDOMAINS are the same thing: https://www.directadmin.com/features.php?id=1589
     cmd_api="CMD_API_SUBDOMAIN"
     data="domain=${domain}&subdomain=${subdomain}&action=create"
+    method="POST"
+    da_api_exec=$(curl --silent --request "${method}" --user "${da_api_username}":"${da_api_password}" --data "${data}" "${ssl_protocol}://${C_BOX_HOSTNAME_FQHN}:${C_DA_PORT}/${cmd_api}")
+    has_success=$(echo "${da_api_exec}" | grep -w '^error=0')
+    if [ -z "${has_success}" ]; then
+      _echo "$(msg red)Error, API with action ${action} executed with the following error: $(msg end)" --name
+      _echo "$(msg red)${da_api_exec}$(msg end)" --plain | urldecode | awksep '&'
+    #_exit 147
+    else
+      _echo "$(msg green)OK, API with action ${action} executed with the following status: $(msg end)" --name
+      _echo "$(msg green)${da_api_exec}$(msg end)" --plain | urldecode | awksep '&'
+    fi
+    #da_api_admin reset-dns-record --domain test.domain.com
+  elif [[ "${action}" == "reset-dns-record" || "${action}" == "restore-dns-record" ]]; then
+    local cmd_api data method retval da_api_exec has_success
+    cmd_api="CMD_API_DNS_ADMIN"
+    data="domain=${domain}&action=select&reset=yes"
     method="POST"
     da_api_exec=$(curl --silent --request "${method}" --user "${da_api_username}":"${da_api_password}" --data "${data}" "${ssl_protocol}://${C_BOX_HOSTNAME_FQHN}:${C_DA_PORT}/${cmd_api}")
     has_success=$(echo "${da_api_exec}" | grep -w '^error=0')
@@ -8302,7 +8493,7 @@ function configure_net2() {
     } >/etc/resolvconf/resolv.conf.d/base
     echo ""
     # Compiling
-     _echo "$(msg cyan)Updating resolvconf ...$(msg end)" --name
+    _echo "$(msg cyan)Updating resolvconf ...$(msg end)" --name
     sudo resolvconf -u
     echo ""
     _echo "$(msg cyan)Getting the current hostname ...$(msg end)" --name
@@ -9065,9 +9256,10 @@ function secure_da_auth() {
     da_scripts_path="/usr/local/directadmin/scripts"
     da_bin="/usr/local/directadmin/directadmin"
     da_cb_bin="/usr/local/directadmin/custombuild/build"
+    da_conf="/usr/local/directadmin/conf/directadmin.conf"
 
-    _echo "$(msg cyan)Checking if directadmin binary and custombuild are presents ...$(msg end)" --name
-    check_file_path "${da_bin}" "${da_cb_bin}"
+    _echo "$(msg cyan)Checking if directadmin binary, custombuild and directadmin.conf are presents ...$(msg end)" --name
+    check_file_path "${da_bin}" "${da_cb_bin}" "${da_conf}"
     echo ""
 
     # This one moved to configure_da_owner_accounts()
@@ -9094,6 +9286,10 @@ function secure_da_auth() {
     chown apache:apache /etc/httpd/.htpasswd
     chmod +r /etc/httpd/.htpasswd
     echo ""
+
+    _echo "$(msg cyan)Setting directadmin port to ${LABEL_C_DA_PORT} ...$(msg end)" --name
+    ${da_bin} set port "${C_DA_PORT}"
+    echo ""
     # No need to restart
     # It might be best to restart directadmin after changing admin username because admin has so many configs
     #_echo "$(msg cyan)Requesting directadmin to restart ...${bind_named}$(msg end)" --name
@@ -9109,14 +9305,12 @@ function secure_da_auth() {
 }
 
 # This will configure both ipv4 and ipv6 (add ipv4 or ipv6) and link them together only based on the IP from config files
-#After installing directadmin, I notice by default directadmin set ipv6=1 by default (but it did not add ipv6 for us in system file)
-#So when you execute something that related to DNS, you will get timeout error. This is because directadmin will try to execute this line:
-#/usr/bin/wget --tries=4 --timeout=4 --inet6-only https://api64.ipify.org/
-#The solution is to temporarily disable ipv6=0
-#TODO We will enable ipv6 after installing cert
+# configure_da_ips --run-force --init
+# The option --init removes previous data and force this function configure_da_ips to start from scratch, useful if the ipv6 file is corrupted
 function configure_da_ips() {
-  local option func_name
+  local option extra_option func_name
   option="$1"
+  extra_option="$2"
   func_name="${FUNCNAME[0]}"
   start_execute_options "${option}" "${func_name}"
   [[ "${SKIP_RUN}" == "true" ]] && return 0
@@ -9138,16 +9332,17 @@ function configure_da_ips() {
     da_ipv4_adds=$(ls /usr/local/directadmin/data/admin/ips/*.* 2>/dev/null)
     da_ipv6_adds=$(ls /usr/local/directadmin/data/admin/ips/*:* 2>/dev/null)
 
-    # From config file
+    # Get IPv6 config file
     c_da_ipv4="${C_IPV4_ADD0}"
     # Directadmin IP file use this form 1234:1234:0:0:1234:1234 so we need to convert ipv6 from config file into this form using ipv6calc
     required "debian@@apt:ipv6calc" "ubuntu@@apt:ipv6calc"
     c_da_ipv6=$(ipv6calc --addr2uncompaddr "${C_IPV6_ADD0}")
 
     ipv6_da_file="/usr/local/directadmin/data/admin/ips/${c_da_ipv6}"
-    # This is not required at this moment
+    # This ipv4_da_file is not required at this moment but left for reference:
     #ipv4_da_file="/usr/local/directadmin/data/admin/ips/${c_da_ipv4}"
 
+    # Very important note. The reason we enable ipv6=1 is to enable ipv6 form to add Ipv6 in directadmin system
     _echo "$(msg cyan)Enabling ipv6 in directadmin.conf config before adding IPv6...$(msg end)" --name
     ${da_bin} set ipv6 1
     echo ""
@@ -9160,7 +9355,6 @@ function configure_da_ips() {
 
     if [ -z "${da_ipv4_adds}" ]; then
       # Display error instead of warning because ipv4 address based on config should exist in directadmin as default IP. If it does not exist, that means, something wrong with the DA installation
-      # For Ipv6, we don't display error and exit, we auto add the IP based on the config file
       _echo "$(msg red)Error, there is no IPv4 IP address file is found inside /usr/local/directadmin/data/admin/ips/. There must be an IPv4 address ${LABEL_C_IPV4_ADD0} exist in the location!$(msg end)" --name
       _exit 147
       # Below is not required at this moment
@@ -9194,10 +9388,15 @@ function configure_da_ips() {
       _echo "$(msg red)Error, no IPv4 matching found between config file and directadmin IP files. At least one IP should be there. Something is wrong, please inspect$(msg end)" --name
       _exit 147
     fi
-
     echo ""
-    # IPV6 start here
 
+    # IPV6 start here
+    # If --init passed in extra_option, we force rebuild the IP (only IPv6 was modified so we only remove ipv6 file to start over)
+    if [ "${extra_option}" == "--init" ]; then
+      _echo "$(msg cyan)Removing existing directadmin IPv6 IP files to rebuild IPv6 IP ...$(msg end)" --name
+      rm -f ${da_ipv6_adds}
+      echo ""
+    fi
     _echo "$(msg cyan)Checking if there is any directadmin Ipv6 files exist inside /usr/local/directadmin/data/admin/ips/ ...$(msg end)" --name
     if [ -z "${da_ipv6_adds}" ]; then
       # For Ipv6, we don't display error and exit, we auto add the IP based on the config file
@@ -9205,8 +9404,8 @@ function configure_da_ips() {
       if [ "${C_DA_AUTO_ADD_IPV46_ENTRY}" == "true" ]; then
         _echo "$(msg cyan)Automatically adding missing IPv6 IP address using directadmin API ... $(msg end)" --name
         #1) First method: Create ipv6 file using directadmin API
-
-        da_api_admin "add-ip" --ip-address "${C_IPV6_ADD0}" --netmask "${C_IPV6_NETMASK0}"
+        # Use converted IPv6
+        da_api_admin add-ip --ip-address "${c_da_ipv6}" --netmask "${C_IPV6_NETMASK0}"
 
         #2) Second method: Manually create ipv6 file (alternative way) if the above method API doesn't produce the IP file (just in case)
         if [ ! -f "${ipv6_da_file}" ]; then
@@ -9237,7 +9436,6 @@ function configure_da_ips() {
         # Update new variable to read IPv6
         da_ipv6_adds=$(ls /usr/local/directadmin/data/admin/ips/*:* 2>/dev/null)
       else
-        # TODO below contain sensitive information, hide this later
         _echo "$(msg yellow)Warning, IPv6 has not been setup through Directadmin and C_DA_AUTO_ADD_IPV46_ENTRY is not set to true. Please manually enter IPv6 from GUI (full form) then run this script again$(msg end)" --name
         # Enable the DA port in firewall only when pressing enter (good confirmation from user)
         read -r -s -n 1 -p "[${SCRIPT_NAME}]: Press any key to start adding TCP port ${LABEL_C_DA_PORT}/tcp in ufw to allow directadmin login ..."
@@ -9264,6 +9462,7 @@ function configure_da_ips() {
       fi
     fi
 
+    # This is for linking between IPv6 and IPv4
     for da_ipv6_file in $(echo "${da_ipv6_adds}" | tr ' ' '\n'); do
       # From da ip file
       da_ipv6=$(basename "${da_ipv6_file}")
@@ -9305,7 +9504,6 @@ function configure_da_ips() {
             done
           else
             _echo "$(msg yellow)Warning C_DA_AUTO_LINK_IP is not set to true. Please manually link the IPv4 address and IPv6 address via directadmin and run this script again!$(msg end)" --start-spin --name
-            # TODO below contain sensitive information, hide this later
             # Enable the DA port in firewall only when pressing enter (good confirmation from user)
             read -r -s -n 1 -p "[${SCRIPT_NAME}]: Press any key to start adding TCP port ${LABEL_C_DA_PORT}/tcp in ufw to allow directadmin login ..."
             echo ""
@@ -10730,25 +10928,35 @@ function configure_da_settings() {
     ${da_bin} set force_hostname "${C_BOX_HOSTNAME_FQHN}"
     _echo "$(msg cyan)Enabling directadmin backup encryption ...$(msg end)" --name
     ${da_bin} set allow_backup_encryption "${C_DA_ALLOW_BACKUP_ENCRYPTION}"
-    _echo "$(msg cyan)Setting Directadmin online help ...$(msg end)" --name
+    _echo "$(msg cyan)Setting directadmin online document ...$(msg end)" --name
     ${da_bin} set admin_helper "${C_DA_ADMIN_HELPER}"
     ${da_bin} set reseller_helper "${C_DA_RESELLER_HELPER}"
     ${da_bin} set user_helper "${C_DA_USER_HELPER}"
-    # Set directadmin hostname
+    echo ""
+    _echo "$(msg cyan)Setting directadmin servername ...$(msg end)" --name
     ${da_bin} set servername "${C_BOX_HOSTNAME_FQHN}"
-    # Set directadmin name server
+    echo ""
+    _echo "$(msg cyan)Setting directadmin nameservers ...$(msg end)" --name
     ${da_bin} set ns1 "${C_BOX_NS1}"
     ${da_bin} set ns2 "${C_BOX_NS1}"
+    echo ""
+    _echo "$(msg cyan)Setting directadmin execution timeout ...$(msg end)" --name
     # Set the timeout setting in second for directadmin execution before generating a timeout signal and aborting (default 60 seconds)
     ${da_bin} set timeout "${C_DA_TIMEOUT}"
+    echo ""
+    #_echo "$(msg cyan)Setting directadmin session minutes ...$(msg end)" --name
     # Set the login session timeout in minutes (when idle), session counter reset to 0 if any da page is reload (default 60 minutes / 1 hour)
     # 2880 = 2 days / 48 hours
-    # TODO comment this for bug checking (enable later): https://forum.directadmin.com/threads/bug-cannot-set-session_minutes-using-directadmin-set-command.64280/#post-334271
-    # This one session_minutes has bug, wait until there is a fix
+    # TODO This session_minutes contain bug and have not resolved yet (enable later):
+    #  This one session_minutes has bug, wait until there is a fix https://forum.directadmin.com/threads/bug-cannot-set-session_minutes-using-directadmin-set-command.64280/#post-334271
     # ${da_bin} set session_minutes "${C_DA_SESSION_MINUTES}"
+    #echo ""
+    _echo "$(msg cyan)Setting directadmin max file size ...$(msg end)" --name
     # Increase upload max file size in bytes
     # 5368709120 = 5GB
     ${da_bin} set maxfilesize "${C_DA_MAXFILESIZE}"
+    echo ""
+
     # Set number of apache log to keep for user
     ${da_bin} set logs_to_keep "${C_DA_LOGS_TO_KEEP}"
     # Set directadmin login history (default 10)
@@ -10813,9 +11021,21 @@ function configure_da_settings() {
     ${da_bin} set max_per_email_send_limit "${C_DA_MAX_PER_EMAIL_SEND_LIMIT}"
     # Set webmail link
     ${da_bin} set webmail_link "${C_DA_WEBMAIL_LINK}"
+    # Based on this: https://directadmin.com/features.php?id=1932
+    bind_current_version=$(echo "$(named -v)" | awk '{ print $2 }' | grep -oP [0-9]+\.[0-9]+\.[0-9]+)
+    dns_caa_bind_required_version="9.9.6"
+
+    statement=$(echo "${bind_current_version} >= ${dns_caa_bind_required_version}" | bc -q)
+
+    if [ ${statement} -eq 0 ]; then
+      _echo "$(msg cyan)Enabling directadmin DNS CAA record ... $(msg end)" --name
+      ${da_bin} set dns_caa 1
+    else
+      _echo "$(msg yellow)[Skipped] Disabling directadmin DNS CAA record because current bind version does not meet requirement (required bind v${dns_caa_bind_required_version}+)... $(msg end)" --name
+      ${da_bin} set dns_caa 0
+    fi
 
     # Add more security concern here for directadmin installation
-
     echo ""
     check_finish_reboot "${func_name}"
   else
@@ -11060,16 +11280,308 @@ function configure_da_dns_templates() {
 }
 
 # This function is used to configure place.server.com DKIM, DMARC, SPF and other related records
-function configure_da_server_domains() {
+function configure_da_host_domain() {
   local option func_name
   option="$1"
   func_name="${FUNCNAME[0]}"
   start_execute_options "${option}" "${func_name}"
   [[ "${SKIP_RUN}" == "true" ]] && return 0
   if [[ ! -f "${CONF_PATH}/${func_name}_executed" && "${FUNCTION_RUN}" == "true" ]]; then
+    local da_conf da_bin da_cb_bin da_scripts_path
 
+    da_scripts_path="/usr/local/directadmin/scripts"
+    da_bin="/usr/local/directadmin/directadmin"
+    da_cb_bin="/usr/local/directadmin/custombuild/build"
+    da_conf="/usr/local/directadmin/conf/directadmin.conf"
 
+    _echo "$(msg cyan)Checking if required files are presents ...$(msg end)" --name
+    check_file_path "${da_bin}" "${da_cb_bin}" "${da_conf}" "${da_scripts_path}/dkim_create.sh"
     echo ""
+
+    # DKIM for hostname can only be created using script (old way) as mentioned here:
+    # https://forum.directadmin.com/threads/configure-dkim-for-host-domain-com-email-addresses.59809/post-309496
+    # Remember this script does not touch the DNS zone directly, it uses taskq DNS so we have to wait at least 1 minute before it inserts into DNS record
+    _echo "$(msg cyan) Creating DKIM for hostname ${C_BOX_HOSTNAME_FQHN} ...$(msg end)" --name
+    ${da_scripts_path}/dkim_create.sh ${C_BOX_HOSTNAME_FQHN} force
+    echo ""
+
+    # This is a very important API call to restore the DNS record to default states based on customized option. If IPv6 is configured, the old DNS record will not have IPv6 DNS records
+    # If we execute this, it will add IPv6 records automatically. In addition, a new custom template also will be used to write DNS record here like the _dmarc from /usr/local/directadmin/data/templates/custom
+    # This API call also speeds up the dkim_create.sh taskq call. So, we can see immediate records being inserted into DNS record without having to wait for at least 1 minute
+    _echo "$(msg cyan)Restoring/resetting domain DNS records to default state ...$(msg end)" --name
+    da_api_admin restore-dns-record --domain ${C_BOX_HOSTNAME_FQHN}
+    echo ""
+
+    if [ "${DNS_PROVIDER_NAME}" == "linode" ]; then
+      # Very important, by default the test.domain.com was created by directadmin as the server hostname,
+      # This record must also exists and propagated properly in either local or external DNS. That means, we should create this record first before any other records
+      # It is not possible to create this record later because for example if using directadmin, it needs to detect server hostname propagated (license matter) before it can successfully install.
+      # So this one is only useful to create DNS record start from scratch (or rebuild dns record for test.domain.com).
+      _echo "$(msg cyan)Creating server host domain ${C_BOX_HOSTNAME_FQHN} in linode with --rebuild option ...$(msg end)" --name
+      linode_api_admin create-domain --domain-type "master" --domain "${C_BOX_HOSTNAME_FQHN}" --domain-email "webmaster@${C_BOX_HOSTNAME_FQHN}" --domain-ttl 300 --rebuild
+      echo ""
+
+      # Here we can create DNS records (we should scan all the records exists in test.domain.com and add them one by one into external DNS)
+      a_records=$(da_api_admin get-dns-records --domain "${C_BOX_HOSTNAME_FQHN}" --special-type "a" --scripting)
+      aaaa_records=$(da_api_admin get-dns-records --domain "${C_BOX_HOSTNAME_FQHN}" --special-type "aaaa" --scripting)
+      cname_records=$(da_api_admin get-dns-records --domain "${C_BOX_HOSTNAME_FQHN}" --special-type "cname" --scripting)
+      txt_records=$(da_api_admin get-dns-records --domain "${C_BOX_HOSTNAME_FQHN}" --special-type "txt" --scripting)
+      ns_records=$(da_api_admin get-dns-records --domain "${C_BOX_HOSTNAME_FQHN}" --special-type "ns" --scripting)
+      mx_records=$(da_api_admin get-dns-records --domain "${C_BOX_HOSTNAME_FQHN}" --special-type "mx" --scripting)
+      # We are not interested with this record yet
+      #  srv_records=$(da_api_admin get-dns-records --domain "${C_BOX_HOSTNAME_FQHN}" --special-type "srv" --scripting)
+      #  caa_records=$(da_api_admin get-dns-records --domain "${C_BOX_HOSTNAME_FQHN}" --special-type "caa" --scripting)
+      #  ptr_records=$(da_api_admin get-dns-records --domain "${C_BOX_HOSTNAME_FQHN}" --special-type "ptr" --scripting)
+
+      echo ""
+      # For A record
+      if [ -n "${a_records}" ]; then
+        _echo "$(msg cyan)Adding all A records in linode ...$(msg end)" --name
+
+        #echo "A record not empty"
+        #echo "a record: "
+        #echo "${a_records}"
+        #echo "record length: "
+        # total_record=$(echo "${a_records}" | jq -r ".type" | wc -w)
+        # For record name
+        readarray -t record <<<$(echo "${a_records}" | jq -r ".name")
+        # For record value
+        readarray -t record2 <<<$(echo "${a_records}" | jq -r ".value")
+
+        _echo "" --plain --verbose 7
+        _echo "record name:" --plain --verbose 7
+        _echo "${record[@]}" --plain --verbose 7
+        _echo "" --plain --verbose 7
+        _echo "record value:" --plain --verbose 7
+        _echo "${record2[@]}" --plain --verbose 7
+        _echo "" --plain --verbose 7
+
+        for i in "${!record[@]}"; do
+          local record_name record_value
+          record_name="${record[i]}"
+          # This one fixed the dot character of the ending domain
+          if [[ "$(echo "${record_name: -1}")" == "." ]]; then
+            echo "Fixing record[$i] that contains invalid character: ${record[$i]} ..."
+            record_name=$(echo "${record_name}" | sed 's/.$//')
+            echo "Record record[$i] is now set as ${record_name}"
+            echo ""
+          fi
+          record_value="${record2[i]}"
+
+          echo "record_name is ${record_name}"
+          echo "record_value is ${record_value}"
+          echo ""
+          linode_api_admin add-dns-record --domain "${C_BOX_HOSTNAME_FQHN}" --record-type "A" --record-name "${record_name}" --record-value "${record_value}" --record-ttl 300
+          echo ""
+        done
+      else
+        _echo "$(msg yellow)Notice, no A record is found$(msg end)" --name
+
+      fi
+
+      echo ""
+      # For AAAA record
+      if [ -n "${aaaa_records}" ]; then
+        _echo "$(msg cyan)Adding all AAAA records in linode ...$(msg end)" --name
+        # For record name
+        readarray -t record <<<$(echo "${aaaa_records}" | jq -r ".name")
+        # For record value
+        readarray -t record2 <<<$(echo "${aaaa_records}" | jq -r ".value")
+
+        _echo "" --plain --verbose 7
+        _echo "record name:" --plain --verbose 7
+        _echo "${record[@]}" --plain --verbose 7
+        _echo "" --plain --verbose 7
+        _echo "record value:" --plain --verbose 7
+        _echo "${record2[@]}" --plain --verbose 7
+        _echo "" --plain --verbose 7
+
+        for i in "${!record[@]}"; do
+          local record_name record_value
+          record_name="${record[i]}"
+          # This one fixed the dot character of the ending domain
+          if [[ "$(echo "${record_name: -1}")" == "." ]]; then
+            echo "Fixing record[$i] that contains invalid character: ${record[$i]} ..."
+            record_name=$(echo "${record_name}" | sed 's/.$//')
+            echo "Record record[$i] is now set as ${record_name}"
+            echo ""
+          fi
+          record_value="${record2[i]}"
+          linode_api_admin add-dns-record --domain "${C_BOX_HOSTNAME_FQHN}" --record-type "AAAA" --record-name "${record_name}" --record-value "${record_value}" --record-ttl 300
+          echo ""
+        done
+      else
+        _echo "$(msg yellow)Notice, no AAAA record is found$(msg end)" --name
+
+      fi
+
+      echo ""
+
+      # For CNAME record
+      if [ -n "${cname_records}" ]; then
+        _echo "$(msg cyan)Adding all CNAME records in linode ...$(msg end)" --name
+        # For record name
+        readarray -t record <<<$(echo "${cname_records}" | jq -r ".name")
+        # For record value
+        readarray -t record2 <<<$(echo "${cname_records}" | jq -r ".value")
+
+        _echo "" --plain --verbose 7
+        _echo "record name:" --plain --verbose 7
+        _echo "${record[@]}" --plain --verbose 7
+        _echo "" --plain --verbose 7
+        _echo "record value:" --plain --verbose 7
+        _echo "${record2[@]}" --plain --verbose 7
+        _echo "" --plain --verbose 7
+
+        for i in "${!record[@]}"; do
+          local record_name record_value
+          record_name="${record[i]}"
+          # This one fixed the dot character of the ending domain
+          if [[ "$(echo "${record_name: -1}")" == "." ]]; then
+            echo "Fixing record[$i] that contains invalid character: ${record[$i]} ..."
+            record_name=$(echo "${record_name}" | sed 's/.$//')
+            echo "Record record[$i] is now set as ${record_name}"
+            echo ""
+          fi
+          record_value="${record2[i]}"
+          linode_api_admin add-dns-record --domain "${C_BOX_HOSTNAME_FQHN}" --record-type "CNAME" --record-name "${record_name}" --record-value "${record_value}" --record-ttl 300
+          echo ""
+        done
+      else
+        _echo "$(msg cyan)Notice, no CNAME record is found$(msg end)" --name
+
+      fi
+      echo ""
+      # For TXT record
+      if [ -n "${txt_records}" ]; then
+        _echo "$(msg cyan)Adding all TXT records in linode ...$(msg end)" --name
+        # For record name
+        readarray -t record <<<$(echo "${txt_records}" | jq -r ".name")
+        # For record value
+        readarray -t record2 <<<$(echo "${txt_records}" | jq -r ".value")
+
+        _echo "" --plain --verbose 7
+        _echo "record name:" --plain --verbose 7
+        _echo "${record[@]}" --plain --verbose 7
+        _echo "" --plain --verbose 7
+        _echo "record value:" --plain --verbose 7
+        _echo "${record2[@]}" --plain --verbose 7
+        _echo "" --plain --verbose 7
+        #exit 1
+        for i in "${!record[@]}"; do
+          local record_name record_value
+          record_name="${record[i]}"
+          # This one fixed the dot character of the ending domain
+          if [[ "$(echo "${record_name: -1}")" == "." ]]; then
+            echo "Fixing record[$i] that contains invalid character: ${record[$i]} ..."
+            record_name=$(echo "${record_name}" | sed 's/.$//')
+            echo "Record record[$i] is now set as ${record_name}"
+            echo ""
+          fi
+          # Important must remove double quote for TXT record value because linode does not accept double quote as valid record
+          record_value=$(echo "${record2[i]}" | sed -e 's/^"//' -e 's/"$//')
+          echo "record_name is ${record_name}"
+          echo "record_value is ${record_value}"
+          echo ""
+          linode_api_admin add-dns-record --domain "${C_BOX_HOSTNAME_FQHN}" --record-type "TXT" --record-name "${record_name}" --record-value "${record_value}" --record-ttl 300
+          echo ""
+        done
+      else
+        _echo "$(msg yellow)Notice, no TXT record is found$(msg end)" --name
+
+      fi
+
+      echo ""
+
+      # For NS record
+      if [ -n "${ns_records}" ]; then
+
+        _echo "$(msg cyan)Adding all NS records in linode ...$(msg end)" --name
+        # For record name
+        readarray -t record <<<$(echo "${ns_records}" | jq -r ".name")
+        # For record value
+        readarray -t record2 <<<$(echo "${ns_records}" | jq -r ".value")
+
+        _echo "" --plain --verbose 7
+        _echo "record name:" --plain --verbose 7
+        _echo "${record[@]}" --plain --verbose 7
+        _echo "" --plain --verbose 7
+        _echo "record value:" --plain --verbose 7
+        _echo "${record2[@]}" --plain --verbose 7
+        _echo "" --plain --verbose 7
+
+        for i in "${!record[@]}"; do
+          local record_name record_value
+          record_name="${record[i]}"
+          # This one fixed the dot character of the ending domain
+          if [[ "$(echo "${record_name: -1}")" == "." ]]; then
+            echo "Fixing record[$i] that contains invalid character: ${record[$i]} ..."
+            record_name=$(echo "${record_name}" | sed 's/.$//')
+            echo "Record record[$i] is now set as ${record_name}"
+            echo ""
+          fi
+          record_value="${record2[i]}"
+          linode_api_admin add-dns-record --domain "${C_BOX_HOSTNAME_FQHN}" --record-type "NS" --record-name "${record_name}" --record-value "${record_value}" --record-ttl 300
+          echo ""
+        done
+      else
+        _echo "$(msg yellow)Notice, no NS record is found$(msg end)" --name
+
+      fi
+
+      echo ""
+      echo "${mx_records}"
+      if [ -n "${mx_records}" ]; then
+        _echo "$(msg cyan)Adding all MX records in linode ...$(msg end)" --name
+        # For record name
+        readarray -t record <<<$(echo "${mx_records}" | jq -r ".name")
+        # For record value
+        readarray -t record2 <<<$(echo "${mx_records}" | jq -r ".value")
+
+        _echo "" --plain --verbose 7
+        _echo "record name:" --plain --verbose 7
+        _echo "${record[@]}" --plain --verbose 7
+        _echo "" --plain --verbose 7
+        _echo "record value (priority):" --plain --verbose 7
+        _echo "${record2[@]}" --plain --verbose 7
+        _echo "" --plain --verbose 7
+
+        for i in "${!record[@]}"; do
+          local record_value record_name record_priority
+          record_value="${record[i]}"
+
+          if [[ "$(echo "${record_value: -1}")" == "." ]]; then
+
+            echo "Fixing record[$i] that contains invalid character: ${record_value} ..."
+            record_value=$(echo "${record_value}" | sed 's/.$//')
+            echo "Record record[$i] is now set as ${record_value}"
+
+          fi
+          record_name="$(echo "${record2[i]}" | awk '{ print $2 }')"
+          record_priority="$(echo "${record2[i]}" | awk '{ print $1 }')"
+
+          echo "record_name ${record_name}"
+          echo "record_value ${record[i]}"
+          echo "record priority ${record_priority}"
+
+          linode_api_admin add-dns-record --domain "${C_BOX_HOSTNAME_FQHN}" --record-type "MX" --record-name "${record_name}" --record-value "${record_value}" --record-priority "${record_priority}" --record-ttl 300
+        done
+      else
+        _echo "$(msg yellow)Notice, no MX record is found$(msg end)" --name
+      fi
+      echo ""
+
+    elif
+      [ "${DNS_PROVIDER_NAME}" == "digitalocean" ]
+    then
+      echo "[${SCRIPT_NAME}]: External DNS provider for domain ${C_BOX_HOSTNAME_FQHN} is set to digitalocean [Using digitalocean API ...]"
+      #Call digitalocean_api_admin
+    #elif other provider
+    elif [ "${DNS_PROVIDER_NAME}" == "local" ]; then
+      echo "[${SCRIPT_NAME}]: External DNS provider for domain ${C_BOX_HOSTNAME_FQHN} is set to local"
+    # Do nothing because it's local DNS managed by Directadmin
+    fi
+
     check_finish_reboot "${func_name}"
   else
     _echo "$(msg yellow)[Skipped by system]: $(msg magenta)${func_name}()$(msg end) $(msg yellow)with current option ${option} has ran before $(msg end)" --name
@@ -11079,7 +11591,7 @@ function configure_da_server_domains() {
   end_execute_options "${option}" "${func_name}"
 }
 
-# Here, we update the first owner account information
+# Here, we update the first owner account information (the original admin)
 function configure_da_owner_accounts() {
   local option func_name
   option="$1"
@@ -11094,8 +11606,8 @@ function configure_da_owner_accounts() {
     da_cb_bin="/usr/local/directadmin/custombuild/build"
     da_conf="/usr/local/directadmin/conf/directadmin.conf"
 
-    _echo "$(msg cyan)Checking if directadmin binary, custombuild and directadmin.conf are presents ...$(msg end)" --name
-    check_file_path "${da_bin}" "${da_cb_bin}" "${da_conf}"
+    _echo "$(msg cyan)Checking if required files are presents ...$(msg end)" --name
+    check_file_path "${da_bin}" "${da_cb_bin}" "${da_conf}" "${da_scripts_path}/change_username.sh"
     echo ""
 
     # This will change Directadmin admin account username:
@@ -12522,8 +13034,10 @@ function configure_logs() {
   end_execute_options "${option}" "${func_name}"
 }
 
-# Maybe we need to log into owner (so we fix the menu, time format etc)
-# it's best not to use owner. Use admin instead to manage DA user for security purpose
+# Note: it's best not to use owner. Use admin instead to manage DA user for security purpose
+# There is no official documentation how to upload a directadmin logo using API through bash/curl.
+# It's a a bit tricky how to do this. This is my own method also written in here:
+# https://forum.directadmin.com/threads/cmd_api_skins-upload-skin-logo-via-curl-issue.63127/
 function configure_da_owner_skins() {
   # We can customize this skin evolution based on this file /usr/local/directadmin/data/users/username/skin_customization/evolution/user_options.json
   local option func_name
@@ -12541,8 +13055,6 @@ function configure_da_owner_skins() {
     _echo "$(msg cyan)Setting directadmin skin setting with recommend values for owner1 ...$(msg end)" --name
     da_api_admin set-da-skin-settings --skin-name "evolution" --recommend-values
     echo ""
-    # There is no official documentation how to upload a directadmin logo using API. This is my own method also written in here:
-    # https://forum.directadmin.com/threads/cmd_api_skins-upload-skin-logo-via-curl-issue.63127/
 
     # This is the part to upload logo
     # Directadmin needs this home temporary folder to hold upload file (this is a must)
@@ -14802,9 +15314,9 @@ function setup() {
     # Note 1: setup_pre can be used to install screen, disable Selinux in CentOS or other necessary pre install components
     setup_pre --run
     # Note 1: Clone all setup script from git (recommend to run as --run-force instead of --run so we always get the latest security update)
-    get_latest_code --run-force
+    get_latest_code --run
     # Note 1: Get the latest security codes from maxicode (recommend to run as --run-force instead of --run so we always get the latest security update)
-    update_latest_maxicode --run-force
+    update_latest_maxicode --run
     # Note 1: This call contains security hardening server
     secure_os --run
     # Note 1: This is for push notification (eg: to receive notification via android phone)
@@ -14837,7 +15349,7 @@ function setup() {
       install_da --run
       install_da_post --run
       secure_da_auth --run
-      # Linking da ipv6 with ipv4 and vice versa
+      # Add da ipv6 and linking with ipv4 and vice versa (this option has --init argument)
       configure_da_ips --run
       install_da_csf --run
       configure_csf --run
@@ -14854,12 +15366,13 @@ function setup() {
       configure_da_geoip --skip     # Skip until found useful
       # Important to run configure_da_dns_templates first before creating any domains so that the DNS record can use new template automatically
       configure_da_dns_templates --run
-      # TODO before run inspect configure_da_server_domains
-      configure_da_server_domains --run-exit
+      configure_da_host_domain --run
       # " -- owner --"
       configure_da_owner_accounts --run
       configure_da_owner_skins --run
+
       configure_da_owner_security --run
+
       # " -- admin --"
       configure_da_admin_accounts --run
       configure_da_admin_skins --run
@@ -14870,9 +15383,7 @@ function setup() {
       configure_da_reseller_wildcard_domains --run
       configure_da_reseller_subdomains --run
 
-      # TODO run above in clean install.. wait for domain propagation and test below:
-
-      configure_da_reseller_emails --run-exit
+      configure_da_reseller_emails --run
       configure_da_reseller_databases --run
 
       configure_da_reseller_skins --skip #copy from admin or owner skin TODO
@@ -15082,7 +15593,7 @@ fi
 CONFIG_FILE="${SCRIPT_PATH}/${SCRIPT_NAME}.conf"
 CONFIG_TEST=""
 # This will only allow sourcing one time
-if [ -z "${C_DA_CONFIG_VERSION}" ]; then
+if [ -z "${C_CONFIG_VERSION}" ]; then
   if [ -s "${CONFIG_FILE}" ]; then
     # CONFIG file must follow this regex.
     # eg: 1) abc=2 #OK 2) abc= #NOT-OK 3) abc #NOT-OK 4) @ok=abc #NOT-OK 5) .ok=abc #NOT-OK 6) _ok=abc #OK

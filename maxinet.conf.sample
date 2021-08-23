@@ -32,13 +32,13 @@
 # 12) A new planned feature will be included in the script where you do not have to edit this config file to store variable information, you could configure this within the script
 # 13) The Directadmin username owner1, admin1, reseller1 and user1 are reserved for this script. You will get error if you try to use these usernames
 # 14) Each role (OWNER, ADMIN, RESELLER, USER) must have at least 1 user created with index 1
-# 15) Use accending index number when creating directadmin user (do not skip the number):
+# 15) Use ascending index number when creating directadmin user (do not skip the number):
 #    eg: This is OK: ADMIN_USERNAME1 -> ADMIN_USERNAME2 -> ADMIN_USERNAME3 -> ADMIN_USERNAME[N+1]
 #    eg: This is not OK: ADMIN_USERNAME1 -> ADMIN_USERNAME4
 # =~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~="
-# C_DA_CONFIG_VERSION:
+# C_CONFIG_VERSION:
 # This variable is the version of this config file. This is the main variable used by script to determine if source contain valid value
-C_DA_CONFIG_VERSION="1.0"
+C_CONFIG_VERSION="1.0"
 
 # C_HIDE_SENSITIVE_TEXT:
 # This variable is used to hide sensitive information on the terminal such as username, password, port.
@@ -257,7 +257,7 @@ C_DA_PORT="2222"
 
 # TODO documentation will be written more starting here ...
 " # or owasp
-C_DA_MODSECURITY_RULESET="comodo
+C_DA_MODSECURITY_RULESET="comodo"
 C_DA_ADMIN_HELPER="help.sofibox.com/directadmin/admin"
 C_DA_RESELLER_HELPER="help.sofibox.com/directadmin/reseller"
 C_DA_USER_HELPER="help.sofibox.com/directadmin/user"
@@ -273,7 +273,7 @@ C_DA_INSTALL_GEOIP=true
 
 # Format <sql_type>-<sql_version>
 # or mysql-8.0
-C_DA_MYSQL_SOFTWARE="mariadb-10.5"
+C_DA_MYSQL_SOFTWARE="mariadb-10.6"
 C_ENABLE_DA_HOST_SSL=true
 
 # This is a new testing feature to add automatically ipv6 config (official and manual way)
@@ -732,7 +732,7 @@ C_IPV4_NETMASK0="/24"
 C_IPV4_NETMASK_IP0="255.255.255.0"
 C_IPV6_ADD0="IPV6_ADDRESS" #eg: "2400:8902::a02d:91ee:fe05:4db2"
 C_IPV6_DEF_GATEWAY0="fe80::1"
-C_IPV6_NETMASK0="/64"
+C_IPV6_NETMASK0="/64" # or /128
 # For /etc/resolv.conf
 C_NAME_SERVER1="123.11.11.5"
 C_NAME_SERVER2="123.11.14.5"
