@@ -3,6 +3,6 @@
 # Author: Arafat Ali | Email: admin@sofibox.com | Web: sofibox.com
 # ===============================================
 # This is the remote setup readme file:
-Please make sure that the execution remote environment at /root/execution_env contains remote flag before running --setup option
+Please make sure that the execution remote environment at /maxinet/execution_env contains remote flag before running --setup option
 Run installation with log output: ./maxinet --setup 2>&1 | tee maxinet.log
 Run installation with log output: ./maxinet --setup --installation-type directadmin 2>&1 | tee maxinet.log

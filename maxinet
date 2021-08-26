@@ -4,7 +4,7 @@
 
 _APP_SPECIFIC_NAME="Maxinet"
 # Note that some minor versions are not published
-_APP_VERSION="0.5.8.2"
+_APP_VERSION="0.5.8.5"
 _APP_STATUS="alpha"
 _APP_VERSION_STATUS="${_APP_VERSION}-${_APP_STATUS}"
 
@@ -1191,14 +1191,22 @@ function init_server() {
 
     _echo "$(msg cyan)Installing operating system automatically using preseed configuration (approx 7 minutes. Server will turned off automatically when finish): $(msg end)" --name
     # Do not over call the API, use sleep 5 minutes (300 seconds). The installation approximate time is  + minutes.
-
-    max_wait=300
+    # For debian 11 installation time take more than 300 seconds .. so we wait at this duration
+    if [[ "${C_BOX_ISO_OS_NAME}" == "debian" ]]; then
+      if [[ "${C_OS_SELECT_VERSION}" == "11.0.0" ]]; then
+        max_wait=300
+      fi
+    else
+      max_wait=120
+    fi
     wait_count=0
     while :; do
       ((wait_count++))
       _echo "$(msg cyan)Waiting for initial installation ... Maximum wait of ${wait_count}/${max_wait} seconds ...$(msg end)" --start-spin --name
       sleep 1
       if [[ "${wait_count}" -ge "${max_wait}" ]]; then
+        echo ""
+        _echo "$(msg cyan)Please wait ...$(msg end)" --stop-spin --name
         break
       fi
     done
@@ -5277,6 +5285,7 @@ function linode_api_admin() {
           elif [[ "${linode_status}" == "running" ]]; then
             _echo "$(msg yellow)Warning, linode is running. Waiting for offline status ...$(msg end)" --name --start-spin
             if [ "${loop_count}" -eq ${timeout} ]; then
+              echo ""
               _echo "$(msg yellow)Warning, linode has not entered into offline mode for more than ${timeout} seconds ...$(msg end)" --name
               # Increase this value if process requires more than 7 minutes or 420 seconds or more
               _echo "$(msg yellow)This is the maximum waiting time that linode should not wait more than this duration. Please inspect why linode still running!$(msg end)" --name
@@ -7462,15 +7471,15 @@ function restart_da_web_server() {
     sudo pkill -f nginx &
     wait $!
     systemctl restart nginx
-  elif [ "${C_DA_WEB_SERVER_SOFTWARE}" == "nginx" ]; then
+  elif [ "${C_DA_CB_WEBSERVER_SOFTWARE}" == "nginx" ]; then
     _echo "$(msg magenta)Restarting nginx  ...$(msg end)" --name
     sudo pkill -f nginx &
     wait $!
     systemctl restart nginx
-  elif [ "${C_DA_WEB_SERVER_SOFTWARE}" == "apache" ]; then
+  elif [ "${C_DA_CB_WEBSERVER_SOFTWARE}" == "apache" ]; then
     _echo "$(msg magenta)Restarting httpd for new httpd config ...$(msg end)" --name
     systemctl restart httpd
-  elif [ "${C_DA_WEB_SERVER_SOFTWARE}" == "openlitespeed" ]; then
+  elif [ "${C_DA_CB_WEBSERVER_SOFTWARE}" == "openlitespeed" ]; then
     :
   else
     :
@@ -8914,6 +8923,7 @@ function get_current_da_owner_username() {
   fi
 }
 
+# This function is used to setup options.conf or do something before executing directadmin installation
 function install_da_pre() {
   local option func_name
   option="$1"
@@ -8921,11 +8931,10 @@ function install_da_pre() {
   start_execute_options "${option}" "${func_name}"
   [[ "${SKIP_RUN}" == "true" ]] && return 0
   if [[ ! -f "${CONF_PATH}/${func_name}_executed" && "${FUNCTION_RUN}" == "true" ]]; then
-    local da_latest_version
+    local da_latest_version da_sql_type da_sql_version da_php_mode_v1 da_php_mode_v2 da_php_mode_v3 da_php_mode_v4 count
     da_latest_version=$(curl -s https://www.directadmin.com/version.php | grep -Eo "[0-9]+\.[0-9]+")
     _echo "$(msg cyan)The latest version of Directadmin is ${da_latest_version}$(msg end)" --name
-    _pause 10
-
+    _pause 5
     _echo "$(msg cyan)Configuring directadmin custombuild version ...$(msg end)" --name
     echo "${C_DA_CUSTOMBUILD_VERSION}" >/root/.custombuild
     echo ""
@@ -8935,7 +8944,7 @@ function install_da_pre() {
     # Here I can set options.conf and php_extensions.conf to custom install.
     mkdir -p /usr/local/directadmin/custombuild
     if [ "${C_DA_INSTALL_TYPE}" == "custom" ]; then
-      _echo "$(msg cyan)Directadmin installation type is C_DA_INSTALL_TYPE set to custom. The installation will use previous custom config options.conf and php_extensions.conf without questions$(msg end)" --name
+      _echo "$(msg cyan)Directadmin installation type is set to custom. The installation will use previous custom config options.conf and php_extensions.conf without questions$(msg end)" --name
       if [ "${DISTRO_ID}" == "centos" ]; then
         :
       elif [ "${DISTRO_ID}" == "debian" ]; then
@@ -8957,7 +8966,6 @@ function install_da_pre() {
         _echo "$(msg cyan)Copying the latest custombuild custom options.conf into /usr/local/directadmin/custombuild/options.conf ...$(msg end)" --name
         cp "${LATEST_OS_CODE_PATH}/usr/local/directadmin/custombuild/options.conf" "/usr/local/directadmin/custombuild/options.conf"
         echo ""
-
         _echo "$(msg cyan)Changing the value redirect_host= into redirect_host=${LABEL_C_BOX_HOSTNAME_FQHN} from options.conf ...$(msg end)" --name
         sed -i "s|^redirect_host=.*|redirect_host=${C_BOX_HOSTNAME_FQHN}|" /usr/local/directadmin/custombuild/options.conf
         echo ""
@@ -8967,6 +8975,63 @@ function install_da_pre() {
         _echo "$(msg cyan)Changing the value php_timezone= into php_timezone=${LABEL_C_BOX_TIMEZONE} from options.conf ...$(msg end)" --name
         sed -i "s|^php_timezone=.*|php_timezone=${C_BOX_TIMEZONE}|" /usr/local/directadmin/custombuild/options.conf
         echo ""
+        # This will change the sql info in options.conf based on the value from config file C_DA_CB_SQL_VERSION
+
+        _echo "$(msg cyan)Configuring SQL databases ...$(msg end)" --name
+        da_sql_type=$(echo "${C_DA_CB_SQL_VERSION}" | awk -F'-' '{ print $1 }')
+        da_sql_version=$(echo "${C_DA_CB_SQL_VERSION}" | awk -F'-' '{ print $2 }')
+        _echo "$(msg cyan)Changing mysql type to ${da_sql_type} ...$(msg end)" --name
+        sed -i "s|^mysql_inst=.*|mysql_inst=${da_sql_type}|" /usr/local/directadmin/custombuild/options.conf
+        _echo "$(msg cyan)Changing mysql version to ${da_sql_version} ...$(msg end)" --name
+        sed -i "s|^${da_sql_type}=.*|${da_sql_type}=${da_sql_version}|" /usr/local/directadmin/custombuild/options.conf
+        echo ""
+
+        # This will setup PHP version
+        _echo "$(msg cyan)Configuring PHP multiple versions ...$(msg end)" --name
+
+        da_php_mode_v1="$(echo "${C_DA_CB_PHP_VERSION}" | awk -F',' '{ print $1 }')"
+        da_php_mode_v2="$(echo "${C_DA_CB_PHP_VERSION}" | awk -F',' '{ print $2 }')"
+        da_php_mode_v3="$(echo "${C_DA_CB_PHP_VERSION}" | awk -F',' '{ print $3 }')"
+        da_php_mode_v4="$(echo "${C_DA_CB_PHP_VERSION}" | awk -F',' '{ print $4 }')"
+
+        count=1
+        for php_mode_v in ${da_php_mode_v1} ${da_php_mode_v2} ${da_php_mode_v3} ${da_php_mode_v4}; do
+          local php_version php_mode
+          php_version=$(echo "${php_mode_v}" | awk -F':' '{ print $1}')
+          php_mode=$(echo "${php_mode_v}" | awk -F':' '{ print $2}')
+
+          # Use default value of php_version if empty
+          if [ -z "${php_version}" ]; then
+            php_version="no"
+          fi
+
+          # Use default value of php_mode if empty
+          if [ -z "${php_mode}" ]; then
+            php_mode="php-fpm"
+          fi
+
+          #echo "PHP version is ${php_version}"
+          #echo "PHP mod is ${php_mode}"
+          echo "Changing php${count}_release to ${php_version} ..."
+          sed -i "s|^php${count}_release=.*|php${count}_release=${php_version}|" /usr/local/directadmin/custombuild/options.conf
+          echo ""
+          echo "Changing php${count}_mod to ${php_mode} ..."
+          sed -i "s|^php${count}_mod=.*|php${count}_mod=${php_mode}|" /usr/local/directadmin/custombuild/options.conf
+          echo ""
+          ((count++))
+        done
+        _echo "$(msg cyan)Changing modsecurity enabled option to ${C_DA_CB_INSTALL_MODSECURITY} ...$(msg end)" --name
+        sed -i "s|^modsecurity=.*|modsecurity=${C_DA_CB_INSTALL_MODSECURITY}|" /usr/local/directadmin/custombuild/options.conf
+        echo ""
+
+        _echo "$(msg cyan)Changing modsecurity ruleset option to ${C_DA_CB_MODSECURITY_RULESET} ...$(msg end)" --name
+        sed -i "s|^modsecurity_ruleset=.*|modsecurity_ruleset=${C_DA_CB_MODSECURITY_RULESET}|" /usr/local/directadmin/custombuild/options.conf
+        echo ""
+
+        _echo "$(msg cyan)Changing clamv enabled option to ${C_DA_CB_INSTALL_CLAMAV} ...$(msg end)" --name
+        sed -i "s|^clamav=.*|clamav=${C_DA_CB_INSTALL_CLAMAV}|" /usr/local/directadmin/custombuild/options.conf
+        echo ""
+
         _echo "$(msg cyan)Copying the latest custombuild custom php_extensions.conf into /usr/local/directadmin/custombuild/php_extensions.conf ...$(msg end)" --name
         cp "${LATEST_OS_CODE_PATH}/usr/local/directadmin/custombuild/php_extensions.conf" /usr/local/directadmin/custombuild/php_extensions.conf
       else
@@ -9009,7 +9074,7 @@ function install_da() {
   start_execute_options "${option}" "${func_name}"
   [[ "${SKIP_RUN}" == "true" ]] && return 0
   if [[ ! -f "${CONF_PATH}/${func_name}_executed" && "${FUNCTION_RUN}" == "true" ]]; then
-    local da_install_log da_bin da_cb_bin da_conf da_script_path
+    local da_install_log da_bin da_cb_bin da_conf da_script_path retval
     da_install_log="${LOG_PATH}/da-install.log"
     da_script_path="/usr/local/directadmin/scripts"
     da_bin="/usr/local/directadmin/directadmin"
@@ -9025,18 +9090,58 @@ function install_da() {
     echo ""
     _echo "$(msg cyan)Setup will install Directadmin within 30 seconds. This would take a long time depending on the package selection or directadmin installation type, so please be patient$(msg end)" --name
     _echo "$(msg yellow)If you don't want to install Directadmin now, press (CTRL+C) to exit and remember that you can always re-run this script to resume installation (even it is halt due to error)$(msg end)" --name
+    _echo "$(msg yellow)In order to view full installation log in realtime, execute this command in another local terminal: ${SCRIPT_NAME} --login and tail -f ${SCRIPT_PATH}/log/da-install.log$(msg end)" --name
     _pause 30
-    _echo "$(msg cyan)Installing Directadmin on ${LABEL_C_BOX_HOSTNAME_FQHN} using ${C_DA_INSTALL_TYPE} mode ... $(msg end)" --name
+    _echo "$(msg cyan)Installing Directadmin on ${LABEL_C_BOX_HOSTNAME_FQHN} using ${C_DA_INSTALL_TYPE} mode (this may take sometimes) ... $(msg end)" --name
+    echo ""
     if [[ "${C_DA_INSTALL_TYPE}" == "custom" || "${C_DA_INSTALL_TYPE}" == "original" ]]; then
       # If provided options.conf, it means we use custom else we use original
-      ./setup.sh "${C_DA_CLIENT_ID}" "${C_DA_LICENSE_ID}" "${C_BOX_HOSTNAME_FQHN}" "${C_NIC_INTERFACE_NAME}" "${C_IPV4_ADD0}" >>"${da_install_log}" 2> >(grep -v '.......... .......... .......... .......... ..........' 1>&2)
+      ./setup.sh "${C_DA_CLIENT_ID}" "${C_DA_LICENSE_ID}" "${C_BOX_HOSTNAME_FQHN}" "${C_NIC_INTERFACE_NAME}" "${C_IPV4_ADD0}" >>"${da_install_log}"
+      retval=$?
+      _echo "Installation return code is ${retval}" --verbose 7
     elif [[ "${C_DA_INSTALL_TYPE}" == "interactive" ]]; then
       # This will ask questions
-      bash <(curl -Ss https://www.directadmin.com/setup.sh) >>"${da_install_log}" 2> >(grep -v '.......... .......... .......... .......... ..........' 1>&2)
+      bash <(curl -Ss https://www.directadmin.com/setup.sh) >>"${da_install_log}"
+      retval=$?
     elif [[ "${C_DA_INSTALL_TYPE}" == "automatic" ]]; then
       # This will not ask question and everything will be installed as default including CSF
-      bash <(curl -Ss https://www.directadmin.com/setup.sh) auto >>"${da_install_log}" 2> >(grep -v '.......... .......... .......... .......... ..........' 1>&2)
+      bash <(curl -Ss https://www.directadmin.com/setup.sh) auto >>"${da_install_log}"
+      retval=$?
     fi
+    retval=$?
+    if [ "${retval}" -eq 1 ]; then
+      local error_msg
+      _echo "$(msg red)Error, directadmin installation contains error. Please inspect the last 10 lines of the installation log below:$(msg end)" --name
+      error_msg=$(tail -n 10 "${da_install_log}")
+      echo ""
+      echo "============================================"
+      echo ""
+      _echo "$(msg red)${error_msg}$(msg end)" --plain
+      echo ""
+      echo "============================================"
+      _echo "$(msg cyan)Please fix the error and re-run this setup again to restart the installation$(msg end)" --name
+      _exit 147
+    else
+      local install_complete_line
+      # Here I can display the current login information (only interested on this information) the other directadmin installation output are useless.
+      install_complete_line=$(grep '^## INSTALL_COMPLETE' "${da_install_log}")
+      if [[ -n "${install_complete_line}" ]]; then
+        echo ""
+        _echo "$(msg green)${install_complete_line}$(msg end)" --plain
+        # TODO this is sensitive information, hide later
+        _echo "$(msg red) ================================== $(msg end)" --plain
+        grep "^Admin username:   " "${da_install_log}"
+        grep "^Admin password:   " "${da_install_log}"
+        grep "^Admin email:   " "${da_install_log}"
+        echo "URL:    http://${C_BOX_HOSTNAME_FQHN}:2222"
+        _echo "$(msg red) ================================== $(msg end)" --plain
+        echo ""
+      else
+        _echo "$(msg yellow)Warning, directadmin installation returned success but could not found the install complete line [ ## INSTALL_COMPLETE ] in log file!$(msg end)" --name
+        _pause 300
+      fi
+    fi
+
     echo ""
     _echo "$(msg cyan)Checking if directadmin binary, custombuild and directadmin.conf are presents ...$(msg end)" --name
     check_file_path "${da_bin}" "${da_cb_bin}" "${da_conf}"
@@ -9074,103 +9179,89 @@ function install_da_post() {
     da_install_log="${LOG_PATH}/da-install.log"
     touch "${da_install_log}"
 
-    _echo "$(msg cyan)Checking if directadmin binary, custombuild and directadmin.conf are presents ...$(msg end)" --name
+    _echo "$(msg cyan)Checking directadmin path ... $(msg end)" --name
     check_file_path "${da_bin}" "${da_cb_bin}" "${da_conf}"
+    check_folder_path "${da_script_path}"
     echo ""
 
-    if [ ! -d "${da_script_path}" ]; then
-      _echo "$(msg red)Error, directadmin script path does not exist in the system. Make sure directadmin is installed properly!$(msg end)" --name
-      _exit 147
-    fi
-    echo ""
     # Rebuilding DA packages to fix some issues .
-    _echo "$(msg cyan)Updating directadmin custombuild to the new version...$(msg end)" --name
-    ${da_cb_bin} update
-    echo ""
-    _echo "$(msg cyan)Checking directadmin file path ... $(msg end)" --name
-    check_file_path "${da_bin}" "${da_cb_bin}" "${da_conf}"
-    echo ""
+    #_echo "$(msg cyan)Updating directadmin custombuild to the new version...$(msg end)" --name
+    #${da_cb_bin} update
+    #echo ""
+
     # ClamAV and exim rebuild
-    _echo "$(msg cyan)Configuring directadmin custombuild to install ClamAV, rspamd, exim and enabling DKIM ...$(msg end)" --name
+    #_echo "$(msg cyan)Configuring directadmin custombuild to install ClamAV, rspamd, exim and enabling DKIM ...$(msg end)" --name
 
     # Antivirus
-    ${da_cb_bin} set clamav yes
-    ${da_cb_bin} set clamav_exim yes
+    #${da_cb_bin} set clamav yes
+    #${da_cb_bin} set clamav_exim yes
 
     # Rspamd
-    ${da_cb_bin} set blockcracking yes
-    ${da_cb_bin} set easy_spam_fighter yes
-    ${da_cb_bin} set spamd rspamd
+    #${da_cb_bin} set blockcracking yes
+    #${da_cb_bin} set easy_spam_fighter yes
+    #${da_cb_bin} set spamd rspamd
 
     # Exim
-    ${da_cb_bin} set exim yes
-    ${da_cb_bin} set eximconf yes
-    ${da_cb_bin} set eximconf_release "${C_DA_CB_EXIMCONF_RELEASE}"
+    #${da_cb_bin} set exim yes
+    #${da_cb_bin} set eximconf yes
+    #${da_cb_bin} set eximconf_release "${C_DA_CB_EXIMCONF_RELEASE}"
 
     # Dkim
     # Enable DKIM for all domain (need to rebuild exim and exim_conf as stated somewhere)
-    ${da_bin} set dkim "${C_DA_DKIM}"
-    echo ""
-    _echo "$(msg cyan)Rebuilding ClamAV, rspamd and exim ...$(msg end)" --name
-    {
-      ${da_cb_bin} clamav
-      ${da_cb_bin} rspamd
-      ${da_cb_bin} exim
-      ${da_cb_bin} exim_conf
-    } >>"${da_install_log}" 2> >(grep -v '.......... .......... .......... .......... ..........' 1>&2)
-    echo ""
-    _echo "$(msg cyan)Checking directadmin file path ... $(msg end)" --name
-    check_file_path "${da_bin}" "${da_cb_bin}" "${da_conf}"
-    echo ""
+    #${da_bin} set dkim "${C_DA_DKIM}"
+    #echo ""
+    #_echo "$(msg cyan)Rebuilding ClamAV, rspamd and exim ...$(msg end)" --name
+    #{
+    #  ${da_cb_bin} clamav
+    #  ${da_cb_bin} rspamd
+    #  ${da_cb_bin} exim
+    #  ${da_cb_bin} exim_conf
+    #} >>"${da_install_log}" 2> >(grep -v '.......... .......... .......... .......... ..........' 1>&2)
     # Mod security rebuild
-    _echo "$(msg cyan)Configuring custombuild to rebuild modsecurity with ruleset of ${LABEL_C_DA_MODSECURITY_RULESET} ...$(msg end)" --name
-    ${da_cb_bin} set modsecurity yes
-    ${da_cb_bin} set modsecurity_ruleset "${C_DA_MODSECURITY_RULESET}"
-    echo ""
-    _echo "$(msg cyan)Rebuilding modsecurity with ruleset of ${C_DA_MODSECURITY_RULESET} ...$(msg end)" --name
-    {
-      ${da_cb_bin} modsecurity
-      ${da_cb_bin} modsecurity_rules
-      ${da_cb_bin} rewrite_confs
-    } >>"${da_install_log}" 2> >(grep -v '.......... .......... .......... .......... ..........' 1>&2)
-    echo ""
-    _echo "$(msg cyan)Checking directadmin file path ... $(msg end)" --name
-    check_file_path "${da_bin}" "${da_cb_bin}" "${da_conf}"
-    echo ""
+    # _echo "$(msg cyan)Configuring custombuild to rebuild modsecurity with ruleset of ${LABEL_C_DA_CB_MODSECURITY_RULESET} ...$(msg end)" --name
+    # ${da_cb_bin} set modsecurity yes
+    # ${da_cb_bin} set modsecurity_ruleset "${C_DA_CB_MODSECURITY_RULESET}"
+    #echo ""
+    #_echo "$(msg cyan)Rebuilding modsecurity with ruleset of ${C_DA_CB_MODSECURITY_RULESET} ...$(msg end)" --name
+    #{
+    #  ${da_cb_bin} modsecurity
+    #  ${da_cb_bin} modsecurity_rules
+    #  ${da_cb_bin} rewrite_confs
+    #} >>"${da_install_log}" 2> >(grep -v '.......... .......... .......... .......... ..........' 1>&2)
+    #echo ""
     # If I install modsecurity, I need to rebuild nginx_apache because it cannot be started due to modsecurity directive issue. See this:
     # https://forum.directadmin.com/threads/nginx-and-apache-nginix-wont-start-due-to-mod_security.61427/
     # Web server setting rebuild
-    _echo "$(msg cyan)Configuring custombuild to rebuild ${C_DA_WEB_SERVER_SOFTWARE} web server ...$(msg end)" --name
-    ${da_cb_bin} set webserver "${C_DA_WEB_SERVER_SOFTWARE}"
-    echo ""
-    _echo "$(msg cyan)Rebuilding ${C_DA_WEB_SERVER_SOFTWARE} web server ...$(msg end)" --name
-    {
-      ${da_cb_bin} "${C_DA_WEB_SERVER_SOFTWARE}"
-      ${da_cb_bin} rewrite_confs
-    } >>"${da_install_log}" 2> >(grep -v '.......... .......... .......... .......... ..........' 1>&2)
-    echo ""
-    _echo "$(msg cyan)Checking directadmin file path ... $(msg end)" --name
-    check_file_path "${da_bin}" "${da_cb_bin}" "${da_conf}"
-    echo ""
-    _echo "$(msg cyan)Configuring custombuild to rebuild ${da_sql_type} web server to version ${da_sql_version} ...$(msg end)" --name
-    da_sql_type=$(echo "${C_DA_MYSQL_SOFTWARE}" | awk -F'-' '{ print $1 }')
-    da_sql_version=$(echo "${C_DA_MYSQL_SOFTWARE}" | awk -F'-' '{ print $2 }')
-    _echo "$(msg magenta)SQL type is set to: ${da_sql_type} from config file$(msg end)" --name
-    _echo "$(msg magenta)SQL version is set to: ${da_sql_version} from config file$(msg end)" --name
-    ${da_cb_bin} set "${da_sql_type}" "${da_sql_version}"
-    ${da_cb_bin} set mysql_inst "${da_sql_type}"
-    ${da_cb_bin} set mysql_backup yes
-    echo ""
-    _echo "$(msg cyan)Rebuilding ${da_sql_type} web server to version ${da_sql_version} ...$(msg end)" --name
-    {
-      ${da_cb_bin} "${da_sql_type}"
-      ${da_cb_bin} rewrite_confs
-    } >>"${da_install_log}" 2> >(grep -v '.......... .......... .......... .......... ..........' 1>&2)
-    echo ""
-    _echo "$(msg cyan)Checking directadmin file path ... $(msg end)" --name
-    check_file_path "${da_bin}" "${da_cb_bin}" "${da_conf}"
-    # DA port should be secure don't use 2222 unless you have reason
-    echo ""
+    #_echo "$(msg cyan)Configuring custombuild to rebuild ${C_DA_CB_WEBSERVER_SOFTWARE} web server ...$(msg end)" --name
+    #${da_cb_bin} set webserver "${C_DA_CB_WEBSERVER_SOFTWARE}"
+    #echo ""
+    #_echo "$(msg cyan)Rebuilding ${C_DA_CB_WEBSERVER_SOFTWARE} web server ...$(msg end)" --name
+    #{
+    #  ${da_cb_bin} "${C_DA_CB_WEBSERVER_SOFTWARE}"
+    #  ${da_cb_bin} rewrite_confs
+    #} >>"${da_install_log}" 2> >(grep -v '.......... .......... .......... .......... ..........' 1>&2)
+    #echo ""
+    # No need to rebuild because first initial installation already did this (put this value in options.conf instead)
+    # _echo "$(msg cyan)Configuring custombuild to rebuild ${da_sql_type} web server to version ${da_sql_version} ...$(msg end)" --name
+    # da_sql_type=$(echo "${C_DA_CB_SQL_VERSION}" | awk -F'-' '{ print $1 }')
+    # da_sql_version=$(echo "${C_DA_CB_SQL_VERSION}" | awk -F'-' '{ print $2 }')
+    # _echo "$(msg magenta)SQL type is set to: ${da_sql_type} from config file$(msg end)" --name
+    # _echo "$(msg magenta)SQL version is set to: ${da_sql_version} from config file$(msg end)" --name
+    # ${da_cb_bin} set "${da_sql_type}" "${da_sql_version}"
+    # ${da_cb_bin} set mysql_inst "${da_sql_type}"
+    # ${da_cb_bin} set mysql_backup yes
+    # echo ""
+    #_echo "$(msg cyan)Rebuilding ${da_sql_type} web server to version ${da_sql_version} ...$(msg end)" --name
+    #{
+    #  ${da_cb_bin} "${da_sql_type}"
+    #  ${da_cb_bin} rewrite_confs
+    #} >>"${da_install_log}" 2> >(grep -v '.......... .......... .......... .......... ..........' 1>&2)
+    #echo ""
+
+    # DA port should be secure don't use 2222 unless you have reason.
+    # At this point, we haven't allowed da port 2222 to be connected (blocked by firewall)
+    # Below, we just enable the new da port in firewall and set the port to open later using da binary
+    #echo ""
     _echo "$(msg cyan)Changing directadmin login page redirection port from default port 2222 to port ${LABEL_C_DA_PORT}$(msg end)" --name
     {
       echo "<?php"
@@ -9185,7 +9276,6 @@ function install_da_post() {
       else
         sudo firewall-cmd --permanent --zone=public --add-port="${C_DA_PORT}/tcp"
       fi
-
     elif [ "${DISTRO_ID}" == "debian" ]; then
       _echo "$(msg cyan)Adding directadmin new port ${LABEL_C_DA_PORT}/tcp to ufw ...$(msg end)" --name
       sudo ufw allow "${C_DA_PORT}/tcp"
@@ -9231,7 +9321,7 @@ function install_da_post() {
         _exit 147
       fi
     else
-      _echo "$(msg yellow)[Skipped]: The setting C_ENABLE_DNSSEC is not set to true. DNSSEC is disabled$(msg end)" --name
+      _echo "$(msg yellow)[Skipped]: The setting C_ENABLE_DNSSEC is not set to true. DNSSEC installation is skipped!$(msg end)" --name
     fi
     echo ""
     check_finish_reboot "${func_name}"
@@ -9258,8 +9348,9 @@ function secure_da_auth() {
     da_cb_bin="/usr/local/directadmin/custombuild/build"
     da_conf="/usr/local/directadmin/conf/directadmin.conf"
 
-    _echo "$(msg cyan)Checking if directadmin binary, custombuild and directadmin.conf are presents ...$(msg end)" --name
+    _echo "$(msg cyan)Checking directadmin path ...$(msg end)" --name
     check_file_path "${da_bin}" "${da_cb_bin}" "${da_conf}"
+    check_folder_path "${da_scripts_path}"
     echo ""
 
     # This one moved to configure_da_owner_accounts()
@@ -9288,12 +9379,13 @@ function secure_da_auth() {
     echo ""
 
     _echo "$(msg cyan)Setting directadmin port to ${LABEL_C_DA_PORT} ...$(msg end)" --name
-    ${da_bin} set port "${C_DA_PORT}"
+    ${da_bin} set port "${C_DA_PORT}" restart
     echo ""
-    # No need to restart
+
+    # No need to restart, just pass argument restart
     # It might be best to restart directadmin after changing admin username because admin has so many configs
-    #_echo "$(msg cyan)Requesting directadmin to restart ...${bind_named}$(msg end)" --name
-    #restart_da
+    # _echo "$(msg cyan)Requesting directadmin to restart ...${bind_named}$(msg end)" --name
+    # restart_da
     echo ""
     check_finish_reboot "${func_name}"
   else
@@ -9323,7 +9415,7 @@ function configure_da_ips() {
     da_cb_bin="/usr/local/directadmin/custombuild/build"
     da_conf="/usr/local/directadmin/conf/directadmin.conf"
 
-    _echo "$(msg cyan)Checking if directadmin binary, custombuild and directadmin.conf are presents ...$(msg end)" --name
+    _echo "$(msg cyan)Checking directadmin paths ...$(msg end)" --name
     check_file_path "${da_bin}" "${da_cb_bin}" "${da_conf}"
     echo ""
 
@@ -9563,12 +9655,10 @@ function install_da_csf() {
     # This fixed lfd cannot started
     required "debian@@apt:libio-socket-inet6-perl"
     if [[ "${C_DA_INSTALL_TYPE}" == "auto" ]]; then
-      # TODO (Testing this): check how DA install using AUTO mode does it auto enable CSF? Does it auto add port ? Find it out
       _echo "$(msg yellow)[Skipped]: Directadmin installation type is set to AUTO which already included CSF installation$(msg end)" --name
-
     else
       if ! command -v csf &>/dev/null; then
-        local csf_conf da_conf inst_result csf_pignore
+        local csf_conf da_conf inst_result csf_pignore inst_result csf_pignore
         _echo "$(msg cyan)No CSF binary is found (CSF is not installed)$(msg end)" --name
         _echo "$(msg cyan)Installing CSF on ${LABEL_C_BOX_HOSTNAME_FQHN} for directadmin based on (poralix steps) ...$(msg end)" --name
         sleep 2
@@ -9592,11 +9682,9 @@ function install_da_csf() {
         _echo "$(msg cyan)Downloading Config Server Firewall (CSF) ...$(msg end)" --name
         cd_to_path /usr/local/src
         wget --no-verbose -O csf.tgz https://download.configserver.com/csf.tgz
-
         if [ ! -s csf.tgz ]; then
           _echo "$(msg red)Error, download failed for csf.tgz. Please inspect manually and re-run this script to continue$(msg end)" --name
           _exit 147
-
         else
           _echo "$(msg cyan)Unzipping downloaded file csf.tgz ... $(msg end)" --name
           tar -zxf csf.tgz
@@ -9663,8 +9751,8 @@ function install_da_csf() {
         echo "This is a modified version based on the guide at https://help.poralix.com/articles/how-to-block-ips-with-csf-directadmin-bfm"
         echo ""
         echo ""
-        # Or alternatively use my own script file from maxicode
         #wget http://files.directadmin.com/services/all/csf/csf_install.sh
+        # Or alternatively way to install CSF is to use my own script file from maxicode
         #da_install_scripts_path="${LATEST_OS_CODE_PATH}/usr/local/directadmin/install_scripts"
         #if [ ! -d "${da_install_scripts_path}" ]; then
         #  _echo "$(msg red)Error, directadmin install script path does not exist in ${maxicode_latest_path}. The script should be there!$(msg end)" --name
@@ -9678,7 +9766,7 @@ function install_da_csf() {
         # CSF binary found,
         grep_count=$(csf -v 2>/dev/null | grep -c 'csf:')
         if [ "${grep_count}" = "0" ]; then
-          _echo "$(msg yellow)Warning, CSF already installed but it does not show its version. Installation might be corrupted$(msg end)" --name
+          _echo "$(msg yellow)Warning, CSF already installed but it does not show its version. CSF Installation might have been corrupted$(msg end)" --name
           echo "Uninstalling csf and lfd..."
           echo
           sed -i 's/lfd=ON/lfd=OFF/' /usr/local/directadmin/data/admin/services.status
@@ -10194,148 +10282,181 @@ function configure_da_sql() {
     # Note that during installation MySQL generates a short password and da uses this root password. See the text message below:
     ##### MySQL root password seems to be unset, setting using MySQL queries...
     ####Setting password: SET PASSWORD FOR 'root'@'localhost' = PASSWORD('*******');
-    # Mysql root password is stored in setup.txt file
+    # Mysql root password is also stored in setup.txt file
     local da_scripts_path mysql_on_my_cnf_etc mysql_on_my_cnf_da mysql_on_non_cnf mysql_granted my_cnf_db_root my_cnf_db_da_admin mysql_conf_db_da_admin \
-      randomBlowfishSecret replace_pma_blowfish replace_pma_authtype retval loop_count grep_count
+      randomBlowfishSecret replace_pma_blowfish replace_pma_authtype retval loop_count grep_count mysql_authentication_test
 
     da_scripts_path="/usr/local/directadmin/scripts"
     mysql_conf_db_da_admin="/usr/local/directadmin/conf/mysql.conf"
     my_cnf_db_da_admin="/usr/local/directadmin/conf/my.cnf"
     my_cnf_db_root="/etc/my.cnf"
 
-    # By default sql root password is blank (this is not secure). Need to create that root password.
     # This mysqld method can be used only if correct password is supplied in /etc/my.cnf or blank password with no entries in /etc/my.cnf
-    _echo "$(msg cyan)Authenticating mysql ...$(msg end)" --name
-    # 1) Using mysql if it's running and can be authenticated.
-    if command -v mysqld &>/dev/null; then
-      mysql_on_non_cnf=$(
-        mysql -e 'exit'
-        echo $?
-      )
-      # 2) Using config password from /etc/my.cnf"
-      mysql_on_my_cnf_etc=$(
-        mysql --defaults-extra-file=${my_cnf_db_root} -e 'exit'
-        echo $?
-      )
-      # 3) Using config password from /usr/local/directadmin/conf/my.cnf
-      mysql_on_my_cnf_da=$(
-        mysql --defaults-extra-file=${my_cnf_db_da_admin} -e 'exit'
-        echo $?
-      )
 
-      if [ "${mysql_on_non_cnf}" -eq 0 ]; then
-        # In case password is empty then use this (normally initial setup server is empty):
-        mysql_granted="mysql -e"
-        _echo "$(msg green)The mysql will be authenticated without specifying config file with option [ ${mysql_granted} ] ...$(msg end)" --name
-
-      elif [ "${mysql_on_my_cnf_etc}" -eq 0 ]; then
-        mysql_granted="mysql --defaults-extra-file=${my_cnf_db_root} -e"
-        _echo "$(msg green)The mysql will be authenticated using ${my_cnf_db_root} with option [ ${mysql_granted} ]  ...$(msg end)" --name
-      elif [ "${mysql_on_my_cnf_da}" -eq 0 ]; then
-        mysql_granted="mysql --defaults-extra-file=${my_cnf_db_da_admin} -e"
-        _echo "$(msg green)The mysql will be authenticated using ${my_cnf_db_da_admin} with option [ ${mysql_granted} ] ...$(msg end)" --name
-        #sleep 1
-      else
-        # If above not working I can use this: https://help.directadmin.com/item.php?id=45
-        # or this: https://www.directadmin.com/features.php?id=2677
-        _echo "$(msg red)Error, local SQL authentication is needed. If you know your root password, please supply it in ${my_cnf_db_root} or ${my_cnf_db_da_admin}$(msg end)" --name
-        _echo "$(msg red)If you don't know, you may need to reset root password manually using this article: https://help.directadmin.com/item.php?id=45$(msg end)" --name
-        _exit 147
-      fi
-
-      _echo "$(msg cyan)Changing mysql root password ...$(msg end)" --name
-      ${mysql_granted} "ALTER USER 'root'@'localhost' IDENTIFIED BY '${C_DA_ROOT_SQLPASS}';"
-      echo ""
-      if [ -w "${my_cnf_db_root}" ]; then
-        grep_count=$(grep -ic '^password=.*\|^password.*=.*' "${my_cnf_db_root}")
-        #grep -ic '^password=.*\|^password.*=.*' /etc/my.cnf
-        if [ "${grep_count}" = 0 ]; then
-          # Appending the config, because password did not exist
-          _echo "$(msg cyan)Updating new SQL root password in ${my_cnf_db_root} under [client] section ...$(msg end)" --name
-          sed -i "s|\[client\]|&\npassword=${C_DA_ROOT_SQLPASS}|" "${my_cnf_db_root}"
-        else
-          _echo "$(msg cyan)Updating new SQL username root in ${my_cnf_db_root} ...$(msg end)" --name
-          # Password already exist, we just replace
-          sed -i "/\[client\]/,/^\[/ s/password=.*/password=${C_DA_ROOT_SQLPASS}/" "${my_cnf_db_root}"
-        fi
-        echo ""
-        grep_count=$(grep -ic '^user=.*\|^user.*=.*' "${my_cnf_db_root}")
-        if [ "${grep_count}" = 0 ]; then
-          _echo "$(msg cyan)Writing new SQL root username in ${my_cnf_db_root} under [client] section ...$(msg end)" --name
-          #sleep 1
-          # Append under client because did not exist
-          sed -i 's|\[client\]|&\nuser=root|' "${my_cnf_db_root}"
-        else
-          _echo "$(msg cyan)Updating SQL user to root in ${my_cnf_db_root} ...$(msg end)" --name
-          # Already exist, so we replace
-          sed -i "/\[client\]/,/^\[/ s/user=.*/user=root/" "${my_cnf_db_root}"
-        fi
-        echo ""
-
-        grep_count=$(grep -ic '^bind-address=.*\|^bind-address.*=.*' "${my_cnf_db_root}")
-        if [ "${grep_count}" = 0 ]; then
-          _echo "$(msg cyan)Writing new config to disable mysql remote access in ${my_cnf_db_root} under [mysqld] section ...$(msg end)" --name
-          # Append under client because not exist
-          sed -i 's|\[mysqld\]|&\nbind-address=127.0.0.1|' "${my_cnf_db_root}"
-        else
-          _echo "$(msg cyan)Updating config to disable remote access in ${my_cnf_db_root} under [mysqld] section ...$(msg end)" --name
-          # Already exist, but we replace
-          sed -i "/\[mysqld\]/,/^\[/ s/bind-address=.*/bind-address=127.0.0.1/" "${my_cnf_db_root}"
-        fi
-      else
-        _echo "$(msg red)Error, the file ${my_cnf_db_root} is missing. It should exist in that location if mysql is installed through directadmin$(msg end)" --name
-        _exit 147
-      fi
-      echo ""
-
-      _echo "$(msg cyan)Removing unsecured anonymous users from database ...$(msg end)" --name
-      ${mysql_granted} "DELETE FROM mysql.user WHERE user='';"
-      echo ""
-      _echo "$(msg cyan)Removing root users from non-localhost for security ...$(msg end)" --name
-      ${mysql_granted} "DELETE FROM mysql.user WHERE User='root' AND Host NOT IN ('localhost', '127.0.0.1', '::1');"
-      echo ""
-      _echo "$(msg cyan)Removing test database if exist for security ...$(msg end)" --name
-      ${mysql_granted} "DROP DATABASE IF EXISTS test;"
-      echo ""
-      _echo "$(msg cyan)Flushing mysql privileges ...$(msg end)" --name
-      ${mysql_granted} "FLUSH PRIVILEGES;"
-      echo ""
-      # There is no recommendation to change da_admin sql username to something else at this moment,
-      # so ignore username change for sql, just change password.
-      _echo "$(msg cyan)Changing Directadmin da_admin default SQL password ...$(msg end)" --name
-      ${mysql_granted} "ALTER USER 'da_admin'@'localhost' IDENTIFIED BY '${C_DA_ADMIN_SQLPASS}';"
-      echo ""
-      _echo "$(msg cyan)Updating da_admin SQL authentication information at ${mysql_conf_db_da_admin} ...$(msg end)" --name
-      if [ -s ${mysql_conf_db_da_admin} ]; then
-        sed -i "s/^passwd=.*/passwd=${C_DA_ADMIN_SQLPASS}/" ${mysql_conf_db_da_admin}
-      else
-        echo -n '' >${mysql_conf_db_da_admin}
-        chmod 600 ${mysql_conf_db_da_admin}
-        chown diradmin:diradmin ${mysql_conf_db_da_admin}
-        echo "user=da_admin" >>${mysql_conf_db_da_admin}
-        echo "passwd=${C_DA_ADMIN_SQLPASS}" >>${mysql_conf_db_da_admin}
-      fi
-      echo ""
-      _echo "$(msg cyan)Updating da_admin SQL authentication information at ${my_cnf_db_da_admin} ...$(msg end)" --name
-      if [ -s ${my_cnf_db_da_admin} ]; then
-        sed -i "s/^password=.*/password=${C_DA_ADMIN_SQLPASS}/" ${my_cnf_db_da_admin}
-      else
-        echo -n '' >${my_cnf_db_da_admin}
-        chmod 600 ${my_cnf_db_da_admin}
-        chown diradmin:diradmin ${my_cnf_db_da_admin}
-        echo "[client]"
-        echo "user=da_admin" >>${my_cnf_db_da_admin}
-        echo "password=${C_DA_ADMIN_SQLPASS}" >>${my_cnf_db_da_admin}
-      fi
+    # Checking if mysqld binary exist
+    _echo "$(msg cyan)Checking whether mysqld process is running ...$(msg end)" --name
+    if [ "$(systemctl is-active mysqld)" == "active" ]; then
+      :
     else
       _echo "$(msg red)Error, mysqld is not running. Please inspect why and re-run this script to continue$(msg end)" --name
       _exit 147
     fi
     echo ""
-    # When done, test running mysql in terminal.
-    _echo "$(msg green)[Completed]: Now, you can execute mysql command in terminal to test if mysql authentication was correctly setup$(msg end)" --name
+    _echo "$(msg cyan)Checking whether mysql is installed (binary file exist) ...$(msg end)" --name
+    if ! command -v mysql &>/dev/null; then
+      _echo "$(msg red)Error, mysql binary is not found. Please inspect why and re-run this script to continue$(msg end)" --name
+      _exit 147
+    fi
+    echo ""
+    _echo "$(msg cyan)Checking which mysql authentication to use ...$(msg end)" --name
+    # 1) Test using mysql if it's running and can be authenticated.
+    _echo "$(msg cyan)Testing mysql authentication using non .cnf file ...$(msg end)" --name
+    mysql_on_non_cnf=$(
+      mysql -e 'exit'
+      echo $?
+    )
+    if [ "${mysql_on_non_cnf}" -eq 0 ]; then
+      # In case password is empty then use this (normally initial setup server is empty but directadmin is not, so low chance this will be executed):
+      mysql_granted="mysql -e"
+      _echo "$(msg green)The mysql will be authenticated without specifying config file with the following option: [ ${mysql_granted} ] ...$(msg end)" --name
+    else
+      _echo "$(msg red)Failed to authenticate mysql using non .cnf file$(msg end)" --name
+      # 2) Test using config password from /etc/my.cnf"
+      _echo "$(msg cyan)Testing mysql authentication using non /etc/my.cnf file ...$(msg end)" --name
+      mysql_on_my_cnf_etc=$(
+        mysql --defaults-extra-file=${my_cnf_db_root} -e 'exit'
+        echo $?
+      )
+      echo ""
+      if [ "${mysql_on_my_cnf_etc}" -eq 0 ]; then
+        mysql_granted="mysql --defaults-extra-file=${my_cnf_db_root} -e"
+        _echo "$(msg green)The mysql will be authenticated using ${my_cnf_db_root} with the following option: [ ${mysql_granted} ]  ...$(msg end)" --name
+
+      else
+        _echo "$(msg red)Failed to authenticate mysql using /etc/my.cnf file$(msg end)" --name
+        # 3) Test using config password from /usr/local/directadmin/conf/my.cnf
+        _echo "$(msg cyan)Testing mysql authentication using non /usr/local/directadmin/conf/my.cnf file ...$(msg end)" --name
+        mysql_on_my_cnf_da=$(
+          mysql --defaults-extra-file=${my_cnf_db_da_admin} -e 'exit'
+          echo $?
+        )
+        echo ""
+        if [ "${mysql_on_my_cnf_da}" -eq 0 ]; then
+          mysql_granted="mysql --defaults-extra-file=${my_cnf_db_da_admin} -e"
+          _echo "$(msg green)The mysql will be authenticated using ${my_cnf_db_da_admin} with the following option: [ ${mysql_granted} ] ...$(msg end)" --name
+        #sleep 1
+        else
+          _echo "$(msg red)Failed to authenticate mysql using /usr/local/directadmin/conf/my.cnf file$(msg end)" --name
+          # If above not working I can use this: https://help.directadmin.com/item.php?id=45
+          # or this: https://www.directadmin.com/features.php?id=2677
+          _echo "$(msg red)Error, local SQL authentication is needed. If you know your root password, please supply it in ${my_cnf_db_root} or ${my_cnf_db_da_admin}$(msg end)" --name
+          _echo "$(msg red)If you don't know, you may need to reset root password manually using this article: https://help.directadmin.com/item.php?id=45$(msg end)" --name
+          _exit 147
+        fi
+      fi
+    fi
+
+    _echo "$(msg cyan)Changing mysql root password ...$(msg end)" --name
+    ${mysql_granted} "ALTER USER 'root'@'localhost' IDENTIFIED BY '${C_DA_ROOT_SQLPASS}';"
+    echo ""
+    if [ -w "${my_cnf_db_root}" ]; then
+      grep_count=$(grep -ic '^password=.*\|^password.*=.*' "${my_cnf_db_root}")
+      #grep -ic '^password=.*\|^password.*=.*' /etc/my.cnf
+      if [ "${grep_count}" = 0 ]; then
+        # Appending the config, because password did not exist
+        _echo "$(msg cyan)Updating new SQL root password in ${my_cnf_db_root} under [client] section ...$(msg end)" --name
+        sed -i "s|\[client\]|&\npassword=${C_DA_ROOT_SQLPASS}|" "${my_cnf_db_root}"
+      else
+        _echo "$(msg cyan)Updating new SQL username root in ${my_cnf_db_root} ...$(msg end)" --name
+        # Password already exist, we just replace
+        sed -i "/\[client\]/,/^\[/ s/password=.*/password=${C_DA_ROOT_SQLPASS}/" "${my_cnf_db_root}"
+      fi
+      echo ""
+      grep_count=$(grep -ic '^user=.*\|^user.*=.*' "${my_cnf_db_root}")
+      if [ "${grep_count}" = 0 ]; then
+        _echo "$(msg cyan)Writing new SQL root username in ${my_cnf_db_root} under [client] section ...$(msg end)" --name
+        #sleep 1
+        # Append under client because did not exist
+        sed -i 's|\[client\]|&\nuser=root|' "${my_cnf_db_root}"
+      else
+        _echo "$(msg cyan)Updating SQL user to root in ${my_cnf_db_root} ...$(msg end)" --name
+        # Already exist, so we replace
+        sed -i "/\[client\]/,/^\[/ s/user=.*/user=root/" "${my_cnf_db_root}"
+      fi
+      echo ""
+
+      grep_count=$(grep -ic '^bind-address=.*\|^bind-address.*=.*' "${my_cnf_db_root}")
+      if [ "${grep_count}" = 0 ]; then
+        _echo "$(msg cyan)Writing new config to disable mysql remote access in ${my_cnf_db_root} under [mysqld] section ...$(msg end)" --name
+        # Append under client because not exist
+        sed -i 's|\[mysqld\]|&\nbind-address=127.0.0.1|' "${my_cnf_db_root}"
+      else
+        _echo "$(msg cyan)Updating config to disable remote access in ${my_cnf_db_root} under [mysqld] section ...$(msg end)" --name
+        # Already exist, but we replace
+        sed -i "/\[mysqld\]/,/^\[/ s/bind-address=.*/bind-address=127.0.0.1/" "${my_cnf_db_root}"
+      fi
+    else
+      _echo "$(msg red)Error, the file ${my_cnf_db_root} is missing. It should exist in that location if mysql is installed through directadmin$(msg end)" --name
+      _exit 147
+    fi
     echo ""
 
+    _echo "$(msg cyan)Removing unsecured anonymous users from database ...$(msg end)" --name
+    ${mysql_granted} "DELETE FROM mysql.user WHERE user='';"
+    echo ""
+    _echo "$(msg cyan)Removing root users from non-localhost for security ...$(msg end)" --name
+    ${mysql_granted} "DELETE FROM mysql.user WHERE User='root' AND Host NOT IN ('localhost', '127.0.0.1', '::1');"
+    echo ""
+    _echo "$(msg cyan)Removing test database if exist for security ...$(msg end)" --name
+    ${mysql_granted} "DROP DATABASE IF EXISTS test;"
+    echo ""
+    _echo "$(msg cyan)Flushing mysql privileges ...$(msg end)" --name
+    ${mysql_granted} "FLUSH PRIVILEGES;"
+    echo ""
+    # There is no recommendation to change da_admin sql username to something else at this moment,
+    # so ignore username change for sql, just change password.
+    _echo "$(msg cyan)Changing Directadmin da_admin default SQL password ...$(msg end)" --name
+    ${mysql_granted} "ALTER USER 'da_admin'@'localhost' IDENTIFIED BY '${C_DA_ADMIN_SQLPASS}';"
+    echo ""
+    _echo "$(msg cyan)Updating da_admin SQL authentication information at ${mysql_conf_db_da_admin} ...$(msg end)" --name
+    if [ -s ${mysql_conf_db_da_admin} ]; then
+      sed -i "s/^passwd=.*/passwd=${C_DA_ADMIN_SQLPASS}/" ${mysql_conf_db_da_admin}
+    else
+      echo -n '' >${mysql_conf_db_da_admin}
+      chmod 600 ${mysql_conf_db_da_admin}
+      chown diradmin:diradmin ${mysql_conf_db_da_admin}
+      echo "user=da_admin" >>${mysql_conf_db_da_admin}
+      echo "passwd=${C_DA_ADMIN_SQLPASS}" >>${mysql_conf_db_da_admin}
+    fi
+    echo ""
+    _echo "$(msg cyan)Updating da_admin SQL authentication information at ${my_cnf_db_da_admin} ...$(msg end)" --name
+    if [ -s ${my_cnf_db_da_admin} ]; then
+      sed -i "s/^password=.*/password=${C_DA_ADMIN_SQLPASS}/" ${my_cnf_db_da_admin}
+    else
+      echo -n '' >${my_cnf_db_da_admin}
+      chmod 600 ${my_cnf_db_da_admin}
+      chown diradmin:diradmin ${my_cnf_db_da_admin}
+      echo "[client]"
+      echo "user=da_admin" >>${my_cnf_db_da_admin}
+      echo "password=${C_DA_ADMIN_SQLPASS}" >>${my_cnf_db_da_admin}
+    fi
+
+    echo ""
+    mysql_authentication_test=$(
+      mysql -e 'exit'
+      echo $?
+    )
+
+    if [ "${mysql_authentication_test}" -eq 0 ]; then
+      _echo "$(msg green)OK, mysql local system authentication test was correctly setup!$(msg end)" --name
+    else
+      _echo "$(msg red)Error, mysql local system authentication test was failed! Please inspect why and re-run this setup again$(msg end)" --name
+      _exit 147
+    fi
+    echo ""
+
+    # Important, this will make the phpmyadmin connection using SSL, so at this point phpmyadmin is not accessible because SSL is needed
+    # Setup will install SSL in another function
     # Configuring phpmyadmin htaccess
     _echo "$(msg cyan)Creating https redirection .htaccess for mysql management (phpMyAdmin) ...$(msg end)" --name
     touch /var/www/html/phpMyAdmin/.htaccess
@@ -10352,62 +10473,86 @@ function configure_da_sql() {
     cp -p "/var/www/html/phpMyAdmin/config.inc.php" "/var/www/html/phpMyAdmin/config.inc.php_backup_original_${DATE_TIME_NOW}"
     echo ""
 
-    _echo "$(msg cyan)Generating new blowfish secret key for phpMyAdmin in config.inc.php ...$(msg end)" --name
-    if [ -f /var/www/html/phpMyAdmin/config.inc.php ]; then
-      # Enabling cookie authentication (so that we can use htpasswd for this)
-      # To enable cookie authentication we need to have blow fish string
-      # Some character might break sed like '/' so we don't want this character because this character can have problem later on.
-      # No need to escape https://stackoverflow.com/questions/65528031/how-to-generate-openssl-blowfish-without-certain-characters-or-allow-certain-set
-      loop_count=0
-      while :; do
-        ((loop_count++))
-        randomBlowfishSecret=$(openssl rand -base64 32)
-        replace_pma_blowfish="\$cfg['blowfish_secret'] = '${randomBlowfishSecret}'; \/* YOU MUST FILL IN THIS FOR COOKIE AUTH! *\/"
-        sed -i "s/\$cfg\[.blowfish_secret.\]\s*=.*/${replace_pma_blowfish}/" /var/www/html/phpMyAdmin/config.inc.php 2>/dev/null
-        retval=$?
-        if [ "${retval}" = 0 ]; then
-          _echo "$(msg green)OK, successfully inserted blowfish secret key into /var/www/html/phpMyAdmin/config.inc.php after ${loop_count} retry(s)$(msg end)" --name
-          break
-        fi
-      done
-      # Warning only use cookie authentication for development
-      _echo "$(msg cyan)Setting phpMyAdmin authentication from http to cookie in config.inc.php to enable page login and httpd protection ...$(msg end)" --name
-      replace_pma_authtype="\$cfg['Servers'][\$i]['auth_type'] = 'cookie';"
-      sed -i "s/\$cfg\['Servers'\]\[\$i\]\['auth_type'\] = 'http';/${replace_pma_authtype}/" /var/www/html/phpMyAdmin/config.inc.php
-    else
+    if [ ! -f /var/www/html/phpMyAdmin/config.inc.php ]; then
       _echo "$(msg red)Error, phpMyAdmin config file /var/www/html/phpMyAdmin/config.inc.php is missing. Please inspect manually and re-run this script to continue$(msg end)" --name
       _exit 147
     fi
+    # Enabling cookie authentication (so that we can use htpasswd for this)
+    # To enable cookie authentication we need to have blow fish string
+    # Some character might break sed like '/' so we don't want this character because this character can have problem later on.
+    # No need to escape https://stackoverflow.com/questions/65528031/how-to-generate-openssl-blowfish-without-certain-characters-or-allow-certain-set
+    _echo "$(msg cyan)Generating new blowfish secret key for phpMyAdmin in config.inc.php ...$(msg end)" --name
+    loop_count=0
+    while :; do
+      ((loop_count++))
+      randomBlowfishSecret=$(openssl rand -base64 32)
+      replace_pma_blowfish="\$cfg['blowfish_secret'] = '${randomBlowfishSecret}'; \/* YOU MUST FILL IN THIS FOR COOKIE AUTH! *\/"
+      sed -i "s/\$cfg\[.blowfish_secret.\]\s*=.*/${replace_pma_blowfish}/" /var/www/html/phpMyAdmin/config.inc.php 2>/dev/null
+      retval=$?
+      if [ "${retval}" = 0 ]; then
+        _echo "$(msg green)OK, successfully inserted blowfish secret key into /var/www/html/phpMyAdmin/config.inc.php after ${loop_count} retry(s)$(msg end)" --name
+        break
+      fi
+    done
+    # Warning only use cookie authentication for development
+    _echo "$(msg cyan)Setting phpMyAdmin authentication from http to cookie in config.inc.php to enable page login and httpd protection ...$(msg end)" --name
+    replace_pma_authtype="\$cfg['Servers'][\$i]['auth_type'] = 'cookie';"
+    sed -i "s/\$cfg\['Servers'\]\[\$i\]\['auth_type'\] = 'http';/${replace_pma_authtype}/" /var/www/html/phpMyAdmin/config.inc.php
+
     echo ""
+
+    # We can setup theme for directadmin here.
     # For custom phpMyAdmin theme (not using theme yet). Theme we must get it from maxinet
-    #echo "[${SCRIPT_NAME}]: Setting up phpMyAdmin custom themes ..."
-    #sleep 1
-    #cp -p "phpMyAdmin_theme_from_maxinet_called_sofibox" into "/var/www/html/phpMyAdmin/themes/sofibox"
+    # echo "[${SCRIPT_NAME}]: Setting up phpMyAdmin custom themes ..."
+
+    # cp -p "phpMyAdmin_theme_from_maxinet_called_sofibox" into "/var/www/html/phpMyAdmin/themes/sofibox"
     # Temporarily no theme yet. In the future put theme here
     # And all the themes must have this permissions:
-    #chmod 644 for files, chmod 755 for folders
+    # chmod 644 for files, chmod 755 for folders
     # And all must have this users:
     #chown webapps:webapps /var/www/html/phpMyAdmin/themes/*
 
     # This is used to fix problem with phpMyAdmin Storage: https://help.directadmin.com/item.php?id=564
     _echo "$(msg cyan)Creating phpMyAdmin configuration storage database ...$(msg end)" --name
     cd_to_path "${INST_TEMP_DIR}"
+    _echo "$(msg cyan)Removing existing create_tables.sh file ...$(msg end)" --name
+
+    rm -f create_tables.sh
+    echo ""
+    _echo "$(msg cyan)Downloading create_tables.sh file ...$(msg end)" --name
     wget --no-verbose -O create_tables.sh http://files1.directadmin.com/services/all/phpMyAdmin/create_tables.sh
     chmod 755 create_tables.sh
     _echo "$(msg cyan)Executing create_tables.sh to create phpMyAdmin configuration storage database ...$(msg end)" --name
     ./create_tables.sh
     echo ""
 
-    _echo "$(msg cyan)Installing mysqltuner ...$(msg end)" --name
-    wget --no-verbose -O /usr/local/sbin/mysqltuner mysqltuner.pl
-    chmod 710 /usr/local/sbin/mysqltuner
+    mkdir -p /usr/local/maxicode/maxidb
+    _echo "$(msg cyan)Removing existing mysqltuner files from /usr/local/maxicode/maxidb/mysqltuner ...$(msg end)" --name
+    rm -f /usr/local/maxicode/maxidb/mysqltuner
+    rm -f /usr/local/maxicode/maxidb/basic_passwords.txt
+    rm -f /usr/local/maxicode/maxidb/vulnerabilities.csv
+    rm -f /usr/local/sbin/mysqltuner
+    echo ""
+    _echo "$(msg cyan)Downloading and setup mysqltuner ...$(msg end)" --name
+    wget --no-verbose -O /usr/local/maxicode/maxidb/mysqltuner mysqltuner.pl
+    wget --no-verbose -O /usr/local/maxicode/maxidb/basic_passwords.txt https://raw.githubusercontent.com/major/MySQLTuner-perl/master/basic_passwords.txt
+    wget --no-verbose -O /usr/local/maxicode/maxidb/vulnerabilities.csv https://raw.githubusercontent.com/major/MySQLTuner-perl/master/vulnerabilities.csv
+    chmod 710 /usr/local/maxicode/maxidb/mysqltuner
+    ln -s /usr/local/maxicode/maxidb/mysqltuner /usr/local/sbin/mysqltuner
     if command -v mysqltuner &>/dev/null; then
       _echo "$(msg green)OK, mysqltuner has been installed$(msg end)" --name
     else
       _echo "$(msg red)Error, mysqltuner command is missing. Please inspect manually and re-run this script to continue$(msg end)" --name
       _exit 147
     fi
-    #mysqltuner
+    echo ""
+
+    _echo "$(msg cyan)Checking mysqltuner related files ...$(msg end)" --name
+    check_file_path "/usr/local/maxicode/maxidb/mysqltuner" "/usr/local/maxicode/maxidb/basic_passwords.txt" "/usr/local/maxicode/maxidb/vulnerabilities.csv"
+    echo ""
+    _echo "$(msg cyan)Scanning mysqltuner ...$(msg end)" --name
+    mysqltuner --passwordfile /usr/local/maxicode/maxidb/basic_passwords.txt --cvefile /usr/local/maxicode/maxidb/vulnerabilities.csv
+
     #when you execute mysqltuner, you will get suggestion what to tweak for your sql.
     #The mysqltuner will read directadmin mysql.conf password that you have specified before.
     #In case it cannot read and trigger an error.
@@ -10415,7 +10560,7 @@ function configure_da_sql() {
     # Mysqltuner also does not accept this password: )
     #[Sample my.cnf at /etc/my.cnf](https://gitlab.com/arafatx/sofibox-luks-earth/-/blob/master/etc/my.cnf)
 
-    # Deprecated
+    # Another alternative way to change directadmin da_admin SQL password:
     #_echo "$(msg cyan)Changing Directadmin da_admin SQL password using directadmin script reset_da_admin_password.sh ... $(msg end)" --name
     # This script requires that we have root or da_admin password in setup.txt or defined in cnf, else it's not working
     #${da_scripts_path}/reset_da_admin_password.sh --password "${C_DA_ADMIN_SQLPASS}"
@@ -10520,7 +10665,7 @@ function configure_da_mail() {
       _echo "$(msg cyan)Installing roundcube 3rd party plugins ...$(msg end)" --name
       # Here we install roundcube 3rd party plugins
       if [ "${C_ENABLE_ROUNDCUBE_RCGUARD}" == "true" ]; then
-        # I posted bug here: https://github.com/dsoares/roundcube-rcguard/issues/39, but jus that server restart fixed the problem
+        # I posted bug here: https://github.com/dsoares/roundcube-rcguard/issues/39, but just that server restart fixed the problem
 
         #sleep 1
         cd_to_path "/var/www/html/roundcube/plugins/"
@@ -10583,7 +10728,7 @@ function configure_da_ftp() {
   start_execute_options "${option}" "${func_name}"
   [[ "${SKIP_RUN}" == "true" ]] && return 0
   if [[ ! -f "${CONF_PATH}/${func_name}_executed" && "${FUNCTION_RUN}" == "true" ]]; then
-    if [ "${C_DA_FTP_SOFTWARE}" == "pureftpd" ]; then
+    if [ "${C_DA_CB_FTP_SOFTWARE}" == "pureftpd" ]; then
       local grep_count
       _echo "$(msg cyan)Setting up pure-ftpd to use log at /var/log/pureftpd.log ...$(msg end)" --name
       grep_count=$(grep -ic '\-\/var\/log\/pureftpd\.log' /etc/rsyslog.conf)
@@ -10592,10 +10737,10 @@ function configure_da_ftp() {
       else
         _echo "$(msg yellow)[Skipped]: Found ftp log entry '-/var/log/pureftpd.log' at /etc/ryslog.conf$(msg end)" --name
       fi
-    elif [ "${C_DA_FTP_SOFTWARE}" == "proftpd" ]; then
+    elif [ "${C_DA_CB_FTP_SOFTWARE}" == "proftpd" ]; then
       _echo "$(msg yellow)[Skipped]: FTP software proftpd configuration is not yet implemented$(msg end)" --name
     else
-      _echo "$(msg yellow)[Skipped]: FTP software ${C_DA_FTP_SOFTWARE} configuration is not yet implemented$(msg end)" --name
+      _echo "$(msg yellow)[Skipped]: FTP software ${C_DA_CB_FTP_SOFTWARE} configuration is not yet implemented$(msg end)" --name
     fi
     # No need to remove ftp log from rsyslog.conf using ftp.none because DA BFM and LFD from CSF needs the log to auto block
     echo ""
@@ -15196,6 +15341,64 @@ function configure_cronjobs() {
   end_execute_options "${option}" "${func_name}"
 }
 
+function configure_os_services() {
+
+  # Disabling some daemon processes to reduce server load
+  if [ "${C_ENABLE_CLAMAV_SERVICE}" == "no" ]; then
+    # TODO disable clamav here if exist to reduce server load
+    # TODO Write disable service <<EOF
+    :
+  fi
+
+  # check services.status from directadmin
+  # clamd=OFF
+  #csf=ON
+  #da-popb4smtp=OFF
+  #directadmin=ON
+  #dovecot=ON
+  #exim=ON
+  #freshclam=ON
+  #httpd=ON
+  #lfd=ON
+  #memcached=ON
+  #mysqld=ON
+  #named=ON
+  #nginx=ON
+  #php-fpm72=ON
+  #php-fpm73=ON
+  #php-fpm74=ON
+  #pure-ftpd=OFF
+  #rspamd=ON
+  #sshd=ON
+  #
+  # !/bin/bash
+  #
+  ## STOP STARTUP LIST #
+  ## ================= #
+  ## stop and disable clamav and freshclam on startup
+  ## useful when clamav is updated with the new version, it will re-enable startup
+  #echo "stopping services please wait... "
+  #sleep 2m
+  ##stop clamav / clamd
+  #sudo systemctl stop clamd
+  #sudo systemctl disable clamav-freshclam.service
+  #sudo systemctl disable clamav-daemon.service
+  #sudo systemctl disable clamav-daemon.socket
+  #sudo systemctl disable clamd
+  ##stop freshclam
+  #sudo systemctl stop freshclam
+  #sudo systemctl disable freshclam
+  ##stop da-popb4smtp
+  #sudo systemctl stop da-popb4smtp
+  #sudo systemctl disable da-popb4smtp
+  ##stop pure-ftpd
+  #sudo systemctl stop pure-ftpd
+  #sudo systemctl disable pure-ftpd
+  #echo "services stopped successfully..."
+  ##===================#
+
+}
+
 # This is used to install extra packages like ncdu, htop and more
 function setup_post() {
   local option func_name
@@ -15343,100 +15546,114 @@ function setup() {
     configure_sysctl_ips --run
     # Upgrade system
     upgrade_os --run
+    if [[ "${C_SERVER_TYPE}" == "directadmin" ]]; then
 
-    if [ "${C_SERVER_TYPE}" == "directadmin" ]; then
+      if [[ "${C_DA_INSTALL_TYPE}" == "custom" ]]; then
+        install_da_pre --run
+        install_da --run
+        install_da_post --run
+        secure_da_auth --run
+        # Add da ipv6 and linking with ipv4 and vice versa (this option has --init argument)
+        configure_da_ips --run
+        install_da_csf --run
+        configure_csf --run-exit
+        configure_da_sql --run-force-exit
+        # restest here
+        configure_da_mail --run-exit
+        configure_da_ftp --run-exit
+        configure_nginx_apache --run-exit
+        build_da_custom_settings --run-exit
+        configure_web_apps --run-exit
+        configure_da_settings --run-exit
+        configure_da_cb_settings --run-exit
+        configure_da_redis --run-exit
+        configure_da_memcached --skip # Deprecated (skip this use redis instead)
+        configure_da_geoip --skip     # Skip until found useful
+        # Important to run configure_da_dns_templates first before creating any domains so that the DNS record can use new template automatically
+        configure_da_dns_templates --run-exit
+        configure_da_host_domain --run-exit
+        # " -- owner --"
+        configure_da_owner_accounts --run-exit
+        configure_da_owner_skins --run
+        configure_da_owner_security --run
+
+        # " -- admin --"
+        configure_da_admin_accounts --run
+        configure_da_admin_skins --run
+        configure_da_admin_security --run
+        # " -- reseller --"
+        configure_da_reseller_accounts --run
+        configure_da_reseller_root_domains --run
+        configure_da_reseller_wildcard_domains --run
+        configure_da_reseller_subdomains --run
+
+        configure_da_reseller_emails --run-exit
+        configure_da_reseller_databases --run
+
+        configure_da_reseller_skins --skip #copy from admin or owner skin TODO
+        configure_da_reseller_security --run
+
+        echo " -- user ---"
+        configure_da_user_accounts --run
+        configure_da_user_root_domains --run
+        configure_da_user_wildcard_domains --skip # Do not use wildcard
+        configure_da_user_subdomains --run
+        configure_da_user_emails --run
+        configure_da_user_databases --run
+        #configure_da_user_skins "" #  --skip # complicated not important
+        configure_da_user_security --run
+
+        configure_da_custom_webs --run
+
+        # Must run this functions (configure_da_ssl) after running CSF because we need to make sure all appropriate ports are opened to request certs
+        # Warning do not overused configure_da_ssl function because when requesting the same cert for the same domain 7 times for a week, you will get blocked.
+        # This will set the hosting to SSL:
+        configure_da_ssl_pre --run
+        # It's best to call SSL after domain propagation few hours later.
+
+        # Call certificate request at the end because we want to create DNS entry and propagate first
+        # Don't worry if some domains are not able to have SSL because of the propagation problem using external DNS
+        configure_da_ssl --run
+        configure_da_reseller_domain_ssl_pre --run
+        configure_da_reseller_domain_ssl --run
+        configure_da_user_domain_ssl_pre --run
+        configure_da_user_domain_ssl --run
+
+        configure_maxibox --run
+        configure_maxicode_pre --run
+        configure_maxicode --run
+        configure_maxiperm --run
+        configure_maxinis --run
+        configure_maxigpg --run
+        configure_maxida --run
+        configure_maxicron --run
+        configure_maxiaide --run-force
+        configure_maxiwall --run-force-exit
+        configure_maxicloud --run-exit
+        configure_maxipass --run
+        configure_maxify --skip #-- disable temporarily
+        configure_logs --skip   #-- skip temporarily
+        configure_cronjobs --run
+        # Still need to add more based on lynis suggestion
+        harden_with_lynis --run
+        configure_services --run
+        setup_post --run
+      elif [[ "${C_DA_INSTALL_TYPE}" == "auto" ]]; then
+        install_da_pre --run
+        install_da --run
+        install_da_post --run
+        configure_csf --run
+        exit
+      fi
+    elif [[ "${C_SERVER_TYPE}" == "general" ]]; then
       install_da_pre --run
       install_da --run
       install_da_post --run
-      secure_da_auth --run
-      # Add da ipv6 and linking with ipv4 and vice versa (this option has --init argument)
-      configure_da_ips --run
-      install_da_csf --run
+      install_general_csf --run
       configure_csf --run
-      configure_da_sql --run
-      configure_da_mail --run
-      configure_da_ftp --run
-      configure_nginx_apache --run
-      build_da_custom_settings --run
-      configure_web_apps --run
-      configure_da_settings --run
-      configure_da_cb_settings --run
-      configure_da_redis --run
-      configure_da_memcached --skip # Deprecated (skip this use redis instead)
-      configure_da_geoip --skip     # Skip until found useful
-      # Important to run configure_da_dns_templates first before creating any domains so that the DNS record can use new template automatically
-      configure_da_dns_templates --run
-      configure_da_host_domain --run
-      # " -- owner --"
-      configure_da_owner_accounts --run
-      configure_da_owner_skins --run
-
-      configure_da_owner_security --run
-
-      # " -- admin --"
-      configure_da_admin_accounts --run
-      configure_da_admin_skins --run
-      configure_da_admin_security --run
-      # " -- reseller --"
-      configure_da_reseller_accounts --run
-      configure_da_reseller_root_domains --run
-      configure_da_reseller_wildcard_domains --run
-      configure_da_reseller_subdomains --run
-
-      configure_da_reseller_emails --run
-      configure_da_reseller_databases --run
-
-      configure_da_reseller_skins --skip #copy from admin or owner skin TODO
-      configure_da_reseller_security --run
-
-      echo " -- user ---"
-      configure_da_user_accounts --run
-      configure_da_user_root_domains --run
-      configure_da_user_wildcard_domains --skip # Do not use wildcard
-      configure_da_user_subdomains --run
-      configure_da_user_emails --run
-      configure_da_user_databases --run
-      #configure_da_user_skins "" #  --skip # complicated not important
-      configure_da_user_security --run
-
-      configure_da_custom_webs --run
-
-      # Must run this functions (configure_da_ssl) after running CSF because we need to make sure all appropriate ports are opened to request certs
-      # Warning do not overused configure_da_ssl function because when requesting the same cert for the same domain 7 times for a week, you will get blocked.
-      # This will set the hosting to SSL:
-      configure_da_ssl_pre --run
-      # It's best to call SSL after domain propagation few hours later.
-
-      # Call certificate request at the end because we want to create DNS entry and propagate first
-      # Don't worry if some domains are not able to have SSL because of the propagation problem using external DNS
-      configure_da_ssl --run
-      configure_da_reseller_domain_ssl_pre --run
-      configure_da_reseller_domain_ssl --run
-      configure_da_user_domain_ssl_pre --run
-      configure_da_user_domain_ssl --run
-    elif [ "${C_SERVER_TYPE}" == "general" ]; then
-
-      configure_csf --run
+    elif [[ "${C_SERVER_TYPE}" == "prestashop" ]]; then
+      :
     fi
-
-    configure_maxibox --run
-    configure_maxicode_pre --run
-    configure_maxicode --run
-    configure_maxiperm --run
-    configure_maxinis --run
-    configure_maxigpg --run
-    configure_maxida --run
-    configure_maxicron --run
-    configure_maxiaide --run-force
-    configure_maxiwall --run-force-exit
-    configure_maxicloud --run-exit
-    configure_maxipass --run
-    configure_maxify --skip #-- disable temporarily
-    configure_logs --skip   #-- skip temporarily
-    configure_cronjobs --run
-    # Still need to add more based on lynis suggestion
-    harden_with_lynis --run
-    setup_post --run
     ############ Setup function call end here ############
 
     echo ""
@@ -15680,6 +15897,8 @@ if [ -z "${C_CONFIG_VERSION}" ]; then
   # if C_HOST_PUBLIC_IP is not set in config file, we retrieve this host IP automatically
 
   if [ -z "${C_HOST_PUBLIC_IP}" ]; then
+    # To disable this check, supply the host IP manually in config file ...
+    _echo "$(msg cyan)Getting current host public IP... ${LABEL_C_HOST_PUBLIC_IP}$(msg end)" --name
     # Install required components if does not exist
     required "debian@@apt:dnsutils" "ubuntu@@apt:dnsutils"
     # Get the current host public IP
@@ -15900,7 +16119,7 @@ ENDSSH
       linode_api_admin boot-linode "$@"
     elif [ "${DNS_PROVIDER_NAME}" == "digitalocean" ]; then
       digitalocean_api_admin boot-do "$@"
-    #TODO elif "Other provider"
+    #elif "Other provider"
     else
       _echo "$(msg red)Error, unknown DNS provider to execute boot command! $(msg end)" -- name
     fi

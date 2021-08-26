@@ -256,24 +256,15 @@ C_DA_LICENSE_ID="123456"
 C_DA_PORT="2222"
 
 # TODO documentation will be written more starting here ...
-" # or owasp
-C_DA_MODSECURITY_RULESET="comodo"
 C_DA_ADMIN_HELPER="help.sofibox.com/directadmin/admin"
 C_DA_RESELLER_HELPER="help.sofibox.com/directadmin/reseller"
 C_DA_USER_HELPER="help.sofibox.com/directadmin/user"
-C_DA_WEB_SERVER_SOFTWARE="nginx_apache"
-C_DA_FTP_SOFTWARE="pureftpd"
 C_DA_CUSTOMBUILD_VERSION="2.0"
-# Server cache configuration
-# Planned variable
+# Server cache configuration, planned variable
 C_DA_INSTALL_REDIS=true
 # C_DA_INSTALL_MEMCACHED is going to be deprecated (it is recommend to use redis instead because redis is supported in Custombuild)
 C_DA_INSTALL_MEMCACHED=true
 C_DA_INSTALL_GEOIP=true
-
-# Format <sql_type>-<sql_version>
-# or mysql-8.0
-C_DA_MYSQL_SOFTWARE="mariadb-10.6"
 C_ENABLE_DA_HOST_SSL=true
 
 # This is a new testing feature to add automatically ipv6 config (official and manual way)
@@ -370,92 +361,27 @@ C_DA_PER_EMAIL_LIMIT=300
 C_DA_MAX_PER_EMAIL_SEND_LIMIT=0
 C_DA_USER_CAN_SET_EMAIL_LIMIT=1
 C_DA_WEBMAIL_LINK=roundcube
-
-# Unused directadmin.conf variables (some enabled by default and some not important, some are not listed here)
-# C_DA_MAILDIR_WITH_NEW=1
-# C_DA_COUNT_EMAIL_USAGE=0
-# C_DA_EMAILSPOOLVIRTUAL=/var/spool/virtual
-# C_DA_EMAILVIRTUAL=/etc/virtual
-# C_DA_ADDIP=/usr/local/directadmin/scripts/addip
-# C_DA_REMOVEIP=/usr/local/directadmin/scripts/removeip
-# C_DA_SEND_USAGE_MESSAGE=1
-# C_DA_DISK_USAGE_SUSPEND=0
-# C_DA_USER_CAN_SELECT_SKIN=0
-# C_DA_HIDE_IP_USER_NUMBERS=0
-# C_DA_FILEMANAGER_DU=0
-# C_DA_HIDE_OUTLOOK=0
-# C_DA_QUOTA_UPDATE_INTERVAL=10
-# C_DA_RESELLER_BACKUP_BANDWIDTH=1
-# C_DA_BACKUP_NICE=19
-# C_DA_IP_BLACKLIST=/usr/local/directadmin/data/admin/ip_blacklist
-# C_DA_IP_WHITELIST=/usr/local/directadmin/data/admin/ip_whitelist
-# C_DA_NAMEDDIR=/var/named
-# C_DA_NAMEDCONFIG=/etc/named.conf
-# C_DA_FTPSEP=@
-# C_DA_FTPPASSWD=/etc/proftpd.passwd
-# C_DA_FTPVHOSTS=/etc/proftpd.vhosts.conf
-# C_DA_FTPCONFIG=/etc/proftpd.conf
-# C_DA_SSHDCONFIG=/etc/ssh/sshd_config
-# This value has not much information and it might have outdated value
-# C_DA_OWSADM=/usr/local/frontpage/version5.0/bin/owsadm.exe
-# C_DA_FM_OWNERS=|USER|:|GROUP|
-# C_DA_FM_FILE_PERMISSIONS=644
-# C_DA_FM_DIR_PERMISSONS=755
-# C_DA_SAFEMODE=OFF
-# C_DA_OPEN_BASEDIR=ON
-# C_DA_GRACEFUL_RESTARTS=0
-# C_DA_APACHE_PUBLIC_HTML=0
-# C_DA_SECURE_ACCESS_GROUP= # This default is null
-# C_DA_APACHECERT=/etc/httpd/conf/ssl.crt/server.crt
-# C_DA_APACHEKEY=/etc/httpd/conf/ssl.key/server.key
-# C_DA_APACHEIPS=/etc/httpd/conf/ips.conf
-# C_DA_APACHEMIMETYPES=/etc/mime.types
-# C_DA_APACHE_PID=/var/run/httpd.pid
-# C_DA_APACHECONF=/etc/httpd/conf/httpd.conf
-# C_DA_APACHELOGDIR=/var/log/httpd/domains
-# C_DA_APACHE_VER="2.0"
-# force_hostname=(null)
-# C_DA_BIND_ADDRESS=# This default is null
-# C_DA_ETHERNET_DEV="eth0"
-# C_DA_EXTRA_BACKUP_OPTION= # This default is null
-# C_DA_EXT_QUOTA_PARTITIONS= # This default is null
-# C_DA_QUOTA_PARTITION="/home"
-# C_DA_TASKQUEUEDA="/usr/local/directadmin/data/task.queue.da"
-# C_DA_TASKQUEUE="/usr/local/directadmin/data/task.queue"
-# C_DA_CAROOTCERT= # This default is null
-# C_DA_SSL_CIPHER= # This default is null
-# C_DA_SSL="0"
-# C_DA_CACERT="/usr/local/directadmin/conf/cacert.pem"
-# C_DA_CAKEY="/usr/local/directadmin/conf/cakey.pem"
-# C_DA_language="en"
-# C_DA_internal_lang="/usr/local/directadmin/data/skins/evolution/lang"
-# C_DA_SKINSDIR="./data/skins"
-# C_DA_DOCSROOT="./data/skins/evolution"
-# C_DA_BLOCK_TOKEN_CHARS=$[]<>:#
-# C_DA_SESSIONS_DIR="/usr/local/directadmin/data/sessions"
-# C_DA_TEMPLATES="/usr/local/directadmin/data/templates"
-# C_DA_LICENSE="/usr/local/directadmin/conf/license.key"
-# C_DA_TICKETSDIR="/usr/local/directadmin/data/tickets"
-# C_DA_SERVERPATH="/usr/local/directadmin"
-# C_DA_ADMINDIR="./data/admin"
-# C_DA_LOGHOSTNAME=0
-# C_DA_LOGDIR="/var/log/directadmin"
-# C_DA_PROCESS_LIST_DEBUG
-# C_DA_USE_UID_COUNTING=1
-# C_DA_USE_SYSLOGD=0
-# C_DA_CLUSTER=0
-# C_DA_REMOTE_DNS_RETRIES=0
-# C_DA_ALLOW_TTL_OVERRIDE=1
-# C_DA_NAMED_CHECKZONE=1
-# C_DA_ALLOW_DNS_UNDERSCORE=0
-# C_DA_WRAP_LONG_DNS_VALUES=1
-# C_DA_DOVECOT=1
-# C_DA_POP_DISK_USAGE_CACHE=0
 # End directadmin.conf settings
 
-# Custombuild setting
-
+# Custombuild settings
+C_DA_CB_FTP_SOFTWARE="pureftpd"
 C_DA_CB_EXIMCONF_RELEASE="4.5"
+C_DA_CB_WEBSERVER_SOFTWARE="nginx_apache"
+# or owasp
+C_DA_CB_ENABLE_MODSECURITY="yes"
+C_DA_CB_MODSECURITY_RULESET="comodo"
+# Format <sql_type>-<sql_version>
+# or mysql-8.0
+C_DA_CB_SQL_VERSION="mariadb-10.6"
+# Format <7.3-fpm,74-fpm,8.0-fpm>
+# php7.3-fpm means php version 7.3 with FPM mode
+# the first order is the first PHP version (also used by directadmin system). Max is 4, extra argument will be ignored
+C_DA_CB_PHP_VERSION="7.4-fpm,8.0-fpm"
+# This is for installing clamav
+C_DA_CB_ENABLE_CLAMAV="yes"
+# Enable / disable clamav service
+C_ENABLE_CLAMAV_SERVICE=false
+# End of custombuild setting
 
 # DA_ADMIN_SQLPASS is for DA sql password (eg: phpmyadmin login) Password cannot contains this character [ ] <> and )
 C_DA_ADMIN_SQLPASS="ADMIN_SQL_PASSWORD"
@@ -681,6 +607,9 @@ C_USE_LATEST_ISO=false
 C_BOX_ISO_OS_NAME="debian"
 C_OS_SELECT_VERSION="11.0.0"
 C_OS_CODE_NAME="bullseye"
+# possible value: cfq, noop, deadline
+# noob for SSD (testing)
+C_OS_IO_SCHEDULER="noop"
 # values: custom, normal, console | do not use console if system support GUI, else you will see blank UI
 # only use console for system that does not support graphic display, for example linode lish without glish.
 # This feature has been removed temporarily from the script (will leave this variable for technical reason)
