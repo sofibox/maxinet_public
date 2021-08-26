@@ -4,7 +4,7 @@
 
 _APP_SPECIFIC_NAME="Maxinet"
 # Note that some minor versions are not published
-_APP_VERSION="0.5.8.5"
+_APP_VERSION="0.5.8.6"
 _APP_STATUS="alpha"
 _APP_VERSION_STATUS="${_APP_VERSION}-${_APP_STATUS}"
 
@@ -637,9 +637,19 @@ function is_valid() {
   distro_id="${DISTRO_ID}"
 
   required "debian@@apt:ipcalc,iproute2"
+  # is_valid version_required  <required_version> <current_version>
+  if [[ "${type}" == "version_required" || "${type}" == "version_needed" ]]; then
+    local current_version required_version
+    required_version="${data1}"
+    current_version="${data2}"
+    if [ "$(printf '%s\n' "${required_version}" "${current_version}" | sort -V | head -n1)" = "${required_version}" ]; then
+      return 0
+    else
+      return 1
+    fi
   # is_valid ipv4-resolved 1.1.1.1 sun.server.com
   # is_valid ipv4_resolved
-  if [[ "${type}" == "ipv4-resolved" || "${type}" == "ipv4_resolved" ]]; then
+  elif [[ "${type}" == "ipv4-resolved" || "${type}" == "ipv4_resolved" ]]; then
     local ipv4 ipv4_propagated domain
     ipv4="${data1}"
     domain="${data2}"
@@ -3461,8 +3471,13 @@ function create_file() {
 # Note filename will only get the basename as dropbox only require this name /test/test2/test.txt = test.txt
 # Use --scripting option to suppress message (useful for scripting)
 function dropbox_api() {
+
   local action options retval argnum scripting source destination filename dbx_cli file_direct_link
   action="$1"
+  # For remote use this (remote dont use yet)
+  #dbx_cli="${LATEST_OS_CODE_PATH}/usr/local/maxicode/maxicloud/dropbox/dbx"
+  # For local use this
+  # TODO remember to configure dbxcli to have chunk at least 150 dynamically because large ISO file with less chunk size will make upload slower
   if ! command -v dbxcli &>/dev/null; then
     _echo "$(msg yellow)Warning, the dropbox-cli dbxcli does not exist. Installing dropbox-cli ...$(msg end)" --name
     configure_dropbox_cli --run-force
@@ -6676,7 +6691,6 @@ function da_api_admin() {
         _exit 147
       fi
     fi
-
     #echo "Adding IP"
     #echo "Sign as: ${sign_as}"
     #echo "API username: ${da_api_username}"
@@ -7465,7 +7479,7 @@ function repair_services() {
 # It restarts software server based on the installation string provided
 function restart_da_web_server() {
   echo ""
-  if [ "${C_DA_WEB_SERVER_SOFTWARE}" == "nginx_apache" ]; then
+  if [ "${C_DA_CB_WEBSERVER_SOFTWARE}" == "nginx_apache" ]; then
     _echo "$(msg magenta)Restarting httpd and nginx for new httpd config ...$(msg end)" --name
     systemctl restart httpd
     sudo pkill -f nginx &
@@ -7608,7 +7622,7 @@ function configure_gotify() {
         gotify_platform="${C_GOTIFY_PLATFORM}"
         gotify_app_name="gotify-server"
         gotify_service_name="gotify"
-        gotify_app_path="/opt/gotify/"
+        gotify_app_path="/opt/gotify"
         gotify_config="/opt/gotify/config.yml"
         gotify_data_path="/opt/gotify/data/"
         gotify_config_cli="/etc/gotify/cli.json"
@@ -10552,7 +10566,8 @@ function configure_da_sql() {
     echo ""
     _echo "$(msg cyan)Scanning mysqltuner ...$(msg end)" --name
     mysqltuner --passwordfile /usr/local/maxicode/maxidb/basic_passwords.txt --cvefile /usr/local/maxicode/maxidb/vulnerabilities.csv
-
+    # TODO will auto fix mysqltuner suggestion
+    #  https://stackoverflow.com/questions/47082865/mariadb-optimization-and-mysqltuner-pl-ram-and-tuning
     #when you execute mysqltuner, you will get suggestion what to tweak for your sql.
     #The mysqltuner will read directadmin mysql.conf password that you have specified before.
     #In case it cannot read and trigger an error.
@@ -10931,7 +10946,6 @@ function build_da_custom_settings() {
     echo ""
     # .htaccess
     _echo "$(msg cyan)Copying phpMyAdmin .htaccess into phpmyadmin DA custom folder ...$(msg end)" --name
-    #sleep 1
     cp -p "/var/www/html/phpMyAdmin/.htaccess" "/usr/local/directadmin/custombuild/custom/phpmyadmin/.htaccess"
     echo ""
     # config.inc.php
@@ -11170,9 +11184,7 @@ function configure_da_settings() {
     bind_current_version=$(echo "$(named -v)" | awk '{ print $2 }' | grep -oP [0-9]+\.[0-9]+\.[0-9]+)
     dns_caa_bind_required_version="9.9.6"
 
-    statement=$(echo "${bind_current_version} >= ${dns_caa_bind_required_version}" | bc -q)
-
-    if [ ${statement} -eq 0 ]; then
+    if is_valid version_required "${dns_caa_bind_required_version}" "${bind_current_version}"; then
       _echo "$(msg cyan)Enabling directadmin DNS CAA record ... $(msg end)" --name
       ${da_bin} set dns_caa 1
     else
@@ -11180,6 +11192,10 @@ function configure_da_settings() {
       ${da_bin} set dns_caa 0
     fi
 
+    echo ""
+    # A lot of setting have been changed, now we need to restart directadmin
+    _echo "$(msg cyan)Requesting directadmin to restart ...$(msg end)" --name
+    restart_da
     # Add more security concern here for directadmin installation
     echo ""
     check_finish_reboot "${func_name}"
@@ -15556,24 +15572,23 @@ function setup() {
         # Add da ipv6 and linking with ipv4 and vice versa (this option has --init argument)
         configure_da_ips --run
         install_da_csf --run
-        configure_csf --run-exit
-        configure_da_sql --run-force-exit
-        # restest here
-        configure_da_mail --run-exit
-        configure_da_ftp --run-exit
-        configure_nginx_apache --run-exit
-        build_da_custom_settings --run-exit
-        configure_web_apps --run-exit
-        configure_da_settings --run-exit
-        configure_da_cb_settings --run-exit
-        configure_da_redis --run-exit
+        configure_csf --run
+        configure_da_sql --run
+        configure_da_mail --run
+        configure_da_ftp --run
+        configure_nginx_apache --run
+        build_da_custom_settings --run
+        configure_web_apps --run
+        configure_da_settings --run
+        configure_da_cb_settings --run
+        configure_da_redis --run
         configure_da_memcached --skip # Deprecated (skip this use redis instead)
         configure_da_geoip --skip     # Skip until found useful
         # Important to run configure_da_dns_templates first before creating any domains so that the DNS record can use new template automatically
-        configure_da_dns_templates --run-exit
-        configure_da_host_domain --run-exit
+        configure_da_dns_templates --run
+        configure_da_host_domain --run
         # " -- owner --"
-        configure_da_owner_accounts --run-exit
+        configure_da_owner_accounts --run
         configure_da_owner_skins --run
         configure_da_owner_security --run
 
