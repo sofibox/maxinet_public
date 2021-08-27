@@ -72,6 +72,15 @@ C_LOG_VERBOSITY_LEVEL="6"
 # Possible values are: true, false
 C_AUTO_DESTROY_CONFIG=true
 
+# C_HOST_PUBIC_IP:
+# This variable is used to store the current host public IP.
+# This IP address is useful for example to allow firewall to ignore this IP during setup
+# The possible values are any IPv4 or IPv6
+# If you leave this variable empty, it will automatically retrieve your current host public IP from the script.
+# possible values are any IPv6 or IPv4 host public IP
+# Important note: Known issue, if this variable is not supplied, it might slow down script.
+C_HOST_PUBLIC_IP="42.188.5.23"
+
 # C_SPIN_PROGRESS:
 # This variable is used to display progress bar animation within the function _echo().
 # This variable is used too hold progress spin character, useful to display a long or delay statement.
@@ -122,14 +131,6 @@ C_PRE_AUTORUN_SETUP=true
 # The possible value should not contain more than the maximum of the total processor cores, the script will validate this
 # For most modern processors, the minimum and default value is "2". If you set the value to "1", some functions might display warning that the process will run slower
 C_HOST_MAX_PROCESSOR="2"
-
-# C_HOST_PUBIC_IP:
-# This variable is used to store the current host public IP.
-# This IP address is useful for example to allow firewall to ignore this IP during setup
-# The possible values are any IPv4 or IPv6
-# If you leave this variable empty, it will automatically retrieve your current host public IP from the script.
-# possible values are any IPv6 or IPv4 host public IP
-C_HOST_PUBLIC_IP=""
 
 # C_SERVER_TYPE:
 # This variable is used to set the server installation type
@@ -255,32 +256,50 @@ C_DA_LICENSE_ID="123456"
 # because one click sign in feature only with 2222
 C_DA_PORT="2222"
 
-# TODO documentation will be written more starting here ...
+# C_DA_[ROLE]_HELPER:
+# This is used to set online help file in directadmin
 C_DA_ADMIN_HELPER="help.sofibox.com/directadmin/admin"
 C_DA_RESELLER_HELPER="help.sofibox.com/directadmin/reseller"
 C_DA_USER_HELPER="help.sofibox.com/directadmin/user"
-C_DA_CUSTOMBUILD_VERSION="2.0"
-# Server cache configuration, planned variable
+
+# C_DA_INSTALL_REDIS:
+# This is used to enable and install redis cache
 C_DA_INSTALL_REDIS=true
-# C_DA_INSTALL_MEMCACHED is going to be deprecated (it is recommend to use redis instead because redis is supported in Custombuild)
+
+# C_DA_INSTALL_MEMCACHED:
+# This is used to enable and install memcached cache
 C_DA_INSTALL_MEMCACHED=true
+
+# C_DA_INSTALL_GEOIP:
+# This is used to enable and install geoip
 C_DA_INSTALL_GEOIP=true
+
+# C_ENABLE_DA_HOST_SSL
+# This variable is used to enable server/host domain SSL. Leave this this option enabled for securityC_ENABLE_DA_HOST_SSL=true
 C_ENABLE_DA_HOST_SSL=true
 
-# This is a new testing feature to add automatically ipv6 config (official and manual way)
-# when supplying true , meaning no need to add through GUI manually, system will will do it automatically
-# Warning if you disable this variable C_DA_AUTO_ADD_IPV46_ENTRY, the installation will try to open directadmin port for you to keyin IPv6 IP address manually
-# So, it requires your input to press enter
+# C_DA_AUTO_ADD_IPV46_ENTRY:
+# This is a feature to add automatically ipv6 or ipv4 config file in directadmin.
+# When this option is enabled (true), we do not need to manually add IPv6 through directadmin GUI.
+# The script will automatically add IPv6 or IPv4 if they are missing.
+# Note that if this variable is set to false, the installation will generate directadmin login link and try to open directadmin port for you to keyin IPv6 IP address manually
+# So, if this option is set to false, the script will pause for user input to press enter
 C_DA_AUTO_ADD_IPV46_ENTRY=true
-# Warning if you disable this variable C_DA_AUTO_LINK_IP, the installation will try to open directadmin port for you to link IPv6 IP address with IPv4 IP address manually
-# So, it requires your input to press enter
+
+# C_DA_AUTO_LINK_IP:
+# This variable is used to enable IPv4 and IPv6 linking automatically during installation.
+# Note that if you disable this option, thhe script will try to open directadmin port for you to link IPv6 and IPv4 manually through web interface
+# So, you are required an input to press enter
 C_DA_AUTO_LINK_IP=true
-# C_DA_LOGIN_METHOD: NOTE this is a planned feature (this setting has no effect yet)
+
+# C_DA_LOGIN_METHOD:
 # This variable is used as login style method in directadmin. This login method is mentioned in the directadmin API documentation
 # Possible values are:
 # sign-as = This will use da login method with piping: "admin|client". Using this sign-as method, this will log as the client from admin by just by reffering the username (benefit: no need to know the client passwords)
 # direct-login = login directly using username and password (disadvantage: need to know directadmin client username and password)
 C_DA_LOGIN_METHOD="sign-as"
+
+# Start directadmin directadmin.conf options #
 
 # UNLISTED variable for API using CMD_API_ADMIN_SETTINGS:
 C_DA_USER_BRUTECOUNT=100
@@ -373,10 +392,10 @@ C_DA_CB_MODSECURITY_RULESET="comodo"
 # Format <sql_type>-<sql_version>
 # or mysql-8.0
 C_DA_CB_SQL_VERSION="mariadb-10.6"
-# Format <7.3-fpm,74-fpm,8.0-fpm>
-# php7.3-fpm means php version 7.3 with FPM mode
+# Format <7.3:php-fpm,74:php-fpm,8.0:php-fpm>
+# php7.3:php-fpm means php version 7.3 with FPM mode
 # the first order is the first PHP version (also used by directadmin system). Max is 4, extra argument will be ignored
-C_DA_CB_PHP_VERSION="7.4-fpm,8.0-fpm"
+C_DA_CB_PHP_VERSION="7.4:php-fpm,8.0:php-fpm"
 # This is for installing clamav
 C_DA_CB_ENABLE_CLAMAV="yes"
 # Enable / disable clamav service
