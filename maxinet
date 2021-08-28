@@ -4,7 +4,7 @@
 
 _APP_SPECIFIC_NAME="Maxinet"
 # Note that some minor versions are not published
-_APP_VERSION="0.5.8.7"
+_APP_VERSION="0.5.8.8"
 _APP_STATUS="alpha"
 _APP_VERSION_STATUS="${_APP_VERSION}-${_APP_STATUS}"
 
@@ -702,23 +702,27 @@ function is_valid() {
     url=$(echo "${url_port}" | awk -F':' '{ print $1 }')
     port=$(echo "${url_port}" | awk -F':' '{ print $2 }')
 
+    #echo "url_port ${url_port}"
+    #echo "URL is ${url}"
+    #echo "Port is ${port}"
+
     # If port is empty, we use default SSL port that is 443
     if [ -z "${port}" ]; then
       port="443"
     fi
+
     host "${url}" >/dev/null 2>&1
     retval=$?
     if [ "${retval}" -eq 0 ]; then
       #echo "Link is valid"
-      # Use timeout 5 instead of the built-in function because the built in function --max-wait does not work
+      # Use timeout 3 instead of the built-in function because the built in function --max-wait does not work
       # This will get the final redirection for a hostname
       final_hostname=$(timeout 3 curl "${url}" -s -L -I -o /dev/null -w '%{url_effective}' | awk -F[/:] '{print $4}')
       #echo "URL: ${url}"
       #echo "FINAL_HOSTNAME: ${final_hostname}"
       #echo "PORT: ${port}"
-
-      status=$(openssl s_client -connect "${final_hostname}:${port}" </dev/null 2>/dev/null | grep 'Verify return code: 0 (ok)')
-
+      # This one also need timeout, do not use https if timeout more than 3 second
+      status=$(timeout 3 openssl s_client -connect "${final_hostname}:${port}" </dev/null 2>/dev/null | grep 'Verify return code: 0 (ok)')
       if [ -n "${status}" ]; then
         #echo "Site ${final_hostname} with port ${port} is valid https"
         return 0
@@ -813,16 +817,17 @@ function is_valid() {
     local ipv4="${data1}" ipv4_pattern='^(([1-9]?[0-9]|1[0-9][0-9]|2([0-4][0-9]|5[0-5]))\.){3}([1-9]?[0-9]|1[0-9][0-9]|2([0-4][0-9]|5[0-5]))$'
 
     if [[ "${ipv4}" =~ ${ipv4_pattern} ]]; then
-      #retval=0
-      if command -v ip &>/dev/null; then
-        method_bin=$(command -v ip)
-        "${method_bin}" route get "${ipv4}" >/dev/null 2>&1
-        retval=$?
+      retval=0
+      # Using this command will check IP is reachable ( do not use )
+      #if command -v ip &>/dev/null; then
+      #method_bin=$(command -v ip)
+      #"${method_bin}" route get "${ipv4}" >/dev/null 2>&1
+      #retval=$?
 
-      else
-        #_echo "$(msg yellow)Warning, unable to find suitable binary for checking ipv4 or ipv6 address. $(msg end)" --name --verbose 4
-        retval=1
-      fi
+      #else
+      #  #_echo "$(msg yellow)Warning, unable to find suitable binary for checking ipv4 or ipv6 address. $(msg end)" --name --verbose 4
+      #  retval=1
+      #fi
     else
       retval=1
     fi
@@ -833,15 +838,16 @@ function is_valid() {
     local ipv6="${data1}" ipv6_pattern method_bin retval
     ipv6_pattern='^([0-9a-fA-F]{0,4}:){1,7}[0-9a-fA-F]{0,4}$'
     if [[ ${ipv6} =~ ${ipv6_pattern} ]]; then
-      #retval=0
-      if command -v ip &>/dev/null; then
-        method_bin=$(command -v ip)
-        "${method_bin}" route get "${ipv6}" >/dev/null 2>&1
-        retval=$?
-      else
-        #_echo "$(msg yellow)Warning, unable to find suitable binary for checking ipv4 or ipv6 address. $(msg end)" --name --verbose 4
-        retval=1
-      fi
+      retval=0
+      # Using this command will check IP is reachable ( do not use )
+      #if command -v ip &>/dev/null; then
+      #  method_bin=$(command -v ip)
+      #  "${method_bin}" route get "${ipv6}" >/dev/null 2>&1
+      #  retval=$?
+      #else
+      #  #_echo "$(msg yellow)Warning, unable to find suitable binary for checking ipv4 or ipv6 address. $(msg end)" --name --verbose 4
+      #  retval=1
+      #fi
 
     else
       retval=1
@@ -967,6 +973,7 @@ function configure_dropbox_cli() {
   rm -rf "${INST_TEMP_DIR}/dropbox_cli"
   mkdir -p "${INST_TEMP_DIR}/dropbox_cli"
   _echo "$(msg cyan)Installing new version of dropbox-CLI forked from andreafabrizi/Dropbox-Uploader ... $(msg end)" --name
+  required "debian@@apt:git" "ubuntu@@apt:git"
   git clone https://github.com/sofibox/Dropbox-Uploader.git "${INST_TEMP_DIR}/dropbox_cli"
   mv "${INST_TEMP_DIR}/dropbox_cli/dropbox_uploader.sh" "${INST_TEMP_DIR}/dropbox_cli/dbxcli"
   chmod +x "${INST_TEMP_DIR}/dropbox_cli/dbxcli"
@@ -990,6 +997,86 @@ function configure_dropbox_cli() {
 }
 
 function ensure_host_domain_ip_resolved() {
+  local failed_check_count
+  failed_check_count=0
+
+  echo -n "Checking ${LABEL_C_BOX_DOMAIN} A record resolves with IPv4 ${LABEL_C_IPV4_ADD0} ... "
+  while :; do
+    if is_valid ipv4_resolved "${C_IPV4_ADD0}" "${C_BOX_DOMAIN}"; then
+      _echo "$(msg green) [OK]$(msg end)" --plain
+      break
+    else
+      local check_duration
+      _echo "$(msg red) [FAILED]$(msg end)" --plain
+      ((failed_check_count++))
+      if [[ "${failed_check_count}" -eq 1 ]]; then
+        if [ "${DNS_PROVIDER_NAME}" == "linode" ]; then
+          _echo "$(msg cyan)Creating domain ${LABEL_C_BOX_DOMAIN} in linode if does not exist ...$(msg end)" --name
+          linode_api_admin create-domain --domain-type "master" --domain "${C_BOX_DOMAIN}" --domain-email "webmaster@${C_BOX_DOMAIN}" --domain-ttl 30
+          echo ""
+          _echo "$(msg cyan)Creating dns A record ${LABEL_C_BOX_DOMAIN} in linode...$(msg end)" --name
+          linode_api_admin add-dns-record --domain "${C_BOX_DOMAIN}" --record-type "A" --record-name "${C_BOX_DOMAIN}" --record-value "${C_IPV4_ADD0}" --record-ttl 30
+        elif [ "${DNS_PROVIDER_NAME}" == "local" ]; then
+          echo "[${SCRIPT_NAME}]: External DNS provider for domain ${C_BOX_DOMAIN} is set to local"
+          # Do nothing because it's local DNS managed by Directadmin
+        fi
+      fi
+
+      #_echo "$(msg red)Please create / check for domain ${LABEL_C_BOX_DOMAIN} that it must have an A record pointing to ${LABEL_C_IPV4_ADD0}$(msg end)" --name
+      #_exit 147
+      check_duration=30
+      while :; do
+        ((check_duration--))
+        _echo "Re-checking ${LABEL_C_BOX_DOMAIN} A record resolves with IPv4 ${LABEL_C_IPV4_ADD0} within ${check_duration} seconds ... " --name --start-spin
+        if [ "${check_duration}" -le 0 ]; then
+          # echo -n "Re-checking ${LABEL_C_BOX_DOMAIN} A record resolves with IPv4 ${LABEL_C_IPV4_ADD0} in 120 seconds ... "
+          break
+        fi
+        sleep 1
+      done
+    fi
+  done
+
+  failed_check_count=0
+
+  echo -n "Checking ${LABEL_C_BOX_DOMAIN} AAAA record resolves with IPv4 ${LABEL_C_IPV6_ADD0} ... "
+  while :; do
+    if is_valid ipv6_resolved "${C_IPV6_ADD0}" "${C_BOX_DOMAIN}"; then
+      _echo "$(msg green) [OK]$(msg end)" --plain
+      break
+    else
+      local check_duration
+      _echo "$(msg red) [FAILED]$(msg end)" --plain
+      ((failed_check_count++))
+      if [[ "${failed_check_count}" -eq 1 ]]; then
+        if [ "${DNS_PROVIDER_NAME}" == "linode" ]; then
+          _echo "$(msg cyan)Creating domain ${LABEL_C_BOX_DOMAIN} in linode if does not exist ...$(msg end)" --name
+          linode_api_admin create-domain --domain-type "master" --domain "${C_BOX_DOMAIN}" --domain-email "webmaster@${C_BOX_DOMAIN}" --domain-ttl 30
+          echo ""
+          _echo "$(msg cyan)Creating dns AAAA record ${LABEL_C_BOX_DOMAIN} in linode...$(msg end)" --name
+          linode_api_admin add-dns-record --domain "${C_BOX_DOMAIN}" --record-type "AAAA" --record-name "${C_BOX_DOMAIN}" --record-value "${C_IPV6_ADD0}" --record-ttl 30
+        elif [ "${DNS_PROVIDER_NAME}" == "local" ]; then
+          echo "[${SCRIPT_NAME}]: External DNS provider for domain ${C_BOX_DOMAIN} is set to local"
+          # Do nothing because it's local DNS managed by Directadmin
+        fi
+      fi
+
+      #_echo "$(msg red)Please create / check for domain ${LABEL_C_BOX_DOMAIN} that it must have an AAAA record pointing to ${LABEL_C_IPV6_ADD0}$(msg end)" --name
+      #_exit 147
+      check_duration=30
+      while :; do
+        ((check_duration--))
+        _echo "Re-checking ${LABEL_C_BOX_DOMAIN} AAAA record resolves with IPv6 ${LABEL_C_IPV6_ADD0} within ${check_duration} seconds ... " --name --start-spin
+        if [ "${check_duration}" -le 0 ]; then
+          # echo -n "Re-checking ${LABEL_C_BOX_DOMAIN} AAAA record resolves with IPv4 ${LABEL_C_IPV6_ADD0} in 120 seconds ... "
+          break
+        fi
+        sleep 1
+      done
+    fi
+  done
+
+  failed_check_count=0
   echo -n "Checking ${LABEL_C_BOX_HOSTNAME_FQHN} A record resolves with IPv4 ${LABEL_C_IPV4_ADD0} ... "
   while :; do
     if is_valid ipv4_resolved "${C_IPV4_ADD0}" "${C_BOX_HOSTNAME_FQHN}"; then
@@ -998,6 +1085,20 @@ function ensure_host_domain_ip_resolved() {
     else
       local check_duration
       _echo "$(msg red) [FAILED]$(msg end)" --plain
+      ((failed_check_count++))
+      if [[ "${failed_check_count}" -eq 1 ]]; then
+        if [ "${DNS_PROVIDER_NAME}" == "linode" ]; then
+          _echo "$(msg cyan)Creating domain ${LABEL_C_BOX_HOSTNAME_FQHN} in linode if does not exist ...$(msg end)" --name
+          linode_api_admin create-domain --domain-type "master" --domain "${C_BOX_HOSTNAME_FQHN}" --domain-email "webmaster@${C_BOX_HOSTNAME_FQHN}" --domain-ttl 30
+          echo ""
+          _echo "$(msg cyan)Creating dns A record ${LABEL_C_BOX_HOSTNAME_FQHN} in linode...$(msg end)" --name
+          linode_api_admin add-dns-record --domain "${C_BOX_HOSTNAME_FQHN}" --record-type "A" --record-name "${C_BOX_HOSTNAME_FQHN}" --record-value "${C_IPV4_ADD0}" --record-ttl 30
+        elif [ "${DNS_PROVIDER_NAME}" == "local" ]; then
+          echo "[${SCRIPT_NAME}]: External DNS provider for domain ${domain} is set to local"
+          # Do nothing because it's local DNS managed by Directadmin
+        fi
+      fi
+
       #_echo "$(msg red)Please create / check for domain ${C_BOX_HOSTNAME_FQHN} that it must have an A record pointing to ${LABEL_C_IPV4_ADD0}$(msg end)" --name
       #_exit 147
       check_duration=30
@@ -1013,6 +1114,7 @@ function ensure_host_domain_ip_resolved() {
     fi
   done
 
+  failed_check_count=0
   echo -n "Checking ${LABEL_C_BOX_HOSTNAME_FQHN} AAAA record resolves with IPv4 ${LABEL_C_IPV6_ADD0} ... "
   while :; do
     if is_valid ipv6_resolved "${C_IPV6_ADD0}" "${C_BOX_HOSTNAME_FQHN}"; then
@@ -1021,7 +1123,20 @@ function ensure_host_domain_ip_resolved() {
     else
       local check_duration
       _echo "$(msg red) [FAILED]$(msg end)" --plain
-      #_echo "$(msg red)Please create / check for domain ${C_BOX_HOSTNAME_FQHN} that it must have an AAAA record pointing to ${LABEL_C_IPV6_ADD0}$(msg end)" --name
+      ((failed_check_count++))
+      if [[ "${failed_check_count}" -eq 1 ]]; then
+        if [ "${DNS_PROVIDER_NAME}" == "linode" ]; then
+          _echo "$(msg cyan)Creating domain ${LABEL_C_BOX_HOSTNAME_FQHN} in linode if does not exist ...$(msg end)" --name
+          linode_api_admin create-domain --domain-type "master" --domain "${C_BOX_HOSTNAME_FQHN}" --domain-email "webmaster@${C_BOX_HOSTNAME_FQHN}" --domain-ttl 30
+          echo ""
+          _echo "$(msg cyan)Creating dns AAAA record ${LABEL_C_BOX_HOSTNAME_FQHN} in linode...$(msg end)" --name
+          linode_api_admin add-dns-record --domain "${C_BOX_HOSTNAME_FQHN}" --record-type "AAAA" --record-name "${C_BOX_HOSTNAME_FQHN}" --record-value "${C_IPV6_ADD0}" --record-ttl 30
+        elif [ "${DNS_PROVIDER_NAME}" == "local" ]; then
+          echo "[${SCRIPT_NAME}]: External DNS provider for domain ${LABEL_C_BOX_HOSTNAME_FQHN} is set to local"
+          # Do nothing because it's local DNS managed by Directadmin
+        fi
+      fi
+      #_echo "$(msg red)Please create / check for domain ${LABEL_C_BOX_HOSTNAME_FQHN} that it must have an AAAA record pointing to ${LABEL_C_IPV6_ADD0}$(msg end)" --name
       #_exit 147
       check_duration=30
       while :; do
@@ -1564,12 +1679,24 @@ function ssh_api() {
     fi
 
     # Do not quote local_path to enable multiple file transfers
-    _echo "$(msg cyan)Transferring file local files(s) [ ${local_files} ] into remote SSH ${remote_path} ...$(msg end)" --name
+    _echo "$(msg cyan)Transferring file local files(s) [ ${local_files} ] into remote SSH ${remote_path} using rsync ...$(msg end)" --name
     # Old method using scp
-    scp -q -o "StrictHostKeyChecking no" -P "${port}" -i "${rsa_key}" ${local_files} "${user}@${server}:${remote_path}" 2> >(grep -v 'Permanently' 1>&2)
+    #scp -o "StrictHostKeyChecking no" -P "${port}" -i "${rsa_key}" ${local_files} "${user}@${server}:${remote_path}" 2> >(grep -v 'Permanently' 1>&2)
+    #retval=$?
+    #echo "status is ${retval}"
 
     # New method using rsync (this method required the remote has rsync installed)
-    #rsync -Pav -e "ssh -q -o 'StrictHostKeyChecking no' -i '${rsa_key}' -p '${port}'" ${local_files} "${user}@${server}:${remote_path}"
+    rsync -Pav -e "ssh -q -o 'StrictHostKeyChecking no' -i '${rsa_key}' -p '${port}'" ${local_files} "${user}@${server}:${remote_path}"
+    retval=$?
+
+    if [ "${retval}" -ne 0 ]; then
+      _echo "$(msg cyan)Warning, failed to use rsync to transfer file, using scp .. $(msg end)" --name
+      _echo "$(msg cyan)Transferring file local files(s) [ ${local_files} ] into remote SSH ${remote_path} using scp ...$(msg end)" --name
+      # Old method using scp
+      scp -o "StrictHostKeyChecking no" -P "${port}" -i "${rsa_key}" ${local_files} "${user}@${server}:${remote_path}" 2> >(grep -v 'Permanently' 1>&2)
+      retval=$?
+      echo "SCP transfer status is ${retval}"
+    fi
 
     # ssh_api luks-unlock --port 8922 --password 1234
     # or without argument ssh_api luks-unlock (it will get the default values from config file)
@@ -6898,19 +7025,23 @@ function da_api_admin() {
   local user_list_path da_user
 
   #local owner_main_auth admin_main_auth reseller_main_auth user_main_auth user_extra_auth
-  local ssl_protocol
+  local ssl_protocol port
 
   # This folder contains list of directadmin users as folder name
   user_list_path="/usr/local/directadmin/data/users/"
   admin_original_auth_file="/usr/local/directadmin/scripts/setup.txt"
 
-  if is_valid ssl_site "${C_BOX_HOSTNAME_FQHN}:${C_DA_PORT}"; then
-    #echo "OK, ${C_BOX_HOSTNAME_FQHN} is a valid SSL/https site"
-    ssl_protocol="https"
-  else
-    [[ "${scripting}" == "false" ]] && _echo "$(msg yellow)Warning, using unsecured connection for directadmin API because ${C_BOX_HOSTNAME_FQHN} is currently not a valid SSL/https site$(msg end)" --name --verbose 7
-    ssl_protocol="http"
-  fi
+  port="$(cat /usr/local/directadmin/conf/directadmin.conf | grep '^port=' | cut -d= -f2)"
+
+  # We just use http protocol, as directadmin documentation said this is not important and will be handled by directadmin.
+
+  #if is_valid ssl_site "${C_BOX_HOSTNAME_FQHN}:${port}"; then
+  #echo "OK, ${C_BOX_HOSTNAME_FQHN} is a valid SSL/https site"
+  #  ssl_protocol="https"
+  #else
+  # [[ "${scripting}" == "false" ]] && _echo "$(msg yellow)Warning, using unsecured connection for directadmin API because ${C_BOX_HOSTNAME_FQHN} is currently not a valid SSL/https site$(msg end)" --name --verbose 7
+  ssl_protocol="http"
+  #fi
 
   # TODO this one contains sensitive information, hide later or suggesting to use  --verbose less than 7
   if [[ "${scripting}" == "false" ]]; then
@@ -6985,6 +7116,7 @@ function da_api_admin() {
 
   [[ "${scripting}" == "false" ]] && _echo "DA_API_PASSWORD: ${da_api_password}" --name --verbose 7
   [[ "${scripting}" == "false" ]] && _echo "API PROTOCOL SELECTED: ${ssl_protocol}" --name --verbose 7
+  [[ "${scripting}" == "false" ]] && _echo "API PORT SELECTED: ${port}" --name --verbose 7
   [[ "${scripting}" == "false" ]] && _echo "$(msg magenta)=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=$(msg end)" --name --verbose 7
   [[ "${scripting}" == "false" ]] && _echo "$(msg newline)" --plain --verbose 7
 
@@ -6993,7 +7125,7 @@ function da_api_admin() {
     cmd_api="CMD_API_PACKAGES_USER"
     data="package=${package_name}"
     method="POST"
-    da_api_exec=$(curl --silent --request "${method}" --user "${da_api_username}":"${da_api_password}" --data "${data}" "${ssl_protocol}://${C_BOX_HOSTNAME_FQHN}:${C_DA_PORT}/${cmd_api}")
+    da_api_exec=$(curl --silent --request "${method}" --user "${da_api_username}":"${da_api_password}" --data "${data}" "${ssl_protocol}://${C_BOX_HOSTNAME_FQHN}:${port}/${cmd_api}")
     has_success=$(echo "${da_api_exec}" | grep -w '^error=0')
     if [ -z "${has_success}" ]; then
       _echo "$(msg red)Error, API with action ${action} executed with the following error: $(msg end)" --name
@@ -7011,7 +7143,7 @@ function da_api_admin() {
     cmd_api="CMD_API_USER_EXISTS"
     data="user=${username}"
     method="POST"
-    da_api_exec=$(curl --silent --request "${method}" --user "${da_api_username}":"${da_api_password}" --data "${data}" "${ssl_protocol}://${C_BOX_HOSTNAME_FQHN}:${C_DA_PORT}/${cmd_api}")
+    da_api_exec=$(curl --silent --request "${method}" --user "${da_api_username}":"${da_api_password}" --data "${data}" "${ssl_protocol}://${C_BOX_HOSTNAME_FQHN}:${port}/${cmd_api}")
     has_success=$(echo "${da_api_exec}" | grep -w '^error=0')
 
     if [ -z "${has_success}" ]; then
@@ -7032,7 +7164,7 @@ function da_api_admin() {
       # Remember for IPv6, netmask must be using subnet prefix notation. This will check that:
       #/1 - /64
       if ! is_valid ipv6_prefix "${netmask}"; then
-        _echo "$(msg red)Error, IPv6 address requires netmask in subnet prefix notation. eg: /0 - /64$(msg end)" --name
+        _echo "$(msg red)Error, IPv6 address requires netmask in subnet prefix notation. eg: /0 - /128$(msg end)" --name
         _exit 147
       fi
     fi
@@ -7049,7 +7181,7 @@ function da_api_admin() {
     data="action=add&ip=${ip_address}&netmask=${netmask}&device=yes&add_to_device_aware=yes"
     method="POST"
     # API call
-    da_api_exec=$(curl --silent --request "${method}" --user "${da_api_username}":"${da_api_password}" --data "${data}" "${ssl_protocol}://${C_BOX_HOSTNAME_FQHN}:${C_DA_PORT}/${cmd_api}")
+    da_api_exec=$(curl --silent --request "${method}" --user "${da_api_username}":"${da_api_password}" --data "${data}" "${ssl_protocol}://${C_BOX_HOSTNAME_FQHN}:${port}/${cmd_api}")
     has_success=$(echo "${da_api_exec}" | grep -w '^error=0')
 
     if [ -z "${has_success}" ]; then
@@ -7084,7 +7216,7 @@ function da_api_admin() {
         # Add single values here
         _exit 147
       fi
-      curl --silent --request "${method}" --user "${da_api_username}":"${da_api_password}" --data "${data}" "${ssl_protocol}://${C_BOX_HOSTNAME_FQHN}:${C_DA_PORT}/${cmd_api}"
+      curl --silent --request "${method}" --user "${da_api_username}":"${da_api_password}" --data "${data}" "${ssl_protocol}://${C_BOX_HOSTNAME_FQHN}:${port}/${cmd_api}"
     else
       cmd_api="CMD_API_ADMIN_SETTINGS"
       if [ "${recommend_values}" == "true" ]; then
@@ -7096,7 +7228,7 @@ function da_api_admin() {
         _exit 147
       fi
 
-      da_api_exec=$(curl --silent --request "${method}" --user "${da_api_username}":"${da_api_password}" --data "${data}" "${ssl_protocol}://${C_BOX_HOSTNAME_FQHN}:${C_DA_PORT}/${cmd_api}")
+      da_api_exec=$(curl --silent --request "${method}" --user "${da_api_username}":"${da_api_password}" --data "${data}" "${ssl_protocol}://${C_BOX_HOSTNAME_FQHN}:${port}/${cmd_api}")
       has_success=$(echo "${da_api_exec}" | grep -w '^error=0')
 
       if [ -z "${has_success}" ]; then
@@ -7134,9 +7266,9 @@ function da_api_admin() {
     fi
     method="POST"
     if [ "${cmd_api_not_release}" == "true" ]; then
-      curl --silent --request "${method}" --user "${da_api_username}":"${da_api_password}" --data "${data}" "${ssl_protocol}://${C_BOX_HOSTNAME_FQHN}:${C_DA_PORT}/${cmd_api}"
+      curl --silent --request "${method}" --user "${da_api_username}":"${da_api_password}" --data "${data}" "${ssl_protocol}://${C_BOX_HOSTNAME_FQHN}:${port}/${cmd_api}"
     else
-      da_api_exec=$(curl --silent --request "${method}" --user "${da_api_username}":"${da_api_password}" --data "${data}" "${ssl_protocol}://${C_BOX_HOSTNAME_FQHN}:${C_DA_PORT}/${cmd_api}")
+      da_api_exec=$(curl --silent --request "${method}" --user "${da_api_username}":"${da_api_password}" --data "${data}" "${ssl_protocol}://${C_BOX_HOSTNAME_FQHN}:${port}/${cmd_api}")
       has_success=$(echo "${da_api_exec}" | grep -w '^error=0')
       if [ -z "${has_success}" ]; then
         _echo "$(msg red)Error, API with action ${action} executed with the following error: $(msg end)" --name
@@ -7179,7 +7311,7 @@ function da_api_admin() {
 
       #echo "data-------------------------: ${data}"
       if [ -n "${data}" ]; then
-        da_api_exec=$(curl --silent --request "${method}" --user "${da_api_username}":"${da_api_password}" --data "${data}" "${ssl_protocol}://${C_BOX_HOSTNAME_FQHN}:${C_DA_PORT}/${cmd_api}")
+        da_api_exec=$(curl --silent --request "${method}" --user "${da_api_username}":"${da_api_password}" --data "${data}" "${ssl_protocol}://${C_BOX_HOSTNAME_FQHN}:${port}/${cmd_api}")
         has_success=$(echo "${da_api_exec}" | grep -w '^error=0')
 
         if [ -z "${has_success}" ]; then
@@ -7198,7 +7330,7 @@ function da_api_admin() {
     cmd_api="CMD_API_ACCOUNT_ADMIN"
     data="action=create&add=submit&username=${username}&email=${email}&passwd=${password}&passwd2=${password}&notify=no"
     method="POST"
-    da_api_exec=$(curl --silent --request "${method}" --user "${da_api_username}":"${da_api_password}" --data "${data}" "${ssl_protocol}://${C_BOX_HOSTNAME_FQHN}:${C_DA_PORT}/${cmd_api}")
+    da_api_exec=$(curl --silent --request "${method}" --user "${da_api_username}":"${da_api_password}" --data "${data}" "${ssl_protocol}://${C_BOX_HOSTNAME_FQHN}:${port}/${cmd_api}")
     has_success=$(echo "${da_api_exec}" | grep -w '^error=0')
     if [ -z "${has_success}" ]; then
       _echo "$(msg red)Error, API with action ${action} executed with the following error: $(msg end)" --name
@@ -7215,7 +7347,7 @@ function da_api_admin() {
     cmd_api="CMD_API_ACCOUNT_RESELLER" # CMD_ACCOUNT_RESELLER is not working
     data="username=${username}&email=${email}&passwd=${password}&passwd2=${password}&domain=${domain}&package=${package_name}&notify=yes&ip=${ip_type}&action=create&add=yes"
     method="POST"
-    da_api_exec=$(curl --silent --request "${method}" --user "${da_api_username}":"${da_api_password}" --data "${data}" "${ssl_protocol}://${C_BOX_HOSTNAME_FQHN}:${C_DA_PORT}/${cmd_api}")
+    da_api_exec=$(curl --silent --request "${method}" --user "${da_api_username}":"${da_api_password}" --data "${data}" "${ssl_protocol}://${C_BOX_HOSTNAME_FQHN}:${port}/${cmd_api}")
     has_success=$(echo "${da_api_exec}" | grep -w '^error=0')
     if [ -z "${has_success}" ]; then
       _echo "$(msg red)Error, API with action ${action} executed with the following error: $(msg end)" --name
@@ -7241,7 +7373,7 @@ function da_api_admin() {
       _exit 147
     fi
     method="POST"
-    da_api_exec=$(curl --silent --request "${method}" --user "${da_api_username}":"${da_api_password}" --data "${data}" "${ssl_protocol}://${C_BOX_HOSTNAME_FQHN}:${C_DA_PORT}/${cmd_api}")
+    da_api_exec=$(curl --silent --request "${method}" --user "${da_api_username}":"${da_api_password}" --data "${data}" "${ssl_protocol}://${C_BOX_HOSTNAME_FQHN}:${port}/${cmd_api}")
 
     has_success=$(echo "${da_api_exec}" | grep -w '^error=0')
 
@@ -7269,7 +7401,7 @@ function da_api_admin() {
       _exit 147
     fi
     method="POST"
-    da_api_exec=$(curl --silent --request "${method}" --user "${da_api_username}":"${da_api_password}" --data "${data}" "${ssl_protocol}://${C_BOX_HOSTNAME_FQHN}:${C_DA_PORT}/${cmd_api}")
+    da_api_exec=$(curl --silent --request "${method}" --user "${da_api_username}":"${da_api_password}" --data "${data}" "${ssl_protocol}://${C_BOX_HOSTNAME_FQHN}:${port}/${cmd_api}")
     has_success=$(echo "${da_api_exec}" | grep -w '^error=0')
 
     if [ -z "${has_success}" ]; then
@@ -7286,7 +7418,7 @@ function da_api_admin() {
     cmd_api="CMD_API_EMAIL_POP"
     data="action=set_dkim&domain=${domain}&enable=yes"
     method="POST"
-    da_api_exec=$(curl --silent --request "${method}" --user "${da_api_username}":"${da_api_password}" --data "${data}" "${ssl_protocol}://${C_BOX_HOSTNAME_FQHN}:${C_DA_PORT}/${cmd_api}")
+    da_api_exec=$(curl --silent --request "${method}" --user "${da_api_username}":"${da_api_password}" --data "${data}" "${ssl_protocol}://${C_BOX_HOSTNAME_FQHN}:${port}/${cmd_api}")
     has_success=$(echo "${da_api_exec}" | grep -w '^error=0')
 
     if [ -z "${has_success}" ]; then
@@ -7297,14 +7429,14 @@ function da_api_admin() {
       _echo "$(msg green)OK, API with action ${action} executed with the following status: $(msg end)" --name
       _echo "$(msg green)${da_api_exec}$(msg end)" --plain | urldecode | awksep '&'
     fi
-    # da_api_admin create-dns-record --domain test.com --record-type TXT --record-name name11 --record-value value1 --record-ttl 30 --affect-pointers yes
+    # da_api_admin create-admin-dns-record--domain test.com --record-type TXT --record-name name11 --record-value value1 --record-ttl 30 --affect-pointers yes
   elif [[ "${action}" == "create-admin-dns-record" || "${action}" == "add-admin-dns-record" ]]; then
     local cmd_api data method retval da_api_exec has_success record_value
     cmd_api="CMD_API_DNS_ADMIN"
     affect_pointers=yes
     data="domain=${domain}&type=${record_type}&name=${record_name}&value=${record_value}&ttl=${record_ttl}&affect_pointers=${affect_pointers}&action=add"
     method="POST"
-    da_api_exec=$(curl --silent --request "${method}" --user "${da_api_username}":"${da_api_password}" --data "${data}" "${ssl_protocol}://${C_BOX_HOSTNAME_FQHN}:${C_DA_PORT}/${cmd_api}")
+    da_api_exec=$(curl --silent --request "${method}" --user "${da_api_username}":"${da_api_password}" --data "${data}" "${ssl_protocol}://${C_BOX_HOSTNAME_FQHN}:${port}/${cmd_api}")
     has_success=$(echo "${da_api_exec}" | grep -w '^error=0')
 
     if [ -z "${has_success}" ]; then
@@ -7322,7 +7454,7 @@ function da_api_admin() {
     affect_pointers=yes
     data="domain=${domain}&type=${record_type}&name=${record_name}&value=${record_value}&ttl=${record_ttl}&affect_pointers=${affect_pointers}&action=add"
     method="POST"
-    da_api_exec=$(curl --silent --request "${method}" --user "${da_api_username}":"${da_api_password}" --data "${data}" "${ssl_protocol}://${C_BOX_HOSTNAME_FQHN}:${C_DA_PORT}/${cmd_api}")
+    da_api_exec=$(curl --silent --request "${method}" --user "${da_api_username}":"${da_api_password}" --data "${data}" "${ssl_protocol}://${C_BOX_HOSTNAME_FQHN}:${port}/${cmd_api}")
     has_success=$(echo "${da_api_exec}" | grep -w '^error=0')
 
     if [ -z "${has_success}" ]; then
@@ -7343,25 +7475,25 @@ function da_api_admin() {
     method="POST"
 
     if [ "${special_type}" == "dkim" ]; then
-      has_record=$(curl --silent --request "${method}" --user "${da_api_username}":"${da_api_password}" --data "${data}" "${ssl_protocol}://${C_BOX_HOSTNAME_FQHN}:${C_DA_PORT}/${cmd_api}" |
+      has_record=$(curl --silent --request "${method}" --user "${da_api_username}":"${da_api_password}" --data "${data}" "${ssl_protocol}://${C_BOX_HOSTNAME_FQHN}:${port}/${cmd_api}" |
         jq -r ".records[] \
         | select((.type==\"TXT\") and (.name==\"x._domainkey\") and (.value | contains(\"v=DKIM1\"))) \
         | .value" |
         sed -e 's/^"//' -e 's/"$//')
     elif [ "${special_type}" == "dkim-policy" ]; then
-      has_record=$(curl --silent --request "${method}" --user "${da_api_username}":"${da_api_password}" --data "${data}" "${ssl_protocol}://${C_BOX_HOSTNAME_FQHN}:${C_DA_PORT}/${cmd_api}" |
+      has_record=$(curl --silent --request "${method}" --user "${da_api_username}":"${da_api_password}" --data "${data}" "${ssl_protocol}://${C_BOX_HOSTNAME_FQHN}:${port}/${cmd_api}" |
         jq -r ".records[] \
         | select((.type==\"TXT\") and (.name==\"_domainkey\") and (.value | contains(\"o=\"))) \
         | .value" |
         sed -e 's/^"//' -e 's/"$//')
     elif [ "${special_type}" == "spf" ]; then
-      has_record=$(curl --silent --request "${method}" --user "${da_api_username}":"${da_api_password}" --data "${data}" "${ssl_protocol}://${C_BOX_HOSTNAME_FQHN}:${C_DA_PORT}/${cmd_api}" |
+      has_record=$(curl --silent --request "${method}" --user "${da_api_username}":"${da_api_password}" --data "${data}" "${ssl_protocol}://${C_BOX_HOSTNAME_FQHN}:${port}/${cmd_api}" |
         jq -r ".records[] \
         | select((.type==\"TXT\") and (.name==\"${domain}.\") and (.value | contains(\"v=spf1\"))) \
         | .value" |
         sed -e 's/^"//' -e 's/"$//')
     elif [ "${special_type}" == "dmarc" ]; then
-      has_record=$(curl --silent --request "${method}" --user "${da_api_username}":"${da_api_password}" --data "${data}" "${ssl_protocol}://${C_BOX_HOSTNAME_FQHN}:${C_DA_PORT}/${cmd_api}" |
+      has_record=$(curl --silent --request "${method}" --user "${da_api_username}":"${da_api_password}" --data "${data}" "${ssl_protocol}://${C_BOX_HOSTNAME_FQHN}:${port}/${cmd_api}" |
         jq -r ".records[] \
         | select((.type==\"TXT\") and (.name==\"_dmarc\") and (.value | contains(\"v=DMARC1\"))) \
         | .value" |
@@ -7385,40 +7517,40 @@ function da_api_admin() {
     method="POST"
 
     if [ "${special_type^^}" == "A" ]; then
-      has_record=$(curl --silent --request "${method}" --user "${da_api_username}":"${da_api_password}" --data "${data}" "${ssl_protocol}://${C_BOX_HOSTNAME_FQHN}:${C_DA_PORT}/${cmd_api}" |
+      has_record=$(curl --silent --request "${method}" --user "${da_api_username}":"${da_api_password}" --data "${data}" "${ssl_protocol}://${C_BOX_HOSTNAME_FQHN}:${port}/${cmd_api}" |
         jq -r ".records[] \
         | select(.type==\"A\")")
     elif [ "${special_type^^}" == "AAAA" ]; then
-      has_record=$(curl --silent --request "${method}" --user "${da_api_username}":"${da_api_password}" --data "${data}" "${ssl_protocol}://${C_BOX_HOSTNAME_FQHN}:${C_DA_PORT}/${cmd_api}" |
+      has_record=$(curl --silent --request "${method}" --user "${da_api_username}":"${da_api_password}" --data "${data}" "${ssl_protocol}://${C_BOX_HOSTNAME_FQHN}:${port}/${cmd_api}" |
         jq -r ".records[] \
         | select(.type==\"AAAA\")")
     elif [ "${special_type^^}" == "CNAME" ]; then
-      has_record=$(curl --silent --request "${method}" --user "${da_api_username}":"${da_api_password}" --data "${data}" "${ssl_protocol}://${C_BOX_HOSTNAME_FQHN}:${C_DA_PORT}/${cmd_api}" |
+      has_record=$(curl --silent --request "${method}" --user "${da_api_username}":"${da_api_password}" --data "${data}" "${ssl_protocol}://${C_BOX_HOSTNAME_FQHN}:${port}/${cmd_api}" |
         jq -r ".records[] \
         | select(.type==\"CNAME\")")
       # This wil list all TXT record
     elif [ "${special_type^^}" == "TXT" ]; then
-      has_record=$(curl --silent --request "${method}" --user "${da_api_username}":"${da_api_password}" --data "${data}" "${ssl_protocol}://${C_BOX_HOSTNAME_FQHN}:${C_DA_PORT}/${cmd_api}" |
+      has_record=$(curl --silent --request "${method}" --user "${da_api_username}":"${da_api_password}" --data "${data}" "${ssl_protocol}://${C_BOX_HOSTNAME_FQHN}:${port}/${cmd_api}" |
         jq -r ".records[] \
         | select(.type==\"TXT\")")
     elif [ "${special_type^^}" == "NS" ]; then
-      has_record=$(curl --silent --request "${method}" --user "${da_api_username}":"${da_api_password}" --data "${data}" "${ssl_protocol}://${C_BOX_HOSTNAME_FQHN}:${C_DA_PORT}/${cmd_api}" |
+      has_record=$(curl --silent --request "${method}" --user "${da_api_username}":"${da_api_password}" --data "${data}" "${ssl_protocol}://${C_BOX_HOSTNAME_FQHN}:${port}/${cmd_api}" |
         jq -r ".records[] \
         | select(.type==\"NS\")")
     elif [ "${special_type^^}" == "MX" ]; then
-      has_record=$(curl --silent --request "${method}" --user "${da_api_username}":"${da_api_password}" --data "${data}" "${ssl_protocol}://${C_BOX_HOSTNAME_FQHN}:${C_DA_PORT}/${cmd_api}" |
+      has_record=$(curl --silent --request "${method}" --user "${da_api_username}":"${da_api_password}" --data "${data}" "${ssl_protocol}://${C_BOX_HOSTNAME_FQHN}:${port}/${cmd_api}" |
         jq -r ".records[] \
         | select(.type==\"MX\")")
     elif [ "${special_type^^}" == "SRV" ]; then
-      has_record=$(curl --silent --request "${method}" --user "${da_api_username}":"${da_api_password}" --data "${data}" "${ssl_protocol}://${C_BOX_HOSTNAME_FQHN}:${C_DA_PORT}/${cmd_api}" |
+      has_record=$(curl --silent --request "${method}" --user "${da_api_username}":"${da_api_password}" --data "${data}" "${ssl_protocol}://${C_BOX_HOSTNAME_FQHN}:${port}/${cmd_api}" |
         jq -r ".records[] \
         | select(.type==\"SRV\")")
     elif [ "${special_type^^}" == "CAA" ]; then
-      has_record=$(curl --silent --request "${method}" --user "${da_api_username}":"${da_api_password}" --data "${data}" "${ssl_protocol}://${C_BOX_HOSTNAME_FQHN}:${C_DA_PORT}/${cmd_api}" |
+      has_record=$(curl --silent --request "${method}" --user "${da_api_username}":"${da_api_password}" --data "${data}" "${ssl_protocol}://${C_BOX_HOSTNAME_FQHN}:${port}/${cmd_api}" |
         jq -r ".records[] \
         | select(.type==\"CAA\")")
     elif [ "${special_type^^}" == "PTR" ]; then
-      has_record=$(curl --silent --request "${method}" --user "${da_api_username}":"${da_api_password}" --data "${data}" "${ssl_protocol}://${C_BOX_HOSTNAME_FQHN}:${C_DA_PORT}/${cmd_api}" |
+      has_record=$(curl --silent --request "${method}" --user "${da_api_username}":"${da_api_password}" --data "${data}" "${ssl_protocol}://${C_BOX_HOSTNAME_FQHN}:${port}/${cmd_api}" |
         jq -r ".records[] \
         | select(.type==\"PTR\")")
     fi
@@ -7443,7 +7575,7 @@ function da_api_admin() {
       _exit 147
     fi
     method="POST"
-    da_api_exec=$(curl --silent --request "${method}" --user "${da_api_username}":"${da_api_password}" --data "${data}" "${ssl_protocol}://${C_BOX_HOSTNAME_FQHN}:${C_DA_PORT}/${cmd_api}")
+    da_api_exec=$(curl --silent --request "${method}" --user "${da_api_username}":"${da_api_password}" --data "${data}" "${ssl_protocol}://${C_BOX_HOSTNAME_FQHN}:${port}/${cmd_api}")
     has_success=$(echo "${da_api_exec}" | grep -w '^error=0')
     if [ -z "${has_success}" ]; then
       _echo "$(msg red)Error, API with action ${action} executed with the following error: $(msg end)" --name
@@ -7475,7 +7607,7 @@ function da_api_admin() {
       _exit 147
     fi
     method="POST"
-    da_api_exec=$(curl --silent --request "${method}" --user "${da_api_username}":"${da_api_password}" --data "${data}" "${ssl_protocol}://${C_BOX_HOSTNAME_FQHN}:${C_DA_PORT}/${cmd_api}")
+    da_api_exec=$(curl --silent --request "${method}" --user "${da_api_username}":"${da_api_password}" --data "${data}" "${ssl_protocol}://${C_BOX_HOSTNAME_FQHN}:${port}/${cmd_api}")
     has_success=$(echo "${da_api_exec}" | grep -w '^error=0')
     if [ -z "${has_success}" ]; then
       _echo "$(msg red)Error, API with action ${action} executed with the following error: $(msg end)" --name
@@ -7530,7 +7662,7 @@ function da_api_admin() {
     cmd_api="CMD_API_SKINS"
     data="action=upload_logo&file=${logo_file}&name=${skin_name}&which=${logo_mode}"
     method="POST"
-    da_api_exec=$(curl --silent --request "${method}" --user "${da_api_username}":"${da_api_password}" --data "${data}" "${ssl_protocol}://${C_BOX_HOSTNAME_FQHN}:${C_DA_PORT}/${cmd_api}")
+    da_api_exec=$(curl --silent --request "${method}" --user "${da_api_username}":"${da_api_password}" --data "${data}" "${ssl_protocol}://${C_BOX_HOSTNAME_FQHN}:${port}/${cmd_api}")
     has_success=$(echo "${da_api_exec}" | grep -w '^error=0')
     if [ -z "${has_success}" ]; then
       _echo "$(msg red)Error, API with action ${action} executed with the following error: $(msg end)" --name
@@ -7556,11 +7688,11 @@ function da_api_admin() {
       #data="type=custom&value=${answer}&action=add&custom_question=${question}&json=yes"
       # This work
       data="type=custom&value=${answer}&json=yes&action=add&custom_question=${question}"
-      curl --silent --request "${method}" --user "${da_api_username}":"${da_api_password}" --data "${data}" "${ssl_protocol}://${C_BOX_HOSTNAME_FQHN}:${C_DA_PORT}/${cmd_api}"
+      curl --silent --request "${method}" --user "${da_api_username}":"${da_api_password}" --data "${data}" "${ssl_protocol}://${C_BOX_HOSTNAME_FQHN}:${port}/${cmd_api}"
     else
       cmd_api="CMD_API_SECURITY_QUESTIONS"
       data="type=custom&value=${answer}&action=add&custom_question=${question}"
-      da_api_exec=$(curl --silent --request "${method}" --user "${da_api_username}":"${da_api_password}" --data "${data}" "${ssl_protocol}://${C_BOX_HOSTNAME_FQHN}:${C_DA_PORT}/${cmd_api}")
+      da_api_exec=$(curl --silent --request "${method}" --user "${da_api_username}":"${da_api_password}" --data "${data}" "${ssl_protocol}://${C_BOX_HOSTNAME_FQHN}:${port}/${cmd_api}")
       has_success=$(echo "${da_api_exec}" | grep -w '^error=0')
       if [ -z "${has_success}" ]; then
         _echo "$(msg red)Error, API with action ${action} executed with the following error: $(msg end)" --name
@@ -7578,7 +7710,7 @@ function da_api_admin() {
     cmd_api="CMD_API_SUBDOMAIN"
     data="domain=${domain}&subdomain=${subdomain}&action=create"
     method="POST"
-    da_api_exec=$(curl --silent --request "${method}" --user "${da_api_username}":"${da_api_password}" --data "${data}" "${ssl_protocol}://${C_BOX_HOSTNAME_FQHN}:${C_DA_PORT}/${cmd_api}")
+    da_api_exec=$(curl --silent --request "${method}" --user "${da_api_username}":"${da_api_password}" --data "${data}" "${ssl_protocol}://${C_BOX_HOSTNAME_FQHN}:${port}/${cmd_api}")
     has_success=$(echo "${da_api_exec}" | grep -w '^error=0')
     if [ -z "${has_success}" ]; then
       _echo "$(msg red)Error, API with action ${action} executed with the following error: $(msg end)" --name
@@ -7594,7 +7726,7 @@ function da_api_admin() {
     cmd_api="CMD_API_DNS_ADMIN"
     data="domain=${domain}&action=select&reset=yes"
     method="POST"
-    da_api_exec=$(curl --silent --request "${method}" --user "${da_api_username}":"${da_api_password}" --data "${data}" "${ssl_protocol}://${C_BOX_HOSTNAME_FQHN}:${C_DA_PORT}/${cmd_api}")
+    da_api_exec=$(curl --silent --request "${method}" --user "${da_api_username}":"${da_api_password}" --data "${data}" "${ssl_protocol}://${C_BOX_HOSTNAME_FQHN}:${port}/${cmd_api}")
     has_success=$(echo "${da_api_exec}" | grep -w '^error=0')
     if [ -z "${has_success}" ]; then
       _echo "$(msg red)Error, API with action ${action} executed with the following error: $(msg end)" --name
@@ -7611,7 +7743,7 @@ function da_api_admin() {
     #https://www.directadmin.com/features.php?id=2587 not sure if this useful
     data="user=${mail_user}&passwd=${mail_password}&passwd2=${mail_password}&quota=${mail_quota}&limit=${mail_limit}&domain=${mail_domain}&action=create"
     method="POST"
-    da_api_exec=$(curl --silent --request "${method}" --user "${da_api_username}":"${da_api_password}" --data "${data}" "${ssl_protocol}://${C_BOX_HOSTNAME_FQHN}:${C_DA_PORT}/${cmd_api}")
+    da_api_exec=$(curl --silent --request "${method}" --user "${da_api_username}":"${da_api_password}" --data "${data}" "${ssl_protocol}://${C_BOX_HOSTNAME_FQHN}:${port}/${cmd_api}")
     has_success=$(echo "${da_api_exec}" | grep -w '^error=0')
     if [ -z "${has_success}" ]; then
       _echo "$(msg red)Error, API with action ${action} executed with the following error: $(msg end)" --name
@@ -7640,7 +7772,7 @@ function da_api_admin() {
       else
         data="name=${db_name}&user=${db_user}&passwd=${db_password}&passwd2=${db_password}&domain=${db_domain}&userlist=...&action=create&json=yes"
       fi
-      curl --request "${method}" --user "${da_api_username}":"${da_api_password}" --data "${data}" "${ssl_protocol}://${C_BOX_HOSTNAME_FQHN}:${C_DA_PORT}/${cmd_api}"
+      curl --request "${method}" --user "${da_api_username}":"${da_api_password}" --data "${data}" "${ssl_protocol}://${C_BOX_HOSTNAME_FQHN}:${port}/${cmd_api}"
       echo "status is: $?"
 
     else
@@ -7651,7 +7783,7 @@ function da_api_admin() {
       else
         data="name=${db_name}&user=${db_user}&passwd=${db_password}&passwd2=${db_password}&domain=${db_domain}&userlist=...&action=create"
       fi
-      da_api_exec=$(curl --silent --request "${method}" --user "${da_api_username}":"${da_api_password}" --data "${data}" "${ssl_protocol}://${C_BOX_HOSTNAME_FQHN}:${C_DA_PORT}/${cmd_api}")
+      da_api_exec=$(curl --silent --request "${method}" --user "${da_api_username}":"${da_api_password}" --data "${data}" "${ssl_protocol}://${C_BOX_HOSTNAME_FQHN}:${port}/${cmd_api}")
       has_success=$(echo "${da_api_exec}" | grep -w '^error=0')
 
       if [ -z "${has_success}" ]; then
@@ -7670,7 +7802,7 @@ function da_api_admin() {
     cmd_api="CMD_API_ACCOUNT_USER"
     data="username=${username}&email=${email}&passwd=${password}&passwd2=${password}&domain=${domain}&package=${package_name}&notify=yes&ip=${ip_address}&action=create&add=yes"
     method="POST"
-    da_api_exec=$(curl --silent --request "${method}" --user "${da_api_username}":"${da_api_password}" --data "${data}" "${ssl_protocol}://${C_BOX_HOSTNAME_FQHN}:${C_DA_PORT}/${cmd_api}")
+    da_api_exec=$(curl --silent --request "${method}" --user "${da_api_username}":"${da_api_password}" --data "${data}" "${ssl_protocol}://${C_BOX_HOSTNAME_FQHN}:${port}/${cmd_api}")
     has_success=$(echo "${da_api_exec}" | grep -w '^error=0')
     if [ -z "${has_success}" ]; then
       _echo "$(msg red)Error, API with action ${action} executed with the following error: $(msg end)" --name
@@ -7946,9 +8078,10 @@ function setup_pre() {
       # Note 1: By default sudo is not installed in custom distribution. It's needed for new OS
       # Note 2: psmisc is a pstree utils (needed by maxigpg script from maxicode)
       # Note 3: dnsutils contains dig command is used to find public IP
+      # Note 4: net-tools for using with netstat (port troubleshooting)
       _echo "$(msg cyan)Installing pre-requisite components for Debian OS ...$(msg end)" --name
       echo ""
-      apt-get -y install sudo screen nmap psmisc gpg unzip zip dnsutils
+      apt-get -y install sudo screen nmap psmisc gpg unzip zip dnsutils net-tools
     elif [ "${DISTRO_ID}" == "ubuntu" ]; then
       :
     elif [ "${DISTRO_ID}" == "almalinux" ]; then
@@ -8456,6 +8589,12 @@ function secure_os() {
       _echo "$(msg yellow)Warning, the default debian installation doesn't include any firewalls. Debian will be installed automatically if it does not exist ...$(msg end)" --name
       required "debian@@apt:ufw"
       echo ""
+      _echo "$(msg cyan)Adding https port (443) to ufw ...$(msg end)" --name
+      sudo ufw allow "https"
+      echo ""
+      _echo "$(msg cyan)Adding http port (80) to ufw ...$(msg end)" --name
+      sudo ufw allow "http"
+      echo ""
       _echo "$(msg cyan)Adding SSH port ${LABEL_C_SSH_PORT}/tcp to ufw ...$(msg end)" --name
       sudo ufw allow "${C_SSH_PORT}/tcp"
       echo ""
@@ -8470,6 +8609,10 @@ function secure_os() {
       _echo "$(msg cyan)Enabling ufw firewall ...$(msg end)" --name
       sudo ufw --force enable
       echo ""
+      _echo "$(msg cyan)Reloading ufw firewall ...$(msg end)" --name
+      sudo ufw reload
+      echo ""
+
     else
       _echo "$(msg red)Error, unknown value for distribution ID ${DISTRO_ID}. This distribution ID is not supported!$(msg end)" --name
       _exit 147
@@ -9468,6 +9611,7 @@ function install_da() {
     _echo "$(msg yellow)If you don't want to install Directadmin now, press (CTRL+C) to exit and remember that you can always re-run this script to resume installation (even it is halt due to error)$(msg end)" --name
     _echo "$(msg yellow)In order to view full installation log in realtime, execute this command in another local terminal: ${SCRIPT_NAME} --login and tail -f ${SCRIPT_PATH}/log/da-install.log$(msg end)" --name
     _pause 30
+    ensure_host_domain_ip_resolved
     _echo "$(msg cyan)Installing Directadmin on ${LABEL_C_BOX_HOSTNAME_FQHN} using ${C_DA_INSTALL_TYPE} mode (this may take sometimes) ... $(msg end)" --name
     echo ""
     if [[ "${C_DA_INSTALL_TYPE}" == "custom" || "${C_DA_INSTALL_TYPE}" == "original" ]]; then
@@ -10688,7 +10832,7 @@ function configure_da_sql() {
     # 1) Test using mysql if it's running and can be authenticated.
     _echo "$(msg cyan)Testing mysql authentication using non .cnf file ...$(msg end)" --name
     mysql_on_non_cnf=$(
-      mysql -e 'exit'
+      mysql --silent -e 'exit'
       echo $?
     )
     if [ "${mysql_on_non_cnf}" -eq 0 ]; then
@@ -10696,11 +10840,12 @@ function configure_da_sql() {
       mysql_granted="mysql -e"
       _echo "$(msg green)The mysql will be authenticated without specifying config file with the following option: [ ${mysql_granted} ] ...$(msg end)" --name
     else
-      _echo "$(msg red)Failed to authenticate mysql using non .cnf file$(msg end)" --name
+      _echo "$(msg yellow)Warning, failed to authenticate mysql using non .cnf file$(msg end)" --name
+      echo ""
       # 2) Test using config password from /etc/my.cnf"
       _echo "$(msg cyan)Testing mysql authentication using non /etc/my.cnf file ...$(msg end)" --name
       mysql_on_my_cnf_etc=$(
-        mysql --defaults-extra-file=${my_cnf_db_root} -e 'exit'
+        mysql --silent --defaults-extra-file=${my_cnf_db_root} -e 'exit'
         echo $?
       )
       echo ""
@@ -10709,11 +10854,12 @@ function configure_da_sql() {
         _echo "$(msg green)The mysql will be authenticated using ${my_cnf_db_root} with the following option: [ ${mysql_granted} ]  ...$(msg end)" --name
 
       else
-        _echo "$(msg red)Failed to authenticate mysql using /etc/my.cnf file$(msg end)" --name
+        _echo "$(msg yellow)Warning, failed to authenticate mysql using /etc/my.cnf file$(msg end)" --name
+        echo ""
         # 3) Test using config password from /usr/local/directadmin/conf/my.cnf
         _echo "$(msg cyan)Testing mysql authentication using non /usr/local/directadmin/conf/my.cnf file ...$(msg end)" --name
         mysql_on_my_cnf_da=$(
-          mysql --defaults-extra-file=${my_cnf_db_da_admin} -e 'exit'
+          mysql --silent --defaults-extra-file=${my_cnf_db_da_admin} -e 'exit'
           echo $?
         )
         echo ""
@@ -10722,7 +10868,8 @@ function configure_da_sql() {
           _echo "$(msg green)The mysql will be authenticated using ${my_cnf_db_da_admin} with the following option: [ ${mysql_granted} ] ...$(msg end)" --name
         #sleep 1
         else
-          _echo "$(msg red)Failed to authenticate mysql using /usr/local/directadmin/conf/my.cnf file$(msg end)" --name
+          _echo "$(msg yellow)Warning, failed to authenticate mysql using /usr/local/directadmin/conf/my.cnf file$(msg end)" --name
+          echo ""
           # If above not working I can use this: https://help.directadmin.com/item.php?id=45
           # or this: https://www.directadmin.com/features.php?id=2677
           _echo "$(msg red)Error, local SQL authentication is needed. If you know your root password, please supply it in ${my_cnf_db_root} or ${my_cnf_db_da_admin}$(msg end)" --name
@@ -12152,7 +12299,13 @@ function configure_da_reseller_root_domains() {
 
 # This is the pre-requirement before getting ssl
 # Configure the wildcard certificate option here for external DNS
-function configure_da_host_domain_ssl_pre() {
+function configure_da_ssl_pre() {
+
+  # Note the following are the same (server certificate)
+  #+ cp -f /usr/local/directadmin/conf/cakey.pem /etc/httpd/conf/ssl.key/server.key
+  #+ cp -f /usr/local/directadmin/conf/cacert.pem /etc/httpd/conf/ssl.crt/server.crt
+  #+ cp -f /usr/local/directadmin/conf/carootcert.pem /etc/httpd/conf/ssl.crt/server.ca
+
   # Must run this functions (configure_da_host_domain_ssl) after running CSF because we need to make sure all appropriate ports are opened to request certs
   # Warning do not overused configure_da_host_domain_ssl function because when requesting the same cert for the same domain 7 times for a week, you will get blocked.
   # This will set the hosting to SSL:
@@ -12188,11 +12341,15 @@ function configure_da_host_domain_ssl_pre() {
     _echo "$(msg cyan)Setting directadmin dns_ttl=1 to enable wildcard certificate at directadmin.conf ...$(msg end)" --name
     ${da_bin} set dns_ttl ${C_DA_DNS_TTL}
     echo ""
+
     #Disable ssl=0. This one fixed issue where you cannot request cert using ssl=1.
     # only enable ssl=1 after request certificate success. From my notes last year, I disabled this first before renew else it wont work.
-
     _echo "$(msg cyan)Disabling ssl=0 in directadmin.conf config..."
     ${da_bin} set ssl 0
+    echo ""
+
+    _echo "$(msg cyan)Enabling ECC_CERTIFICATE for highest SSL encryption key ..."
+    ${da_bin} set ecc_certificates 1
     echo ""
 
     #5) Install letsencrypt latest version at pre function
@@ -12201,15 +12358,9 @@ function configure_da_host_domain_ssl_pre() {
     ${da_cb_bin} letsencrypt
     echo ""
 
-    #4) Add wellknown-alias by rewrite_confs
-    _echo "$(msg cyan)Creating dummy acme-challenge texts through custombuild rewrite_confs ...$(msg end)" --name
-    ${da_cb_bin} rewrite_confs
-    echo ""
-
-    # 5) Restart directadmin
+    # 6) Restart directadmin
     _echo "$(msg cyan)Restarting directadmin after changing directadmin.conf ...$(msg end)" --name
     restart_da
-
     # No need to reboot
     #echo "[${SCRIPT_NAME}]: Creating reboot flag to restart system before requesting SSL certificate for Directadmin ..."
     #cat /dev/null >/var/run/reboot-required
@@ -12254,14 +12405,51 @@ function configure_da_host_domain_ssl() {
       # echo "[${SCRIPT_NAME}]: Setting ssl_redirect_host to ${LABEL_C_BOX_HOSTNAME_FQHN} in directadmin.conf config ..."
       # ${da_bin} set ssl_redirect_host "${C_BOX_HOSTNAME_FQHN}"
 
+      _echo "$(msg cyan)Enabling ssl=1 in directadmin.conf config...$(msg end)" --name
+      ${da_bin} set ssl 1
+      echo ""
+
+      ${da_bin} set cacert /usr/local/directadmin/conf/cacert.pem
+      ${da_bin} set cakey /usr/local/directadmin/conf/cakey.pem
+
+      # Add wellknown-alias by rewrite_confs
+      _echo "$(msg cyan)Creating dummy acme-challenge texts through custombuild rewrite_confs ...$(msg end)" --name
+      ${da_cb_bin} rewrite_confs
+      echo ""
+
       # Make sure IP and domain are resolved
       ensure_host_domain_ip_resolved
 
-      #7) Now let's request
-      _echo "$(msg cyan)Installing SSL certificate for ${LABEL_C_BOX_HOSTNAME_FQHN} ...$(msg end)" --name
-      ${da_script_path}/letsencrypt.sh request_single "${C_BOX_HOSTNAME_FQHN}" 4096
+      echo ""
+      # Staging call first
+      has_ecc_certificates=$(cat "${da_conf}" | grep "^ecc_certificates=" | cut -d= -f2)
+      _echo "$(msg cyan)Staging request SSL certificate for ${LABEL_C_BOX_HOSTNAME_FQHN} ...$(msg end)" --name
+      if [ -n "${has_ecc_certificates}" ]; then
+        staging=yes ${da_script_path}/letsencrypt.sh request_single ${C_BOX_HOSTNAME_FQHN} ${C_DA_CERTIFICATE_SIZE}
+      else
+        staging=yes ${da_script_path}/letsencrypt.sh request_single ${C_BOX_HOSTNAME_FQHN}
+      fi
       retval=$?
       if [ "${retval}" -eq 0 ]; then
+        _echo "$(msg green)OK, certificate staging request test return success code$(msg end)" --name
+
+      else
+        _echo "$(msg red)Error, certificate staging request test failed with return code ${retval}$(msg end)" --name
+        _exit 147
+      fi
+      #7) Now let's request the real certificate after staging
+      _echo "$(msg cyan)Requesting SSL certificate for ${LABEL_C_BOX_HOSTNAME_FQHN} ...$(msg end)" --name
+      has_ecc_certificates=$(cat "${da_conf}" | grep "^ecc_certificates=" | cut -d= -f2)
+      if [ -n "${has_ecc_certificates}" ]; then
+        ${da_script_path}/letsencrypt.sh request_single ${C_BOX_HOSTNAME_FQHN} ${C_DA_CERTIFICATE_SIZE}
+      else
+        ${da_script_path}/letsencrypt.sh request_single ${C_BOX_HOSTNAME_FQHN}
+      fi
+
+      retval=$?
+      if [ "${retval}" -eq 0 ]; then
+        _echo "$(msg green)OK, certificate request return success code$(msg end)" --name
+        echo ""
         _echo "$(msg cyan)Enabling ssl=1 in directadmin.conf config...$(msg end)" --name
         ${da_bin} set ssl 1
         echo ""
@@ -14224,77 +14412,51 @@ function configure_da_user_emails() {
   start_execute_options "${option}" "${func_name}"
   [[ "${SKIP_RUN}" == "true" ]] && return 0
   if [[ ! -f "${CONF_PATH}/${func_name}_executed" && "${FUNCTION_RUN}" == "true" ]]; then
-    local da_user_mail_users da_user_mail_users_count count_mail_user
-    local this_da_user_username this_da_user_userpass this_da_user_mail_users this_da_user_mail_passwords
-    local this_da_user_mail_users_count this_da_user_mail_password_count
-    local count_n mail_user mail_domain
-    # Get all variables set for C_DA_USER_MAIL_USER[index]:
-    da_user_mail_users="${!C_DA_USER_MAIL_USER@}"
-    # Calculate the total for the total variable of C_DA_USER_MAIL_USER
-    da_user_mail_users_count=$(echo "${da_user_mail_users}" | wc -w)
-    # Debug:
-    echo "DA_USER_MAIL_USERS: ${da_user_mail_users}"
-    echo "DA_USER_MAIL_USERS_COUNT: ${da_user_mail_users_count}"
-    # Initial value to start looping
-    count_mail_user=1
-    while [[ ${count_mail_user} -le ${da_user_mail_users_count} ]]; do
-      echo "=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~="
-      echo "COUNT_MAIL_USER INDEX = ${count_mail_user}"
-      echo ""
-      # Assign all variables from the config file as array index
-      typeset -n "this_da_user_username"="C_DA_USER_USERNAME${count_mail_user}"
-      typeset -n "this_da_user_userpass"="C_DA_USER_USERPASS${count_mail_user}"
-      typeset -n "this_da_user_mail_users"="C_DA_USER_MAIL_USER${count_mail_user}"
-      typeset -n "this_da_user_mail_passwords"="C_DA_USER_MAIL_PASSWORD${count_mail_user}"
-      # Error checking for missing variable values:
-      if [ -z "${this_da_user_username}" ]; then
-        echo "[${SCRIPT_NAME}]: [Skipped]: Warning, no user_name is set in config file for this mail_user. Please check configuration file "
-        _exit 147
-      elif [ -z "${this_da_user_userpass}" ]; then
-        echo "[${SCRIPT_NAME}]: [Skipped]: Warning, no user_password is set in config file for this mail_user. Please check configuration file "
-        _exit 147
-      elif [ -z "${this_da_user_mail_users}" ]; then
-        echo "[${SCRIPT_NAME}]: [Skipped]: Warning, no user_emails is set in config file for this mail_user. Please check configuration file "
-        _exit 147
-      elif [ -z "${this_da_user_mail_passwords}" ]; then
-        echo "[${SCRIPT_NAME}]: [Skipped]: Warning, no user_email_passwords is set in config file for this mail_user. Please check configuration file "
-        _exit 147
-      elif [ ${#this_da_user_mail_users[@]} -ne ${#this_da_user_mail_passwords[@]} ]; then
-        echo "[${SCRIPT_NAME}]: [Skipped]: Warning, mail users and mail passwords defined with different length of array"
-        _exit 147
-      else
-        this_da_user_mail_users_count="${#this_da_user_mail_users[@]}"
-        this_da_user_mail_password_count="${#this_da_user_mail_passwords[@]}"
-        # Debug
-        echo "this_da_user_mail_users: ${this_da_user_mail_users[*]}"
-        echo "this_da_user_mail_passwords: ${this_da_user_mail_passwords[*]}"
-        echo "mail_user_count: ${this_da_user_mail_users_count}"
-        echo "mail_password_count: ${this_da_user_mail_password_count}"
-        count_n=0
-        while [ ${count_n} -le $((this_da_user_mail_users_count - 1)) ]; do
-          echo "=~=~=~=~+~Count: ${count_n}+~+~=~+~+~+~+"
+    local user_count da_user_usernames_count
+    da_user_usernames_count=$(echo "${!C_DA_USER_USERNAME@}" | wc -w)
+    user_count=1
+    while [[ ${user_count} -le ${da_user_usernames_count} ]]; do
 
-          mail_user=$(echo "${this_da_user_mail_users[count_n]}" | awk -F'@' '{ print $1 }')
-          mail_domain=$(echo "${this_da_user_mail_users[count_n]}" | awk -F'@' '{ print $2 }')
-          mail_password=${this_da_user_mail_passwords[count_n]}
+      local da_user_username da_user_mail_users da_user_mail_passwords
 
-          echo "DA user_username: ${this_da_user_username}"
-          echo "DA user_userpass: ${this_da_user_userpass}"
-          echo "The full user email address: [${count_n}]: ${this_da_user_mail_users[count_n]}"
-          echo "The mail_username (no @domain.com): ${mail_user}"
-          echo "The mail_domain: ${mail_domain}"
-          echo "The mail_password:[${count_n}]: ${this_da_user_mail_passwords[count_n]}"
-          echo "=~=~=~=~+~+~+~=~+~+=~+~+=~+~+=~+~+=~+=~+~+"
-          # Now we got all variables for creating email:
-          # Call API here:
-          da_api_admin "signas+${this_da_user_username}+${this_da_user_userpass}"
-          da_api_admin "create-user-email" "${mail_domain}" "${mail_user}" "${mail_password}" "0" "200"
-          ((count_n++))
-        done
-        ((count_mail_user++))
-        echo "=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~="
-      fi
+      typeset -n "da_user_username=C_DA_USER_USERNAME${user_count}"
+      typeset -n "da_user_mail_users=C_DA_USER_MAIL_USER${user_count}"
+      typeset -n "da_user_mail_passwords=C_DA_USER_MAIL_PASSWORD${user_count}"
+      da_user_mail_users_count="${#da_user_mail_users[@]}"
+
+      _echo "$(msg newline)" --plain --verbose 7
+      _echo "$(msg yellow)Warning this information contains sensitive data due to verbosity level was set to 7 or more$(msg end)" --name --verbose 7
+      _echo "$(msg magenta)=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=$(msg end)" --name --verbose 7
+      _echo "User email details:" --name --verbose 7
+      _echo "User count ${user_count} out of ${da_user_usernames_count}" --name --verbose 7
+      _echo "da_user_username: ${da_user_username}" --name --verbose 7
+      _echo "da_user_mail_users: ${da_user_mail_users[@]}" --name --verbose 7
+      _echo "da_user_mail_passwords: ${da_user_mail_passwords[@]}" --name --verbose 7
+      _echo "da_user_mail_users_count: ${da_user_mail_users_count}" --name --verbose 7
+      _echo "$(msg newline)" --plain --verbose 7
+      mail_count=1
+
+      while [ ${mail_count} -le ${da_user_mail_users_count} ]; do
+        mail_user=$(echo "${da_user_mail_users[mail_count - 1]}" | awk -F'@' '{ print $1 }')
+        mail_domain=$(echo "${da_user_mail_users[mail_count - 1]}" | awk -F'@' '{ print $2 }')
+        mail_password=${da_user_mail_passwords[mail_count - 1]}
+        _echo "User email count ${mail_count}/$((da_user_mail_users_count))" --name --verbose 7
+        _echo "User_username: ${da_user_username}" --name --verbose 7
+        _echo "User full user email address: [${mail_count}]: ${da_user_mail_users[mail_count - 1]}" --name --verbose 7
+        _echo "User user email address (without @domain.com): ${mail_user}" --name --verbose 7
+        _echo "User email domain: ${mail_domain}" --name --verbose 7
+        _echo "User email password:[${mail_count}]: ${da_user_mail_passwords[mail_count - 1]}" --name --verbose 7
+        _echo "$(msg magenta)=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=$(msg end)" --name --verbose 7
+
+        ## da_api_admin create-user-email --mail-domain "maxibi.com" --mail-user "webmaster" --mail-password "1232123" --mail-quota "0" --mail-limit "200"
+        _echo "$(msg cyan)Creating new user email ${da_user_mail_users[mail_count - 1]} ...$(msg end)" --name
+        da_api_admin create-user-email --sign-as ${da_user_username} --mail-domain "${mail_domain}" --mail-user "${mail_user}" --mail-password "${mail_password}" --mail-quota "0" --mail-limit "200"
+
+        ((mail_count++))
+      done
+      ((user_count++))
     done
+
     echo ""
     check_finish_reboot "${func_name}"
   else
@@ -14888,76 +15050,65 @@ function configure_da_user_databases() {
   start_execute_options "${option}" "${func_name}"
   [[ "${SKIP_RUN}" == "true" ]] && return 0
   if [[ ! -f "${CONF_PATH}/${func_name}_executed" && "${FUNCTION_RUN}" == "true" ]]; then
-    local da_user_usernames da_user_usernames_count this_da_user_username this_da_user_userpass \
-      this_da_user_dbs this_da_user_dbs_count count_n count_o db_name db_user db_password
 
-    da_user_usernames="${!C_DA_USER_USERNAME@}"
-    da_user_usernames_count=$(echo "${da_user_usernames}" | wc -w)
+    local user_count da_user_usernames_count
+    da_user_usernames_count=$(echo "${!C_DA_USER_USERNAME@}" | wc -w)
+    user_count=1
+    while [[ ${user_count} -le ${da_user_usernames_count} ]]; do
+      typeset -n "da_user_username=C_DA_USER_USERNAME${user_count}"
+      typeset -n "da_user_dbs=C_DA_USER_DB${user_count}"
+      _echo "$(msg newline)" --plain --verbose 7
+      _echo "$(msg yellow)Warning this information contains sensitive data due to verbosity level was set to 7 or more$(msg end)" --name --verbose 7
+      _echo "$(msg magenta)=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=$(msg end)" --name --verbose 7
+      _echo "User database details:" --name --verbose 7
+      _echo "User count ${user_count} out of ${da_user_usernames_count}" --name --verbose 7
+      _echo "da_user_username: ${da_user_username}" --name --verbose 7
+      _echo "da_user_dbs: ${da_user_dbs[*]}" --name --verbose 7
+      da_user_dbs_count="${#da_user_dbs[@]}"
+      database_count=1
 
-    count_n=1
-    echo "da_user_usernames: ${da_user_usernames}"
-    echo "da_user_usernames_count: ${da_user_usernames_count}"
-    # Debug:
-    while [ ${count_n} -le "${da_user_usernames_count}" ]; do
+      while [ ${database_count} -le ${da_user_dbs_count} ]; do
 
-      echo "=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~="
-      echo "count_n INDEX = ${count_n}"
-      echo ""
-      # Assign all variables from the config file as array index
-      typeset -n "this_da_user_username"="C_DA_USER_USERNAME${count_n}"
-      typeset -n "this_da_user_userpass"="C_DA_USER_USERPASS${count_n}"
-      typeset -n "this_da_user_dbs"="C_DA_USER_DB${count_n}"
-
-      echo "this_da_user_username: ${this_da_user_username}"
-      echo "this_da_user_userpass: ${this_da_user_userpass}"
-      echo "this_da_user_dbs: ${this_da_user_dbs[*]}"
-      this_da_user_dbs_count="${#this_da_user_dbs[@]}"
-
-      count_o=0
-
-      while [ ${count_o} -le $((this_da_user_dbs_count - 1)) ]; do
-        db_domain=$(echo "${this_da_user_dbs[count_o]}" | awk -F':' '{ print $1 }')
-        db_name=$(echo "${this_da_user_dbs[count_o]}" | awk -F':' '{ print $2 }')
-        db_user=$(echo "${this_da_user_dbs[count_o]}" | awk -F':' '{ print $3 }')
-        db_password=$(echo "${this_da_user_dbs[count_o]}" | awk -F':' '{ print $4 }')
-
-        if [[ "${#this_da_user_dbs}" == 0 ]]; then
-          echo "[${SCRIPT_NAME}]: [skipped]: Value defined for this user database is empty"
-          ((count_o++))
+        if [[ "${#da_user_dbs}" == 0 ]]; then
+          _echo "$(msg yellow)[skipped]: Value defined for this user ${da_user_username} database is empty$(msg end)" --name
+          echo ""
+          ((database_count++))
           continue
         fi
 
+        db_domain=$(echo "${da_user_dbs[database_count - 1]}" | awk -F':' '{ print $1 }')
+        db_name=$(echo "${da_user_dbs[database_count - 1]}" | awk -F':' '{ print $2 }')
+        db_user=$(echo "${da_user_dbs[database_count - 1]}" | awk -F':' '{ print $3 }')
+        db_password=$(echo "${da_user_dbs[database_count - 1]}" | awk -F':' '{ print $4 }')
+
         sql_users=$(mysql -e "SELECT USER FROM mysql.user;" | jq -rR .)
-        check_sql_user=$(echo "${sql_users}" | grep "${this_da_user_username}_${db_user}")
+        sql_user_exist=$(echo "${sql_users}" | grep "${da_user_username}_${db_user}")
 
-        echo "check_sql_user is: ${check_sql_user} (if empty it doesn't exist)"
-        echo "api_user: ${this_da_user_username}"
-        echo "api_password: ${this_da_user_userpass}"
-        echo "db_domain: ${db_domain}"
-        echo "db_name: ${db_name}"
-        echo "db_user: ${db_user}"
-        echo "db_password: ${db_password}"
-        echo "========="
-        # da_api_admin "create-user-database" <db_name> <db_username> <db_password> <domain>
-        da_api_admin "signas+${this_da_user_username}+${this_da_user_userpass}"
+        _echo "User database count ${database_count}/$((da_user_dbs_count))" --name --verbose 7
+        [[ -n "${sql_user_exist}" ]] && _echo "sql_user_exist in mysql system: ${sql_user_exist}" --name --verbose 7
+        _echo "db_domain: ${db_domain}" --name --verbose 7
+        _echo "db_name: ${db_name}" --name --verbose 7
+        _echo "db_user: ${db_user}" --name --verbose 7
+        _echo "db_password: ${db_password}" --name --verbose 7
+        _echo "$(msg magenta)=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=$(msg end)" --name --verbose 7
+        _echo "$(msg newline)" --plain --verbose 7
 
-        if [[ -z "${check_sql_user}" ]]; then
-          echo "[${SCRIPT_NAME}]: Creating new database name ${db_name} for user ${this_da_user_username} on domain ${db_domain} ..."
-          da_api_admin "create-database" "${db_name}" "${db_user}" "${db_password}" "${db_domain}"
+        #da_api_admin create-user-database --db-domain "maxibi.com" --db-name abc --db-user maxibi --db-password 12321aa (create new user database)
+        #da_api_admin --db-domain "maxibi.com" create-user-database --db-name abc --existing-user maxibi  (create database with existing user)
+
+        if [[ -z "${sql_user_exist}" ]]; then
+          _echo "$(msg cyan)Creating new database name ${db_name} for user ${da_user_username} on domain ${db_domain} ...$(msg end)" --name
+          da_api_admin create-user-database --sign-as "${da_user_username}" --db-domain "${db_domain}" --db-name "${db_name}" --db-user "${db_user}" --db-password "${db_password}"
         else
-          echo "[${SCRIPT_NAME}]: Creating new database name ${db_name} for reseller ${this_da_user_username} on domain ${db_domain} using existing username ${db_user} ..."
-          da_api_admin "create-user-database" "${db_name}" "${db_user}" "${db_domain}"
+          _echo "$(msg cyan)Creating new database name ${db_name} for user ${da_user_username} on domain ${db_domain} using existing username ${db_user} ...$(msg end)" --name
+          da_api_admin create-user-database --sign-as "${da_user_username}" --db-domain "${db_domain}" --db-name "${db_name}" --db-existing-user "${db_user}"
         fi
 
-        # There is an issue, when creating Directadmin database, a duplicated username without underscore, will be created
-        # Issue described here: https://forum.directadmin.com/threads/bug-duplicated-username-when-creating-database-from-directadmin.63167/#post-327493
-        ((count_o++))
+        ((database_count++))
       done
-
-      ((count_n++))
-      echo "=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~="
-
+      ((user_count++))
     done
+
     echo ""
     check_finish_reboot "${func_name}"
   else
@@ -15160,6 +15311,7 @@ function setup() {
     _exit 147
   else
     script_header
+    ensure_host_domain_ip_resolved
     option="$1"
     #if [ "${option}" == "remote" ];  then
     #  _echo 'yellow' "Notice, remote setup is set"
@@ -15268,16 +15420,15 @@ function setup() {
     # Upgrade system
     upgrade_os --run
     if [[ "${C_SERVER_TYPE}" == "directadmin" ]]; then
-
       if [[ "${C_DA_INSTALL_TYPE}" == "custom" ]]; then
         install_da_pre --run
         install_da --run
         install_da_post --run
         secure_da_auth --run
-        # Add da ipv6 and linking with ipv4 and vice versa (this option has --init argument)
-        configure_da_ips --run
         install_da_csf --run
         configure_csf --run
+        # Add da ipv6 and linking with ipv4 and vice versa (this option has --init argument)
+        configure_da_ips --run
         configure_da_sql --run
         configure_da_mail --run
         configure_da_ftp --run
@@ -15293,8 +15444,8 @@ function setup() {
         configure_da_dns_templates --run
         # " -- host --"
         configure_da_host_domain --run
-        configure_da_host_domain_ssl_pre --run
-        configure_da_host_domain_ssl --run
+        configure_da_ssl_pre --run-force
+        configure_da_host_domain_ssl --run-force-exit
         # " -- owner --"
         configure_da_owner_accounts --run
         configure_da_owner_skins --run
@@ -15318,14 +15469,14 @@ function setup() {
         configure_da_user_accounts --run
         configure_da_user_security --run
         configure_da_user_root_domains --skip #(this is deprecated, already done in configure_da_user_accounts)
-        configure_da_user_subdomains --run-force-exit
-        # TODO until here
+        configure_da_user_subdomains --run
         configure_da_user_wildcard_domains --skip #(Skipped: Do not use wildcard for security purpose)
         configure_da_user_emails --run
         configure_da_user_databases --run
-        configure_da_user_domain_ssl_pre --skip # Deprecated (new directadmin version has this)
-        configure_da_user_domain_ssl --skip     # Deprecated (new directadmin version has this)
+        configure_da_user_domain_ssl_pre --skip   # Deprecated (new directadmin version has this)
+        configure_da_user_domain_ssl --skip       # Deprecated (new directadmin version has this)
         # " -- others ---"
+        exit 1
         configure_da_custom_webs --skip # Fix this with new version
         configure_maxibox --run
         configure_maxicode_pre --run
@@ -15350,8 +15501,16 @@ function setup() {
         install_da_pre --run
         install_da --run
         install_da_post --run
+        secure_da_auth --run
         configure_csf --run
-        exit
+        # Add da ipv6 and linking with ipv4 and vice versa (this option has --init argument)
+        configure_da_ips --run
+        # Important to run configure_da_dns_templates first before creating any domains so that the DNS record can use new template automatically
+        configure_da_dns_templates --run
+        # " -- host --"
+        configure_da_host_domain --run
+        configure_da_ssl_pre --run-force
+        configure_da_host_domain_ssl --run-force-exit
       fi
     elif [[ "${C_SERVER_TYPE}" == "general" ]]; then
       install_da_pre --run

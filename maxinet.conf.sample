@@ -236,7 +236,7 @@ C_ADMIN_EMAIL="admin@maxibi.com"
 # This variable is used to specify directadmin installation type. Currently it has 4 types:
 # 1) custom = use your own setting during DA installation (provide options.conf and php_extensions.conf),
 # 2) ori = let DA decide what to install default things prividing some details using auto
-# 3) interactive = ask question what to install
+# 3) interactive = ask question what to install (require input from user)
 # 4) auto = Automated everything by directadmin as default packages (include CSF installation)
 # Note, this script was designed to use custom type.
 C_DA_INSTALL_TYPE="custom"
@@ -275,7 +275,7 @@ C_DA_INSTALL_MEMCACHED=true
 C_DA_INSTALL_GEOIP=true
 
 # C_ENABLE_DA_HOST_SSL
-# This variable is used to enable server/host domain SSL. Leave this this option enabled for securityC_ENABLE_DA_HOST_SSL=true
+# This variable is used to enable server/host domain SSL. Leave this this option enabled for security
 C_ENABLE_DA_HOST_SSL=true
 
 # C_DA_AUTO_ADD_IPV46_ENTRY:
@@ -299,26 +299,27 @@ C_DA_AUTO_LINK_IP=true
 # direct-login = login directly using username and password (disadvantage: need to know directadmin client username and password)
 C_DA_LOGIN_METHOD="sign-as"
 
-# Start directadmin directadmin.conf options #
-
-# UNLISTED variable for API using CMD_API_ADMIN_SETTINGS:
-C_DA_USER_BRUTECOUNT=100
-# Start directadmin.conf settings (these are recommended values): version 1.62 (updated)
+##################################################################
+# Start directadmin.conf options ( Directadmin version: 1.62.7 ) #
+##################################################################
+# Directadmin execution timeout in second
 C_DA_TIMEOUT="120"
+# Directadmin session timeout in minutes
 C_DA_SESSION_MINUTES="2880"
+# Directadmin maxfilesize to upload in file manager in bytes
 C_DA_MAXFILESIZE="5368709120"
-C_DA_LOGS_TO_KEEP="2"
-# Default is 14
+# Directadmin maximum username (including sql username). Changing this requires MySQL 5.7.8+ or MariaDB 10.x+
+# default value is 14
 C_DA_MAX_USERNAME_LENGTH="30"
+# Enable directadmin security question for authentication purpose
+C_DA_SECURITY_QUESTIONS=1
+C_DA_ENFORCE_DIFFICULT_PASSWORDS=1
+C_DA_ALLOW_BACKUP_ENCRYPTION=1
 C_DA_LOGIN_HISTORY="10"
 C_DA_DISABLE_IPCHECK="1"
 C_DA_ALLOW_FOREIGN_KEY="0"
 # Default is 0
 C_DA_SIMPLE_DISK_USAGE="1"
-# Planned variable
-#C_DA_HARD_QUOTA_MULTIPLER="1.1"
-# Planned variable
-#C_DA_USERSDIR="./data/users"
 C_DA_ZIP="1"
 # Default is 0
 C_DA_AWSTATS="0"
@@ -348,6 +349,8 @@ C_DA_SHOW_POINTERS_IN_LIST=1
 # Default is 1 (enabled)
 C_DA_CHECK_SUBDOMAIN_OWNER=1
 # Enable or disable bruteforce
+# UNLISTED variable for API using CMD_API_ADMIN_SETTINGS:
+C_DA_USER_BRUTECOUNT=100
 C_DA_BRUTEFORCE=1
 C_DA_USER_BRUTECOUNT=0
 C_DA_EXEMPT_LOCAL_BLOCK=1
@@ -364,9 +367,6 @@ C_DA_UNBLOCK_BRUTE_IP_TIME=4320
 C_DA_BRUTE_FORCE_LOG_SCANNER=1
 C_DA_BRUTE_FORCE_SCAN_APACHE_LOGS=2
 C_DA_BRUTE_DOS_COUNT=100
-C_DA_SECURITY_QUESTIONS=1
-C_DA_ENFORCE_DIFFICULT_PASSWORDS=1
-C_DA_ALLOW_BACKUP_ENCRYPTION=1
 C_DA_CHECK_PARTITIONS=2
 C_DA_PARTITION_USAGE_THRESHOLD=95
 # 1 = tar.gz, 0 = .tar, 2 = .zstd
@@ -380,14 +380,25 @@ C_DA_PER_EMAIL_LIMIT=300
 C_DA_MAX_PER_EMAIL_SEND_LIMIT=0
 C_DA_USER_CAN_SET_EMAIL_LIMIT=1
 C_DA_WEBMAIL_LINK=roundcube
-# End directadmin.conf settings
+C_DA_DNS_TTL=1
+# This will enable the strongest SSL certificate:
+#keysize=prime256v1
+#keysize=secp384r1
+#keysize=secp521r1
+# But do note that secp521r1 is not supported by letsencrypt and most browser still don't support it
+C_DA_ECC_CERTIFICATES=1
+# Choose the certificate size
+# 2048, 4096, prime256v1, secp384r1
+C_DA_CERTIFICATE_SIZE="secp384r1"
+#### End directadmin.conf settings ####
 
 # Custombuild settings
+C_DA_CB_VERSION="2.0"
 C_DA_CB_FTP_SOFTWARE="pureftpd"
 C_DA_CB_EXIMCONF_RELEASE="4.5"
 C_DA_CB_WEBSERVER_SOFTWARE="nginx_apache"
 # or owasp
-C_DA_CB_ENABLE_MODSECURITY="yes"
+C_DA_CB_INSTALL_MODSECURITY="yes"
 C_DA_CB_MODSECURITY_RULESET="comodo"
 # Format <sql_type>-<sql_version>
 # or mysql-8.0
@@ -396,8 +407,8 @@ C_DA_CB_SQL_VERSION="mariadb-10.6"
 # php7.3:php-fpm means php version 7.3 with FPM mode
 # the first order is the first PHP version (also used by directadmin system). Max is 4, extra argument will be ignored
 C_DA_CB_PHP_VERSION="7.4:php-fpm,8.0:php-fpm"
-# This is for installing clamav
-C_DA_CB_ENABLE_CLAMAV="yes"
+# This for installing
+C_DA_CB_INSTALL_CLAMAV="yes"
 # Enable / disable clamav service
 C_ENABLE_CLAMAV_SERVICE=false
 # End of custombuild setting
@@ -665,7 +676,6 @@ C_BOX_NS1="ns1.sofibox.com"
 C_BOX_NS2="ns2.sofibox.com"
 C_BOX_NS3="ns3.sofibox.com"
 C_BOX_NS4="ns4.sofibox.com"
-
 
 C_USE_DEFAULT_ETH0=true
 # C_NIC_INTERFACE_NAME:
