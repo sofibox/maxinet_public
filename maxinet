@@ -4,15 +4,11 @@
 
 _APP_SPECIFIC_NAME="Maxinet"
 # Note that some minor versions are not published
-_APP_VERSION="0.5.8.8"
+_APP_VERSION="0.5.9.2"
 _APP_STATUS="alpha"
 _APP_VERSION_STATUS="${_APP_VERSION}-${_APP_STATUS}"
 
 ### START TEMPORARY NOTE
-
-# TODO add option create-server --reupload-iso, so we can remove ISO from dropbox after installation for security then we can use this --reupload option to reupload from backup or final folder
-
-# TODO prevent the use of reserve roles as username in directadmin (maybe need da hook pre script)
 
 ### END TEMPORARY NOTE
 
@@ -2183,326 +2179,315 @@ function lish_console() {
 
 # This function will validate if config is valid, if one of the variables missing, it will complain and exit
 function validate_config() {
-  local count_user total_valid_user this_da_owner_uname
-  _echo "$(msg cyan)Checking directadmin user configuration variables ...$(msg end)" --name --verbose 7
+  local count_user total_valid_user this_da_owner_name this_da_owner_uname this_da_owner_password this_da_owner_system_email this_da_owner_security_qna
   total_valid_user=0
-  # Owner not support multiple users yet so checking is simple without loop
-  typeset -n this_da_owner_uname="C_DA_OWNER_USERNAME1"
-  typeset -n this_da_owner_password="C_DA_OWNER_USERPASS1"
-  typeset -n this_da_owner_name="C_DA_OWNER_NAME1"
-  typeset -n this_da_owner_system_email="C_DA_OWNER_SYSTEM_EMAIL1"
-  typeset -n this_da_owner_security_q="C_DA_OWNER_SECURITY_Q1"
-  typeset -n this_da_owner_security_a="C_DA_OWNER_SECURITY_A1"
+  _echo "$(msg cyan)Checking directadmin users' variables ...$(msg end)" --name --verbose 7
+  #--------------------#
+  # Validate admin     #
+  #--------------------#
+  # Owner does not support multiple user creation. So checking is simple without loop
+  typeset -n "this_da_owner_name=C_DA_OWNER_NAME1"
+  typeset -n "this_da_owner_uname=C_DA_OWNER_USERNAME1"
+  typeset -n "this_da_owner_password=C_DA_OWNER_USERPASS1"
+  typeset -n "this_da_owner_system_email=C_DA_OWNER_SYSTEM_EMAIL1"
+  typeset -n "this_da_owner_security_qna=C_DA_OWNER_SECURITY_QNA1"
 
-  #if [[ -z "${this_da_owner_uname+x}" ]]; then
-  # echo "[${SCRIPT_NAME}]: [Skipped]: Warning owner username is not set. Please check configuration file "
-  # _exit 1
   if [[ "${#this_da_owner_uname}" -lt 2 ]]; then
-    echo "[${SCRIPT_NAME}]: [Skipped]: Warning owner username length is ${#this_da_owner_uname} but the minimum should be 2. Please check configuration file "
-    _exit 1
+    echo "[${SCRIPT_NAME}]: [Skipped]: Warning owner username length is ${#this_da_owner_uname} but the it should be more or equal to 2. Please check configuration file"
+    _exit 147
   elif [[ "${#this_da_owner_uname}" -gt ${C_DA_MAX_USERNAME_LENGTH} ]]; then
-    echo "[${SCRIPT_NAME}]: [Skipped]: Warning owner username length is ${#this_da_owner_uname} but the maximum should be ${C_DA_MAX_USERNAME_LENGTH}. Please check configuration file "
-    _exit 1
+    echo "[${SCRIPT_NAME}]: [Skipped]: Warning owner username length is ${#this_da_owner_uname} but the it should be less or equal to ${C_DA_MAX_USERNAME_LENGTH}. Please check configuration file"
+    _exit 147
   elif [[ -z "${this_da_owner_name+x}" ]]; then
-    echo "[${SCRIPT_NAME}]: [Skipped]: Warning owner ${this_da_owner_uname} doesn't have name set in config file. Please check configuration file"
-    _exit 1
+    echo "[${SCRIPT_NAME}]: [Skipped]: Warning owner ${this_da_owner_uname} doesn't have name set in config file (missing or invalid variable). Please check configuration file"
+    _exit 147
   elif [[ -z "${this_da_owner_password+x}" ]]; then
-    echo "[${SCRIPT_NAME}]: [Skipped]: Warning owner ${this_da_owner_uname} doesn't have password set in config file. Please check configuration file "
-    _exit 1
+    echo "[${SCRIPT_NAME}]: [Skipped]: Warning owner ${this_da_owner_uname} doesn't have password set in config file (missing or invalid variable). Please check configuration file "
+    _exit 147
   elif [[ "${#this_da_owner_password}" -lt 6 ]]; then
     echo "[${SCRIPT_NAME}]: [Skipped]: Warning owner ${this_da_owner_uname} has password set length of ${#C_DA_OWNER_USERPASS1} but the minimum is 6 characters. Please check configuration file"
-    _exit 1
+    _exit 147
   elif [[ "${#this_da_owner_password}" -gt 64 ]]; then
     echo "[${SCRIPT_NAME}]: [Skipped]: Warning owner ${this_da_owner_uname} has password set length of ${#C_DA_OWNER_USERPASS1} but the maximum is 64 characters. Please check configuration file"
-    _exit 1
+    _exit 147
   elif [[ "${this_da_owner_password}" =~ ['&+'] ]]; then
-    echo "[${SCRIPT_NAME}]: [Skipped]: Warning owner ${this_da_owner_uname} has password set with forbidden special character &+ in config file. Please check configuration file"
-    _exit 1
+    echo "[${SCRIPT_NAME}]: [Skipped]: Warning owner ${this_da_owner_uname} has password set with forbidden special character [ &+ ] in config file. Please check configuration file"
+    _exit 147
   elif [[ -z "${this_da_owner_system_email+x}" ]]; then
-    echo "[${SCRIPT_NAME}]: [Skipped]: Warning owner ${this_da_owner_uname} doesn't have system email set in config file. Please check configuration file "
-    _exit 1
-  elif [[ -z "${this_da_owner_security_q+x}" ]]; then
-    echo "[${SCRIPT_NAME}]: [Skipped]: Warning owner ${this_da_owner_uname} doesn't have security question set in config file. Please check configuration file "
-    _exit 1
-  elif [[ -z "${this_da_owner_security_a+x}" ]]; then
-    echo "[${SCRIPT_NAME}]: [Skipped]: Warning owner ${this_da_owner_uname} doesn't have security answer set in config file. Please check configuration file "
-    _exit 1
-  elif [[ ${#this_da_owner_security_q[@]} -ne ${#this_da_owner_security_a[@]} ]]; then
-    echo "[${SCRIPT_NAME}]: [Skipped]: Warning owner ${this_da_owner_uname} has security question and answer defined with different length of array"
-    _exit 1
+    echo "[${SCRIPT_NAME}]: [Skipped]: Warning owner ${this_da_owner_uname} doesn't have system email set in config file (missing or invalid variable). Please check configuration file "
+    _exit 147
+  elif ! is_valid "email" "${this_da_owner_system_email}"; then
+    echo "[${SCRIPT_NAME}]: [Skipped]: Warning owner ${this_da_owner_uname} has invalid email [ ${this_da_owner_system_email} ] set in config file. Please check configuration file "
+    _exit 147
+  elif [[ -z "${this_da_owner_security_qna+x}" ]]; then
+    echo "[${SCRIPT_NAME}]: [Skipped]: Warning owner ${this_da_owner_uname} doesn't have security question and answer set in config file (missing or invalid variable). Please check configuration file "
+    _exit 147
+  elif [[ -n "${this_da_owner_security_qna}" && $(echo "${#this_da_owner_security_qna[@]}") -ne $(awk -F'\|\|\|' '{print NF-1}' <<<"${this_da_owner_security_qna[@]}") ]]; then
+    echo "[${SCRIPT_NAME}]: [Skipped]: Warning admin ${this_da_owner_uname} has invalid security question and answer format set in config file (invalid separator). Please check configuration file "
+    _exit 147
   else
-    # echo "[${SCRIPT_NAME}]: OK, all variables for owner ${LABEL_C_DA_OWNER_USERNAME1} are set."
+    _echo "$(msg green)OK, all variables for owner ${LABEL_C_DA_OWNER_USERNAME1} are valid.$(msg end)" --name --verbose 7
     ((total_valid_user++))
   fi
 
-  # Admin test multiple
-  local da_admin_unames da_admin_unames_count this_da_admin_uname this_da_admin_password this_da_admin_name \
-    this_da_admin_system_email this_da_admin_security_q this_da_admin_security_a this_da_user_ssl_sub_name
+  #--------------------#
+  # Validate admin     #
+  #--------------------#
+  local da_admin_unames this_da_admin_uname this_da_admin_password this_da_admin_name \
+    this_da_admin_system_email this_da_admin_security_qna count_user
 
   da_admin_unames="${!C_DA_ADMIN_USERNAME@}"
-  da_admin_unames_count=$(echo "${da_admin_unames}" | wc -w)
-
   count_user=1
-  # Validate admins
-  while [[ ${count_user} -le ${da_admin_unames_count} ]]; do
-    typeset -n this_da_admin_uname="C_DA_ADMIN_USERNAME${count_user}"
-    typeset -n this_da_admin_password="C_DA_ADMIN_USERPASS${count_user}"
-    typeset -n this_da_admin_name="C_DA_ADMIN_NAME${count_user}"
-    typeset -n this_da_admin_system_email="C_DA_ADMIN_SYSTEM_EMAIL${count_user}"
-    typeset -n this_da_admin_security_q="C_DA_ADMIN_SECURITY_Q${count_user}"
-    typeset -n this_da_admin_security_a="C_DA_ADMIN_SECURITY_A${count_user}"
-    #  if [[ -z "${this_da_admin_uname+x}" ]]; then
-    #  echo "[${SCRIPT_NAME}]: [Skipped]: Warning admin username is not set. Please check configuration file "
-    #  _exit 1
-    if [[ "${#this_da_admin_uname}" -lt 2 ]]; then
-      echo "[${SCRIPT_NAME}]: [Skipped]: Warning admin username length is ${#this_da_admin_uname} but the minimum should be 2. Please check configuration file "
-      _exit 1
-    elif [[ "${#this_da_admin_uname}" -gt ${C_DA_MAX_USERNAME_LENGTH} ]]; then
-      echo "[${SCRIPT_NAME}]: [Skipped]: Warning admin username length is ${#this_da_admin_uname} but the maximum should be ${C_DA_MAX_USERNAME_LENGTH}. Please check configuration file "
-      _exit 1
+  while [[ ${count_user} -le $(echo "${da_admin_unames}" | wc -w) ]]; do
+    typeset -n "this_da_admin_uname=C_DA_ADMIN_USERNAME${count_user}"
+    typeset -n "this_da_admin_password=C_DA_ADMIN_USERPASS${count_user}"
+    typeset -n "this_da_admin_name=C_DA_ADMIN_NAME${count_user}"
+    typeset -n "this_da_admin_system_email=C_DA_ADMIN_SYSTEM_EMAIL${count_user}"
+    typeset -n "this_da_admin_security_qna=C_DA_ADMIN_SECURITY_QNA${count_user}"
 
+    if [[ "${#this_da_admin_uname}" -lt 2 ]]; then
+      echo "[${SCRIPT_NAME}]: [Skipped]: Warning admin username length is ${#this_da_admin_uname} but the it should be more or equal to 2. Please check configuration file"
+      _exit 147
+    elif [[ "${#this_da_admin_uname}" -gt ${C_DA_MAX_USERNAME_LENGTH} ]]; then
+      echo "[${SCRIPT_NAME}]: [Skipped]: Warning admin username length is ${#this_da_admin_uname} but the it should be less or equal to ${C_DA_MAX_USERNAME_LENGTH}. Please check configuration file"
+      _exit 147
     elif [[ -z "${this_da_admin_password+x}" ]]; then
-      echo "[${SCRIPT_NAME}]: [Skipped]: Warning admin ${this_da_admin_uname} doesn't have password set in config file. Please check configuration file "
-      _exit 1
+      echo "[${SCRIPT_NAME}]: [Skipped]: Warning admin ${this_da_admin_uname} doesn't have password set in config file (missing or invalid variable). Please check configuration file "
+      _exit 147
     elif [[ "${#this_da_admin_password}" -lt 6 ]]; then
       echo "[${SCRIPT_NAME}]: [Skipped]: Warning admin ${this_da_admin_uname} has password set length of ${#this_da_admin_password} but the minimum is 6 characters. Please check configuration file"
-      _exit 1
+      _exit 147
     elif [[ "${#this_da_admin_password}" -gt 64 ]]; then
       echo "[${SCRIPT_NAME}]: [Skipped]: Warning admin ${this_da_admin_uname} has password set length of ${#this_da_admin_password} but the maximum is 64 characters. Please check configuration file"
-      _exit 1
+      _exit 147
     elif [[ "${this_da_admin_password}" =~ ['&+'] ]]; then
-      echo "[${SCRIPT_NAME}]: [Skipped]: Warning admin ${this_da_admin_uname} has password set with forbidden special character &+ in config file. Please check configuration file"
-      _exit 1
+      echo "[${SCRIPT_NAME}]: [Skipped]: Warning admin ${this_da_admin_uname} has password set with forbidden special characters [ &+ ] in config file. Please check configuration file"
+      _exit 147
     elif [[ -z "${this_da_admin_name+x}" ]]; then
-      echo "[${SCRIPT_NAME}]: [Skipped]: Warning admin ${this_da_admin_uname} doesn't have name set in config file. Please check configuration file "
-      _exit 1
+      echo "[${SCRIPT_NAME}]: [Skipped]: Warning admin ${this_da_admin_uname} doesn't have name set in config file (missing or invalid variable). Please check configuration file "
+      _exit 147
     elif [[ -z "${this_da_admin_system_email+x}" ]]; then
-      echo "[${SCRIPT_NAME}]: [Skipped]: Warning admin ${this_da_admin_uname} doesn't have system email set in config file. Please check configuration file "
-      _exit 1
-    elif [[ -z "${this_da_admin_security_q+x}" ]]; then
-      echo "[${SCRIPT_NAME}]: [Skipped]: Warning admin ${this_da_admin_uname} doesn't have security question set in config file. Please check configuration file "
-      _exit 1
-    elif [[ -z "${this_da_admin_security_a+x}" ]]; then
-      echo "[${SCRIPT_NAME}]: [Skipped]: Warning admin ${this_da_admin_uname} doesn't have security answer set in config file. Please check configuration file "
-      _exit 1
-    elif [[ ${#this_da_admin_security_q[@]} -ne ${#this_da_admin_security_a[@]} ]]; then
-      echo "[${SCRIPT_NAME}]: [Skipped]: Warning admin ${this_da_admin_uname} has security question and answer defined with different length of array"
-      _exit 1
+      echo "[${SCRIPT_NAME}]: [Skipped]: Warning admin ${this_da_admin_uname} doesn't have system email set in config file (missing or invalid variable). Please check configuration file "
+      _exit 147
+    elif ! is_valid "email" "${this_da_admin_system_email}"; then
+      echo "[${SCRIPT_NAME}]: [Skipped]: Warning admin ${this_da_admin_uname} has invalid email [ ${this_da_admin_system_email} ] set in config file. Please check configuration file "
+      _exit 147
+    elif [[ -z "${this_da_owner_security_qna+x}" ]]; then
+      echo "[${SCRIPT_NAME}]: [Skipped]: Warning admin ${this_da_admin_uname} doesn't have security question and answer set in config file (missing or invalid variable). Please check configuration file "
+      _exit 147
+    elif [[ -n "${this_da_admin_security_qna}" && $(echo "${#this_da_admin_security_qna[@]}") -ne $(awk -F'\|\|\|' '{print NF-1}' <<<"${this_da_admin_security_qna[@]}") ]]; then
+      echo "[${SCRIPT_NAME}]: [Skipped]: Warning admin ${this_da_admin_uname} has invalid security question and answer format set in config file (invalid separator). Please check configuration file "
+      _exit 147
     else
-      #echo "[${SCRIPT_NAME}]: OK, all variables for admin ${this_da_admin_uname} are set."
+      _echo "$(msg green)OK, all variables for admin ${this_da_admin_uname} are valid.$(msg end)" --name --verbose 7
       ((total_valid_user++))
     fi
     ((count_user++))
-
   done
 
-  local da_reseller_unames da_reseller_unames_count this_da_reseller_uname this_da_reseller_name this_da_reseller_system_email \
-    this_da_reseller_mail_users this_da_reseller_mail_passwords this_da_reseller_domains this_da_reseller_wildcard_domains \
-    this_da_reseller_subdomains this_da_reseller_package_name this_da_reseller_enable_domain_ssl this_da_reseller_ssl_sub_name \
-    this_da_reseller_security_q this_da_reseller_security_a
-
-  da_reseller_unames="${!C_DA_RESELLER_USERNAME@}"
-  da_reseller_unames_count=$(echo "${da_reseller_unames}" | wc -w)
+  #--------------------#
+  # Validate resellers #
+  #--------------------#
+  local this_da_reseller_uname this_da_reseller_password this_da_reseller_name this_da_reseller_system_email \
+    this_da_reseller_package_name this_da_reseller_domains this_da_reseller_wildcard_domains this_da_reseller_subdomains \
+    this_c_da_reseller_ip_type this_da_reseller_enable_domain_ssl this_da_reseller_ssl_subdomains this_da_reseller_mail_accounts \
+    this_da_reseller_security_qna this_da_reseller_db_accounts
 
   count_user=1
-  # Validate resellers
-  while [[ ${count_user} -le ${da_reseller_unames_count} ]]; do
-    typeset -n "this_da_reseller_uname"="C_DA_RESELLER_USERNAME${count_user}"
-    typeset -n "this_da_reseller_password"="C_DA_RESELLER_USERPASS${count_user}"
-    typeset -n "this_da_reseller_name"="C_DA_RESELLER_NAME${count_user}"
-    typeset -n "this_da_reseller_system_email"="C_DA_RESELLER_SYSTEM_EMAIL${count_user}"
-    typeset -n "this_da_reseller_mail_users"="C_DA_RESELLER_MAIL_USER${count_user}"
-    typeset -n "this_da_reseller_mail_passwords"="C_DA_RESELLER_MAIL_PASSWORD${count_user}"
-    typeset -n "this_da_reseller_domains"="C_DA_RESELLER_DOMAIN${count_user}"
-    typeset -n "this_da_reseller_wildcard_domains"="C_DA_RESELLER_WILDCARD_DOMAIN${count_user}"
-    typeset -n "this_da_reseller_subdomains"="C_DA_RESELLER_SUBDOMAIN${count_user}"
-    typeset -n "this_da_reseller_package_name"="C_DA_RESELLER_PACKAGE_NAME${count_user}"
-    typeset -n "this_da_reseller_enable_domain_ssl"="C_DA_RESELLER_ENABLE_DOMAIN_SSL${count_user}"
-    typeset -n "this_da_reseller_ssl_sub_name"="C_DA_RESELLER_SSL_SUB_NAME${count_user}"
-    typeset -n "this_da_reseller_security_q"="C_DA_RESELLER_SECURITY_Q${count_user}"
-    typeset -n "this_da_reseller_security_a"="C_DA_RESELLER_SECURITY_A${count_user}"
-    if [[ "${#this_da_reseller_uname}" -lt 2 ]]; then
-      echo "[${SCRIPT_NAME}]: [Skipped]: Warning reseller username length is ${#this_da_reseller_uname} but the minimum should be 2. Please check configuration file "
-      _exit 1
-    elif [[ "${#this_da_reseller_uname}" -gt ${C_DA_MAX_USERNAME_LENGTH} ]]; then
-      echo "[${SCRIPT_NAME}]: [Skipped]: Warning reseller username length is ${#this_da_reseller_uname} but the maximum should be ${C_DA_MAX_USERNAME_LENGTH}. Please check configuration file "
-      _exit 1
 
+  while [[ ${count_user} -le $(echo "${!C_DA_RESELLER_USERNAME@}" | wc -w) ]]; do
+
+    typeset -n "this_da_reseller_uname=C_DA_RESELLER_USERNAME${count_user}"
+    typeset -n "this_da_reseller_password=C_DA_RESELLER_USERPASS${count_user}"
+    typeset -n "this_da_reseller_name=C_DA_RESELLER_NAME${count_user}"
+    typeset -n "this_da_reseller_system_email=C_DA_RESELLER_SYSTEM_EMAIL${count_user}"
+    typeset -n "this_da_reseller_package_name=C_DA_RESELLER_PACKAGE_NAME${count_user}"
+    typeset -n "this_da_reseller_domains=C_DA_RESELLER_DOMAIN${count_user}"
+    typeset -n "this_da_reseller_wildcard_domains=C_DA_RESELLER_WILDCARD_DOMAIN${count_user}"
+    typeset -n "this_da_reseller_subdomains=C_DA_RESELLER_SUBDOMAIN${count_user}"
+    typeset -n "this_c_da_reseller_ip_type=C_DA_RESELLER_IP_TYPE${count_user}"
+    typeset -n "this_da_reseller_enable_domain_ssl=C_DA_RESELLER_ENABLE_DOMAIN_SSL${count_user}"
+    typeset -n "this_da_reseller_ssl_subdomains=C_DA_RESELLER_SSL_SUBDOMAIN${count_user}"
+    typeset -n "this_da_reseller_mail_accounts=C_DA_RESELLER_MAIL_ACCOUNT${count_user}"
+    typeset -n "this_da_reseller_security_qna=C_DA_RESELLER_SECURITY_QNA${count_user}"
+    typeset -n "this_da_reseller_db_accounts=C_DA_RESELLER_DB_ACCOUNT${count_user}"
+
+    if [[ "${#this_da_reseller_uname}" -lt 2 ]]; then
+      echo "[${SCRIPT_NAME}]: [Skipped]: Warning reseller username length is ${#this_da_reseller_uname} but the it should be more or equal to 2. Please check configuration file"
+      _exit 147
+    elif [[ "${#this_da_reseller_uname}" -gt ${C_DA_MAX_USERNAME_LENGTH} ]]; then
+      echo "[${SCRIPT_NAME}]: [Skipped]: Warning reseller username length is ${#this_da_reseller_uname} but the it should be less or equal to ${C_DA_MAX_USERNAME_LENGTH}. Please check configuration file"
+      _exit 147
     elif [[ -z "${this_da_reseller_password+x}" ]]; then
-      echo "[${SCRIPT_NAME}]: [Skipped]: Warning reseller ${this_da_reseller_uname} doesn't have password set in config file. Please check configuration file "
-      _exit 1
+      echo "[${SCRIPT_NAME}]: [Skipped]: Warning reseller ${this_da_reseller_uname} doesn't have password set in config file (missing or invalid variable). Please check configuration file"
+      _exit 147
     elif [[ "${#this_da_reseller_password}" -lt 6 ]]; then
       echo "[${SCRIPT_NAME}]: [Skipped]: Warning reseller ${this_da_reseller_uname} has password set length of ${#this_da_reseller_password} but the minimum is 6 characters. Please check configuration file"
-      _exit 1
+      _exit 147
     elif [[ "${#this_da_reseller_password}" -gt 64 ]]; then
       echo "[${SCRIPT_NAME}]: [Skipped]: Warning reseller ${this_da_reseller_uname} has password set length of ${#this_da_reseller_password} but the maximum is 64 characters. Please check configuration file"
-      _exit 1
+      _exit 147
     elif [[ "${this_da_reseller_password}" =~ ['&+'] ]]; then
-      echo "[${SCRIPT_NAME}]: [Skipped]: Warning reseller ${this_da_reseller_uname} has password set with forbidden special character &+ in config file. Please check configuration file"
-      _exit 1
+      echo "[${SCRIPT_NAME}]: [Skipped]: Warning reseller ${this_da_reseller_uname} has password set with forbidden special characters [ &+ ] in config file. Please check configuration file"
+      _exit 147
     elif [[ -z "${this_da_reseller_name+x}" ]]; then
-      echo "[${SCRIPT_NAME}]: [Skipped]: Warning reseller ${this_da_reseller_uname} doesn't have name set in config file. Please check configuration file "
-      _exit 1
-
+      echo "[${SCRIPT_NAME}]: [Skipped]: Warning reseller ${this_da_reseller_uname} doesn't have name set in config file (missing or invalid variable). Please check configuration file"
+      _exit 147
     elif [[ -z "${this_da_reseller_system_email+x}" ]]; then
-      echo "[${SCRIPT_NAME}]: [Skipped]: Warning reseller ${this_da_reseller_uname} doesn't have system email set in config file. Please check configuration file "
-      _exit 1
-    elif [[ -z "${this_da_reseller_mail_users+x}" ]]; then
-      echo "[${SCRIPT_NAME}]: [Skipped]: Warning reseller ${this_da_reseller_uname} doesn't have email inbox set in config file. Please check configuration file "
-      _exit 1
-    elif [[ -z "${this_da_reseller_mail_passwords+x}" ]]; then
-      echo "[${SCRIPT_NAME}]: [Skipped]: Warning reseller ${this_da_reseller_uname} doesn't have email password set in config file. Please check configuration file "
-      _exit 1
-      # Just use a normal variable to check (even it is array)
-    elif [[ -z "${this_da_reseller_domains+x}" ]]; then
-      echo "[${SCRIPT_NAME}]: [Skipped]: Warning reseller ${this_da_reseller_uname} doesn't have domain set in config file. Please check configuration file "
-      _exit 1
-    elif [[ -z "${this_da_reseller_wildcard_domains+x}" ]]; then
-      echo "[${SCRIPT_NAME}]: [Skipped]: Warning reseller ${this_da_reseller_uname} doesn't have wildcard domain set in config file. Please check configuration file "
-      _exit 1
-    elif [[ -z "${this_da_reseller_subdomains+x}" ]]; then
-      echo "[${SCRIPT_NAME}]: [Skipped]: Warning reseller ${this_da_reseller_uname} doesn't have subdomains set in config file. Please check configuration file "
-      _exit 1
-    elif [[ $(awk -F':' '{print NF-1}' <<<"${this_da_reseller_subdomains}") -lt 1 ]]; then
-      echo "[${SCRIPT_NAME}]: [Skipped]: Warning reseller ${this_da_user_uname} has invalid subdomains format in config file. eg: <domain>:<sub1>+<sub2> ... . Please check configuration file "
-      _exit 1
-    elif [[ $(awk -F':' '{print NF-1}' <<<"${this_da_reseller_subdomains}") -gt 1 ]]; then
-      echo "[${SCRIPT_NAME}]: [Skipped]: Warning reseller ${this_da_user_uname} has invalid subdomains format in config file. eg: <domain>:<sub1>+<sub2> ... . Please check configuration file "
-      _exit 1
-    elif [[ ${#this_da_reseller_mail_users[@]} -ne ${#this_da_reseller_mail_passwords[@]} ]]; then
-      echo "[${SCRIPT_NAME}]: [Skipped]: Warning reseller ${this_da_reseller_uname} has mail users and mail passwords defined with different length of array"
-      _exit 1
+      echo "[${SCRIPT_NAME}]: [Skipped]: Warning reseller ${this_da_reseller_uname} doesn't have system email set in config file (missing or invalid variable). Please check configuration file"
+      _exit 147
     elif [[ -z "${this_da_reseller_package_name+x}" ]]; then
       echo "[${SCRIPT_NAME}]: [Skipped]: Warning reseller ${this_da_reseller_uname} doesn't have package name set in config file. Please check configuration file "
-      _exit 1
+      _exit 147
+    elif [[ -z "${this_da_reseller_mail_accounts+x}" ]]; then
+      echo "[${SCRIPT_NAME}]: [Skipped]: Warning reseller ${this_da_reseller_uname} doesn't have email account set in config file (missing or invalid variable). Please check configuration file"
+      _exit 147
+    elif [[ -n "${this_da_reseller_mail_accounts}" && $(echo "${#this_da_reseller_mail_accounts[@]}") -ne $(awk -F'\|\|\|' '{print NF-1}' <<<"${this_da_reseller_mail_accounts[@]}") ]]; then
+      echo "[${SCRIPT_NAME}]: [Skipped]: Warning reseller ${this_da_reseller_uname} has invalid email account format set in config file (invalid separator). Please check configuration file"
+      _exit 147
+      # Just use a normal variable to check (even it is array)
+    elif [[ -z "${this_da_reseller_domains+x}" ]]; then
+      echo "[${SCRIPT_NAME}]: [Skipped]: Warning reseller ${this_da_reseller_uname} doesn't have domain set in config file (missing or invalid variable). Please check configuration file"
+      _exit 147
+    elif [[ -z "${this_da_reseller_domains}" ]]; then
+      echo "[${SCRIPT_NAME}]: [Skipped]: Warning reseller ${this_da_reseller_uname} must have at least one domain set in config file (domain is empty). Please check configuration file"
+      _exit 147
+    elif [[ -z "${this_da_reseller_wildcard_domains+x}" ]]; then
+      echo "[${SCRIPT_NAME}]: [Skipped]: Warning reseller ${this_da_reseller_uname} doesn't have wildcard domain set in config file (missing or invalid variable). Please check configuration file"
+      _exit 147
+    elif [[ -z "${this_c_da_reseller_ip_type+x}" ]]; then
+      echo "[${SCRIPT_NAME}]: [Skipped]: Warning reseller ${this_da_reseller_uname} doesn't have ip type set in config file (missing or invalid variable). Please check configuration file"
+      _exit 147
     elif [[ -z "${this_da_reseller_enable_domain_ssl+x}" ]]; then
-      echo "[${SCRIPT_NAME}]: [Skipped]: Warning reseller ${this_da_reseller_uname} doesn't have domain enable ssl set in config file. Please check configuration file "
-      _exit 1
-    elif [[ $(awk -F':' '{print NF-1}' <<<"${this_da_reseller_ssl_sub_name}") -lt 2 ]]; then
-      echo "[${SCRIPT_NAME}]: [Skipped]: Warning reseller ${this_da_reseller_uname} has invalid ssl subdomains format in config file. eg: <provider>:<domain>:<sub1>+<sub2> ... . Please check configuration file "
-      _exit 1
-    elif [[ $(awk -F':' '{print NF-1}' <<<"${this_da_reseller_ssl_sub_name}") -gt 2 ]]; then
-      echo "[${SCRIPT_NAME}]: [Skipped]: Warning reseller ${this_da_reseller_uname} has invalid ssl subdomains format in config file. eg: <provider>:<domain>:<sub1>+<sub2> ... . Please check configuration file "
-      _exit 1
-    elif [[ -z "${this_da_reseller_security_q+x}" ]]; then
-      echo "[${SCRIPT_NAME}]: [Skipped]: Warning reseller ${this_da_reseller_uname} doesn't have security question set in config file. Please check configuration file "
-      _exit 1
-    elif [[ -z "${this_da_reseller_security_a+x}" ]]; then
-      echo "[${SCRIPT_NAME}]: [Skipped]: Warning reseller ${this_da_reseller_uname} doesn't have security answer set in config file. Please check configuration file "
-      _exit 1
-    elif [[ ${#this_da_reseller_security_q[@]} -ne ${#this_da_reseller_security_a[@]} ]]; then
-      echo "[${SCRIPT_NAME}]: [Skipped]: Warning reseller ${this_da_reseller_uname} has security question and answer defined with different length of array"
-      _exit 1
+      echo "[${SCRIPT_NAME}]: [Skipped]: Warning reseller ${this_da_reseller_uname} doesn't have domain enable ssl set in config file (missing or invalid variable). Please check configuration file"
+      _exit 147
+    elif [[ -z "${this_da_reseller_subdomains+x}" ]]; then
+      echo "[${SCRIPT_NAME}]: [Skipped]: Warning reseller ${this_da_reseller_uname} doesn't have subdomains set in config file (missing or invalid variable). Please check configuration file"
+      _exit 147
+    elif [[ -n "${this_da_reseller_subdomains}" && $(awk -F':' '{print NF-1}' <<<"${this_da_reseller_subdomains[@]}") -ne ${#this_da_reseller_subdomains[@]} ]]; then
+      echo "[${SCRIPT_NAME}]: [Skipped]: Warning reseller ${this_da_user_uname} has invalid subdomains format set in config file (invalid separator). Please check configuration file "
+      _exit 147
+      # TODO check extra this_da_reseller_ssl_subdomains for format
+    elif [[ -z "${this_da_reseller_ssl_subdomains+x}" ]]; then
+      echo "[${SCRIPT_NAME}]: [Skipped]: Warning reseller ${this_da_reseller_uname} doesn't have ssl subdomains set in config file (missing or invalid variable). Please check configuration file"
+      _exit 147
+    elif [[ -z "${this_da_reseller_security_qna+x}" ]]; then
+      echo "[${SCRIPT_NAME}]: [Skipped]: Warning reseller ${this_da_reseller_uname} doesn't have security question and answer set in config file (missing or invalid variable). Please check configuration file"
+      _exit 147
+    elif [[ -n "${this_da_reseller_security_qna}" && $(echo "${#this_da_reseller_security_qna[@]}") -ne $(awk -F'\|\|\|' '{print NF-1}' <<<"${this_da_reseller_security_qna[@]}") ]]; then
+      echo "[${SCRIPT_NAME}]: [Skipped]: Warning reseller ${this_da_reseller_uname} has invalid security question and answer format set in config file (invalid separator). Please check configuration file"
+      _exit 147
+    elif [[ -z "${this_da_reseller_db_accounts+x}" ]]; then
+      echo "[${SCRIPT_NAME}]: [Skipped]: Warning reseller ${this_da_reseller_uname} doesn't have database account set in config file (missing or invalid variable). Please check configuration file "
+      _exit 147
+    elif [[ -n ${this_da_reseller_db_accounts} && $(echo "${#this_da_reseller_db_accounts[@]}") -ne $(awk -F'\|\|\|' '{print NF-1}' <<<"${this_da_reseller_db_accounts[@]}") ]]; then
+      echo "[${SCRIPT_NAME}]: [Skipped]: Warning reseller ${this_da_reseller_uname} has invalid database account format set in config file (invalid separator). Please check configuration file"
+      _exit 147
     else
-      #echo "[${SCRIPT_NAME}]: OK, all variables for reseller ${this_da_reseller_uname} are set."
+      _echo "$(msg green)OK, all variables for reseller ${this_da_reseller_uname} are valid.$(msg end)" --name --verbose 7
       ((total_valid_user++))
     fi
     ((count_user++))
   done
 
-  local da_user_unames da_user_count this_da_user_uname this_da_user_password this_da_user_name this_da_user_system_email \
-    this_da_user_mail_users this_da_user_mail_passwords this_da_user_domains this_da_user_wildcard_domains this_da_user_subdomains \
-    this_da_user_package_name this_da_user_enable_domain_ssl this_da_user_security_q this_da_user_security_a
-
-  da_user_unames="${!C_DA_USER_USERNAME@}"
-  da_user_count=$(echo "${da_user_unames}" | wc -w)
+  local this_da_user_uname this_da_user_password this_da_user_name this_da_user_system_email \
+    this_da_user_package_name this_da_user_domains this_da_user_wildcard_domains this_da_user_subdomains \
+    this_c_da_user_ip_type this_da_user_enable_domain_ssl this_da_user_ssl_subdomains this_da_user_mail_accounts \
+    this_da_user_security_qna this_da_user_db_accounts
 
   count_user=1
-  # Validate users
-  while [[ ${count_user} -le ${da_user_count} ]]; do
-    typeset -n "this_da_user_uname"="C_DA_USER_USERNAME${count_user}"
-    typeset -n "this_da_user_password"="C_DA_USER_USERPASS${count_user}"
-    typeset -n "this_da_user_name"="C_DA_USER_NAME${count_user}"
-    typeset -n "this_da_user_system_email"="C_DA_USER_SYSTEM_EMAIL${count_user}"
-    typeset -n "this_da_user_mail_users"="C_DA_USER_MAIL_USER${count_user}"
-    typeset -n "this_da_user_mail_passwords"="C_DA_USER_MAIL_PASSWORD${count_user}"
-    typeset -n "this_da_user_domains"="C_DA_USER_DOMAIN${count_user}"
-    typeset -n "this_da_user_wildcard_domains"="C_DA_USER_WILDCARD_DOMAIN${count_user}"
-    typeset -n "this_da_user_subdomains"="C_DA_USER_SUBDOMAIN${count_user}"
-    typeset -n "this_da_user_package_name"="C_DA_USER_PACKAGE_NAME${count_user}"
-    typeset -n "this_da_user_enable_domain_ssl"="C_DA_USER_ENABLE_DOMAIN_SSL${count_user}"
-    typeset -n "this_da_user_ssl_sub_name"="C_DA_USER_SSL_SUB_NAME${count_user}"
-    typeset -n "this_da_user_security_q"="C_DA_USER_SECURITY_Q${count_user}"
-    typeset -n "this_da_user_security_a"="C_DA_USER_SECURITY_A${count_user}"
+
+  while [[ ${count_user} -le $(echo "${!C_DA_USER_USERNAME@}" | wc -w) ]]; do
+
+    typeset -n "this_da_user_uname=C_DA_USER_USERNAME${count_user}"
+    typeset -n "this_da_user_password=C_DA_USER_USERPASS${count_user}"
+    typeset -n "this_da_user_name=C_DA_USER_NAME${count_user}"
+    typeset -n "this_da_user_system_email=C_DA_USER_SYSTEM_EMAIL${count_user}"
+    typeset -n "this_da_user_package_name=C_DA_USER_PACKAGE_NAME${count_user}"
+    typeset -n "this_da_user_domains=C_DA_USER_DOMAIN${count_user}"
+    typeset -n "this_da_user_wildcard_domains=C_DA_USER_WILDCARD_DOMAIN${count_user}"
+    typeset -n "this_da_user_subdomains=C_DA_USER_SUBDOMAIN${count_user}"
+    typeset -n "this_da_user_enable_domain_ssl=C_DA_USER_ENABLE_DOMAIN_SSL${count_user}"
+    typeset -n "this_da_user_ssl_subdomains=C_DA_USER_SSL_SUBDOMAIN${count_user}"
+    typeset -n "this_da_user_mail_accounts=C_DA_USER_MAIL_ACCOUNT${count_user}"
+    typeset -n "this_da_user_security_qna=C_DA_USER_SECURITY_QNA${count_user}"
+    typeset -n "this_da_user_db_accounts=C_DA_USER_DB_ACCOUNT${count_user}"
+
     if [[ "${#this_da_user_uname}" -lt 2 ]]; then
-      echo "[${SCRIPT_NAME}]: [Skipped]: Warning user username length is ${#this_da_user_uname} but the minimum should be 2. Please check configuration file "
-      _exit 1
+      echo "[${SCRIPT_NAME}]: [Skipped]: Warning user username length is ${#this_da_user_uname} but the it should be more or equal to 2. Please check configuration file"
+      _exit 147
     elif [[ "${#this_da_user_uname}" -gt ${C_DA_MAX_USERNAME_LENGTH} ]]; then
-      echo "[${SCRIPT_NAME}]: [Skipped]: Warning user username length is ${#this_da_user_uname} but the maximum should be ${C_DA_MAX_USERNAME_LENGTH}. Please check configuration file "
-      _exit 1
+      echo "[${SCRIPT_NAME}]: [Skipped]: Warning user username length is ${#this_da_user_uname} but the it should be less or equal to ${C_DA_MAX_USERNAME_LENGTH}. Please check configuration file"
+      _exit 147
     elif [[ -z "${this_da_user_password+x}" ]]; then
-      echo "[${SCRIPT_NAME}]: [Skipped]: Warning user ${this_da_user_uname} doesn't have password set in config file. Please check configuration file"
-      _exit 1
+      echo "[${SCRIPT_NAME}]: [Skipped]: Warning user ${this_da_user_uname} doesn't have password set in config file (missing or invalid variable). Please check configuration file"
+      _exit 147
     elif [[ "${#this_da_user_password}" -lt 6 ]]; then
       echo "[${SCRIPT_NAME}]: [Skipped]: Warning user ${this_da_user_uname} has password set length of ${#this_da_user_password} but the minimum is 6 characters. Please check configuration file"
-      _exit 1
+      _exit 147
     elif [[ "${#this_da_user_password}" -gt 64 ]]; then
       echo "[${SCRIPT_NAME}]: [Skipped]: Warning user ${this_da_user_uname} has password set length of ${#this_da_user_password} but the maximum is 64 characters. Please check configuration file"
-      _exit 1
+      _exit 147
     elif [[ "${this_da_user_password}" =~ ['&+'] ]]; then
-      echo "[${SCRIPT_NAME}]: [Skipped]: Warning user ${this_da_user_uname} has password set with forbidden special character &+ in config file. Please check configuration file"
-      _exit 1
+      echo "[${SCRIPT_NAME}]: [Skipped]: Warning user ${this_da_user_uname} has password set with forbidden special characters [ &+ ] in config file. Please check configuration file"
+      _exit 147
     elif [[ -z "${this_da_user_name+x}" ]]; then
-      echo "[${SCRIPT_NAME}]: [Skipped]: Warning user ${this_da_user_uname} doesn't have name set in config file. Please check configuration file "
-      _exit 1
+      echo "[${SCRIPT_NAME}]: [Skipped]: Warning user ${this_da_user_uname} doesn't have name set in config file (missing or invalid variable). Please check configuration file"
+      _exit 147
     elif [[ -z "${this_da_user_system_email+x}" ]]; then
-      echo "[${SCRIPT_NAME}]: [Skipped]: Warning user ${this_da_user_uname} doesn't have system email set in config file. Please check configuration file "
-      _exit 1
-    elif [[ -z "${this_da_user_mail_users+x}" ]]; then
-      echo "[${SCRIPT_NAME}]: [Skipped]: Warning user ${this_da_user_uname} doesn't have email inbox set in config file. Please check configuration file "
-      _exit 1
-    elif [[ -z "${this_da_user_mail_passwords+x}" ]]; then
-      echo "[${SCRIPT_NAME}]: [Skipped]: Warning user ${this_da_user_uname} doesn't have email password set in config file. Please check configuration file "
-      _exit 1
-      # Just use a normal variable to check (even it is array)
-    elif [[ -z "${this_da_user_domains+x}" ]]; then
-      echo "[${SCRIPT_NAME}]: [Skipped]: Warning user ${this_da_user_uname} doesn't have domain set in config file. Please check configuration file "
-      _exit 1
-    elif [[ -z "${this_da_user_wildcard_domains+x}" ]]; then
-      echo "[${SCRIPT_NAME}]: [Skipped]: Warning user ${this_da_user_uname} doesn't have wildcard domain set in config file. Please check configuration file "
-      _exit 1
-    elif [[ -z "${this_da_user_subdomains+x}" ]]; then
-      echo "[${SCRIPT_NAME}]: [Skipped]: Warning user ${this_da_user_uname} doesn't have subdomains set in config file. Please check configuration file "
-      _exit 1
-    elif [[ $(awk -F':' '{print NF-1}' <<<"${this_da_user_subdomains}") -lt 1 ]]; then
-      echo "[${SCRIPT_NAME}]: [Skipped]: Warning user ${this_da_user_uname} has invalid subdomains format in config file. eg: <domain>:<sub1>+<sub2> ... . Please check configuration file "
-      _exit 1
-    elif [[ $(awk -F':' '{print NF-1}' <<<"${this_da_user_subdomains}") -gt 1 ]]; then
-      echo "[${SCRIPT_NAME}]: [Skipped]: Warning user ${this_da_user_uname} has invalid subdomains format in config file. eg: <domain>:<sub1>+<sub2> ... . Please check configuration file "
-      _exit 1
-    elif [[ ${#this_da_user_mail_users[@]} -ne ${#this_da_user_mail_passwords[@]} ]]; then
-      echo "[${SCRIPT_NAME}]: [Skipped]: Warning user ${this_da_user_uname} has mail users and mail passwords defined with different length of array"
-      _exit 1
+      echo "[${SCRIPT_NAME}]: [Skipped]: Warning user ${this_da_user_uname} doesn't have system email set in config file (missing or invalid variable). Please check configuration file"
+      _exit 147
     elif [[ -z "${this_da_user_package_name+x}" ]]; then
       echo "[${SCRIPT_NAME}]: [Skipped]: Warning user ${this_da_user_uname} doesn't have package name set in config file. Please check configuration file "
-      _exit 1
+      _exit 147
+    elif [[ -z "${this_da_user_mail_accounts+x}" ]]; then
+      echo "[${SCRIPT_NAME}]: [Skipped]: Warning user ${this_da_user_uname} doesn't have email account set in config file (missing or invalid variable). Please check configuration file"
+      _exit 147
+    elif [[ -n "${this_da_user_mail_accounts}" && $(echo "${#this_da_user_mail_accounts[@]}") -ne $(awk -F'\|\|\|' '{print NF-1}' <<<"${this_da_user_mail_accounts[@]}") ]]; then
+      echo "[${SCRIPT_NAME}]: [Skipped]: Warning user ${this_da_user_uname} has invalid email account format set in config file (invalid separator). Please check configuration file"
+      _exit 147
+      # Just use a normal variable to check (even it is array)
+    elif [[ -z "${this_da_user_domains+x}" ]]; then
+      echo "[${SCRIPT_NAME}]: [Skipped]: Warning user ${this_da_user_uname} doesn't have domain set in config file (missing or invalid variable). Please check configuration file"
+      _exit 147
+    elif [[ -z "${this_da_user_domains}" ]]; then
+      echo "[${SCRIPT_NAME}]: [Skipped]: Warning user ${this_da_user_uname} must have at least one domain set in config file (domain is empty). Please check configuration file"
+      _exit 147
+    elif [[ -z "${this_da_user_wildcard_domains+x}" ]]; then
+      echo "[${SCRIPT_NAME}]: [Skipped]: Warning user ${this_da_user_uname} doesn't have wildcard domain set in config file (missing or invalid variable). Please check configuration file"
+      _exit 147
     elif [[ -z "${this_da_user_enable_domain_ssl+x}" ]]; then
-      echo "[${SCRIPT_NAME}]: [Skipped]: Warning user ${this_da_user_uname} doesn't have domain enable ssl set in config file. Please check configuration file "
-      _exit 1
-    elif [[ $(awk -F':' '{print NF-1}' <<<"${this_da_user_ssl_sub_name}") -lt 2 ]]; then
-      echo "[${SCRIPT_NAME}]: [Skipped]: Warning user ${this_da_user_uname} has invalid ssl subdomains format in config file. eg: <provider>:<domain>:<sub1>+<sub2> ... . Please check configuration file "
-      _exit 1
-    elif [[ $(awk -F':' '{print NF-1}' <<<"${this_da_user_ssl_sub_name}") -gt 2 ]]; then
-      echo "[${SCRIPT_NAME}]: [Skipped]: Warning user ${this_da_user_uname} has invalid ssl subdomains format in config file. eg: <provider>:<domain>:<sub1>+<sub2> ... . Please check configuration file "
-      _exit 1
-    elif [[ -z "${this_da_user_security_q+x}" ]]; then
-      echo "[${SCRIPT_NAME}]: [Skipped]: Warning user ${this_da_user_uname} doesn't have security question set in config file. Please check configuration file "
-      _exit 1
-    elif [[ -z "${this_da_user_security_a+x}" ]]; then
-      echo "[${SCRIPT_NAME}]: [Skipped]: Warning user ${this_da_user_uname} doesn't have security answer set in config file. Please check configuration file "
-      _exit 1
-    elif [[ ${#this_da_user_security_q[@]} -ne ${#this_da_user_security_a[@]} ]]; then
-      echo "[${SCRIPT_NAME}]: [Skipped]: Warning user ${this_da_user_uname} has security question and answer defined with different length of array"
-      _exit 1
+      echo "[${SCRIPT_NAME}]: [Skipped]: Warning user ${this_da_user_uname} doesn't have domain enable ssl set in config file (missing or invalid variable). Please check configuration file"
+      _exit 147
+    elif [[ -z "${this_da_user_subdomains+x}" ]]; then
+      echo "[${SCRIPT_NAME}]: [Skipped]: Warning user ${this_da_user_uname} doesn't have subdomains set in config file (missing or invalid variable). Please check configuration file"
+      _exit 147
+    elif [[ -z "${this_da_user_subdomains}" && $(awk -F':' '{print NF-1}' <<<"${this_da_user_subdomains[@]}") -ne ${#this_da_user_subdomains[@]} ]]; then
+      echo "[${SCRIPT_NAME}]: [Skipped]: Warning user ${this_da_user_uname} has invalid subdomains format set in config file (invalid separator). Please check configuration file "
+      _exit 147
+      # TODO check extra this_da_user_ssl_subdomains for format
+    elif [[ -z "${this_da_user_ssl_subdomains+x}" ]]; then
+      echo "[${SCRIPT_NAME}]: [Skipped]: Warning user ${this_da_user_uname} doesn't have ssl subdomains set in config file (missing or invalid variable). Please check configuration file"
+      _exit 147
+    elif [[ -z "${this_da_user_security_qna+x}" ]]; then
+      echo "[${SCRIPT_NAME}]: [Skipped]: Warning user ${this_da_user_uname} doesn't have security question and answer set in config file (missing or invalid variable). Please check configuration file"
+      _exit 147
+    elif [[ -n "${this_da_user_security_qna}" && $(echo "${#this_da_user_security_qna[@]}") -ne $(awk -F'\|\|\|' '{print NF-1}' <<<"${this_da_user_security_qna[@]}") ]]; then
+      echo "[${SCRIPT_NAME}]: [Skipped]: Warning user ${this_da_user_uname} has invalid security question and answer format set in config file (invalid separator). Please check configuration file"
+      _exit 147
+    elif [[ -z "${this_da_user_db_accounts+x}" ]]; then
+      echo "[${SCRIPT_NAME}]: [Skipped]: Warning user ${this_da_user_uname} doesn't have database account set in config file (missing or invalid variable). Please check configuration file "
+      _exit 147
+    elif [[ -n ${this_da_user_db_accounts} && $(echo "${#this_da_user_db_accounts[@]}") -ne $(awk -F'\|\|\|' '{print NF-1}' <<<"${this_da_user_db_accounts[@]}") ]]; then
+      echo "[${SCRIPT_NAME}]: [Skipped]: Warning user ${this_da_user_uname} has invalid database account format set in config file (invalid separator). Please check configuration file"
+      _exit 147
     else
-      #echo "[${SCRIPT_NAME}]: OK, all variables for user ${this_da_user_uname} are set."
+      _echo "$(msg green)OK, all variables for user ${this_da_user_uname} are valid.$(msg end)" --name --verbose 7
       ((total_valid_user++))
     fi
     ((count_user++))
   done
-
-  _echo "$(msg green)Total user with valid config is: ${total_valid_user}$(msg end)" --name --verbose 7
-  #exit 1
+  _echo "$(msg green)OK, total user with valid config is: ${total_valid_user}$(msg end)" --name --verbose 7
 }
 
 # This function gets the operating system ID and version number
@@ -9386,23 +9371,24 @@ function upgrade_os() {
 
   end_execute_options "${option}" "${func_name}"
 }
-# TODO add this into directadmin API
+
 ## Start Directadmin related function ###
-# This function allows Directadmin to restart quickly but we don't take priority on other pending tasks.
+# This function allows Directadmin to restart quickly but we don't take it as high priority because we need to finish directadmin pending tasks.
 # Better to restart DA with task.queue (this is what most documentation do) because DA needs to respect task.queue process
 # Without using task.queue, we can restart directadmin using systemctl restart directadmin
 function restart_da() {
-  local max_wait wait_step task_queue_file
+  local wait_count max_wait wait_duration task_queue_file
   # Directadmin recommends 60 seconds (or 1 minute). Longer than this something wrong with the task.queue
+  wait_count=0
   max_wait=70
-  wait_step=1
+  wait_duration=1
   task_queue_file="/usr/local/directadmin/data/task.queue"
   while :; do
-    ((HOLD_SECONDS = HOLD_SECONDS + 1))
-    sleep ${wait_step}
+    ((wait_count = wait_count + 1))
+    sleep ${wait_duration}
     if [[ -s "${task_queue_file}" && -f "${task_queue_file}" ]]; then
       _echo "$(msg cyan)Waiting for pending task(s) to finish executed. Maximum wait of ${HOLD_SECONDS}/${max_wait} seconds ...$(msg end)" --start-spin --name
-      if [ "${HOLD_SECONDS}" -gt ${max_wait} ]; then
+      if [ "${wait_count}" -gt ${max_wait} ]; then
         # Force restart if waiting time is longer than max_wait. The maximum task.queue execution time is only 1 minute based on directadmin documentation
         # Another condition that can be force to restart is, if the task.queue contains more than 2 lines, it means it is not running. So we can force restart it.
         # https://docs.directadmin.com/directadmin/general-usage/task-queue-processor/
@@ -9434,6 +9420,7 @@ function get_current_da_owner_username() {
     current_da_owner_username=$(grep -rl "^creator=root" "/usr/local/directadmin/data/users/${da_admin}/user.conf" | cut -d'/' -f7 | tail -n 1)
   done
   unset da_admins
+  # It might be impossible that this will return empty, so just in case we add the condition
   if [ -z "${current_da_owner_username}" ]; then
     _echo "$(msg red)Error, there is no admin created by root exist in directadmin user data! Please make sure it exist!$(msg end)" --name
     _exit 147
@@ -9789,6 +9776,7 @@ function install_da_post() {
       echo "?>"
     } >/var/www/html/redirect.php
     echo ""
+
     if [ "${DISTRO_ID}" == "centos" ]; then
       _echo "$(msg cyan)Adding directadmin new port ${LABEL_C_DA_PORT}/tcp to firewalld ...$(msg end)" --name
       if [[ "${C_HIDE_SENSITIVE_TEXT}" == "true" ]]; then
@@ -10829,29 +10817,30 @@ function configure_da_sql() {
     fi
     echo ""
     _echo "$(msg cyan)Checking which mysql authentication to use ...$(msg end)" --name
+    echo ""
     # 1) Test using mysql if it's running and can be authenticated.
     _echo "$(msg cyan)Testing mysql authentication using non .cnf file ...$(msg end)" --name
     mysql_on_non_cnf=$(
-      mysql --silent -e 'exit'
+      mysql -e 'exit' 2>/dev/null
       echo $?
     )
     if [ "${mysql_on_non_cnf}" -eq 0 ]; then
       # In case password is empty then use this (normally initial setup server is empty but directadmin is not, so low chance this will be executed):
       mysql_granted="mysql -e"
-      _echo "$(msg green)The mysql will be authenticated without specifying config file with the following option: [ ${mysql_granted} ] ...$(msg end)" --name
+      _echo "$(msg green)OK, the mysql will be authenticated without specifying config file with the following option: [ ${mysql_granted} ] ...$(msg end)" --name
     else
       _echo "$(msg yellow)Warning, failed to authenticate mysql using non .cnf file$(msg end)" --name
       echo ""
       # 2) Test using config password from /etc/my.cnf"
       _echo "$(msg cyan)Testing mysql authentication using non /etc/my.cnf file ...$(msg end)" --name
       mysql_on_my_cnf_etc=$(
-        mysql --silent --defaults-extra-file=${my_cnf_db_root} -e 'exit'
+        mysql --defaults-extra-file=${my_cnf_db_root} -e 'exit' 2>/dev/null
         echo $?
       )
       echo ""
       if [ "${mysql_on_my_cnf_etc}" -eq 0 ]; then
         mysql_granted="mysql --defaults-extra-file=${my_cnf_db_root} -e"
-        _echo "$(msg green)The mysql will be authenticated using ${my_cnf_db_root} with the following option: [ ${mysql_granted} ]  ...$(msg end)" --name
+        _echo "$(msg green)OK, the mysql will be authenticated using ${my_cnf_db_root} with the following option: [ ${mysql_granted} ]  ...$(msg end)" --name
 
       else
         _echo "$(msg yellow)Warning, failed to authenticate mysql using /etc/my.cnf file$(msg end)" --name
@@ -10859,13 +10848,13 @@ function configure_da_sql() {
         # 3) Test using config password from /usr/local/directadmin/conf/my.cnf
         _echo "$(msg cyan)Testing mysql authentication using non /usr/local/directadmin/conf/my.cnf file ...$(msg end)" --name
         mysql_on_my_cnf_da=$(
-          mysql --silent --defaults-extra-file=${my_cnf_db_da_admin} -e 'exit'
+          mysql --defaults-extra-file=${my_cnf_db_da_admin} -e 'exit' 2>/dev/null
           echo $?
         )
         echo ""
         if [ "${mysql_on_my_cnf_da}" -eq 0 ]; then
           mysql_granted="mysql --defaults-extra-file=${my_cnf_db_da_admin} -e"
-          _echo "$(msg green)The mysql will be authenticated using ${my_cnf_db_da_admin} with the following option: [ ${mysql_granted} ] ...$(msg end)" --name
+          _echo "$(msg green)OK, the mysql will be authenticated using ${my_cnf_db_da_admin} with the following option: [ ${mysql_granted} ] ...$(msg end)" --name
         #sleep 1
         else
           _echo "$(msg yellow)Warning, failed to authenticate mysql using /usr/local/directadmin/conf/my.cnf file$(msg end)" --name
@@ -11624,9 +11613,7 @@ function configure_da_settings() {
     # 5368709120 = 5GB
     ${da_bin} set maxfilesize "${C_DA_MAXFILESIZE}"
     echo ""
-
-    # Set number of apache log to keep for user
-    ${da_bin} set logs_to_keep "${C_DA_LOGS_TO_KEEP}"
+    _echo "$(msg cyan)Setting directadmin login history ...$(msg end)" --name
     # Set directadmin login history (default 10)
     ${da_bin} set login_history "${C_DA_LOGIN_HISTORY}"
     # Do not disable disable_ip_check (this one is session security) - default is 0
@@ -12437,6 +12424,7 @@ function configure_da_host_domain_ssl() {
         _echo "$(msg red)Error, certificate staging request test failed with return code ${retval}$(msg end)" --name
         _exit 147
       fi
+      echo ""
       #7) Now let's request the real certificate after staging
       _echo "$(msg cyan)Requesting SSL certificate for ${LABEL_C_BOX_HOSTNAME_FQHN} ...$(msg end)" --name
       has_ecc_certificates=$(cat "${da_conf}" | grep "^ecc_certificates=" | cut -d= -f2)
@@ -13437,17 +13425,15 @@ function configure_da_owner_security() {
   start_execute_options "${option}" "${func_name}"
   [[ "${SKIP_RUN}" == "true" ]] && return 0
   if [[ ! -f "${CONF_PATH}/${func_name}_executed" && "${FUNCTION_RUN}" == "true" ]]; then
-    local da_owner_username da_owner_security_qs da_owner_security_as \
-      da_owner_security_qs da_owner_security_qs_count owner_count question_count
+    local da_owner_username da_owner_security_qna da_owner_security_qna_count owner_count question_count
 
     da_owner_usernames_count=$(echo "${!C_DA_OWNER_USERNAME@}" | wc -w)
     owner_count=1
     while [ ${owner_count} -le "${da_owner_usernames_count}" ]; do
       # Assign all variables from the config file as array index
       typeset -n "da_owner_username=C_DA_OWNER_USERNAME${owner_count}"
-      typeset -n "da_owner_security_qs=C_DA_OWNER_SECURITY_Q${owner_count}"
-      typeset -n "da_owner_security_as=C_DA_OWNER_SECURITY_A${owner_count}"
-      da_owner_security_qs_count="${#da_owner_security_qs[@]}"
+      typeset -n "da_owner_security_qna=C_DA_OWNER_SECURITY_QNA${owner_count}"
+      da_owner_security_qna_count="${#da_owner_security_qna[@]}"
 
       _echo "$(msg newline)" --plain --verbose 7
       _echo "$(msg yellow)Warning this information contains sensitive data due to verbosity level was set to 7 or more$(msg end)" --name --verbose 7
@@ -13455,31 +13441,34 @@ function configure_da_owner_security() {
       _echo "Owner security question details:" --name --verbose 7
       _echo "Owner count ${owner_count} out of ${da_owner_usernames_count}" --name --verbose 7
       _echo "da_owner_username: ${da_owner_username}" --name --verbose 7
-      _echo "da_owner_security_qs: ${da_owner_security_qs[*]}" --name --verbose 7
-      _echo "da_owner_security_as: ${da_owner_security_as[*]}" --name --verbose 7
-      _echo "da_owner_security_qs_count: ${da_owner_security_qs_count[*]}" --name --verbose 7
+      _echo "da_owner_security_qna  ${da_owner_security_qna[*]}" --name --verbose 7
+      _echo "da_owner_security_qna_count: ${da_owner_security_qna_count[*]}" --name --verbose 7
       _echo "$(msg newline)" --plain --verbose 7
 
-      question_count=0
-      while [ "${question_count}" -le $((da_owner_security_qs_count - 1)) ]; do
-        local security_question security_answer
-        security_question=${da_owner_security_qs[question_count]}
-        security_answer=${da_owner_security_as[question_count]}
-        _echo "Security question for owner: ${da_owner_username}" --name --verbose 7
-        _echo "Security question: ${security_question}" --name --verbose 7
-        _echo "Security answer: ${security_answer}" --name --verbose 7
-        _echo "$(msg magenta)=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=$(msg end)" --name --verbose 7
+      question_count=1
+      if [[ "${#da_owner_security_qna}" == 0 ]]; then
+        echo "[${SCRIPT_NAME}]: [skipped]: Value defined for security_question for user ${da_owner_username} is empty"
+      else
+        while [ "${question_count}" -le ${da_owner_security_qna_count} ]; do
+          local security_question_answer security_question security_answer
+          security_question_answer=${da_owner_security_qna[question_count - 1]}
+          security_question="$(echo ${security_question_answer} | awk -F'\|\|\|' '{ print $1 }')"
+          security_answer="$(echo ${security_question_answer} | awk -F'\|\|\|' '{ print $2 }')"
 
-        if [[ "${#security_question}" == 0 || "${#security_answer}" == 0 ]]; then
-          echo "[${SCRIPT_NAME}]: [skipped]: Value defined for security_question or security answer (or both) are empty"
+          _echo "Security question count ${question_count} out of ${da_owner_security_qna_count}" --name --verbose 7
+          _echo "Security question for owner: ${da_owner_username}" --name --verbose 7
+          _echo "Security question_answer: ${security_question_answer}" --name --verbose 7
+          _echo "Security question: ${security_question}" --name --verbose 7
+          _echo "Security answer: ${security_answer}" --name --verbose 7
+          _echo "$(msg magenta)=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=$(msg end)" --name --verbose 7
+
+          _echo "$(msg cyan)Setting up security questions and answers for user ${da_owner_username}$(msg end)" --name
+          da_api_admin set-security-qna --question "${security_question}" --answer "${security_answer}"
+          #echo ""
           ((question_count++))
-          continue
-        fi
-        _echo "$(msg cyan)Setting up security questions and answers for user ${da_owner_username}$(msg end)" --name
-        da_api_admin set-security-qna --question "${security_question}" --answer "${security_answer}"
-        echo ""
-        ((question_count++))
-      done
+        done
+
+      fi
       ((owner_count++))
     done
     echo ""
@@ -13706,9 +13695,7 @@ function configure_da_reseller_wildcard_domains() {
 
       wildcard_domain_count=0
       while [ ${wildcard_domain_count} -le $((da_reseller_wildcard_domains_count - 1)) ]; do
-        local wildcard_domains
-        wildcard_domains=$(echo "${da_reseller_wildcard_domains}" | awk -F':' '{for (i=1;i<=NF;i++)print $i}') #or tr ":" "\n"
-        for wildcard_domain in ${wildcard_domains}; do
+        for wildcard_domain in ${da_reseller_wildcard_domains}; do
           _echo "Wildcard domain for reseller: ${da_reseller_username}" --name --verbose 7
           _echo "Wildcard domain: ${wildcard_domain}" --name --verbose 7
           _echo "$(msg newline)" --plain --verbose 7
@@ -13788,7 +13775,7 @@ function configure_da_reseller_subdomains() {
         local root_domain sub_domains_raw
         root_domain=$(echo "${da_reseller_subdomains[subdomain_count]}" | awk -F':' '{ print $1 }')
         sub_domains_raw=$(echo "${da_reseller_subdomains[subdomain_count]}" | awk -F':' '{ print $2 }')
-        sub_domains=$(echo "${sub_domains_raw}" | awk -F'+' '{for (i=1;i<=NF;i++)print $i}')
+        sub_domains=$(echo "${sub_domains_raw}" | awk -F',' '{for (i=1;i<=NF;i++)print $i}')
 
         _echo "root_domain: ${root_domain}" --name --verbose 7
         _echo "sub_domains_raw: ${sub_domains_raw[*]}" --name --verbose 7
@@ -13846,6 +13833,71 @@ function configure_da_reseller_subdomains() {
   end_execute_options "${option}" "${func_name}"
 }
 
+function configure_da_reseller_email_accounts() {
+  local option func_name
+  option="$1"
+  func_name="${FUNCNAME[0]}"
+  start_execute_options "${option}" "${func_name}"
+  [[ "${SKIP_RUN}" == "true" ]] && return 0
+  if [[ ! -f "${CONF_PATH}/${func_name}_executed" && "${FUNCTION_RUN}" == "true" ]]; then
+    local reseller_count da_reseller_usernames_count
+    da_reseller_usernames_count=$(echo "${!C_DA_RESELLER_USERNAME@}" | wc -w)
+    reseller_count=1
+    while [[ ${reseller_count} -le ${da_reseller_usernames_count} ]]; do
+      local da_reseller_username da_reseller_mail_accounts da_reseller_mail_accounts_count
+      typeset -n "da_reseller_username=C_DA_RESELLER_USERNAME${reseller_count}"
+      typeset -n "da_reseller_mail_accounts=C_DA_RESELLER_MAIL_ACCOUNT${reseller_count}"
+      da_reseller_mail_accounts_count="${#da_reseller_mail_accounts[@]}"
+
+      _echo "$(msg newline)" --plain --verbose 7
+      _echo "$(msg yellow)Warning this information contains sensitive data due to verbosity level was set to 7 or more$(msg end)" --name --verbose 7
+      _echo "$(msg magenta)=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=$(msg end)" --name --verbose 7
+      _echo "Reseller email details:" --name --verbose 7
+      _echo "Reseller count ${reseller_count} out of ${da_reseller_usernames_count}" --name --verbose 7
+      _echo "da_reseller_username: ${da_reseller_username}" --name --verbose 7
+      _echo "da_reseller_mail_accounts: ${da_reseller_mail_accounts[@]}" --name --verbose 7
+      _echo "da_reseller_mail_accounts_count: ${da_reseller_mail_accounts_count}" --name --verbose 7
+
+      if [ "${da_reseller_mail_accounts_count}" -eq 0 ]; then
+        _echo "$(msg yellow)Notice, this reseller ${da_reseller_username} does not have email set$(msg end)" --name
+      else
+        mail_count=1
+        while [ ${mail_count} -le ${da_reseller_mail_accounts_count} ]; do
+          local mail_user_domain mail_user mail_domain mail_password
+          mail_user_domain=$(echo "${da_reseller_mail_accounts[mail_count - 1]}" | awk -F'\|\|\|' '{ print $1 }')
+          mail_user=$(echo "${mail_user_domain}" | awk -F'@' '{ print $1 }')
+          mail_domain=$(echo "${mail_user_domain}" | awk -F'@' '{ print $2 }')
+          mail_password=$(echo "${da_reseller_mail_accounts[mail_count - 1]}" | awk -F'\|\|\|' '{ print $2 }')
+          _echo "$(msg newline)" --plain --verbose 7
+          _echo "Reseller email count ${mail_count}/$((da_reseller_mail_accounts_count))" --name --verbose 7
+          _echo "Reseller_username: ${da_reseller_username}" --name --verbose 7
+          _echo "mail_user_domain (full email): ${mail_user_domain}" --name --verbose 7
+          _echo "mail_user (without @domain.com): ${mail_user}" --name --verbose 7
+          _echo "mail_domain: ${mail_domain}" --name --verbose 7
+          _echo "mail_password: ${mail_password}" --name --verbose 7
+          _echo "$(msg magenta)=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=$(msg end)" --name --verbose 7
+
+          # da_api_admin create-user-email --mail-domain "maxibi.com" --mail-user "webmaster" --mail-password "1232123" --mail-quota "0" --mail-limit "200"
+          _echo "$(msg cyan)Creating new reseller email ${mail_user_domain} ...$(msg end)" --name
+          #da_api_admin create-user-email --sign-as ${da_reseller_username} --mail-domain "${mail_domain}" --mail-user "${mail_user}" --mail-password "${mail_password}" --mail-quota "0" --mail-limit "200"
+
+          ((mail_count++))
+        done
+      fi
+      ((reseller_count++))
+    done
+
+    echo ""
+    check_finish_reboot "${func_name}"
+  else
+    _echo "$(msg yellow)[Skipped by system]: $(msg magenta)${func_name}()$(msg end) $(msg yellow)with current option ${option} has ran before $(msg end)" --name
+    _echo "$(msg yellow)=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=$(msg end)" --plain
+  fi
+
+  end_execute_options "${option}" "${func_name}"
+}
+
+# Deprecated function
 function configure_da_reseller_emails() {
   local option func_name
   option="$1"
@@ -13922,56 +13974,53 @@ function configure_da_reseller_databases() {
     reseller_count=1
     while [[ ${reseller_count} -le ${da_reseller_usernames_count} ]]; do
       typeset -n "da_reseller_username=C_DA_RESELLER_USERNAME${reseller_count}"
-      typeset -n "da_reseller_dbs=C_DA_RESELLER_DB${reseller_count}"
+      typeset -n "da_reseller_db_accounts=C_DA_RESELLER_DB_ACCOUNT${reseller_count}"
       _echo "$(msg newline)" --plain --verbose 7
       _echo "$(msg yellow)Warning this information contains sensitive data due to verbosity level was set to 7 or more$(msg end)" --name --verbose 7
       _echo "$(msg magenta)=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=$(msg end)" --name --verbose 7
       _echo "Reseller database details:" --name --verbose 7
       _echo "Reseller count ${reseller_count} out of ${da_reseller_usernames_count}" --name --verbose 7
       _echo "da_reseller_username: ${da_reseller_username}" --name --verbose 7
-      _echo "da_reseller_dbs: ${da_reseller_dbs[*]}" --name --verbose 7
-      da_reseller_dbs_count="${#da_reseller_dbs[@]}"
+      _echo "da_reseller_db_accounts: ${da_reseller_db_accounts[*]}" --name --verbose 7
+      da_reseller_db_accounts_count="${#da_reseller_db_accounts[@]}"
       database_count=1
 
-      while [ ${database_count} -le ${da_reseller_dbs_count} ]; do
+      if [[ "${#da_reseller_db_accounts}" == 0 ]]; then
+        _echo "$(msg yellow)[skipped]: Value defined for this reseller ${da_reseller_username} database is empty$(msg end)" --name
+      else
+        while [ ${database_count} -le ${da_reseller_db_accounts_count} ]; do
+          db_domain_name_user=$(echo "${da_reseller_db_accounts[database_count - 1]}" | awk -F'\|\|\|' '{ print $1 }')
+          db_password=$(echo "${da_reseller_db_accounts[database_count - 1]}" | awk -F'\|\|\|' '{ print $2 }')
+          db_domain=$(echo "${db_domain_name_user}" | awk -F':' '{ print $1 }')
+          db_name=$(echo "${db_domain_name_user}" | awk -F':' '{ print $2 }')
+          db_user=$(echo "${db_domain_name_user}" | awk -F':' '{ print $3 }')
+          sql_users=$(mysql -e "SELECT USER FROM mysql.user;" | jq -rR .)
+          sql_user_exist=$(echo "${sql_users}" | grep "${da_reseller_username}_${db_user}")
 
-        if [[ "${#da_reseller_dbs}" == 0 ]]; then
-          _echo "$(msg yellow)[skipped]: Value defined for this reseller ${da_reseller_username} database is empty$(msg end)" --name
-          echo ""
+          _echo "Reseller database count ${database_count}/$((da_reseller_db_accounts_count))" --name --verbose 7
+          [[ -n "${sql_user_exist}" ]] && _echo "sql_user_exist in mysql system: ${sql_user_exist}" --name --verbose 7
+          _echo "db_domain: ${db_domain}" --name --verbose 7
+          _echo "db_name: ${db_name}" --name --verbose 7
+          _echo "db_user: ${db_user}" --name --verbose 7
+          _echo "db_password: ${db_password}" --name --verbose 7
+          _echo "$(msg magenta)=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=$(msg end)" --name --verbose 7
+          _echo "$(msg newline)" --plain --verbose 7
+
+          #da_api_admin create-user-database --db-domain "maxibi.com" --db-name abc --db-user maxibi --db-password 12321aa (create new user database)
+
+          #da_api_admin --db-domain "maxibi.com" create-user-database --db-name abc --existing-user maxibi  (create database with existing user)
+
+          if [[ -z "${sql_user_exist}" ]]; then
+            _echo "$(msg cyan)Creating new database name ${db_name} for reseller ${da_reseller_username} on domain ${db_domain} ...$(msg end)" --name
+            #da_api_admin create-user-database --sign-as "${da_reseller_username}" --db-domain "${db_domain}" --db-name "${db_name}" --db-user "${db_user}" --db-password "${db_password}"
+          else
+            _echo "$(msg cyan)Creating new database name ${db_name} for reseller ${da_reseller_username} on domain ${db_domain} using existing username ${db_user} ...$(msg end)" --name
+            #da_api_admin create-user-database --sign-as "${da_reseller_username}" --db-domain "${db_domain}" --db-name "${db_name}" --db-existing-user "${db_user}"
+          fi
+
           ((database_count++))
-          continue
-        fi
-
-        db_domain=$(echo "${da_reseller_dbs[database_count - 1]}" | awk -F':' '{ print $1 }')
-        db_name=$(echo "${da_reseller_dbs[database_count - 1]}" | awk -F':' '{ print $2 }')
-        db_user=$(echo "${da_reseller_dbs[database_count - 1]}" | awk -F':' '{ print $3 }')
-        db_password=$(echo "${da_reseller_dbs[database_count - 1]}" | awk -F':' '{ print $4 }')
-
-        sql_users=$(mysql -e "SELECT USER FROM mysql.user;" | jq -rR .)
-        sql_user_exist=$(echo "${sql_users}" | grep "${da_reseller_username}_${db_user}")
-
-        _echo "Reseller database count ${database_count}/$((da_reseller_dbs_count))" --name --verbose 7
-        [[ -n "${sql_user_exist}" ]] && _echo "sql_user_exist in mysql system: ${sql_user_exist}" --name --verbose 7
-        _echo "db_domain: ${db_domain}" --name --verbose 7
-        _echo "db_name: ${db_name}" --name --verbose 7
-        _echo "db_user: ${db_user}" --name --verbose 7
-        _echo "db_password: ${db_password}" --name --verbose 7
-        _echo "$(msg magenta)=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=$(msg end)" --name --verbose 7
-        _echo "$(msg newline)" --plain --verbose 7
-
-        #da_api_admin create-user-database --db-domain "maxibi.com" --db-name abc --db-user maxibi --db-password 12321aa (create new user database)
-        #da_api_admin --db-domain "maxibi.com" create-user-database --db-name abc --existing-user maxibi  (create database with existing user)
-
-        if [[ -z "${sql_user_exist}" ]]; then
-          _echo "$(msg cyan)Creating new database name ${db_name} for reseller ${da_reseller_username} on domain ${db_domain} ...$(msg end)" --name
-          da_api_admin create-user-database --sign-as "${da_reseller_username}" --db-domain "${db_domain}" --db-name "${db_name}" --db-user "${db_user}" --db-password "${db_password}"
-        else
-          _echo "$(msg cyan)Creating new database name ${db_name} for reseller ${da_reseller_username} on domain ${db_domain} using existing username ${db_user} ...$(msg end)" --name
-          da_api_admin create-user-database --sign-as "${da_reseller_username}" --db-domain "${db_domain}" --db-name "${db_name}" --db-existing-user "${db_user}"
-        fi
-
-        ((database_count++))
-      done
+        done
+      fi
       ((reseller_count++))
     done
 
@@ -14346,7 +14395,7 @@ function configure_da_user_subdomains() {
         local root_domain sub_domains_raw
         root_domain=$(echo "${da_user_subdomains[subdomain_count]}" | awk -F':' '{ print $1 }')
         sub_domains_raw=$(echo "${da_user_subdomains[subdomain_count]}" | awk -F':' '{ print $2 }')
-        sub_domains=$(echo "${sub_domains_raw}" | awk -F'+' '{for (i=1;i<=NF;i++)print $i}')
+        sub_domains=$(echo "${sub_domains_raw}" | awk -F',' '{for (i=1;i<=NF;i++)print $i}')
 
         _echo "root_domain: ${root_domain}" --name --verbose 7
         _echo "sub_domains_raw: ${sub_domains_raw[*]}" --name --verbose 7
@@ -14405,6 +14454,74 @@ function configure_da_user_subdomains() {
 
 }
 
+function configure_da_user_email_accounts() {
+  local option func_name
+  option="$1"
+  func_name="${FUNCNAME[0]}"
+  start_execute_options "${option}" "${func_name}"
+  [[ "${SKIP_RUN}" == "true" ]] && return 0
+  if [[ ! -f "${CONF_PATH}/${func_name}_executed" && "${FUNCTION_RUN}" == "true" ]]; then
+    local user_count da_user_usernames_count
+    da_user_usernames_count=$(echo "${!C_DA_USER_USERNAME@}" | wc -w)
+    user_count=1
+    while [[ ${user_count} -le ${da_user_usernames_count} ]]; do
+
+      local da_user_username da_user_mail_accounts da_user_mail_accounts_count
+
+      typeset -n "da_user_username=C_DA_USER_USERNAME${user_count}"
+      typeset -n "da_user_mail_accounts=C_DA_USER_MAIL_ACCOUNT${user_count}"
+
+      da_user_mail_accounts_count="${#da_user_mail_accounts[@]}"
+
+      _echo "$(msg newline)" --plain --verbose 7
+      _echo "$(msg yellow)Warning this information contains sensitive data due to verbosity level was set to 7 or more$(msg end)" --name --verbose 7
+      _echo "$(msg magenta)=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=$(msg end)" --name --verbose 7
+      _echo "User email details:" --name --verbose 7
+      _echo "User count ${user_count} out of ${da_user_usernames_count}" --name --verbose 7
+      _echo "da_user_username: ${da_user_username}" --name --verbose 7
+      _echo "da_user_mail_accounts: ${da_user_mail_accounts[@]}" --name --verbose 7
+      _echo "da_user_mail_accounts_count: ${da_user_mail_accounts_count}" --name --verbose 7
+
+      if [ "${da_user_mail_accounts_count}" -eq 0 ]; then
+        _echo "$(msg yellow)[Skipped]: Notice, this user ${da_user_username} does not have email set$(msg end)" --name
+      else
+        mail_count=1
+        while [ ${mail_count} -le ${da_user_mail_accounts_count} ]; do
+          local mail_user_domain mail_user mail_domain mail_password
+          mail_user_domain=$(echo "${da_user_mail_accounts[mail_count - 1]}" | awk -F'\|\|\|' '{ print $1 }')
+          mail_user=$(echo "${mail_user_domain}" | awk -F'@' '{ print $1 }')
+          mail_domain=$(echo "${mail_user_domain}" | awk -F'@' '{ print $2 }')
+          mail_password=$(echo "${da_user_mail_accounts[mail_count - 1]}" | awk -F'\|\|\|' '{ print $2 }')
+          _echo "$(msg newline)" --plain --verbose 7
+          _echo "User email count ${mail_count}/$((da_user_mail_accounts_count))" --name --verbose 7
+          _echo "User_username: ${da_user_username}" --name --verbose 7
+          _echo "mail_user_domain (full email): ${mail_user_domain}" --name --verbose 7
+          _echo "mail_user (without @domain.com): ${mail_user}" --name --verbose 7
+          _echo "mail_domain: ${mail_domain}" --name --verbose 7
+          _echo "mail_password: ${mail_password}" --name --verbose 7
+          _echo "$(msg magenta)=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=$(msg end)" --name --verbose 7
+
+          # da_api_admin create-user-email --mail-domain "maxibi.com" --mail-user "webmaster" --mail-password "1232123" --mail-quota "0" --mail-limit "200"
+          _echo "$(msg cyan)Creating new user email ${mail_user_domain} ...$(msg end)" --name
+          da_api_admin create-user-email --sign-as ${da_user_username} --mail-domain "${mail_domain}" --mail-user "${mail_user}" --mail-password "${mail_password}" --mail-quota "0" --mail-limit "200"
+
+          ((mail_count++))
+        done
+      fi
+      ((user_count++))
+    done
+
+    echo ""
+    check_finish_reboot "${func_name}"
+  else
+    _echo "$(msg yellow)[Skipped by system]: $(msg magenta)${func_name}()$(msg end) $(msg yellow)with current option ${option} has ran before $(msg end)" --name
+    _echo "$(msg yellow)=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=$(msg end)" --plain
+  fi
+
+  end_execute_options "${option}" "${func_name}"
+}
+
+# Deprecated function
 function configure_da_user_emails() {
   local option func_name
   option="$1"
@@ -14476,9 +14593,9 @@ function configure_da_reseller_domain_ssl_pre() {
   if [[ ! -f "${CONF_PATH}/${func_name}_executed" && "${FUNCTION_RUN}" == "true" ]]; then
     local da_reseller_ssl_sub_names da_reseller_ssl_sub_names_count count_x count_n count_o
     local this_da_reseller_uname this_da_reseller_userpass this_da_reseller_enable_domain_ssl \
-      this_da_reseller_ssl_sub_names retval le_select_query
+      this_da_reseller_ssl_subdomains retval le_select_query
     # Get all the reseller ssl_sub_names
-    da_reseller_ssl_sub_names="${!C_DA_RESELLER_SSL_SUB_NAME@}"
+    da_reseller_ssl_sub_names="${!C_DA_RESELLER_SSL_SUBDOMAIN@}"
     # Get the total count for reseller ssl_sub_names
     da_reseller_ssl_sub_names_count=$(echo "${da_reseller_ssl_sub_names}" | wc -w)
     count_x=1
@@ -14490,26 +14607,26 @@ function configure_da_reseller_domain_ssl_pre() {
       typeset -n "this_da_reseller_username"="C_DA_RESELLER_USERNAME${count_x}"
       typeset -n "this_da_reseller_userpass"="C_DA_RESELLER_USERPASS${count_x}"
       typeset -n "this_da_reseller_enable_domain_ssl"="C_DA_RESELLER_ENABLE_DOMAIN_SSL${count_x}"
-      typeset -n "this_da_reseller_ssl_sub_names"="C_DA_RESELLER_SSL_SUB_NAME${count_x}"
+      typeset -n "this_da_reseller_ssl_subdomains"="C_DA_RESELLER_SSL_SUBDOMAIN${count_x}"
 
       echo "this_da_reseller_username: ${this_da_reseller_username}"
       echo "this_da_reseller_userpass: ${this_da_reseller_userpass}"
       echo "this_da_reseller_enable_domain_ssl: ${this_da_reseller_enable_domain_ssl}"
-      echo "this_da_reseller_ssl_sub_names: ${this_da_reseller_ssl_sub_names[*]}"
-      this_da_reseller_ssl_sub_names_count=${#this_da_reseller_ssl_sub_names[@]}
-      echo "this_da_reseller_ssl_sub_names_count: ${this_da_reseller_ssl_sub_names_count}"
+      echo "this_da_reseller_ssl_subdomains: ${this_da_reseller_ssl_subdomains[*]}"
+      this_da_reseller_ssl_subdomains_count=${#this_da_reseller_ssl_subdomains[@]}
+      echo "this_da_reseller_ssl_subdomains_count: ${this_da_reseller_ssl_subdomains_count}"
       echo "=========================================="
 
       if [[ ${this_da_reseller_enable_domain_ssl} == "yes" ]]; then
         echo ""
         echo "OK, This reseller is set to enable SSL"
         count_n=0
-        while [ ${count_n} -le $((this_da_reseller_ssl_sub_names_count - 1)) ]; do
+        while [ ${count_n} -le $((this_da_reseller_ssl_subdomains_count - 1)) ]; do
           echo ""
 
-          ssl_provider=$(echo "${this_da_reseller_ssl_sub_names[count_n]}" | awk -F':' '{ print $1 }')
-          ssl_domain=$(echo "${this_da_reseller_ssl_sub_names[count_n]}" | awk -F':' '{ print $2 }')
-          ssl_subdomains_raw=$(echo "${this_da_reseller_ssl_sub_names[count_n]}" | awk -F':' '{ print $3 }')
+          ssl_provider=$(echo "${this_da_reseller_ssl_subdomains[count_n]}" | awk -F':' '{ print $1 }')
+          ssl_domain=$(echo "${this_da_reseller_ssl_subdomains[count_n]}" | awk -F':' '{ print $2 }')
+          ssl_subdomains_raw=$(echo "${this_da_reseller_ssl_subdomains[count_n]}" | awk -F':' '{ print $3 }')
           # Debug
           # echo "==============---count_n = ${count_n} ---==============="
           # echo "SSL_PROVIDER: ${ssl_provider}"
@@ -14569,9 +14686,9 @@ function configure_da_user_domain_ssl_pre() {
   if [[ ! -f "${CONF_PATH}/${func_name}_executed" && "${FUNCTION_RUN}" == "true" ]]; then
     local da_user_ssl_sub_names da_user_ssl_sub_names_count
     local this_da_user_uname this_da_user_userpass this_da_user_enable_domain_ssl \
-      this_da_user_ssl_sub_names retval
+      this_da_user_ssl_subdomains retval
     # Get all the user ssl_sub_names
-    da_user_ssl_sub_names="${!C_DA_USER_SSL_SUB_NAME@}"
+    da_user_ssl_sub_names="${!C_DA_USER_SSL_SUBDOMAIN@}"
     # Get the total count for user ssl_sub_names
     da_user_ssl_sub_names_count=$(echo "${da_user_ssl_sub_names}" | wc -w)
     count_x=1
@@ -14583,25 +14700,25 @@ function configure_da_user_domain_ssl_pre() {
       typeset -n "this_da_user_username"="C_DA_USER_USERNAME${count_x}"
       typeset -n "this_da_user_userpass"="C_DA_USER_USERPASS${count_x}"
       typeset -n "this_da_user_enable_domain_ssl"="C_DA_USER_ENABLE_DOMAIN_SSL${count_x}"
-      typeset -n "this_da_user_ssl_sub_names"="C_DA_USER_SSL_SUB_NAME${count_x}"
+      typeset -n "this_da_user_ssl_subdomains"="C_DA_USER_SSL_SUBDOMAIN${count_x}"
 
       echo "this_da_user_username: ${this_da_user_username}"
       echo "this_da_user_userpass: ${this_da_user_userpass}"
       echo "this_da_user_enable_domain_ssl: ${this_da_user_enable_domain_ssl}"
-      echo "this_da_user_ssl_sub_names: ${this_da_user_ssl_sub_names[*]}"
-      this_da_user_ssl_sub_names_count=${#this_da_user_ssl_sub_names[@]}
+      echo "this_da_user_ssl_subdomains: ${this_da_user_ssl_subdomains[*]}"
+      this_da_user_ssl_subdomains_count=${#this_da_user_ssl_subdomains[@]}
       echo "=========================================="
 
       if [[ ${this_da_user_enable_domain_ssl} == "yes" ]]; then
         echo ""
         echo "OK, This user is set to enable SSL"
         count_n=0
-        while [ ${count_n} -le $((this_da_user_ssl_sub_names_count - 1)) ]; do
+        while [ ${count_n} -le $((this_da_user_ssl_subdomains_count - 1)) ]; do
           echo ""
 
-          ssl_provider=$(echo "${this_da_user_ssl_sub_names[count_n]}" | awk -F':' '{ print $1 }')
-          ssl_domain=$(echo "${this_da_user_ssl_sub_names[count_n]}" | awk -F':' '{ print $2 }')
-          ssl_subdomains_raw=$(echo "${this_da_user_ssl_sub_names[count_n]}" | awk -F':' '{ print $3 }')
+          ssl_provider=$(echo "${this_da_user_ssl_subdomains[count_n]}" | awk -F':' '{ print $1 }')
+          ssl_domain=$(echo "${this_da_user_ssl_subdomains[count_n]}" | awk -F':' '{ print $2 }')
+          ssl_subdomains_raw=$(echo "${this_da_user_ssl_subdomains[count_n]}" | awk -F':' '{ print $3 }')
           # Debug
           # echo "==============---count_n = ${count_n} ---==============="
           # echo "SSL_PROVIDER: ${ssl_provider}"
@@ -14650,7 +14767,7 @@ function configure_da_reseller_domain_ssl() {
   if [[ ! -f "${CONF_PATH}/${func_name}_executed" && "${FUNCTION_RUN}" == "true" ]]; then
     local da_reseller_ssl_sub_names da_reseller_ssl_sub_names_count
     local this_da_reseller_uname this_da_reseller_userpass this_da_reseller_enable_domain_ssl \
-      this_da_reseller_ssl_sub_names retval
+      this_da_reseller_ssl_subdomains retval
     # Get all the reseller ssl_sub_names
     da_reseller_ssl_sub_names="${!DA_RESELLER_SSL_SUB_NAME@}"
     # Get the total count for reseller ssl_sub_names
@@ -14664,25 +14781,25 @@ function configure_da_reseller_domain_ssl() {
       typeset -n "this_da_reseller_username"="C_DA_RESELLER_USERNAME${count_x}"
       typeset -n "this_da_reseller_userpass"="C_DA_RESELLER_USERPASS${count_x}"
       typeset -n "this_da_reseller_enable_domain_ssl"="C_DA_RESELLER_ENABLE_DOMAIN_SSL${count_x}"
-      typeset -n "this_da_reseller_ssl_sub_names"="C_DA_RESELLER_SSL_SUB_NAME${count_x}"
+      typeset -n "this_da_reseller_ssl_subdomains"="C_DA_RESELLER_SSL_SUBDOMAIN${count_x}"
 
       echo "this_da_reseller_username: ${this_da_reseller_username}"
       echo "this_da_reseller_userpass: ${this_da_reseller_userpass}"
       echo "this_da_reseller_enable_domain_ssl: ${this_da_reseller_enable_domain_ssl}"
-      echo "this_da_reseller_ssl_sub_names: ${this_da_reseller_ssl_sub_names[*]}"
-      this_da_reseller_ssl_sub_names_count=${#this_da_reseller_ssl_sub_names[@]}
+      echo "this_da_reseller_ssl_subdomains: ${this_da_reseller_ssl_subdomains[*]}"
+      this_da_reseller_ssl_subdomains_count=${#this_da_reseller_ssl_subdomains[@]}
       echo "=========================================="
 
       if [[ ${this_da_reseller_enable_domain_ssl} == "yes" ]]; then
         echo ""
         echo "OK, This reseller is set to enable SSL"
         count_n=0
-        while [ ${count_n} -le $((this_da_reseller_ssl_sub_names_count - 1)) ]; do
+        while [ ${count_n} -le $((this_da_reseller_ssl_subdomains_count - 1)) ]; do
           echo ""
 
-          ssl_provider=$(echo "${this_da_reseller_ssl_sub_names[count_n]}" | awk -F':' '{ print $1 }')
-          ssl_domain=$(echo "${this_da_reseller_ssl_sub_names[count_n]}" | awk -F':' '{ print $2 }')
-          ssl_subdomains_raw=$(echo "${this_da_reseller_ssl_sub_names[count_n]}" | awk -F':' '{ print $3 }')
+          ssl_provider=$(echo "${this_da_reseller_ssl_subdomains[count_n]}" | awk -F':' '{ print $1 }')
+          ssl_domain=$(echo "${this_da_reseller_ssl_subdomains[count_n]}" | awk -F':' '{ print $2 }')
+          ssl_subdomains_raw=$(echo "${this_da_reseller_ssl_subdomains[count_n]}" | awk -F':' '{ print $3 }')
           # Debug
           echo "==============---count_n = ${count_n} ---==============="
           echo "SSL_PROVIDER: ${ssl_provider}"
@@ -14699,7 +14816,7 @@ function configure_da_reseller_domain_ssl() {
             else
               echo "OK, this domain ${ssl_domain} has no issue when requesting ssl certificate in staging mode"
             fi
-            ssl_subdomains=$(echo "${ssl_subdomains_raw}" | awk -F'+' '{for (i=0;i<=NF;i++)print $i}')
+            ssl_subdomains=$(echo "${ssl_subdomains_raw}" | awk -F',' '{for (i=0;i<=NF;i++)print $i}')
             count_o=0
             le_select_query=""
             for ssl_subdomain in ${ssl_subdomains}; do
@@ -14755,10 +14872,10 @@ function configure_da_user_domain_ssl() {
   [[ "${SKIP_RUN}" == "true" ]] && return 0
   if [[ ! -f "${CONF_PATH}/${func_name}_executed" && "${FUNCTION_RUN}" == "true" ]]; then
     local da_user_ssl_sub_names da_user_ssl_sub_names_count this_da_user_username this_da_user_userpass \
-      this_da_user_enable_domain_ssl this_da_user_ssl_sub_names this_da_user_ssl_sub_names_count
+      this_da_user_enable_domain_ssl this_da_user_ssl_subdomains this_da_user_ssl_subdomains_count
     local ssl_provider ssl_domain ssl_subdomains_raw le_select_query le_s count_o count_n count_x retval
     # Get all the user ssl_sub_names
-    da_user_ssl_sub_names="${!C_DA_USER_SSL_SUB_NAME@}"
+    da_user_ssl_sub_names="${!C_DA_USER_SSL_SUBDOMAIN@}"
     # Get the total count for user ssl_sub_names
     da_user_ssl_sub_names_count=$(echo "${da_user_ssl_sub_names}" | wc -w)
     count_x=1
@@ -14769,25 +14886,25 @@ function configure_da_user_domain_ssl() {
       typeset -n "this_da_user_username"="C_DA_USER_USERNAME${count_x}"
       typeset -n "this_da_user_userpass"="C_DA_USER_USERPASS${count_x}"
       typeset -n "this_da_user_enable_domain_ssl"="C_DA_USER_ENABLE_DOMAIN_SSL${count_x}"
-      typeset -n "this_da_user_ssl_sub_names"="C_DA_USER_SSL_SUB_NAME${count_x}"
+      typeset -n "this_da_user_ssl_subdomains"="C_DA_USER_SSL_SUBDOMAIN${count_x}"
 
       echo "this_da_user_username: ${this_da_user_username}"
       echo "this_da_user_userpass: ${this_da_user_userpass}"
       echo "this_da_user_enable_domain_ssl: ${this_da_user_enable_domain_ssl}"
-      echo "this_da_user_ssl_sub_names: ${this_da_user_ssl_sub_names[*]}"
-      this_da_user_ssl_sub_names_count=${#this_da_user_ssl_sub_names[@]}
+      echo "this_da_user_ssl_subdomains: ${this_da_user_ssl_subdomains[*]}"
+      this_da_user_ssl_subdomains_count=${#this_da_user_ssl_subdomains[@]}
 
       if [[ ${this_da_user_enable_domain_ssl} == "yes" ]]; then
         echo ""
         echo "=========================================="
         echo "OK, This user is set to enable SSL"
         count_n=0
-        while [ ${count_n} -le $((this_da_user_ssl_sub_names_count - 1)) ]; do
+        while [ ${count_n} -le $((this_da_user_ssl_subdomains_count - 1)) ]; do
           echo ""
           echo "---count_n=${count_n} ---"
-          ssl_provider=$(echo "${this_da_user_ssl_sub_names[count_n]}" | awk -F':' '{ print $1 }')
-          ssl_domain=$(echo "${this_da_user_ssl_sub_names[count_n]}" | awk -F':' '{ print $2 }')
-          ssl_subdomains_raw=$(echo "${this_da_user_ssl_sub_names[count_n]}" | awk -F':' '{ print $3 }')
+          ssl_provider=$(echo "${this_da_user_ssl_subdomains[count_n]}" | awk -F':' '{ print $1 }')
+          ssl_domain=$(echo "${this_da_user_ssl_subdomains[count_n]}" | awk -F':' '{ print $2 }')
+          ssl_subdomains_raw=$(echo "${this_da_user_ssl_subdomains[count_n]}" | awk -F':' '{ print $3 }')
           # Debug
           echo "SSL_PROVIDER: ${ssl_provider}"
           echo "SSL_DOMAIN: ${ssl_domain}"
@@ -14802,7 +14919,7 @@ function configure_da_user_domain_ssl() {
             else
               echo "OK, this domain ${ssl_domain} has no issue when requesting ssl certificate in staging mode"
             fi
-            ssl_subdomains=$(echo "${ssl_subdomains_raw}" | awk -F'+' '{for (i=0;i<=NF;i++)print $i}')
+            ssl_subdomains=$(echo "${ssl_subdomains_raw}" | awk -F',' '{for (i=0;i<=NF;i++)print $i}')
             count_o=0
             le_select_query=""
             for ssl_subdomain in ${ssl_subdomains}; do
@@ -14859,16 +14976,15 @@ function configure_da_admin_security() {
   start_execute_options "${option}" "${func_name}"
   [[ "${SKIP_RUN}" == "true" ]] && return 0
   if [[ ! -f "${CONF_PATH}/${func_name}_executed" && "${FUNCTION_RUN}" == "true" ]]; then
-    local da_admin_username da_admin_security_qs da_admin_security_as \
-      da_admin_security_qs da_admin_security_qs_count admin_count question_count
+    local da_admin_username da_admin_security_qna da_admin_security_qna_count admin_count question_count
+
     da_admin_usernames_count=$(echo "${!C_DA_ADMIN_USERNAME@}" | wc -w)
     admin_count=1
     while [ ${admin_count} -le "${da_admin_usernames_count}" ]; do
       # Assign all variables from the config file as array index
       typeset -n "da_admin_username=C_DA_ADMIN_USERNAME${admin_count}"
-      typeset -n "da_admin_security_qs=C_DA_ADMIN_SECURITY_Q${admin_count}"
-      typeset -n "da_admin_security_as=C_DA_ADMIN_SECURITY_A${admin_count}"
-      da_admin_security_qs_count="${#da_admin_security_qs[@]}"
+      typeset -n "da_admin_security_qna=C_DA_ADMIN_SECURITY_QNA${admin_count}"
+      da_admin_security_qna_count="${#da_admin_security_qna[@]}"
 
       _echo "$(msg newline)" --plain --verbose 7
       _echo "$(msg yellow)Warning this information contains sensitive data due to verbosity level was set to 7 or more$(msg end)" --name --verbose 7
@@ -14876,31 +14992,34 @@ function configure_da_admin_security() {
       _echo "Admin security question details:" --name --verbose 7
       _echo "Admin count ${admin_count} out of ${da_admin_usernames_count}" --name --verbose 7
       _echo "da_admin_username: ${da_admin_username}" --name --verbose 7
-      _echo "da_admin_security_qs: ${da_admin_security_qs[*]}" --name --verbose 7
-      _echo "da_admin_security_as: ${da_admin_security_as[*]}" --name --verbose 7
-      _echo "da_admin_security_qs_count: ${da_admin_security_qs_count[*]}" --name --verbose 7
+      _echo "da_admin_security_qna  ${da_admin_security_qna[*]}" --name --verbose 7
+      _echo "da_admin_security_qna_count: ${da_admin_security_qna_count[*]}" --name --verbose 7
       _echo "$(msg newline)" --plain --verbose 7
 
-      question_count=0
-      while [ "${question_count}" -le $((da_admin_security_qs_count - 1)) ]; do
-        local security_question security_answer
-        security_question=${da_admin_security_qs[question_count]}
-        security_answer=${da_admin_security_as[question_count]}
-        _echo "Security question for admin: ${da_admin_username}" --name --verbose 7
-        _echo "Security question: ${security_question}" --name --verbose 7
-        _echo "Security answer: ${security_answer}" --name --verbose 7
-        _echo "$(msg magenta)=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=$(msg end)" --name --verbose 7
+      question_count=1
+      if [[ "${#da_admin_security_qna}" == 0 ]]; then
+        echo "[${SCRIPT_NAME}]: [skipped]: Value defined for security_question for user ${da_admin_username} is empty"
+      else
+        while [ "${question_count}" -le ${da_admin_security_qna_count} ]; do
+          local security_question_answer security_question security_answer
+          security_question_answer=${da_admin_security_qna[question_count - 1]}
+          security_question="$(echo ${security_question_answer} | awk -F'\|\|\|' '{ print $1 }')"
+          security_answer="$(echo ${security_question_answer} | awk -F'\|\|\|' '{ print $2 }')"
 
-        if [[ "${#security_question}" == 0 || "${#security_answer}" == 0 ]]; then
-          echo "[${SCRIPT_NAME}]: [skipped]: Value defined for security_question or security answer (or both) are empty"
+          _echo "Security question count ${question_count} out of ${da_admin_security_qna_count}" --name --verbose 7
+          _echo "Security question for admin: ${da_admin_username}" --name --verbose 7
+          _echo "Security question_answer: ${security_question_answer}" --name --verbose 7
+          _echo "Security question: ${security_question}" --name --verbose 7
+          _echo "Security answer: ${security_answer}" --name --verbose 7
+          _echo "$(msg magenta)=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=$(msg end)" --name --verbose 7
+
+          _echo "$(msg cyan)Setting up security questions and answers for user ${da_admin_username}$(msg end)" --name
+          #da_api_admin set-security-qna --sign-as "${da_admin_username}" --question "${security_question}" --answer "${security_answer}"
+          #echo ""
           ((question_count++))
-          continue
-        fi
-        _echo "$(msg cyan)Setting up security questions and answers for user ${da_admin_username}$(msg end)" --name
-        da_api_admin set-security-qna --sign-as admin1 --question "${security_question}" --answer "${security_answer}"
-        echo ""
-        ((question_count++))
-      done
+        done
+
+      fi
       ((admin_count++))
     done
     echo ""
@@ -14922,16 +15041,15 @@ function configure_da_reseller_security() {
   start_execute_options "${option}" "${func_name}"
   [[ "${SKIP_RUN}" == "true" ]] && return 0
   if [[ ! -f "${CONF_PATH}/${func_name}_executed" && "${FUNCTION_RUN}" == "true" ]]; then
-    local da_reseller_username da_reseller_security_qs da_reseller_security_as \
-      da_reseller_security_qs da_reseller_security_qs_count reseller_count question_count
+    local da_reseller_username da_reseller_security_qna da_reseller_security_qna_count reseller_count question_count
+
     da_reseller_usernames_count=$(echo "${!C_DA_RESELLER_USERNAME@}" | wc -w)
     reseller_count=1
     while [ ${reseller_count} -le "${da_reseller_usernames_count}" ]; do
       # Assign all variables from the config file as array index
       typeset -n "da_reseller_username=C_DA_RESELLER_USERNAME${reseller_count}"
-      typeset -n "da_reseller_security_qs=C_DA_RESELLER_SECURITY_Q${reseller_count}"
-      typeset -n "da_reseller_security_as=C_DA_RESELLER_SECURITY_A${reseller_count}"
-      da_reseller_security_qs_count="${#da_reseller_security_qs[@]}"
+      typeset -n "da_reseller_security_qna=C_DA_RESELLER_SECURITY_QNA${reseller_count}"
+      da_reseller_security_qna_count="${#da_reseller_security_qna[@]}"
 
       _echo "$(msg newline)" --plain --verbose 7
       _echo "$(msg yellow)Warning this information contains sensitive data due to verbosity level was set to 7 or more$(msg end)" --name --verbose 7
@@ -14939,31 +15057,34 @@ function configure_da_reseller_security() {
       _echo "Reseller security question details:" --name --verbose 7
       _echo "Reseller count ${reseller_count} out of ${da_reseller_usernames_count}" --name --verbose 7
       _echo "da_reseller_username: ${da_reseller_username}" --name --verbose 7
-      _echo "da_reseller_security_qs: ${da_reseller_security_qs[*]}" --name --verbose 7
-      _echo "da_reseller_security_as: ${da_reseller_security_as[*]}" --name --verbose 7
-      _echo "da_reseller_security_qs_count: ${da_reseller_security_qs_count[*]}" --name --verbose 7
+      _echo "da_reseller_security_qna  ${da_reseller_security_qna[*]}" --name --verbose 7
+      _echo "da_reseller_security_qna_count: ${da_reseller_security_qna_count[*]}" --name --verbose 7
       _echo "$(msg newline)" --plain --verbose 7
 
-      question_count=0
-      while [ "${question_count}" -le $((da_reseller_security_qs_count - 1)) ]; do
-        local security_question security_answer
-        security_question=${da_reseller_security_qs[question_count]}
-        security_answer=${da_reseller_security_as[question_count]}
-        _echo "Security question for reseller: ${da_reseller_username}" --name --verbose 7
-        _echo "Security question: ${security_question}" --name --verbose 7
-        _echo "Security answer: ${security_answer}" --name --verbose 7
-        _echo "$(msg magenta)=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=$(msg end)" --name --verbose 7
+      question_count=1
+      if [[ "${#da_reseller_security_qna}" == 0 ]]; then
+        echo "[${SCRIPT_NAME}]: [skipped]: Value defined for security_question for user ${da_reseller_username} is empty"
+      else
+        while [ "${question_count}" -le ${da_reseller_security_qna_count} ]; do
+          local security_question_answer security_question security_answer
+          security_question_answer=${da_reseller_security_qna[question_count - 1]}
+          security_question="$(echo ${security_question_answer} | awk -F'\|\|\|' '{ print $1 }')"
+          security_answer="$(echo ${security_question_answer} | awk -F'\|\|\|' '{ print $2 }')"
 
-        if [[ "${#security_question}" == 0 || "${#security_answer}" == 0 ]]; then
-          echo "[${SCRIPT_NAME}]: [skipped]: Value defined for security_question or security answer (or both) are empty"
+          _echo "Security question count ${question_count} out of ${da_reseller_security_qna_count}" --name --verbose 7
+          _echo "Security question for reseller: ${da_reseller_username}" --name --verbose 7
+          _echo "Security question_answer: ${security_question_answer}" --name --verbose 7
+          _echo "Security question: ${security_question}" --name --verbose 7
+          _echo "Security answer: ${security_answer}" --name --verbose 7
+          _echo "$(msg magenta)=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=$(msg end)" --name --verbose 7
+
+          _echo "$(msg cyan)Setting up security questions and answers for user ${da_reseller_username}$(msg end)" --name
+          #da_api_admin set-security-qna --sign-as "${da_reseller_username}" --question "${security_question}" --answer "${security_answer}"
+          #echo ""
           ((question_count++))
-          continue
-        fi
-        _echo "$(msg cyan)Setting up security questions and answers for user ${da_reseller_username}$(msg end)" --name
-        da_api_admin set-security-qna --sign-as "${da_reseller_username}" --question "${security_question}" --answer "${security_answer}"
-        echo ""
-        ((question_count++))
-      done
+        done
+
+      fi
       ((reseller_count++))
     done
     echo ""
@@ -14987,16 +15108,15 @@ function configure_da_user_security() {
   start_execute_options "${option}" "${func_name}"
   [[ "${SKIP_RUN}" == "true" ]] && return 0
   if [[ ! -f "${CONF_PATH}/${func_name}_executed" && "${FUNCTION_RUN}" == "true" ]]; then
-    local da_user_username da_user_security_qs da_user_security_as \
-      da_user_security_qs da_user_security_qs_count user_count question_count
+    local da_user_username da_user_security_qna da_user_security_qna_count user_count question_count
+
     da_user_usernames_count=$(echo "${!C_DA_USER_USERNAME@}" | wc -w)
     user_count=1
     while [ ${user_count} -le "${da_user_usernames_count}" ]; do
       # Assign all variables from the config file as array index
       typeset -n "da_user_username=C_DA_USER_USERNAME${user_count}"
-      typeset -n "da_user_security_qs=C_DA_USER_SECURITY_Q${user_count}"
-      typeset -n "da_user_security_as=C_DA_USER_SECURITY_A${user_count}"
-      da_user_security_qs_count="${#da_user_security_qs[@]}"
+      typeset -n "da_user_security_qna=C_DA_USER_SECURITY_QNA${user_count}"
+      da_user_security_qna_count="${#da_user_security_qna[@]}"
 
       _echo "$(msg newline)" --plain --verbose 7
       _echo "$(msg yellow)Warning this information contains sensitive data due to verbosity level was set to 7 or more$(msg end)" --name --verbose 7
@@ -15004,31 +15124,34 @@ function configure_da_user_security() {
       _echo "User security question details:" --name --verbose 7
       _echo "User count ${user_count} out of ${da_user_usernames_count}" --name --verbose 7
       _echo "da_user_username: ${da_user_username}" --name --verbose 7
-      _echo "da_user_security_qs: ${da_user_security_qs[*]}" --name --verbose 7
-      _echo "da_user_security_as: ${da_user_security_as[*]}" --name --verbose 7
-      _echo "da_user_security_qs_count: ${da_user_security_qs_count[*]}" --name --verbose 7
+      _echo "da_user_security_qna  ${da_user_security_qna[*]}" --name --verbose 7
+      _echo "da_user_security_qna_count: ${da_user_security_qna_count[*]}" --name --verbose 7
       _echo "$(msg newline)" --plain --verbose 7
 
-      question_count=0
-      while [ "${question_count}" -le $((da_user_security_qs_count - 1)) ]; do
-        local security_question security_answer
-        security_question=${da_user_security_qs[question_count]}
-        security_answer=${da_user_security_as[question_count]}
-        _echo "Security question for user: ${da_user_username}" --name --verbose 7
-        _echo "Security question: ${security_question}" --name --verbose 7
-        _echo "Security answer: ${security_answer}" --name --verbose 7
-        _echo "$(msg magenta)=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=$(msg end)" --name --verbose 7
+      question_count=1
+      if [[ "${#da_user_security_qna}" == 0 ]]; then
+        echo "[${SCRIPT_NAME}]: [skipped]: Value defined for security_question for user ${da_user_username} is empty"
+      else
+        while [ "${question_count}" -le ${da_user_security_qna_count} ]; do
+          local security_question_answer security_question security_answer
+          security_question_answer=${da_user_security_qna[question_count - 1]}
+          security_question="$(echo ${security_question_answer} | awk -F'\|\|\|' '{ print $1 }')"
+          security_answer="$(echo ${security_question_answer} | awk -F'\|\|\|' '{ print $2 }')"
 
-        if [[ "${#security_question}" == 0 || "${#security_answer}" == 0 ]]; then
-          echo "[${SCRIPT_NAME}]: [skipped]: Value defined for security_question or security answer (or both) are empty"
+          _echo "Security question count ${question_count} out of ${da_user_security_qna_count}" --name --verbose 7
+          _echo "Security question for user: ${da_user_username}" --name --verbose 7
+          _echo "Security question_answer: ${security_question_answer}" --name --verbose 7
+          _echo "Security question: ${security_question}" --name --verbose 7
+          _echo "Security answer: ${security_answer}" --name --verbose 7
+          _echo "$(msg magenta)=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=$(msg end)" --name --verbose 7
+
+          _echo "$(msg cyan)Setting up security questions and answers for user ${da_user_username}$(msg end)" --name
+          #da_api_admin set-security-qna --sign-as "${da_user_username}" --question "${security_question}" --answer "${security_answer}"
+          #echo ""
           ((question_count++))
-          continue
-        fi
-        _echo "$(msg cyan)Setting up security questions and answers for user ${da_user_username}$(msg end)" --name
-        da_api_admin set-security-qna --sign-as "${da_user_username}" --question "${security_question}" --answer "${security_answer}"
-        echo ""
-        ((question_count++))
-      done
+        done
+
+      fi
       ((user_count++))
     done
     echo ""
@@ -15052,60 +15175,60 @@ function configure_da_user_databases() {
   if [[ ! -f "${CONF_PATH}/${func_name}_executed" && "${FUNCTION_RUN}" == "true" ]]; then
 
     local user_count da_user_usernames_count
+
     da_user_usernames_count=$(echo "${!C_DA_USER_USERNAME@}" | wc -w)
     user_count=1
     while [[ ${user_count} -le ${da_user_usernames_count} ]]; do
+      local da_user_username da_user_db_accounts da_user_db_accounts_count database_count
       typeset -n "da_user_username=C_DA_USER_USERNAME${user_count}"
-      typeset -n "da_user_dbs=C_DA_USER_DB${user_count}"
+      typeset -n "da_user_db_accounts=C_DA_USER_DB_ACCOUNT${user_count}"
       _echo "$(msg newline)" --plain --verbose 7
       _echo "$(msg yellow)Warning this information contains sensitive data due to verbosity level was set to 7 or more$(msg end)" --name --verbose 7
       _echo "$(msg magenta)=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=$(msg end)" --name --verbose 7
       _echo "User database details:" --name --verbose 7
       _echo "User count ${user_count} out of ${da_user_usernames_count}" --name --verbose 7
       _echo "da_user_username: ${da_user_username}" --name --verbose 7
-      _echo "da_user_dbs: ${da_user_dbs[*]}" --name --verbose 7
-      da_user_dbs_count="${#da_user_dbs[@]}"
+      _echo "da_user_db_accounts: ${da_user_db_accounts[*]}" --name --verbose 7
+      da_user_db_accounts_count="${#da_user_db_accounts[@]}"
       database_count=1
+      if [[ "${#da_user_db_accounts}" == 0 ]]; then
+        _echo "$(msg yellow)[skipped]: Value defined for this user ${da_user_username} database is empty$(msg end)" --name
+      else
+        while [ ${database_count} -le ${da_user_db_accounts_count} ]; do
+          local db_domain_name_user db_password db_domain db_name db_user sql_users sql_user_exist
 
-      while [ ${database_count} -le ${da_user_dbs_count} ]; do
+          db_domain_name_user=$(echo "${da_user_db_accounts[database_count - 1]}" | awk -F'\|\|\|' '{ print $1 }')
+          db_password=$(echo "${da_user_db_accounts[database_count - 1]}" | awk -F'\|\|\|' '{ print $2 }')
+          db_domain=$(echo "${db_domain_name_user}" | awk -F':' '{ print $1 }')
+          db_name=$(echo "${db_domain_name_user}" | awk -F':' '{ print $2 }')
+          db_user=$(echo "${db_domain_name_user}" | awk -F':' '{ print $3 }')
+          sql_users=$(mysql -e "SELECT USER FROM mysql.user;" | jq -rR .)
+          sql_user_exist=$(echo "${sql_users}" | grep "${da_user_username}_${db_user}")
 
-        if [[ "${#da_user_dbs}" == 0 ]]; then
-          _echo "$(msg yellow)[skipped]: Value defined for this user ${da_user_username} database is empty$(msg end)" --name
-          echo ""
+          _echo "User database count ${database_count}/$((da_user_db_accounts_count))" --name --verbose 7
+          [[ -n "${sql_user_exist}" ]] && _echo "sql_user_exist in mysql system: ${sql_user_exist}" --name --verbose 7
+          _echo "db_domain: ${db_domain}" --name --verbose 7
+          _echo "db_name: ${db_name}" --name --verbose 7
+          _echo "db_user: ${db_user}" --name --verbose 7
+          _echo "db_password: ${db_password}" --name --verbose 7
+          _echo "$(msg magenta)=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=$(msg end)" --name --verbose 7
+          _echo "$(msg newline)" --plain --verbose 7
+
+          #da_api_admin create-user-database --db-domain "maxibi.com" --db-name abc --db-user maxibi --db-password 12321aa (create new user database)
+
+          #da_api_admin --db-domain "maxibi.com" create-user-database --db-name abc --existing-user maxibi  (create database with existing user)
+
+          if [[ -z "${sql_user_exist}" ]]; then
+            _echo "$(msg cyan)Creating new database name ${db_name} for user ${da_user_username} on domain ${db_domain} ...$(msg end)" --name
+            # da_api_admin create-user-database --sign-as "${da_user_username}" --db-domain "${db_domain}" --db-name "${db_name}" --db-user "${db_user}" --db-password "${db_password}"
+          else
+            _echo "$(msg cyan)Creating new database name ${db_name} for user ${da_user_username} on domain ${db_domain} using existing username ${db_user} ...$(msg end)" --name
+            # da_api_admin create-user-database --sign-as "${da_user_username}" --db-domain "${db_domain}" --db-name "${db_name}" --db-existing-user "${db_user}"
+          fi
+
           ((database_count++))
-          continue
-        fi
-
-        db_domain=$(echo "${da_user_dbs[database_count - 1]}" | awk -F':' '{ print $1 }')
-        db_name=$(echo "${da_user_dbs[database_count - 1]}" | awk -F':' '{ print $2 }')
-        db_user=$(echo "${da_user_dbs[database_count - 1]}" | awk -F':' '{ print $3 }')
-        db_password=$(echo "${da_user_dbs[database_count - 1]}" | awk -F':' '{ print $4 }')
-
-        sql_users=$(mysql -e "SELECT USER FROM mysql.user;" | jq -rR .)
-        sql_user_exist=$(echo "${sql_users}" | grep "${da_user_username}_${db_user}")
-
-        _echo "User database count ${database_count}/$((da_user_dbs_count))" --name --verbose 7
-        [[ -n "${sql_user_exist}" ]] && _echo "sql_user_exist in mysql system: ${sql_user_exist}" --name --verbose 7
-        _echo "db_domain: ${db_domain}" --name --verbose 7
-        _echo "db_name: ${db_name}" --name --verbose 7
-        _echo "db_user: ${db_user}" --name --verbose 7
-        _echo "db_password: ${db_password}" --name --verbose 7
-        _echo "$(msg magenta)=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=$(msg end)" --name --verbose 7
-        _echo "$(msg newline)" --plain --verbose 7
-
-        #da_api_admin create-user-database --db-domain "maxibi.com" --db-name abc --db-user maxibi --db-password 12321aa (create new user database)
-        #da_api_admin --db-domain "maxibi.com" create-user-database --db-name abc --existing-user maxibi  (create database with existing user)
-
-        if [[ -z "${sql_user_exist}" ]]; then
-          _echo "$(msg cyan)Creating new database name ${db_name} for user ${da_user_username} on domain ${db_domain} ...$(msg end)" --name
-          da_api_admin create-user-database --sign-as "${da_user_username}" --db-domain "${db_domain}" --db-name "${db_name}" --db-user "${db_user}" --db-password "${db_password}"
-        else
-          _echo "$(msg cyan)Creating new database name ${db_name} for user ${da_user_username} on domain ${db_domain} using existing username ${db_user} ...$(msg end)" --name
-          da_api_admin create-user-database --sign-as "${da_user_username}" --db-domain "${db_domain}" --db-name "${db_name}" --db-existing-user "${db_user}"
-        fi
-
-        ((database_count++))
-      done
+        done
+      fi
       ((user_count++))
     done
 
@@ -15118,7 +15241,7 @@ function configure_da_user_databases() {
 
   end_execute_options "${option}" "${func_name}"
 }
-# This is a custom function used to modify user websites configuration
+# This is a custom function used to modify user websites configuration based on the type of website
 function configure_da_custom_webs() {
   local option func_name
   option="$1"
@@ -15445,7 +15568,7 @@ function setup() {
         # " -- host --"
         configure_da_host_domain --run
         configure_da_ssl_pre --run-force
-        configure_da_host_domain_ssl --run-force-exit
+        configure_da_host_domain_ssl --run
         # " -- owner --"
         configure_da_owner_accounts --run
         configure_da_owner_skins --run
@@ -15461,7 +15584,7 @@ function setup() {
         configure_da_reseller_root_domains --skip #(this is deprecated, already done in configure_da_reseller_accounts)
         configure_da_reseller_subdomains --run
         configure_da_reseller_wildcard_domains --skip #(Skipped: Do not use wildcard for security purpose)
-        configure_da_reseller_emails --run
+        configure_da_reseller_email_accounts --run
         configure_da_reseller_databases --run
         configure_da_reseller_domain_ssl_pre --skip # Deprecated (new directadmin version has this)
         configure_da_reseller_domain_ssl --skip     # Deprecated (new directadmin version has this)
@@ -15471,13 +15594,14 @@ function setup() {
         configure_da_user_root_domains --skip #(this is deprecated, already done in configure_da_user_accounts)
         configure_da_user_subdomains --run
         configure_da_user_wildcard_domains --skip #(Skipped: Do not use wildcard for security purpose)
-        configure_da_user_emails --run
-        configure_da_user_databases --run
+        configure_da_user_email_accounts --run    # TODO test this
+        configure_da_user_databases --run         # TODO test this
         configure_da_user_domain_ssl_pre --skip   # Deprecated (new directadmin version has this)
         configure_da_user_domain_ssl --skip       # Deprecated (new directadmin version has this)
         # " -- others ---"
-        exit 1
+
         configure_da_custom_webs --skip # Fix this with new version
+        exit 1
         configure_maxibox --run
         configure_maxicode_pre --run
         configure_maxicode --run
@@ -15682,54 +15806,54 @@ if [ -z "${C_CONFIG_VERSION}" ]; then
     # CONFIG file must follow this regex.
     # eg: 1) abc=2 #OK 2) abc= #NOT-OK 3) abc #NOT-OK 4) @ok=abc #NOT-OK 5) .ok=abc #NOT-OK 6) _ok=abc #OK
     # It will ignore white spaces, blank-lines and comments.
-    CONFIG_TEST=$(grep -Evn '^[A-Za-z0-9_].+=.+$|^[[:space:]]*$|^#' "${CONFIG_FILE}")
-    if [ -n "${CONFIG_TEST}" ]; then
-      C_LOG_VERBOSITY_LEVEL="3"
-      _echo "$(msg red)Error, there is one or more problems found in config file in ${CONFIG_FILE}$(msg end)" --name --verbose 3
-      _echo "" --plain
-      _echo "$(msg red)Error lines:$(msg end)" --name --verbose 3
-      _echo "$(msg red)${CONFIG_TEST}$(msg end)" --plain
-    else
-      source_errs=$(source "${CONFIG_FILE}" 2>&1 >/dev/null)
-      # get the return code of the test source
-      retval=$?
-      if [ ${retval} = 0 ]; then
-        # Let's do the weird thing on string:
-        if [ -n "${source_errs}" ]; then
-          # Need this C_LOG_VERBOSITY_LEVEL=3 here because if config file error, this will not have value to display error
-          C_LOG_VERBOSITY_LEVEL="3"
-          _echo "$(msg red)Error, there is one or more problems found in config file in ${CONFIG_FILE}$(msg end)" --name --verbose 3
-          _echo "" --plain
-          _echo "$(msg red)Error details:$(msg end)" --name --verbose 3
-          _echo "$(msg red)${source_errs}\n$(msg end)" --plain
-          _exit 147
-        else
-          #If no error then we source the environment file from ${CONFIG_FILE} ..."
-          source "${CONFIG_FILE}"
-          retval=$?
-          if [ ${retval} = 0 ]; then
-            #C_LOG_VERBOSITY_LEVEL="7" # Do not use this, because we are overwriting the log
-            # We do not need to show if config is valid, just care about the error.
-            :
-            #_echo "$(msg green)[${retval}] OK, config file is valid$(msg end)" --name --verbose 7
-          else
-            # In case something is wrong when sourcing it then tell here
-            # We need this C_LOG_VERBOSITY_LEVEL=4 here because if config file error, this will not have value to show warning
-            C_LOG_VERBOSITY_LEVEL="4"
-            _echo "$(msg yellow)Warning, config file is valid but it does not return valid code when sourcing it$(msg end)" --name --verbose 4
-            _exit 147
-          fi
-          #_echo "" --plain
-        fi
-      else
+    #CONFIG_TEST=$(grep -Evn '^[A-Za-z0-9_].+=.+$|^[[:space:]]*$|^#' "${CONFIG_FILE}")
+    #  if [ -n "${CONFIG_TEST}" ]; then
+    #    C_LOG_VERBOSITY_LEVEL="3"
+    #    _echo "$(msg red)Error, there is one or more problems found in config file in ${CONFIG_FILE}$(msg end)" --name --verbose 3
+    #    _echo "" --plain
+    #    _echo "$(msg red)Error lines:$(msg end)" --name --verbose 3
+    #    _echo "$(msg red)${CONFIG_TEST}$(msg end)" --plain
+    #  else
+    source_errs=$(source "${CONFIG_FILE}" 2>&1 >/dev/null)
+    # get the return code of the test source
+    retval=$?
+    if [ ${retval} = 0 ]; then
+      # Let's do the weird thing on string:
+      if [ -n "${source_errs}" ]; then
         # Need this C_LOG_VERBOSITY_LEVEL=3 here because if config file error, this will not have value to display error
         C_LOG_VERBOSITY_LEVEL="3"
-        _echo "$(msg red)Error, the source command returns an error code of ${retval} when sourcing ${CONFIG_FILE}$(msg end)" --name --verbose 3
+        _echo "$(msg red)Error, there is one or more problems found in config file in ${CONFIG_FILE}$(msg end)" --name --verbose 3
+        _echo "" --plain
         _echo "$(msg red)Error details:$(msg end)" --name --verbose 3
         _echo "$(msg red)${source_errs}\n$(msg end)" --plain
         _exit 147
+      else
+        #If no error then we source the environment file from ${CONFIG_FILE} ..."
+        source "${CONFIG_FILE}"
+        retval=$?
+        if [ ${retval} = 0 ]; then
+          #C_LOG_VERBOSITY_LEVEL="7" # Do not use this, because we are overwriting the log
+          # We do not need to show if config is valid, just care about the error.
+          :
+          #_echo "$(msg green)[${retval}] OK, config file is valid$(msg end)" --name --verbose 7
+        else
+          # In case something is wrong when sourcing it then tell here
+          # We need this C_LOG_VERBOSITY_LEVEL=4 here because if config file error, this will not have value to show warning
+          C_LOG_VERBOSITY_LEVEL="4"
+          _echo "$(msg yellow)Warning, config file is valid but it does not return valid code when sourcing it$(msg end)" --name --verbose 4
+          _exit 147
+        fi
+        #_echo "" --plain
       fi
+    else
+      # Need this C_LOG_VERBOSITY_LEVEL=3 here because if config file error, this will not have value to display error
+      C_LOG_VERBOSITY_LEVEL="3"
+      _echo "$(msg red)Error, the source command returns an error code of ${retval} when sourcing ${CONFIG_FILE}$(msg end)" --name --verbose 3
+      _echo "$(msg red)Error details:$(msg end)" --name --verbose 3
+      _echo "$(msg red)${source_errs}\n$(msg end)" --plain
+      _exit 147
     fi
+    #fi
   else
     _echo "$(msg red)Error, ${CONFIG_FILE} does not exist or empty. Need this configuration file$(msg red)" --name --verbose 3
     _exit 147

@@ -26,7 +26,7 @@
 # 10) Warning for Directadmin installation type, the user password only accept the maximum of 64 characters. More than this will have problem with API.
 #    The script can notify you if it contains more than this character for Directadmin
 #    In addition of that, Directadmin cannot use this character in password because it will not work with API
-#    eg: +
+#    eg: + (script will check this)
 # 11) Each of the variable name in this config should begin with the following characters to represent this variable is from config file: C_
 #    eg: C_ADMIN_NAME
 # 12) A new planned feature will be included in the script where you do not have to edit this config file to store variable information, you could configure this within the script
@@ -35,6 +35,7 @@
 # 15) Use ascending index number when creating directadmin user (do not skip the number):
 #    eg: This is OK: ADMIN_USERNAME1 -> ADMIN_USERNAME2 -> ADMIN_USERNAME3 -> ADMIN_USERNAME[N+1]
 #    eg: This is not OK: ADMIN_USERNAME1 -> ADMIN_USERNAME4
+# # Be careful some characters are not accepted by phpMyAdmin. Bash has trouble with character #!.
 # =~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~="
 # C_CONFIG_VERSION:
 # This variable is the version of this config file. This is the main variable used by script to determine if source contain valid value
@@ -62,7 +63,7 @@ C_HIDE_SENSITIVE_TEXT=false
 # Using 6 is the the default log level (this will ignore level 7 (debug) logging, so any debugging display will be hidden)
 # Some of their possible values are: ([0]="emerg" [1]="alert" [2]="crit" [3]="err" [4]="warning" [5]="notice" [6]="info" [7]="debug" [8]="expert")
 # Warning, verbose level 7 and more might contain sensitive information.
-C_LOG_VERBOSITY_LEVEL="6"
+C_LOG_VERBOSITY_LEVEL="7"
 
 # C_AUTO_DESTROY_CONFIG:
 # This variable is used to destroy this main config file after it has finished installation at the end of the script.
@@ -70,7 +71,7 @@ C_LOG_VERBOSITY_LEVEL="6"
 # If no action is taken during 120 seconds, it will execute a low level deletion using shred command to completely destroy the file (unrecoverable).
 # Make sure that you have the backup config file in a secure place before it is being destroyed.
 # Possible values are: true, false
-C_AUTO_DESTROY_CONFIG=true
+C_AUTO_DESTROY_CONFIG=false
 
 # C_HOST_PUBIC_IP:
 # This variable is used to store the current host public IP.
@@ -79,7 +80,7 @@ C_AUTO_DESTROY_CONFIG=true
 # If you leave this variable empty, it will automatically retrieve your current host public IP from the script.
 # possible values are any IPv6 or IPv4 host public IP
 # Important note: Known issue, if this variable is not supplied, it might slow down script.
-C_HOST_PUBLIC_IP="42.188.5.23"
+C_HOST_PUBLIC_IP="1.2.3.4"
 
 # C_SPIN_PROGRESS:
 # This variable is used to display progress bar animation within the function _echo().
@@ -96,10 +97,10 @@ C_PIP_ALWAYS_UPDATE=true
 
 # C_COMPANY_ID:
 # This variable is used to store company ID that the script requires for display purpose.
-C_COMPANY_ID="maxibi"
+C_COMPANY_ID="codegix"
 
 # USE_MULTI_LOG_FILE:
-# This variable is used to enable mulple lof files or single log file
+# This variable is used to enable multiple log files or single log file
 # If you enable this option, the script will generate multiple log files with the datetime stamp including random string using following format:
 # eg: <script_name>-31-03-2020_11-56-16.12345-report.log
 # If this option is set to false, you will only have one single log file in /<script_path>/log/<script_name>-report.log
@@ -167,13 +168,13 @@ C_DISK_QUOTA=true
 # Leave this as default, and do not change this variable between OS installation and server installation.
 # WARNING, putting different values between OS installation and server installation will cause the fstab to be corrupted because it could not detect proper LVM group name
 # Possible values are any valid name for a LVM group name
-C_LVM_GROUP_NAME="box1"
+C_LVM_GROUP_NAME="vgbox"
 
 
 # C_LUKS_PASS:
 # This variable is used to store LUKS disk encryption password
 # If C_DISK_ENCRYPTION is set, it will use this password to encrypt disk partition during OS installation
-C_LUKS_PASS="abc12321aa"
+C_LUKS_PASS="123abc!123!"
 
 # SECURE_GRUB:
 # This variable is used whether to secure the bootloader with password during boot:
@@ -185,11 +186,11 @@ C_SECURE_GRUB=false
 
 # C_GRUB_UNAME:
 # This variable is used to specify username to set for grub bootloader user
-C_GRUB_UNAME="arafatx"
+C_GRUB_UNAME="codegix123"
 
 # C_GRUB_PASS:
 # This variable is used to specify password to set for grub bootloader password
-C_GRUB_PASS="abc12321aa"
+C_GRUB_PASS="123abc!!123"
 
 # C_ROOT_USERNAME:
 # This variable is used to specify the root username
@@ -200,12 +201,12 @@ C_ROOT_USERNAME="root"
 # C_INITIAL_ROOT_PASSWORD:
 # This variable is used to specify the root password temporarily during operating system installation
 # The password should not be used for deployment or login purpose
-C_INITIAL_ROOT_PASSWORD="abc12321aa"
+C_INITIAL_ROOT_PASSWORD="123aa!!"
 
 # C_INITIAL_ROOT_RESCUE_PASSWORD:
 # Similar like C_INITIAL_ROOT_PASSWORD but it is for rescue operating system
 # The password should not be used for deployment or login purpose
-C_INITIAL_ROOT_RESCUE_PASSWORD="INITIAL_RESCUE_PASSWORD"
+C_INITIAL_ROOT_RESCUE_PASSWORD="123aa!!"
 
 # C_ROOT_USERPASS:
 # This variable is used to specify the main root password
@@ -213,11 +214,11 @@ C_INITIAL_ROOT_RESCUE_PASSWORD="INITIAL_RESCUE_PASSWORD"
 # The script will change the operating system root password from C_INITIAL_ROOT_PASSWORD into this password
 # You might need to update this value if you changed root password manually in the system and you are intended to use this script for managing server
 # eg: <script_name> --ssh-login root (or maxinet --login) , this will login into the server using C_ROOT_USERPASS
-C_ROOT_USERPASS="abc12321aa"
+C_ROOT_USERPASS="123!!123!!123A"
 
 # C_ROOT_EMAIL:
 # This variable is used to specify email used by both root operating system and directadmin server owner
-C_ROOT_EMAIL="root@maxibi.com"
+C_ROOT_EMAIL="owner@codegix.com"
 
 # C_ADMIN_NAME:
 # This variable is used to specify admin global full name.
@@ -228,14 +229,16 @@ C_ADMIN_NAME="Arafat Ali"
 # C_ADMIN_EMAIL:
 # This variable is used to specify admin global email.
 # Various script functions will use this email such as for displaying script header, sending email in CSF, GPG key identifier and directadmin ticket notification
-C_ADMIN_EMAIL="admin@maxibi.com"
+C_ADMIN_EMAIL="admin@codegix.com"
 
-# =========================== Start directadmin related configuration ===========================
+#################################################################################################
+############################# Start directadmin related configuration ###########################
+#################################################################################################
 
 # C_DA_INSTALL_TYPE:
 # This variable is used to specify directadmin installation type. Currently it has 4 types:
 # 1) custom = use your own setting during DA installation (provide options.conf and php_extensions.conf),
-# 2) ori = let DA decide what to install default things prividing some details using auto
+# 2) ori = let DA decide what to install default things providing some details using auto
 # 3) interactive = ask question what to install (require input from user)
 # 4) auto = Automated everything by directadmin as default packages (include CSF installation)
 # Note, this script was designed to use custom type.
@@ -254,13 +257,13 @@ C_DA_LICENSE_ID="123456"
 # The default port is 2222 which is less secure
 # Please note that if you use custom port other than 2222, you will lose the ability to use one click sign in feature in directadmin
 # because one click sign in feature only with 2222
-C_DA_PORT="2222"
+C_DA_PORT="2233"
 
 # C_DA_[ROLE]_HELPER:
 # This is used to set online help file in directadmin
-C_DA_ADMIN_HELPER="help.sofibox.com/directadmin/admin"
-C_DA_RESELLER_HELPER="help.sofibox.com/directadmin/reseller"
-C_DA_USER_HELPER="help.sofibox.com/directadmin/user"
+C_DA_ADMIN_HELPER="help.codegix.com/directadmin/admin"
+C_DA_RESELLER_HELPER="help.codegix.com/directadmin/reseller"
+C_DA_USER_HELPER="help.codegix.com/directadmin/user"
 
 # C_DA_INSTALL_REDIS:
 # This is used to enable and install redis cache
@@ -299,9 +302,10 @@ C_DA_AUTO_LINK_IP=true
 # direct-login = login directly using username and password (disadvantage: need to know directadmin client username and password)
 C_DA_LOGIN_METHOD="sign-as"
 
-##################################################################
-# Start directadmin.conf options ( Directadmin version: 1.62.7 ) #
-##################################################################
+#------------------------------------------------------------------
+# Start directadmin.conf options ( Directadmin version: 1.62.7 )  #
+#------------------------------------------------------------------
+
 # Directadmin execution timeout in second
 C_DA_TIMEOUT="120"
 # Directadmin session timeout in minutes
@@ -313,9 +317,11 @@ C_DA_MAXFILESIZE="5368709120"
 C_DA_MAX_USERNAME_LENGTH="30"
 # Enable directadmin security question for authentication purpose
 C_DA_SECURITY_QUESTIONS=1
+# Set login history total
+C_DA_LOGIN_HISTORY="10"
 C_DA_ENFORCE_DIFFICULT_PASSWORDS=1
 C_DA_ALLOW_BACKUP_ENCRYPTION=1
-C_DA_LOGIN_HISTORY="10"
+
 C_DA_DISABLE_IPCHECK="1"
 C_DA_ALLOW_FOREIGN_KEY="0"
 # Default is 0
@@ -390,9 +396,13 @@ C_DA_ECC_CERTIFICATES=1
 # Choose the certificate size
 # 2048, 4096, prime256v1, secp384r1
 C_DA_CERTIFICATE_SIZE="secp384r1"
-#### End directadmin.conf settings ####
 
-# Custombuild settings
+#---- End directadmin.conf settings ----
+#---------------------------------------
+
+#-------------------------------------------------------------------------
+# Start custombuild options.conf options ( Directadmin version: 1.62.7 ) #
+#-------------------------------------------------------------------------
 C_DA_CB_VERSION="2.0"
 C_DA_CB_FTP_SOFTWARE="pureftpd"
 C_DA_CB_EXIMCONF_RELEASE="4.5"
@@ -411,221 +421,238 @@ C_DA_CB_PHP_VERSION="7.4:php-fpm,8.0:php-fpm"
 C_DA_CB_INSTALL_CLAMAV="yes"
 # Enable / disable clamav service
 C_ENABLE_CLAMAV_SERVICE=false
-# End of custombuild setting
 
-# DA_ADMIN_SQLPASS is for DA sql password (eg: phpmyadmin login) Password cannot contains this character [ ] <> and )
-C_DA_ADMIN_SQLPASS="ADMIN_SQL_PASSWORD"
-# Remember cannot contains this character & for DA_ROOT_SQL_PASS
-C_DA_ROOT_SQLPASS="ROOT_SQL_PASSWORD"
-C_DA_ROUNDCUBE_SQLPASS="ROUNDCUBE_SQL_PASSWORD"
+#---- End custombuild options.conf settings ----
+#-----------------------------------------------
 
-# ==== Start directadmin OWNER information ====
+#-------------------------------------------------
+# Start Directadmin OWNER account(s) information #
+#-------------------------------------------------
+
 # C_DA_OWNER_NAME[N]:
 # This variable defined the directadmin owner full name. The owner full name is the initial admin installation created during directadmin installation
 # The last character of N from the variable C_DA_OWNER_NAMEN is the total number of user as owner. For example to define the second owner's full name the next variable will be: C_DA_OWNER_NAME2
 # However, you are not supposed to declare more than 1 owner user. Currently owner should only have 1 user in the directadmin system but admin and user should can have multiple users
-C_DA_OWNER_NAME1="Arafat Ali"
-
+C_DA_OWNER_NAME1="Box Owner"
 # C_DA_OWNER_USERNAME[N]:
 # This variable defined directadmin owner username.
 # The default username in directadmin is admin which is not secure. Setup will change the default directadmin username from admin into this value.
 # You must set this variable other than admin, so directadmin will not contains any admin username for security reason
-C_DA_OWNER_USERNAME1="arafatx"
-
-# Be careful some characters are not accepted by phpMyAdmin. Bash has trouble with character #!.
+C_DA_OWNER_USERNAME1="owner47"
 # DA_ADMIN_USERPASS is for DA admin dashboard password
-C_DA_OWNER_USERPASS1="arafathensem"
-
+C_DA_OWNER_USERPASS1="PASSWORD"
 # DA owner email will use $ROOT_EMAIL variable above but we can declare here too for future reference
-C_DA_OWNER_SYSTEM_EMAIL1="test@codegix.com"
+C_DA_OWNER_SYSTEM_EMAIL1="owner@codegix.com"
+# Can be empty =""
+C_DA_OWNER_SECURITY_QNA1=(\
+"Kau suka makan apa?|||budu" \
+"Kau punya hobi apa?|||programming" \
+)
+# Note 1: For security reason owner should not have domain or web interfaces (no domain = no email)
+# Note 2: There must be only one owner account in directadmin (that is the original admin account of directadmin)
+#         So, C_DA_OWNER must always have index of 1
+#---- End directadmin OWNER account(s) information  ----
+#-------------------------------------------------------
 
-C_DA_OWNER_SECURITY_Q1=("What is the owner spiritual vibration movement?" "What do they call owner?")
+#-------------------------------------------------
+# Start Directadmin ADMIN account(s) information #
+#-------------------------------------------------
+# Note 1: For security reason, admin should not have domain or web interfaces (no domain = no email)
+# Note 2: For security reason, only 1 admin should be created (even directadmin supports multiple admin creation).
+#         So, C_DA_ADMIN must always have index of 1
+# Note 3: In brief, you have 2 admin accounts from C_DA_OWNER and C_DA_ADMIN
 
-C_DA_OWNER_SECURITY_A1=("answer 1 here" "answer 2 here")
-
-# Note: Currently owner should not have domain or web interfaces for directadmin security reason
-# ==== End directadmin OWNER information ====
-
-# === DA admin start ===
-# Admin should not have domain or web interfaces for security reason
-# This email also will be used by the main admin account
-C_DA_ADMIN_NAME1="First Admin"
-C_DA_ADMIN_USERNAME1="firstadmin"
-# Admin username cannot contain character [+] it will trigger invalid password (DA bug?)
+C_DA_ADMIN_NAME1="Box Admin"
+C_DA_ADMIN_USERNAME1="admin49"
 C_DA_ADMIN_USERPASS1="PASSWORD"
-C_DA_ADMIN_SYSTEM_EMAIL1="admin@test.com"
-C_DA_ADMIN_SECURITY_Q1=("What is the spiritual movement?" "What do they call admin?")
-C_DA_ADMIN_SECURITY_A1=("answer 1 here" "answer 2 here")
-# === DA admin end ===
+C_DA_ADMIN_SYSTEM_EMAIL1="admin@codegix.com"
+C_DA_ADMIN_SECURITY_QNA1=(\
+"What is the purpose of life?|||answer here" \
+"Do you feel that vibration?|||answer 2 here" \
+)
 
-# === DA reseller start ===
-# This is DA main reseller. Create at least one reseller here (cannot use [+] for password)
-C_DA_RESELLER_NAME1="The Reseller"
-C_DA_RESELLER_USERNAME1="thereseller1"
-C_DA_RESELLER_USERPASS1="PASSWORD"
-C_DA_RESELLER_SYSTEM_EMAIL1="webmaster@testreseller.com"
-C_DA_RESELLER_MAIL_USER1=("webmaster@testreseller.com" "info@test.com")
-C_DA_RESELLER_MAIL_PASSWORD1=("mail 1 password" "mail 2 password")
+#---- End directadmin ADMIN account(s) information  ----
+#-------------------------------------------------------
+
+#----------------------------------------------------
+# Start Directadmin RESELLER account(s) information #
+#----------------------------------------------------
+# Note 1: This is the directadmin main reseller account. You must create at least one reseller here with index 1
+# Note 2: You can create another multiple resellers by using the next index number 2 ... N. eg: C_DA_RESELLER_UNAME2
+# Note 3: You can have unlimited directadmin reseller accounts creation (based on directadmin license) using this variable.
+
+C_DA_RESELLER_NAME1="Masternom Corporation"
+C_DA_RESELLER_USERNAME1="maxi47"
+C_DA_RESELLER_USERPASS1="PASSWORD!@1"
+C_DA_RESELLER_SYSTEM_EMAIL1="webmaster@masternom.com"
 # This is the main reseller package
 C_DA_RESELLER_PACKAGE_NAME1="RESELLER_UNLIMITED"
 # This is different from BOX_DOMAIN, remember that this can be one or more domains, the first array is the default domain
-C_DA_RESELLER_DOMAIN1=("testreseller.com")
+C_DA_RESELLER_DOMAIN1=("masternom.com" "sofinang.com")
 # Put wildcard record for this domain. To disable just let this variable empty with ""
 # Format <domain.com>:<anotherdomain.com>:<anotheronedomain.com>: ...
-C_DA_RESELLER_WILDCARD_DOMAIN1=("testreseller.com")
-# Required at least one subdomain for now
-C_DA_RESELLER_SUBDOMAIN1=("testreseller.com:sales+login+secure+svn+api+help+dashboard")
+C_DA_RESELLER_WILDCARD_DOMAIN1=("sofinang.com")
+# Can be empty = ""
+C_DA_RESELLER_SUBDOMAIN1=("masternom.com:sales,login,secure,svn,api,help,dashboard")
 # shared or assign - If shared, domain will use the main ip from the server. Whereas for assign, it will use one of the ips from resellers
 C_DA_RESELLER_IP_TYPE1="shared"
 C_DA_RESELLER_ENABLE_DOMAIN_SSL1="yes"
-C_DA_RESELLER_SSL_SUB_NAME1=("letsencrypt:testreseller.com:www+ftp+mail+pop+smtp+sales+secure+login+svn+api+help+dashboard")
-# Security question and answers
-# Can be empty with ""
-C_DA_RESELLER_SECURITY_Q1=("Kau sekolah kat mana?" "Masuk U kat mana?")
-C_DA_RESELLER_SECURITY_A1=("STHAM" "MMU")
-# <domain>:<platform_name>:<platform_version>
-#DA_RESELLER_ROOT_WEB_TYPE1=("testreseller.com:wordpress:5.6")
-#<domain_name>:<db_name>:<db_user>:<db_password>
-C_DA_RESELLER_DB1=("testreseller.com:wwwdb:wwwusr:password_here" "testreseller.com:wwwdb2:wwwusr:password_here" "testreseller.com:testdb:testusr:password_here")
+# Below required + symbol
+C_DA_RESELLER_SSL_SUBDOMAIN1=("letsencrypt:masternom.com:www+ftp+mail+pop+smtp+sales+secure+login+svn+api+help+dashboard")
+
+C_DA_RESELLER_MAIL_ACCOUNT1=(\
+"webmaster@masternom.com|||PASSWORD" \
+"info@masternom.com|||PASSWORD" \
+)
+# Security question and answers. Can be empty with =""
+C_DA_RESELLER_SECURITY_QNA1=(\
+"What the heck?|||ok" \
+"Kaupehal?|||tak ada ape" \
+)
+
+#<domain_name>:<db_name>:<db_user>|||<db_password>
+C_DA_RESELLER_DB_ACCOUNT1=( \
+"masternom.com:wdbn:wuser|||PASSWORD" \
+"masternom.com:wdbn:wuser2|||PASSWORD" \
+)
 # Whether to enable or disable modsecurity for the subdomain
-C_DA_RESELLER_MODSEC1=("testreseller.com:sales+OFF:login+ON")
-# === DA reseller end ===
+C_DA_RESELLER_MODSEC1=("masternom.com:sales+OFF:login+ON")
 
-# To create another N resellers use the following template (you can have unlimited DA reseller users based on your license:
-# C_DA_RESELLER_NAME2=
-# C_DA_RESELLER_USERNAME2=
-# C_DA_RESELLER_USERPASS2=
-# C_DA_RESELLER_SYSTEM_EMAIL2=
-# C_DA_RESELLER_MAIL_USER2=
-# C_DA_RESELLER_MAIL_PASSWORD2=
-## This is the main reseller package
-# C_DA_RESELLER_PACKAGE_NAME2=
-# C_DA_RESELLER_DOMAIN2=
-# C_DA_RESELLER_WILDCARD_DOMAIN2=
-## Required at least one subdomain for now
-# C_DA_RESELLER_SUBDOMAIN2=
-# C_DA_RESELLER_IP_TYPE2=
-# C_DA_RESELLER_ENABLE_DOMAIN_SSL2=
-# C_DA_RESELLER_SSL_SUB_NAME2=
-## Security question and answers
-## Can be empty with ""
-#C_DA_RESELLER_SECURITY_Q2=
-#C_DA_RESELLER_SECURITY_A2=
-#C_DA_RESELLER_DB2=
-## Whether to enable or disable modsecurity for the subdomain
-#C_DA_RESELLER_MODSEC2=
+#------------------------------------------------------------
+# Create extra reseller here with ascending value starting from 2:
+# eg: C_DA_ADMIN_UNAME2
 
-# === DA user start ===
-# user name, where the main username variable should have variable postfix of 1
-C_DA_USER_NAME1="Maxibi"
-C_C_DA_USER_USERNAME1="testuser"
-# user password, must be maximum of 64 characters and does not contain the plus character [+]
+
+#---- End directadmin RESELLER account(s) information  ----
+#----------------------------------------------------------
+
+#------------------------------------------------
+# Start Directadmin USER account(s) information #
+#------------------------------------------------
+# Note 1: This is the directadmin main user account. You must create at least one user here with index 1
+# Note 2: You can create another multiple users by using the next index number 2 ... N. eg: C_DA_USER_UNAME2
+# Note 3: You can have unlimited directadmin user accounts creation (based on directadmin license) using this variable.
+
+# This will restore user profile from backup
+C_DA_USER_RESTORE_PROFILE_BACKUP1=true # TODO
+# This will restore user web from backup
+C_DA_USER_RESTORE_WEB_BACKUP1=true # TODO
+# Create user full name / company name
+C_DA_USER_NAME1="Maxibi ICT Solutions"
+# Create the main username (minimum 2 character, script will check this condition including the maximum username)
+C_DA_USER_USERNAME1="maxi32"
+# Create user password, must be maximum of 64 characters and does not contain the plus character [+] (script will check)
 C_DA_USER_USERPASS1="PASSWORD"
-# user system email, where is used for DA to send email, system email should only have 1 email
-C_DA_USER_SYSTEM_EMAIL1="webmaster@testuser.com"
-# user mail account, where array index must match between mail_account and mail_password
-# If one mail. eg: DA_USER_MAIL_USER1=("test@testuser.com")
-C_DA_USER_MAIL_USER1=("webmaster@testuser.com" "info@testuser.com" "sales@testuser.com")
-# user mail password, where array index must match between mail_account and mail_password:
-# TODO test asterik password
-C_DA_USER_MAIL_PASSWORD1=("MAIL1_PASSWORD" "MAIL2_PASSWORD" "MAIL3_PASSWORD")
-# user domain, can declare multiple domains here
-C_DA_USER_DOMAIN1=("testuser.com")
-# Put wildcard record for this domain. To disable just let this variable empty with ""
-# Format <domain.com>:<anotherdomain.com>:<anotheronedomain.com>: ...
-C_DA_USER_WILDCARD_DOMAIN1=("testuser.com")
-# Format: <rootdomain>:<subdomain1.subdomain2>+<anothersubdomain>+ ...
-# Use plus [+] instead of dot [.]
-# because there is no easy way to determine root domain when it has long subdomains due to huge number of TLD
+# Create user system email, where is used for DA to send email, system email should only have 1 email
+C_DA_USER_SYSTEM_EMAIL1="webmaster@maxibi.com"
+# Create user domain here, can declare multiple domains here. The first domain in array is the default domain
+# Required at least one domain
+C_DA_USER_DOMAIN1=("maxibi.com")
+# Put wildcard record for the following domain(s). Specify in array form
+# To disable just let this variable empty with ""
+C_DA_USER_WILDCARD_DOMAIN1=("maxibi.com")
+# Note 1: There is no easy way to determine root domain when it has long subdomains due to huge number of TLD
 # and those TLD names need to be maintained frequently especially from https://publicsuffix.org/
-# you can declare multi subdomains like maxibi.com:sub1.sub2.sub3.sub4.sub5
-C_DA_USER_SUBDOMAIN1=("testuser.com:sales+login")
+# This variable creates unlimited subdomain
+# Format: <rootdomain>:<subdomain1.subdomain2>,<anothersubdomain>, ...
+C_DA_USER_SUBDOMAIN1=("maxibi.com:sales,login")
 # user package name, make sure this package name is created first by reseller (the code will check for you)
 C_DA_USER_PACKAGE_NAME1="USER_UNLIMITED"
 # enable/disable ssl certificate for all domains for this user enable="yes", disable="no"
 C_DA_USER_ENABLE_DOMAIN_SSL1="yes"
-# Define SSL provider for each domain here
-# <ssl_provider>:<root_domain>:subdomain1.subdomain2+subdomain2.subdomain3+subdomainx
-# ssl_provider such as letsencrypt, digicert etc:
-# The root domain should be ssled by default
-C_DA_USER_SSL_SUB_NAME1=("letsencrypt:testuser.com:www+ftp+mail+pop+smtp+sales")
-# Security question and answers
-C_DA_USER_SECURITY_Q1=("Pehal PKP lama sangat?" "Ok ke?" "Kaupehal")
-C_DA_USER_SECURITY_A1=("entah" "ok je" "tak ada ape")
-# <domain>:<platform_name>:<platform_version>
-# Testing new feature
-#DA_USER_ROOT_WEB_TYPE1=("testuser.com:wordpress:5.6")
-# <domain_name>:<db_name>:<db_user>:<db_password>
-C_DA_USER_DB1=("testuser.com:wwwdb:wwwusr:DB_PASSWORD_HERE")
-# New planned feature enable or disable MOD SECURITY
-C_DA_USER_MODSEC1=("testuser.com:sales+OFF:login+ON")
+# Define SSL provider for each domain here to request SSL certificate based on the provider
+# <ssl_provider>:<root_domain>:<subdomain1.subdomain2,subdomain2.subdomain3,unlimited.subdomain.other>
+# Note 1: ssl_provider can be letsencrypt, digicert etc.
+# Note 2: The root domain should be ssled by default
+C_DA_USER_SSL_SUBDOMAIN1=("letsencrypt:maxibi.com:www,ftp,mail,pop,smtp,sales")
+# Create user account email, separated with ||| between email and password
+# You can also leave this variable empty to disable this. eg: C_DA_USER_MAIL_ACCOUNT1=() or C_DA_USER_MAIL_ACCOUNT1=""
+C_DA_USER_MAIL_ACCOUNT1=(\
+"webmaster@maxibi.com|||PASSWORD" \
+"info@maxibi.com|||PASSWORD" \
+"sales@maxibi.com|||PASSWORD" \
+)
+# Add user security question and answer separated with ||| between question and answer. You can create unlimited security question and answer.
+# You can also leave this variable empty to disable this. eg: C_DA_USER_SECURITY_QNA1=() or C_DA_USER_SECURITY_QNA1=""
+C_DA_USER_SECURITY_QNA1=(\
+"Seronok?|||tak" \
+"Kaya?|||tak" \
+"Bahagia?|||ok" \
+)
+# Create user database here. If you specify the same database username (db_user), it will use existing database username to create new database
+# if the next database info has repeated username, you can leave the password empty
+#<domain_name>:<db_name>:<db_user>|||<db_password>
+C_DA_USER_DB_ACCOUNT1=( \
+"maxibi.com:wdb:wusr|||PASSWORD" \
+)
+# This option is to enable or disable MOD security for specific website
+C_DA_USER_MODSEC1=("maxibi.com:sales+OFF:login+ON") #TODO
+# This will automatically install website platform and configure recommend values based on the platform type and version
+# Format: <domain>:<platform_name>:<platform_version>
+# The first array before :, represents the main website
+C_DA_USER_CUSTOM_WEB_CONFIG1=("maxibi.com:wordpress:5.7") #TODO
+#------------------------------------------------------------
+# Create extra user here with assending value starting from 2:
+# eg: C_DA_USER_USERNAME2
 
-# Add more user from here (using the same format above):
-# Can add multiple domains, and emails
-# To create another N users use the following template (you can have unlimited DA users based on your license:
+#C_DA_USER_RESTORE_PROFILE_BACKUP2=
+#C_DA_USER_RESTORE_WEB_BACKUP2=
+#C_DA_USER_NAME2=
+#C_DA_USER_USERNAME2=
+#C_DA_USER_USERPASS2=
+#C_DA_USER_SYSTEM_EMAIL2=
+#C_DA_USER_DOMAIN2=
+#C_DA_USER_WILDCARD_DOMAIN2=
+#C_DA_USER_SUBDOMAIN2=
+#C_DA_USER_PACKAGE_NAME2=
+#C_DA_USER_ENABLE_DOMAIN_SSL2=
+#C_DA_USER_SSL_SUBDOMAIN2=
+#C_DA_USER_MAIL_ACCOUNT2=
+#C_DA_USER_SECURITY_QNA2=
+#C_DA_USER_DB_ACCOUNT2=
+#C_DA_USER_MODSEC2=
+#C_DA_USER_CUSTOM_WEB_CONFIG2=
 
-C_DA_USER_NAME2=
-C_C_DA_USER_USERNAME2=
-C_DA_USER_USERPASS2=
-C_DA_USER_SYSTEM_EMAIL2=
-C_DA_USER_MAIL_USER2=
-C_DA_USER_MAIL_PASSWORD2=
-C_DA_USER_DOMAIN2=
-C_DA_USER_WILDCARD_DOMAIN2=
-C_DA_USER_SUBDOMAIN2=
-C_DA_USER_PACKAGE_NAME2=
-C_DA_USER_ENABLE_DOMAIN_SSL2=
-C_DA_USER_SSL_SUB_NAME2=
-C_DA_USER_SECURITY_Q2=
-C_DA_USER_SECURITY_A2=
-C_DA_USER_DB2=
-C_DA_USER_MODSEC2=
+# ----------------------
 
+#---- End directadmin USER account(s) information  ----
+#------------------------------------------------------
 
-C_DA_USER_NAME[N]=
-C_C_DA_USER_USERNAME[N]=
-C_DA_USER_USERPASS[N]=
-C_DA_USER_SYSTEM_EMAIL[N]=
-C_DA_USER_MAIL_USER[N]=
-C_DA_USER_MAIL_PASSWORD[N]=
-C_DA_USER_DOMAIN[N]=
-C_DA_USER_WILDCARD_DOMAIN[N]=
-C_DA_USER_SUBDOMAIN[N]=
-C_DA_USER_PACKAGE_NAME[N]=
-C_DA_USER_ENABLE_DOMAIN_SSL[N]=
-C_DA_USER_SSL_SUB_NAME[N]=
-C_DA_USER_SECURITY_Q[N]=
-C_DA_USER_SECURITY_A[N]=
-C_DA_USER_DB[N]=
-C_DA_USER_MODSEC[N]=
+# DA_ADMIN_SQLPASS is for DA sql password (eg: phpmyadmin login) Password cannot contains this character [ ] <> and )
+C_DA_ADMIN_SQLPASS="PASSWORD"
+# Remember cannot contains this character & for DA_ROOT_SQL_PASS
+C_DA_ROOT_SQLPASS="PASSWORD"
+# The roundcube database password
+C_DA_ROUNDCUBE_SQLPASS="PASSWORD"
 
-# === DA user END ===
+############################# End directadmin related configuration #############################
+#################################################################################################
 
 
 # When enable secure the custom directory with password
 C_SECURE_LOGIN_ROUTE=true
 # Create phpmyadmin custom route here instead of using /pma, begin with /: eg /dbx123a.
-C_PHPMYADMIN_CUSTOM_NAME="MY Awesome Database"
-C_PHPMYADMIN_LOGIN_ROUTE="/dbarea51"
-C_HTTPASSWD_PHPMYADMIN_USERNAME="dbagent007"
-C_HTTPASSWD_PHPMYADMIN_PASS="*long-secured-password*"
+C_PHPMYADMIN_CUSTOM_NAME="MyDB"
+C_PHPMYADMIN_LOGIN_ROUTE="/dbprivate"
+C_HTTPASSWD_PHPMYADMIN_USERNAME="dbuser51"
+C_HTTPASSWD_PHPMYADMIN_PASS="PASSWORD"
 # Create roundcube custom route here instead of using /roundcube, begin with /: eg /mailx123
-C_ROUNDCUBE_CUSTOM_NAME="My Awesome Mail"
-C_ROUNDCUBE_LOGIN_ROUTE="/mailarea51"
-C_HTTPASSWD_ROUNDCUBE_USERNAME="mailagent007"
-C_HTTPASSWD_ROUNDCUBE_PASS="*long-secured-password*"
-# This is a private repository URL (PM me for more info because you need TOKEN key access)
+C_ROUNDCUBE_CUSTOM_NAME="MyMail"
+C_ROUNDCUBE_LOGIN_ROUTE="/mailprivate"
+C_HTTPASSWD_ROUNDCUBE_USERNAME="mailuser11"
+C_HTTPASSWD_ROUNDCUBE_PASS="PASSWORD"
+# Can be either public repository or private repo
 C_SETUP_GIT_URL="https://token@github.com/sofibox/maxinet.git"
-C_GIT_TOKEN="GIT_TOKEN_HERE"
+C_GIT_TOKEN="TOKEN_KEY"
 # To reduce server bot attack on SSH, you must change this SSH PORT
-C_RESCUE_SSH_PORT="999"
-C_SSH_PORT="922"
-C_DROP_BEAR_PORT="7622"
-C_SSH_USERNAME="ssh-uname"
+C_RESCUE_SSH_PORT="833"
+C_SSH_PORT="892"
+C_DROP_BEAR_PORT="8222"
+C_SSH_USERNAME="sshuser911"
 C_SSH_USERPASS="*long-secured-password*"
 # This one for SSH Public Key. I generate this from puttygen
 # You can leave this empty, or do anything because the script has its own ssh key, if script has trouble finding key file then it will use this:
-C_SSH_PUBLIC_KEY="ssh-rsa AAAAB3N***AAAQE***nsAQENik/Al***G/8***Y sofibox-auth-test.sofibox.com-v1"
+C_SSH_PUBLIC_KEY="ssh-rsa AAAAWEUjt3Wm414*****k7PDKne/3dQ== sun.codegix.com-auth"
 # Planned feature
 C_SSH_PASSPHRASE="**SSH_PASSPHRASE***"
 
@@ -639,24 +666,24 @@ C_OS_SELECT_VERSION="11.0.0"
 C_OS_CODE_NAME="bullseye"
 # possible value: cfq, noop, deadline
 # noob for SSD (testing)
-C_OS_IO_SCHEDULER="noop"
+C_OS_IO_SCHEDULER="cfq"
 # values: custom, normal, console | do not use console if system support GUI, else you will see blank UI
 # only use console for system that does not support graphic display, for example linode lish without glish.
 # This feature has been removed temporarily from the script (will leave this variable for technical reason)
 C_BOX_OS_INSTALL_UI="normal"
-# Possible values: vps, dedicated, colocation
+# Possible values: vps, dedicated, collocation
 C_BOX_TYPE="vps"
 # Specify the main disk
 C_BOX_MAIN_DISK="/dev/sda"
 # Partition size information
-C_BOX_MAIN_DISK_RAW_SIZE="size-in-MB"
-C_BOX_RESCUE_DISK_RAW_SIZE="size-in-MB"
-C_BOX_BOOT_DISK_RAW_SIZE="size-in-MB"
+C_BOX_MAIN_DISK_RAW_SIZE="800000"
+C_BOX_BOOT_DISK_RAW_SIZE="1024"
+#C_BOX_RESCUE_DISK_RAW_SIZE="512"
 # Partition scheme
-C_BOX_BOOT_SIZE="size-in-MB"
-C_BOX_ROOT_SIZE="size-in-MB"
-C_BOX_TMP_SIZE="size-in-MB"
-C_BOX_SWAP_SIZE="size-in-MB"
+C_BOX_BOOT_SIZE="1024"
+C_BOX_ROOT_SIZE="50000"
+C_BOX_TMP_SIZE="4096"
+C_BOX_SWAP_SIZE="4096"
 # -1 = largest available size (put last so can expand easier), -1 means infinity
 C_BOX_HOME_SIZE="-1" #"size-in-MB" # or put -1 for infinity
 C_BOX_RAM="32GB"
@@ -683,7 +710,6 @@ C_USE_DEFAULT_ETH0=true
 # Using eth0 is the default. It is recommend to use the default name convention eth0
 # use auto = let the naming convention decide (planned feature)
 C_NIC_INTERFACE_NAME="eth0"
-# 172.104.50.185/24
 C_IPV4_ADD0="IPV4_ADDRESS" #eg: "123.111.50.185"
 C_IPV4_DEF_GATEWAY0="IPV4_DEFAULT_GATEWAY" #eg: "123.111.50.1"
 C_IPV4_NETMASK0="/24"
@@ -769,9 +795,9 @@ C_GOTIFY_SYSTEM_GROUP="gotify"
 C_GOTIFY_PUSH_PRIORITY=10
 C_GOTIFY_VERSION="2.0.23"
 C_GOTIFY_PLATFORM="linux-amd64"
-C_GOTIFY_PORT="8222"
+C_GOTIFY_PORT="8722"
 C_GOTIFY_USERNAME="admin"
-C_GOTIFY_PASSWORD="newpassword"
+C_GOTIFY_PASSWORD="gotifypassword++"
 C_GOTIFY_APP_NAME="test.server.com"
 # This variable C_GOTIFY_APP_DESCRIPTION is optional and be empty
 C_GOTIFY_APP_DESCRIPTION=""
@@ -780,6 +806,6 @@ C_GOTIFY_CLI_VERSION="2.2.0"
 # Dropbox (This value can be obtained first from dbxcli)
 # For security reason, do not use full scope dropbox, use app scope
 DROPBOX_CONFIGFILE_VERSION="2.0"
-DROPBOX_OAUTH_APP_KEY="12321aa"
-DROPBOX_OAUTH_APP_SECRET="12321aa"
-DROPBOX_OAUTH_REFRESH_TOKEN="12321aa"
+DROPBOX_OAUTH_APP_KEY="KEY"
+DROPBOX_OAUTH_APP_SECRET="KEY"
+DROPBOX_OAUTH_REFRESH_TOKEN="TOKEN"
