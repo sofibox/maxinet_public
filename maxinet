@@ -4,7 +4,7 @@
 
 _APP_SPECIFIC_NAME="Maxinet"
 # Note that some minor versions are not published
-_APP_VERSION="0.5.9.2"
+_APP_VERSION="0.5.9.3"
 _APP_STATUS="alpha"
 _APP_VERSION_STATUS="${_APP_VERSION}-${_APP_STATUS}"
 
@@ -693,19 +693,10 @@ function is_valid() {
     fi
     #if is_valid ssl_site "${C_BOX_HOSTNAME_FQHN}:${C_DA_PORT}"; then
   elif [[ "${type}" == "ssl_site" ]]; then
-    local url_port url port final_hostname status
-    url_port="${data1}"
-    url=$(echo "${url_port}" | awk -F':' '{ print $1 }')
-    port=$(echo "${url_port}" | awk -F':' '{ print $2 }')
+    local url final_hostname status
+    url="${data1}"
 
-    #echo "url_port ${url_port}"
-    #echo "URL is ${url}"
-    #echo "Port is ${port}"
-
-    # If port is empty, we use default SSL port that is 443
-    if [ -z "${port}" ]; then
-      port="443"
-    fi
+    echo "url: ${url}"
 
     host "${url}" >/dev/null 2>&1
     retval=$?
@@ -715,19 +706,19 @@ function is_valid() {
       # This will get the final redirection for a hostname
       final_hostname=$(timeout 3 curl "${url}" -s -L -I -o /dev/null -w '%{url_effective}' | awk -F[/:] '{print $4}')
       #echo "URL: ${url}"
-      #echo "FINAL_HOSTNAME: ${final_hostname}"
-      #echo "PORT: ${port}"
-      # This one also need timeout, do not use https if timeout more than 3 second
-      status=$(timeout 3 openssl s_client -connect "${final_hostname}:${port}" </dev/null 2>/dev/null | grep 'Verify return code: 0 (ok)')
+      echo "FINAL_HOSTNAME: ${final_hostname}"
+      echo "PORT: ${port}"
+      status=$(curl --cert-status -v https://${final_hostname} 2>&1 | awk 'BEGIN { cert=0 } /^\* Server certificate:/ { cert=1 } /^\*/ { if (cert) print }' | grep "*  SSL certificate verify ok.")
+      #status=$(timeout 3 openssl s_client -connect "${final_hostname}:${port}" </dev/null 2>/dev/null | grep 'Verify return code: 0 (ok)')
       if [ -n "${status}" ]; then
-        #echo "Site ${final_hostname} with port ${port} is valid https"
+        echo "Site ${final_hostname} with port ${port} is valid https"
         return 0
       else
         return 1
-        #echo "Site ${final_hostname} with port ${port} is not valid https"
+        echo "Site ${final_hostname} with port ${port} is not valid https"
       fi
     else
-      #echo "Link is not valid"
+      echo "Link is not valid"
       return 1
     fi
 
@@ -3005,6 +2996,35 @@ function script_time() {
   secs=$((spent_secs - hrs * 3600 - mins * 60))
   printf "[${SCRIPT_NAME}]: Time spent for total script execution: %02d H:%02d M :%02d S\n" ${hrs} ${mins} ${secs}
 }
+
+# This function convert seconds to time in format d h m s
+function show_time() {
+  local num=$1
+  local min=0
+  local hour=0
+  local day=0
+  if ((num > 59)); then
+    ((sec = num % 60))
+    ((num = num / 60))
+    if ((num > 59)); then
+      ((min = num % 60))
+      ((num = num / 60))
+      if ((num > 23)); then
+        ((hour = num % 24))
+        ((day = num / 24))
+      else
+        ((hour = num))
+      fi
+    else
+      ((min = num))
+    fi
+  else
+    ((sec = num))
+  fi
+  echo "${day}"d "${hour}"h "${min}"m "${sec}"s
+}
+
+
 # This function display the execution time for a script individually
 # Syntax exec_time <start/total> <optional_unique_variable>
 # To start tracking use: exec_time start "da_installation"
@@ -7018,15 +7038,25 @@ function da_api_admin() {
 
   port="$(cat /usr/local/directadmin/conf/directadmin.conf | grep '^port=' | cut -d= -f2)"
 
-  # We just use http protocol, as directadmin documentation said this is not important and will be handled by directadmin.
+  if [ -z "${port}" ]; then
+    [[ "${scripting}" == "false" ]] && _echo "$(msg red)Error, directadmin.conf should contain port option!$(msg end)" --name --verbose 7
+    # or set default
+    # port=2222
+    _exit 147
+  fi
 
-  #if is_valid ssl_site "${C_BOX_HOSTNAME_FQHN}:${port}"; then
-  #echo "OK, ${C_BOX_HOSTNAME_FQHN} is a valid SSL/https site"
-  #  ssl_protocol="https"
-  #else
-  # [[ "${scripting}" == "false" ]] && _echo "$(msg yellow)Warning, using unsecured connection for directadmin API because ${C_BOX_HOSTNAME_FQHN} is currently not a valid SSL/https site$(msg end)" --name --verbose 7
-  ssl_protocol="http"
-  #fi
+  if [ "${AUTO_SELECT_DA_API_PROTOCOL}" == "true" ]; then
+    if is_valid ssl_site "${C_BOX_HOSTNAME_FQHN}"; then
+     [[ "${scripting}" == "false" ]] && _echo "OK, ${C_BOX_HOSTNAME_FQHN} is a valid SSL/https site"
+      ssl_protocol="https"
+    else
+      [[ "${scripting}" == "false" ]] && _echo "$(msg yellow)Warning, using unsecured connection for directadmin API because ${C_BOX_HOSTNAME_FQHN} is currently not a valid SSL/https site$(msg end)" --name --verbose 7
+      ssl_protocol="http"
+    fi
+  else
+    [[ "${scripting}" == "false" ]] && _echo "$(msg yellow)Warning, using unsecured connection for directadmin API because ${C_BOX_HOSTNAME_FQHN} is currently not a valid SSL/https site$(msg end)" --name --verbose 7
+    ssl_protocol="http"
+  fi
 
   # TODO this one contains sensitive information, hide later or suggesting to use  --verbose less than 7
   if [[ "${scripting}" == "false" ]]; then
@@ -8064,9 +8094,10 @@ function setup_pre() {
       # Note 2: psmisc is a pstree utils (needed by maxigpg script from maxicode)
       # Note 3: dnsutils contains dig command is used to find public IP
       # Note 4: net-tools for using with netstat (port troubleshooting)
+      # Note 5: rsync for file transfer and backup (better than scp)
       _echo "$(msg cyan)Installing pre-requisite components for Debian OS ...$(msg end)" --name
       echo ""
-      apt-get -y install sudo screen nmap psmisc gpg unzip zip dnsutils net-tools
+      apt-get -y install sudo screen nmap psmisc gpg unzip zip dnsutils net-tools rsync
     elif [ "${DISTRO_ID}" == "ubuntu" ]; then
       :
     elif [ "${DISTRO_ID}" == "almalinux" ]; then
@@ -9387,7 +9418,7 @@ function restart_da() {
     ((wait_count = wait_count + 1))
     sleep ${wait_duration}
     if [[ -s "${task_queue_file}" && -f "${task_queue_file}" ]]; then
-      _echo "$(msg cyan)Waiting for pending task(s) to finish executed. Maximum wait of ${HOLD_SECONDS}/${max_wait} seconds ...$(msg end)" --start-spin --name
+      _echo "$(msg cyan)Waiting for pending task(s) to finish executed. Maximum wait of ${wait_count}/${max_wait} seconds ...$(msg end)" --start-spin --name
       if [ "${wait_count}" -gt ${max_wait} ]; then
         # Force restart if waiting time is longer than max_wait. The maximum task.queue execution time is only 1 minute based on directadmin documentation
         # Another condition that can be force to restart is, if the task.queue contains more than 2 lines, it means it is not running. So we can force restart it.
@@ -9418,14 +9449,16 @@ function get_current_da_owner_username() {
   for da_admin in "${da_admins[@]}"; do
     # There must be 1 creator in directadmin, so this one must always have value
     current_da_owner_username=$(grep -rl "^creator=root" "/usr/local/directadmin/data/users/${da_admin}/user.conf" | cut -d'/' -f7 | tail -n 1)
+    if [ -n "${current_da_owner_username}" ]; then
+      echo "${current_da_owner_username}"
+      break
+    fi
   done
   unset da_admins
   # It might be impossible that this will return empty, so just in case we add the condition
   if [ -z "${current_da_owner_username}" ]; then
-    _echo "$(msg red)Error, there is no admin created by root exist in directadmin user data! Please make sure it exist!$(msg end)" --name
+    _echo "$(msg yellow)Error, there is no admin created by root exist in directadmin user data! Please make sure it exist!$(msg end)" --name
     _exit 147
-  else
-    echo "${current_da_owner_username}"
   fi
 }
 
@@ -9599,24 +9632,52 @@ function install_da() {
     _echo "$(msg yellow)In order to view full installation log in realtime, execute this command in another local terminal: ${SCRIPT_NAME} --login and tail -f ${SCRIPT_PATH}/log/da-install.log$(msg end)" --name
     _pause 30
     ensure_host_domain_ip_resolved
-    _echo "$(msg cyan)Installing Directadmin on ${LABEL_C_BOX_HOSTNAME_FQHN} using ${C_DA_INSTALL_TYPE} mode (this may take sometimes) ... $(msg end)" --name
+    echo ""
+    _echo "$(msg cyan)Note: Directadmin will be installed on ${LABEL_C_BOX_HOSTNAME_FQHN} using ${C_DA_INSTALL_TYPE} mode$(msg end)"
     echo ""
     if [[ "${C_DA_INSTALL_TYPE}" == "custom" || "${C_DA_INSTALL_TYPE}" == "original" ]]; then
       # If provided options.conf, it means we use custom else we use original
-      ./setup.sh "${C_DA_CLIENT_ID}" "${C_DA_LICENSE_ID}" "${C_BOX_HOSTNAME_FQHN}" "${C_NIC_INTERFACE_NAME}" "${C_IPV4_ADD0}" >>"${da_install_log}"
+      (
+        ./setup.sh "${C_DA_CLIENT_ID}" "${C_DA_LICENSE_ID}" "${C_BOX_HOSTNAME_FQHN}" "${C_NIC_INTERFACE_NAME}" "${C_IPV4_ADD0}" &>"${da_install_log}"
+        exit $?
+      ) &
+      my_pid=$!
+      count=0
+      while ps | grep -q " $my_pid "; do
+        ((count++))
+        _echo "$(msg cyan)Installing directadmin [ PID ID: $my_pid | Elapsed time: $(show_time "${count}") ] ... $(msg end)" --start-spin
+        sleep 1
+      done
+      wait $my_pid
       retval=$?
+      echo ""
       _echo "Installation return code is ${retval}" --verbose 7
     elif [[ "${C_DA_INSTALL_TYPE}" == "interactive" ]]; then
-      # This will ask questions
-      bash <(curl -Ss https://www.directadmin.com/setup.sh) >>"${da_install_log}"
+      # This will ask questions (so do not put in background)
+      bash <(curl -Ss https://www.directadmin.com/setup.sh) | tee -a "${da_install_log}"
       retval=$?
-    elif [[ "${C_DA_INSTALL_TYPE}" == "automatic" ]]; then
+      echo ""
+      _echo "Installation return code is ${retval}" --verbose 7
+    elif [[ "${C_DA_INSTALL_TYPE}" == "automatic" || "${C_DA_INSTALL_TYPE}" == "auto" ]]; then
       # This will not ask question and everything will be installed as default including CSF
-      bash <(curl -Ss https://www.directadmin.com/setup.sh) auto >>"${da_install_log}"
+      (
+        bash <(curl -Ss https://www.directadmin.com/setup.sh) auto &>"${da_install_log}"
+        exit $?
+      ) &
+      my_pid=$!
+      count=0
+      while ps | grep -q " $my_pid "; do
+        ((count++))
+        _echo "$(msg cyan)Installing directadmin [ PID ID: $my_pid | Elapsed time: $(show_time "${count}") ] ... $(msg end)" --start-spin
+        sleep 1
+      done
+      wait $my_pid
       retval=$?
+      echo ""
+      _echo "Installation return code is ${retval}" --verbose 7
     fi
-    retval=$?
-    if [ "${retval}" -eq 1 ]; then
+
+    if [[ "${retval}" -ne 0 ]]; then
       local error_msg
       _echo "$(msg red)Error, directadmin installation contains error. Please inspect the last 10 lines of the installation log below:$(msg end)" --name
       error_msg=$(tail -n 10 "${da_install_log}")
@@ -11571,6 +11632,7 @@ function configure_da_settings() {
     da_api_admin set-da-server-settings --recommend-values
     # Need this before changing or adding directadmin username
     # Set the maximum length of directadmin username (default is 14) for higher than 14 make sure mariadb or mysql is latest version
+    # TODO: Set based on this guide https://www.directadmin.com/features.php?id=2294
     _echo "$(msg cyan)Setting directadmin max username to ${LABEL_C_DA_MAX_USERNAME_LENGTH} ...$(msg end)" --name
     ${da_bin} set max_username_length "${C_DA_MAX_USERNAME_LENGTH}"
     echo ""
@@ -12072,6 +12134,7 @@ function configure_da_admin_accounts() {
 # Some info & and references: Check if reseller package is created
 # https://forum.directadmin.com/threads/server-migration-how-to-use-the-existing-configuration-during-setup.62937/
 # https://forum.directadmin.com/threads/default-user-package-s-for-resellers.49156/
+# Note 4: Very important note, when create a reseller, it will create a domain, and this means it create DNS records. So, if directadmin ipv6 is enable. This will cause timeouut
 function configure_da_reseller_accounts() {
   local option func_name
   option="$1"
@@ -12395,9 +12458,12 @@ function configure_da_host_domain_ssl() {
       _echo "$(msg cyan)Enabling ssl=1 in directadmin.conf config...$(msg end)" --name
       ${da_bin} set ssl 1
       echo ""
-
+      _echo "$(msg cyan)Enabling cacert in directadmin.conf config...$(msg end)" --name
       ${da_bin} set cacert /usr/local/directadmin/conf/cacert.pem
+      echo ""
+      _echo "$(msg cyan)Enabling cakey in directadmin.conf config...$(msg end)" --name
       ${da_bin} set cakey /usr/local/directadmin/conf/cakey.pem
+      echo ""
 
       # Add wellknown-alias by rewrite_confs
       _echo "$(msg cyan)Creating dummy acme-challenge texts through custombuild rewrite_confs ...$(msg end)" --name
@@ -12441,6 +12507,16 @@ function configure_da_host_domain_ssl() {
         _echo "$(msg cyan)Enabling ssl=1 in directadmin.conf config...$(msg end)" --name
         ${da_bin} set ssl 1
         echo ""
+
+        # This fixed http protocol problem if cert has been requested as I reported here https://forum.directadmin.com/threads/might-be-bug-api-http-protocol-is-not-working-after-requesting-certificate.64408/
+        # I also have another workaround to let the script select http or https (if available). To use this workaround enable this setting:
+        # AUTO_SELECT_DA_API_PROTOCOL=true (remember this is beta feature. When directadmin released bug fixed, this feature will be disabled by default)
+
+        # If I disable ssl below (set ssl=0 in directadmin.conf and restart), I can use both http and https on API for host domain:
+        # BUT at this point, I decided to use my workaround using AUTO_SELECT_DA_API_PROTOCOL=true (so, I don't have to disable ssl option below. Only uncomment below if this failed)
+        #_echo "$(msg cyan)Disabling ssl=0 in directadmin.conf config...$(msg end)" --name
+        #${da_bin} set ssl 0
+
         # This is to redirect hostname automatically to https
         _echo "$(msg cyan)Setting redirect_host_https yes in Directadmin options.conf config ...$(msg end)" --name
         ${da_cb_bin} set redirect_host_https yes
@@ -12452,6 +12528,20 @@ function configure_da_host_domain_ssl() {
         # Always a good idea to restart directadmin after changing directadmin.conf
         _echo "$(msg cyan)Restarting directadmin after changing directadmin.conf ...$(msg end)" --name
         restart_da
+        echo ""
+        while :; do
+          local test_login
+          _echo "$(msg cyan)Testing login into directadmin API using the main admin username ...$(msg end)" --name
+          test_login=$(da_api_admin test-login --username $(get_current_da_owner_username) --scripting | grep "error=0")
+          if [ -n "${test_login}" ]; then
+            _echo "$(msg green) OK$(msg end)" --plain
+            break
+          else
+            _echo "$(msg red) FAILED$(msg end)" --plain
+            _echo "$(msg cyan)Retrying login into directadmin API using the main admin username ...$(msg end)" --name
+          fi
+          sleep 3
+        done
       else
         _echo "$(msg red)Error, server SSL certificate installation failed with return code ${retval}$(msg end)" --name
         _exit 147
@@ -15567,7 +15657,7 @@ function setup() {
         configure_da_dns_templates --run
         # " -- host --"
         configure_da_host_domain --run
-        configure_da_ssl_pre --run-force
+        configure_da_ssl_pre --run
         configure_da_host_domain_ssl --run
         # " -- owner --"
         configure_da_owner_accounts --run
