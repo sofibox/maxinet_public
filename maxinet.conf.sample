@@ -693,8 +693,14 @@ C_BOX_SWAP_SIZE="4096"
 C_BOX_HOME_SIZE="-1" #"size-in-MB" # or put -1 for infinity
 C_BOX_RAM="32GB"
 C_BOX_DOMAIN="test.com"
+# C_BOX_HOSTNAME_FQHN:
+# This is an important variable to define a full qualified host name for a server
+# This value also is a reference to the variable to other external DNS such as C_LINODE_LABEL
+# It must be a full qualified host name value, else the script will ask to correct this.
+# The external server will have this unique label name and will rename automatically as this host name
 C_BOX_HOSTNAME_FQHN="server.test.com"
-# OPTIONAL variable, if not specified it will take the host name from C_BOX_HOSTNAME_FQHN (this is sensitive variable) must be declared as empty even it is autogenerate value
+# OPTIONAL variable, if not specified it will take the host name from C_BOX_HOSTNAME_FQHN
+# this is sensitive variable must be declared as empty even it is autogenerate value
 C_BOX_HOSTNAME=""
 C_BOX_TIMEZONE="Asia/Kuala_Lumpur"
 C_BOX_COUNTRY_NAME="Malaysia"
@@ -716,6 +722,8 @@ C_USE_DEFAULT_ETH0=true
 # use auto = let the naming convention decide (planned feature)
 C_NIC_INTERFACE_NAME="eth0"
 C_IPV4_ADD0="IPV4_ADDRESS" #eg: "123.111.50.185"
+# You can have additional IP starting with index 1 eg:
+#C_IPV4_ADD1="139.162.3.114"
 C_IPV4_DEF_GATEWAY0="IPV4_DEFAULT_GATEWAY" #eg: "123.111.50.1"
 C_IPV4_NETMASK0="/24"
 C_IPV4_NETMASK_IP0="255.255.255.0"
@@ -781,7 +789,8 @@ C_LINODE_RESCUE_CONFIG_LABEL="Rescue_Config"
 C_LINODE_OS_DISK_LABEL="OS_Disk"
 C_LINODE_BOOT_DISK_LABEL="Boot_Disk"
 C_LINODE_RESCUE_DISK_LABEL="Rescue_Disk"
-
+# For external DNS, the linode label should reference this.
+C_LINODE_LABEL="${C_BOX_HOSTNAME_FQHN}"
 # For amazonaws configuration
 
 # For digitalocean configuration

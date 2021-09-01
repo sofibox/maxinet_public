@@ -4,7 +4,7 @@
 
 _APP_SPECIFIC_NAME="Maxinet"
 # Note that some minor versions are not published
-_APP_VERSION="0.5.9.3"
+_APP_VERSION="0.5.9.4"
 _APP_STATUS="alpha"
 _APP_VERSION_STATUS="${_APP_VERSION}-${_APP_STATUS}"
 
@@ -695,9 +695,7 @@ function is_valid() {
   elif [[ "${type}" == "ssl_site" ]]; then
     local url final_hostname status
     url="${data1}"
-
-    echo "url: ${url}"
-
+    # echo "url: ${url}
     host "${url}" >/dev/null 2>&1
     retval=$?
     if [ "${retval}" -eq 0 ]; then
@@ -706,19 +704,19 @@ function is_valid() {
       # This will get the final redirection for a hostname
       final_hostname=$(timeout 3 curl "${url}" -s -L -I -o /dev/null -w '%{url_effective}' | awk -F[/:] '{print $4}')
       #echo "URL: ${url}"
-      echo "FINAL_HOSTNAME: ${final_hostname}"
-      echo "PORT: ${port}"
+      #echo "FINAL_HOSTNAME: ${final_hostname}"
+      #echo "PORT: ${port}"
       status=$(curl --cert-status -v https://${final_hostname} 2>&1 | awk 'BEGIN { cert=0 } /^\* Server certificate:/ { cert=1 } /^\*/ { if (cert) print }' | grep "*  SSL certificate verify ok.")
       #status=$(timeout 3 openssl s_client -connect "${final_hostname}:${port}" </dev/null 2>/dev/null | grep 'Verify return code: 0 (ok)')
       if [ -n "${status}" ]; then
-        echo "Site ${final_hostname} with port ${port} is valid https"
+        #echo "Site ${final_hostname} with port ${port} is valid https"
         return 0
       else
         return 1
-        echo "Site ${final_hostname} with port ${port} is not valid https"
+        #echo "Site ${final_hostname} with port ${port} is not valid https"
       fi
     else
-      echo "Link is not valid"
+      #echo "Link is not valid"
       return 1
     fi
 
@@ -983,7 +981,73 @@ function configure_dropbox_cli() {
   fi
 }
 
-function ensure_host_domain_ip_resolved() {
+function ensure_linode_label_ipv4_valid() {
+  # Because labelling is important, it must be unique to represent that node is a hostname (1 node = 1 hostname)
+  echo -n "Checking if linode label is matched with the host domain name ${C_LINODE_LABEL} ... "
+  while :; do
+    # linode_api_admin get-linode-ipv4 --scripting
+    readarray -t linode_current_ipv4s <<<$(linode_api_admin get-linode-ipv4 --scripting)
+    match_label=false
+    match_ip=false
+    count_ip=0
+    while [[ ${count_ip} -lt $(echo "${!C_IPV4_ADD@}" | wc -w) ]]; do
+      typeset -n "c_ipv4_add=C_IPV4_ADD${count_ip}"
+      for linode_current_ipv4 in "${linode_current_ipv4s[@]}"; do
+        if [[ "${linode_current_ipv4}" == "${c_ipv4_add}" ]]; then
+          match_ip=true
+          #  linode_current_label=$(linode-cli --pretty --json linodes list | jq -r ".[] | select(.ipv4 | .[] == \"${c_ipv4_add}\") | .label")
+          linode_current_label=$(linode_api_admin get-linode-label --ip-address "${c_ipv4_add}" --scripting)
+          # echo "Checking linode_current_label for IP ${linode_current_ipv4} if match with ${linode_current_label} (linked with IPv4)"
+          # Since this script manage only 1 host name pertime, so we need to make sure it is matched with C_LINODE_LABEL and break
+          if [ "${linode_current_label}" == "${C_LINODE_LABEL}" ]; then
+            _echo "$(msg green) [OK]$(msg end)" --plain
+            count_ip=$(echo "${!C_IPV4_ADD@}" | wc -w) # Stop the outer loop
+            match_label=true
+            break
+          fi
+        fi
+      done
+      ((count_ip++))
+    done
+    if [ "${match_ip}" == "false" ]; then
+      echo ""
+      echo "warning no ipv4 from config file match in linode, please check at least one IPv4 is correctly defined in config file"
+      _exit 147
+    fi
+    if [ "${match_label}" == "false" ]; then
+      _echo "$(msg red) [FAILED]$(msg end)" --plain
+      echo ""
+      _echo "$(msg cyan)The current linode label value is ${linode_current_label} ...$(msg end)" --name
+      _echo "$(msg cyan)Updating the current linode label to ${C_LINODE_LABEL} ...$(msg end)" --name
+      linode_api_admin update-linode --linode-label "${linode_current_label}" --new-linode-label "${C_LINODE_LABEL}"
+      echo ""
+      echo -n "Re-checking if linode label is matched with the host domain name ${C_LINODE_LABEL} ... "
+    else
+      break
+    fi
+  done
+}
+
+function ensure_linode_rdns_resolved() {
+  echo -n "Checking if reverse DNS value matched with the host domain name ${LABEL_C_BOX_HOSTNAME_FQHN} for IP ${LABEL_C_IPV4_ADD0} ... "
+  while :; do
+    local current_reverse_dns
+    current_reverse_dns=$(linode_api_admin ip-address-view --ip-address ${C_IPV4_ADD0} --get-value rdns --scripting)
+    if [[ "${current_reverse_dns}" == "${C_BOX_HOSTNAME_FQHN}" ]]; then
+      _echo "$(msg green) [OK]$(msg end)" --plain
+      break
+    else
+      _echo "$(msg red) [FAILED]$(msg end)" --plain
+      echo ""
+      _echo "$(msg cyan)The current reverse DNS value is ${current_reverse_dns} ...$(msg end)" --name
+      _echo "$(msg cyan)Updating reverse dns for IPv4 ${LABEL_C_IPV4_ADD0} to ${LABEL_C_BOX_HOSTNAME_FQHN} ...$(msg end)" --name
+      linode_api_admin update-reverse-dns --ip-address "${C_IPV4_ADD0}" --domain "${C_BOX_HOSTNAME_FQHN}"
+      echo ""
+    fi
+  done
+}
+
+function ensure_host_resolved() {
   local failed_check_count
   failed_check_count=0
 
@@ -1218,7 +1282,9 @@ function init_server() {
   #echo "Disk space: "
   #echo "Memory/RAM: "
 
-  ensure_host_domain_ip_resolved
+
+  # This will make sure that the hostname resolved
+  ensure_host_resolved
 
   sleep 1
   if [ ${backup} == "true" ]; then
@@ -1249,6 +1315,13 @@ function init_server() {
   _pause 3
 
   if [ "${DNS_PROVIDER_NAME}" == "linode" ]; then
+      # This will make sure rdns in external DNS is matched with value of hostname (Note: this will take 24 hours to propagate!)
+  ensure_linode_rdns_resolved
+
+    # This will check if the current hostname in linode matched with the config file and also it will check if IPv4 in config file (even multiple IP) match the label.
+    # This is a very important check for external DNS
+    ensure_linode_label_ipv4_valid
+
     server_main_disk_raw_size="${C_BOX_MAIN_DISK_RAW_SIZE}"
     server_boot_disk_raw_size="${C_BOX_BOOT_DISK_RAW_SIZE}"
 
@@ -1296,6 +1369,8 @@ function init_server() {
 
     else
       _echo "$(msg yellow)Notice, linode will install server operating system using existing automated ISO because the option rebuild-iso is not set$(msg end)" --name
+      # If the rebuild_iso is set to false, we delay this for 7 seconds more
+      sleep 7
     fi
     _echo "$(msg cyan)Writing OS into ${C_LINODE_BOOT_DISK_LABEL} Partition via SSH background (this will be completed until linode is turned off automatically) ...$(msg end)" --name
     # ssh -q -o "StrictHostKeyChecking no" -i /root/.ssh/linode_lish.id_rsa -tt "${DNS_PROVIDER_USER}@${C_DNS_PROVIDER_TERMINAL_SERVER}" "${C_BOX_HOSTNAME_FQHN}" <"${CODE_PATH}/ssh_scripts/os_write_ag.sh" >/dev/null 2>&1 &
@@ -3023,7 +3098,6 @@ function show_time() {
   fi
   echo "${day}"d "${hour}"h "${min}"m "${sec}"s
 }
-
 
 # This function display the execution time for a script individually
 # Syntax exec_time <start/total> <optional_unique_variable>
@@ -4768,13 +4842,13 @@ function linode_api_admin() {
   # local variables
   local action retval argnum
   local temp verbose log_level scripting default allow_duplicate_entry \
-    linode_label domain domain_type domain_email domain_ttl \
+    linode_label domain domain_type domain_email domain_ttl ip_address \
     record_type record_name record_value record_ttl record_priority \
     label_devsda label_devsdb label_devsdc label_devsdd label_devsde label_devsdf label_devsdg label_devsdh \
     until_status linode_config_label linode_disk_label linode_disk_filetype linode_disk_size linode_config_comments \
     linode_config_virtual_mode linode_config_kernel linode_config_runlevel linode_config_memory_limit linode_config_rootdev \
     linode_config_enable_distro_helper linode_config_disable_update_db linode_config_enable_dep_helper linode_config_automount_devtmpfs \
-    linode_config_autoconf_network recovery_mode_shutdown rebuild
+    linode_config_autoconf_network recovery_mode_shutdown rebuild get_value new_linode_label
   action="$1"
   argnum="$#"
   # This variable linode_max_page is important, when using linode-cli to obtain data, we need to assign limit (required by linode).
@@ -4790,10 +4864,11 @@ function linode_api_admin() {
   # do not use --type, it is a reserved keyword
   short_opts="hvlqsd"
   long_opts="help,verbose:,log-level:,quiet,scripting,default,allow-duplicate-entry,linode-label:,domain:,domain-type:,domain-email:, \
-  domain-ttl:,record-type:,record-name:,record-value:,record-ttl:,record-priority:,label-devsda:,label-devsdb:,label-devsdc:,label-devsdd:,label-devsde:, \
+  domain-ttl:,ip-address:,record-type:,record-name:,record-value:,record-ttl:,record-priority:,label-devsda:,label-devsdb:,label-devsdc:,label-devsdd:,label-devsde:, \
   label-devsdf:,label-devsdg:,label-devsdh:,until-status:,linode-config-label:,linode-disk-label:,linode-disk-filetype:,linode-disk-size:,linode-config-comments:, \
   linode-config-virtual-mode:,linode-config-kernel:,linode-config-runlevel:,linode-config-memory-limit:,linode-config-rootdev:,linode-config-enable-distro-helper, \
-  linode-config-disable-update-db, linode-config-enable-dep-helper, linode-config-automount-devtmpfs,linode-config-autoconf-network,recovery-mode-shutdown,rebuild"
+  linode-config-disable-update-db, linode-config-enable-dep-helper, linode-config-automount-devtmpfs,linode-config-autoconf-network,recovery-mode-shutdown,rebuild,get-value: \
+  new-linode-label:"
 
   options=$(getopt -o "${short_opts}" --long "${long_opts}" -n "${FUNCNAME[0]}@${action} in ${SCRIPT_NAME}" -- "$@")
   retval=$?
@@ -4845,6 +4920,9 @@ function linode_api_admin() {
   linode_config_autoconf_network=false       # default value in linode is true but here i should make it false
   recovery_mode_shutdown=false
   rebuild=false
+  ip_address=""       # 1.2.3.4
+  get_value=""        # rdns, type
+  new_linode_label="" # test.server.com
   while true; do
     case "$1" in
     -h | --help)
@@ -5005,7 +5083,7 @@ function linode_api_admin() {
       ;;
     --linode-config-virtual-mode)
       linode_config_virtual_mode="$2"
-      # TODO Validate this in ifelse only 2 values can be use
+      # TODO Validate this in ifelse only 2 values can be used
       shift 2
       ;;
     --linode-config-kernel)
@@ -5052,9 +5130,26 @@ function linode_api_admin() {
       rebuild=true
       shift
       ;;
+    --ip-address)
+      ip_address="$2"
+      shift 2
+      ;;
+    --get-value)
+      get_value="$2"
+      shift 2
+      ;;
+    --new-linode-label)
+      new_linode_label="$2"
+      shift 2
+      ;;
     --)
       shift
       break
+      ;;
+    -*)
+      opt="$1"
+      echo "Invalid option ${opt}. Use --help to see the valid options"
+      exit 147
       ;;
     *)
       break
@@ -6481,7 +6576,122 @@ function linode_api_admin() {
         _echo "$(msg cyan)Linode status is ${linode_status}. Waiting for running status ...$(msg end)" --start-spin --name
       fi
     done
-  elif [[ "${action}" == "view-linode" || "${action}" == "lookup-linode" ]]; then
+    # linode_api_admin update-reverse-dns --ip --domain
+  elif [[ "${action}" == "update-reverse-dns" || "${action}" == "update-rdns" ]]; then
+    local linode_api_exec request_failed
+    if is_valid ipv46 "${ip_address}"; then
+      [[ ${scripting} == "false" ]] && _echo "$(msg green)OK, the given --ip-address $(msg red)${ip_address}$(msg green) is valid$(msg end)" --name --verbose 7
+    else
+      [[ ${scripting} == "false" ]] && _echo "$(msg yellow)Warning, the given --ip-address $(msg red)${ip_address}$(msg green) is not valid$(msg end)" --name --verbose 4
+      _exit 147
+    fi
+
+    if is_valid domain "${domain}"; then
+      [[ ${scripting} == "false" ]] && _echo "$(msg green)OK, the given --domain $(msg red)${domain}$(msg green) is valid FQDN$(msg end)" --name --verbose 7
+    else
+      [[ ${scripting} == "false" ]] && _echo "$(msg yellow)Warning, the given --domain $(msg red)${domain}$(msg green) is not FQDN$(msg end)" --name --verbose 4
+      _exit 147
+    fi
+
+    linode_api_exec=$(${LINODE_CLI_BIN} --json --pretty --suppress-warnings networking ip-update "${ip_address}" --rdns "${domain}" 2>&1)
+    request_failed=$(echo "${linode_api_exec}" | grep 'Request failed: 400')
+    # can use this variable for other purpose
+    #reason_failed=$(echo "${linode_api_exec}" | grep 'already booted')
+    if [ -n "${request_failed}" ]; then
+      _echo "$(msg red)Error, request failed. Reason:$(msg end)" --name --verbose 3
+      echo "${linode_api_exec}"
+      _exit 147
+    else
+      _echo "$(msg green)${linode_api_exec}$(msg end)" --name --verbose 3
+    fi
+    # linode_api_admin ip-address-view --ip-address <ip> --get-value rdns
+  elif [[ "${action}" == "ip-address-view" ]]; then
+    local linode_api_exec request_failed
+    if is_valid ipv46 "${ip_address}"; then
+      [[ ${scripting} == "false" ]] && _echo "$(msg green)OK, the given --ip-address $(msg red)${ip_address}$(msg green) is valid$(msg end)" --name --verbose 7
+    else
+      [[ ${scripting} == "false" ]] && _echo "$(msg yellow)Warning, the given --ip-address $(msg red)${ip_address}$(msg green) is not valid$(msg end)" --name --verbose 4
+      _exit 147
+    fi
+
+    linode_api_exec=$(${LINODE_CLI_BIN} --json --pretty --suppress-warnings networking ip-view "${ip_address}")
+    request_failed=$(echo "${linode_api_exec}" | grep 'Request failed: 400')
+    # can use this variable for other purpose
+    #reason_failed=$(echo "${linode_api_exec}" | grep 'already booted')
+    if [ -n "${request_failed}" ]; then
+      _echo "$(msg red)Error, request failed. Reason:$(msg end)" --name --verbose 3
+      echo "${linode_api_exec}"
+      _exit 147
+    else
+      if [ -n "${get_value}" ]; then
+        echo "${linode_api_exec}" | jq -r ".[] | .${get_value}"
+      else
+        _echo "$(msg green)${linode_api_exec}$(msg end)" --name --verbose 3
+      fi
+    fi
+    # linode_api_admin get-linode-ipv4 --scripting
+  elif [[ "${action}" == "get-linode-ipv4" ]]; then
+    local linode_api_exec request_failed
+
+    linode_api_exec=$(${LINODE_CLI_BIN} --pretty --json linodes list | jq -r ".[].ipv4 | .[]")
+
+    request_failed=$(echo "${linode_api_exec}" | grep 'Request failed: 400')
+    if [ -n "${request_failed}" ]; then
+      _echo "$(msg red)Error, request failed. Reason:$(msg end)" --name --verbose 3
+      echo "${linode_api_exec}"
+      _exit 147
+    else
+      echo "${linode_api_exec}"
+    fi
+
+    # linode_api_admin get-linode-label --ip-address <ipv4> --scripting
+  elif [[ "${action}" == "get-linode-label" ]]; then
+    local linode_api_exec request_failed
+    linode_api_exec=$(${LINODE_CLI_BIN} --pretty --json linodes list | jq -r ".[] | select(.ipv4 | .[] == \"${ip_address}\") | .label")
+
+    request_failed=$(echo "${linode_api_exec}" | grep 'Request failed: 400')
+    if [ -n "${request_failed}" ]; then
+      _echo "$(msg red)Error, request failed. Reason:$(msg end)" --name --verbose 3
+      echo "${linode_api_exec}"
+      _exit 147
+    else
+      echo "${linode_api_exec}"
+    fi
+    # linode_api_admin update-linode --linode-label <current_label> --new-linode-label <new_linode_label>
+  elif [[ "${action}" == "update-linode" || "${action}" == "linode-update" ]]; then
+    local linode_id linode_api_exec request_failed
+
+    if is_valid domain "${new_linode_label}"; then
+      [[ ${scripting} == "false" ]] && _echo "$(msg green)OK, the given --new-linode-label $(msg red)${linode_label}$(msg green) is valid FQDN$(msg end)" --name --verbose 7
+    else
+      # This text is just a warning about the --linode-label that should be FQDN format (no return or exit). For warning use --verbose=4
+      [[ ${scripting} == "false" ]] && _echo "$(msg yellow)Warning, the given hostname $(msg red)${new_linode_label}$(msg green) is not FQDN. It is recommend to name it as FQDN$(msg end)" --name --verbose 4
+      _exit 147
+    fi
+
+    [[ ${scripting} == "false" ]] && _echo "Getting required linode ID for --linode-label ${linode_label} ..." --name --verbose 7
+    linode_id=$(${LINODE_CLI_BIN} --pretty --json --suppress-warnings linodes list | ${JQ_BIN} ".[] | select(.label == \"${linode_label}\") | .id")
+    #echo "Linode ID : ${linode_id}"
+    if [ -z "${linode_id}" ]; then
+      _echo "$(msg red)Error, no linode label found for $(msg red)--linode-label ${linode_label}$(msg end)" --name --verbose 3
+      return 147
+    fi
+
+    linode_api_exec=$(${LINODE_CLI_BIN} --pretty --json --suppress-warnings linodes update "${linode_id}" --label "${new_linode_label}")
+    request_failed=$(echo "${linode_api_exec}" | grep 'Request failed: 400')
+    # can use this variable for other purpose
+    #reason_failed=$(echo "${linode_api_exec}" | grep 'already booted')
+    if [ -n "${request_failed}" ]; then
+      _echo "$(msg red)Error, request failed. Reason:$(msg end)" --name --verbose 3
+      echo "${linode_api_exec}"
+      _exit 147
+    else
+      echo "${linode_api_exec}"
+    fi
+
+  elif
+    [[ "${action}" == "view-linode" || "${action}" == "lookup-linode" ]]
+  then
     shift
     local linode_id hostname_fqdn
     hostname_fqdn="$1"
@@ -7047,7 +7257,7 @@ function da_api_admin() {
 
   if [ "${AUTO_SELECT_DA_API_PROTOCOL}" == "true" ]; then
     if is_valid ssl_site "${C_BOX_HOSTNAME_FQHN}"; then
-     [[ "${scripting}" == "false" ]] && _echo "OK, ${C_BOX_HOSTNAME_FQHN} is a valid SSL/https site"
+      [[ "${scripting}" == "false" ]] && _echo "OK, ${C_BOX_HOSTNAME_FQHN} is a valid SSL/https site"
       ssl_protocol="https"
     else
       [[ "${scripting}" == "false" ]] && _echo "$(msg yellow)Warning, using unsecured connection for directadmin API because ${C_BOX_HOSTNAME_FQHN} is currently not a valid SSL/https site$(msg end)" --name --verbose 7
@@ -9631,7 +9841,7 @@ function install_da() {
     _echo "$(msg yellow)If you don't want to install Directadmin now, press (CTRL+C) to exit and remember that you can always re-run this script to resume installation (even it is halt due to error)$(msg end)" --name
     _echo "$(msg yellow)In order to view full installation log in realtime, execute this command in another local terminal: ${SCRIPT_NAME} --login and tail -f ${SCRIPT_PATH}/log/da-install.log$(msg end)" --name
     _pause 30
-    ensure_host_domain_ip_resolved
+    ensure_host_resolved
     echo ""
     _echo "$(msg cyan)Note: Directadmin will be installed on ${LABEL_C_BOX_HOSTNAME_FQHN} using ${C_DA_INSTALL_TYPE} mode$(msg end)"
     echo ""
@@ -12392,8 +12602,8 @@ function configure_da_ssl_pre() {
     ${da_bin} set dns_ttl ${C_DA_DNS_TTL}
     echo ""
 
-    #Disable ssl=0. This one fixed issue where you cannot request cert using ssl=1.
-    # only enable ssl=1 after request certificate success. From my notes last year, I disabled this first before renew else it wont work.
+    # Disable ssl=0. This one fixed issue where you cannot request cert using ssl=1.
+    # only enable ssl=1 after request certificate success. From my notes few years, I disabled this first before renew else it wont work.
     _echo "$(msg cyan)Disabling ssl=0 in directadmin.conf config..."
     ${da_bin} set ssl 0
     echo ""
@@ -12464,14 +12674,13 @@ function configure_da_host_domain_ssl() {
       _echo "$(msg cyan)Enabling cakey in directadmin.conf config...$(msg end)" --name
       ${da_bin} set cakey /usr/local/directadmin/conf/cakey.pem
       echo ""
-
       # Add wellknown-alias by rewrite_confs
       _echo "$(msg cyan)Creating dummy acme-challenge texts through custombuild rewrite_confs ...$(msg end)" --name
       ${da_cb_bin} rewrite_confs
       echo ""
 
       # Make sure IP and domain are resolved
-      ensure_host_domain_ip_resolved
+      ensure_host_resolved
 
       echo ""
       # Staging call first
@@ -12585,6 +12794,10 @@ function add_da_ip() {
   fi
 
   end_execute_options "${option}" "${func_name}"
+}
+
+function configure_da_hook_scripts() {
+  :
 }
 
 # This maxibox is only used for backup purpose
@@ -13881,7 +14094,7 @@ function configure_da_reseller_subdomains() {
 
           # Now we got sub_domain and root_domain, call the da_api_admin:
           # Note that reseller and user share the same API
-          _echo "$(msg cyan)Creating reseller ${da_reseller_username} subdomain ${sub_domain}" --name
+          _echo "$(msg cyan)Creating reseller ${da_reseller_username} subdomain ${sub_domain}$(msg end)" --name
           da_api_admin create-user-subdomain --sign-as "${da_reseller_username}" --domain "${root_domain}" --subdomain "${sub_domain}"
           echo ""
 
@@ -13969,7 +14182,7 @@ function configure_da_reseller_email_accounts() {
 
           # da_api_admin create-user-email --mail-domain "maxibi.com" --mail-user "webmaster" --mail-password "1232123" --mail-quota "0" --mail-limit "200"
           _echo "$(msg cyan)Creating new reseller email ${mail_user_domain} ...$(msg end)" --name
-          #da_api_admin create-user-email --sign-as ${da_reseller_username} --mail-domain "${mail_domain}" --mail-user "${mail_user}" --mail-password "${mail_password}" --mail-quota "0" --mail-limit "200"
+          da_api_admin create-user-email --sign-as ${da_reseller_username} --mail-domain "${mail_domain}" --mail-user "${mail_user}" --mail-password "${mail_password}" --mail-quota "0" --mail-limit "200"
 
           ((mail_count++))
         done
@@ -15524,7 +15737,7 @@ function setup() {
     _exit 147
   else
     script_header
-    ensure_host_domain_ip_resolved
+    ensure_host_resolved
     option="$1"
     #if [ "${option}" == "remote" ];  then
     #  _echo 'yellow' "Notice, remote setup is set"
@@ -16083,7 +16296,7 @@ while [ "$#" -gt 0 ]; do
     break
     ;;
   --update-maxinet-remote-script | --update-remote-scripts | --update-remote-script | --update-remote-code)
-    ensure_host_domain_ip_resolved
+    ensure_host_resolved
     shift
     ssh_api transfer-files --server-port "${C_BOX_HOSTNAME_FQHN}:${C_SSH_PORT}" --group-user "root:${C_ROOT_USERNAME}" --local-files "${SCRIPT_PATH}/maxinet ${SCRIPT_PATH}/maxinet.conf ${SCRIPT_PATH}/readme.txt" --remote-path ~/
     exit 0
@@ -16108,7 +16321,7 @@ while [ "$#" -gt 0 ]; do
     ;;
 
   -lui | --linode-upload-iso)
-    ensure_host_domain_ip_resolved
+    ensure_host_resolved
     # This is a way to upload iso file from local to remote using scp
     shift
     cp "${SCRIPT_PATH}"/secure/ssh/*.id_rsa* /root/.ssh/
@@ -16129,21 +16342,21 @@ ENDSSH
     ;;
 
   -lu | --luks-unlock | --unlock-luks | --ssh-luks-unlock | --unlock-server)
-    ensure_host_domain_ip_resolved
+    ensure_host_resolved
     shift
     ssh_api luks-unlock "$@"
     exit 0
     break
     ;;
   --push-ssh-script | --run-ssh-script)
-    ensure_host_domain_ip_resolved
+    ensure_host_resolved
     shift
     ssh_api push-script "$@"
     exit 0
     break
     ;;
   --get-remote-log)
-    ensure_host_domain_ip_resolved
+    ensure_host_resolved
     shift
     echo "Download setup log file into ${SCRIPT_PATH}/log/${SCRIPT_NAME}.log ..."
     ssh_api file-download --server-port "${C_BOX_HOSTNAME_FQHN}:${C_SSH_PORT}" --group-user root:root --remote-path ~/maxinet.log --local-path "${SCRIPT_PATH}/log"
@@ -16158,7 +16371,7 @@ ENDSSH
     ;;
   # maxinet --get-remote-files "~/maxinet.log"
   --get-remote-files | --download-remote-files | --get-remote-file | --download-remote-file)
-    ensure_host_domain_ip_resolved
+    ensure_host_resolved
     shift
     #eg: ~/maxinet.log
     remote_files_path="$1"
@@ -16183,7 +16396,7 @@ ENDSSH
     break
     ;;
   --ssh-login | --login-to-server | --login)
-    ensure_host_domain_ip_resolved
+    ensure_host_resolved
     time ssh_api login
     shift
     exit 0
