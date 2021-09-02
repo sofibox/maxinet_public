@@ -4,7 +4,7 @@
 
 _APP_SPECIFIC_NAME="Maxinet"
 # Note that some minor versions are not published
-_APP_VERSION="0.5.9.4"
+_APP_VERSION="0.5.9.5"
 _APP_STATUS="alpha"
 _APP_VERSION_STATUS="${_APP_VERSION}-${_APP_STATUS}"
 
@@ -19,8 +19,8 @@ _APP_VERSION_STATUS="${_APP_VERSION}-${_APP_STATUS}"
 # You can also use this script to perform other tasks such as automatically login into SSH and more. Trigger ${script_name} --help for more information
 # URL (public): github.com/sofibox/maxinet_public | (private) github.com/sofibox/maxinet (need access token)
 # =~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~="
-# Run installation with log output: ./${script_name} --setup 2>&1 | tee maxinet.log
-# Run initialize installation with log output: ./${script_name} --create-server --rebuild-all --backup 2>&1 | tee maxinet.log
+# Run installation with log output: ./${script_name} setup 2>&1 | tee maxinet.log
+# Run initialize installation with log output: ./${script_name} create-server --rebuild-all --backup 2>&1 | tee maxinet.log
 
 #######################
 # FUNCTION BEGIN HERE #
@@ -70,12 +70,12 @@ function script_exit() {
     echo "-------------------------------END-----------------------------------------"
     echo ""
     echo "Remember you can always resume installation with the following command:"
-    echo "For local installation: ${SCRIPT_NAME} --setup 2>&1 | tee ${SCRIPT_NAME}.log"
+    echo "For local installation: ${SCRIPT_NAME} setup 2>&1 | tee ${SCRIPT_NAME}.log"
     echo "For remote installation: ${SCRIPT_NAME} --push-ssh-script --sp ${LABEL_C_BOX_HOSTNAME_FQHN}:${LABEL_C_SSH_PORT} --gu root:${LABEL_C_ROOT_USERNAME} --push-maxinet-setup-script"
     echo ""
     echo "SSH user login guide:"
-    echo "To login as root user: ${SCRIPT_NAME} --ssh-login ${LABEL_C_ROOT_USERNAME} or ${SCRIPT_NAME} login"
-    echo "To login as SSH user: ${SCRIPT_NAME} --ssh-login ${LABEL_C_SSH_USERNAME}"
+    echo "To login as root user: ${SCRIPT_NAME} ssh-login ${LABEL_C_ROOT_USERNAME} or ${SCRIPT_NAME} login"
+    echo "To login as SSH user: ${SCRIPT_NAME} ssh-login ${LABEL_C_SSH_USERNAME}"
     echo ""
     echo "Server LUKS unlock guide:"
     echo "To unlock LUKS Disk encryption: ${SCRIPT_NAME} --luks-unlock"
@@ -426,27 +426,27 @@ function help() {
   echo ""
   echo "Welcome to help section!"
   echo "------------------------"
-  echo "Run initialize installation with log output: ${SCRIPT_NAME} --create-server --rebuild-all --backup 2>&1 | tee ${SCRIPT_NAME}.log"
+  echo "Run initialize installation with log output: ${SCRIPT_NAME} create-server --rebuild-all --backup 2>&1 | tee ${SCRIPT_NAME}.log"
   echo ""
   echo "To start/resume local installation: "
   echo "eg:"
-  echo "${SCRIPT_NAME} --setup"
+  echo "${SCRIPT_NAME} setup"
   echo "OR"
-  echo "${SCRIPT_NAME} --setup 2>&1 | tee ${SCRIPT_NAME}.log"
+  echo "${SCRIPT_NAME} setup 2>&1 | tee ${SCRIPT_NAME}.log"
   echo ""
   echo "To start/resume remote installation:"
-  echo "Syntax: ${SCRIPT_NAME} --ssh-login <fqdn>:<ssh_port> <user_role>:<user_name> <local_script_to_push_for_installation>"
+  echo "Syntax: ${SCRIPT_NAME} ssh-login <fqdn>:<ssh_port> <user_role>:<user_name> <local_script_to_push_for_installation>"
   echo "eg:"
-  echo "${SCRIPT_NAME} --ssh-login \"${LABEL_C_BOX_HOSTNAME_FQHN}:${LABEL_C_SSH_PORT}\" \"root:${LABEL_C_ROOT_USERNAME}\" \"${CODE_PATH}/ssh_scripts/maxinet_setup.sh\""
+  echo "${SCRIPT_NAME} ssh-login \"${LABEL_C_BOX_HOSTNAME_FQHN}:${LABEL_C_SSH_PORT}\" \"root:${LABEL_C_ROOT_USERNAME}\" \"${CODE_PATH}/ssh_scripts/maxinet_setup.sh\""
   echo ""
   echo "To unlock LUKS Disk encryption:"
   echo "Syntax: ${SCRIPT_NAME} --ssh-luks-unlock <DROP_BEAR_PORT> \"<LUKS_PASS>\""
   echo "eg:"
   echo "${SCRIPT_NAME} --ssh-luks-unlock ${LABEL_C_DROP_BEAR_PORT} \"${LABEL_C_LUKS_PASS}\""
   echo ""
-  echo "To login as root user: ${SCRIPT_NAME} --ssh-login \"${LABEL_C_BOX_HOSTNAME_FQHN}:${LABEL_C_SSH_PORT}\" \"user:root\""
+  echo "To login as root user: ${SCRIPT_NAME} ssh-login \"${LABEL_C_BOX_HOSTNAME_FQHN}:${LABEL_C_SSH_PORT}\" \"user:root\""
   echo ""
-  echo "To login as SSH user: ${SCRIPT_NAME} --ssh-login \"${LABEL_C_BOX_HOSTNAME_FQHN}:${LABEL_C_SSH_PORT}\" \"root:${LABEL_C_SSH_USERNAME}\""
+  echo "To login as SSH user: ${SCRIPT_NAME} ssh-login \"${LABEL_C_BOX_HOSTNAME_FQHN}:${LABEL_C_SSH_PORT}\" \"root:${LABEL_C_SSH_USERNAME}\""
 
 }
 
@@ -839,7 +839,7 @@ function is_valid() {
     fi
 
     return ${retval}
-    # Check both ipv4 and ipv6
+    # Check both ipv4 and ipv6 (does not work if ip is not reachable)
   elif [[ "${type}" == "ipv46" ]]; then
     local ip="${data1}" method_bin retval
 
@@ -1029,20 +1029,38 @@ function ensure_linode_label_ipv4_valid() {
 }
 
 function ensure_linode_rdns_resolved() {
-  echo -n "Checking if reverse DNS value matched with the host domain name ${LABEL_C_BOX_HOSTNAME_FQHN} for IP ${LABEL_C_IPV4_ADD0} ... "
+  echo -n "Checking if IPv4 reverse DNS value matched with the host domain name ${LABEL_C_BOX_HOSTNAME_FQHN} for IP ${LABEL_C_IPV4_ADD0} ... "
   while :; do
-    local current_reverse_dns
-    current_reverse_dns=$(linode_api_admin ip-address-view --ip-address ${C_IPV4_ADD0} --get-value rdns --scripting)
-    if [[ "${current_reverse_dns}" == "${C_BOX_HOSTNAME_FQHN}" ]]; then
+    local current_ipv4_reverse_dns
+    current_ipv4_reverse_dns=$(linode_api_admin ip-address-view --ip-address ${C_IPV4_ADD0} --get-value rdns --scripting)
+    if [[ "${current_ipv4_reverse_dns}" == "${C_BOX_HOSTNAME_FQHN}" ]]; then
       _echo "$(msg green) [OK]$(msg end)" --plain
       break
     else
       _echo "$(msg red) [FAILED]$(msg end)" --plain
       echo ""
-      _echo "$(msg cyan)The current reverse DNS value is ${current_reverse_dns} ...$(msg end)" --name
+      _echo "$(msg cyan)The current IPv4 reverse DNS value is ${current_ipv4_reverse_dns} ...$(msg end)" --name
       _echo "$(msg cyan)Updating reverse dns for IPv4 ${LABEL_C_IPV4_ADD0} to ${LABEL_C_BOX_HOSTNAME_FQHN} ...$(msg end)" --name
       linode_api_admin update-reverse-dns --ip-address "${C_IPV4_ADD0}" --domain "${C_BOX_HOSTNAME_FQHN}"
       echo ""
+      echo -n "Rechecking if IPv4 reverse DNS value matched with the host domain name ${LABEL_C_BOX_HOSTNAME_FQHN} for IP ${LABEL_C_IPV4_ADD0} ... "
+    fi
+  done
+  echo -n "Checking if IPv6 reverse DNS value matched with the host domain name ${LABEL_C_BOX_HOSTNAME_FQHN} for IP ${LABEL_C_IPV6_ADD0} ... "
+  while :; do
+    local current_ipv6_reverse_dns
+    current_ipv6_reverse_dns=$(linode_api_admin ip-address-view --ip-address ${C_IPV6_ADD0} --get-value rdns --scripting)
+    if [[ "${current_ipv6_reverse_dns}" == "${C_BOX_HOSTNAME_FQHN}" ]]; then
+      _echo "$(msg green) [OK]$(msg end)" --plain
+      break
+    else
+      _echo "$(msg red) [FAILED]$(msg end)" --plain
+      echo ""
+      _echo "$(msg cyan)The current IPv6 reverse DNS value is ${current_ipv6_reverse_dns} ...$(msg end)" --name
+      _echo "$(msg cyan)Updating reverse dns for IPv6 ${LABEL_C_IPV6_ADD0} to ${LABEL_C_BOX_HOSTNAME_FQHN} ...$(msg end)" --name
+      linode_api_admin update-reverse-dns --ip-address "${C_IPV6_ADD0}" --domain "${C_BOX_HOSTNAME_FQHN}"
+      echo ""
+      echo -n "Checking if IPv6 reverse DNS value matched with the host domain name ${LABEL_C_BOX_HOSTNAME_FQHN} for IP ${LABEL_C_IPV6_ADD0} ... "
     fi
   done
 }
@@ -1271,20 +1289,22 @@ function init_server() {
     esac
   done
 
-  echo "Server Physical Information:"
+  _echo "$(msg cyan)Creating a new server for ${LABEL_C_BOX_HOSTNAME_FQHN} ...$(msg end)" --name
 
+  echo "Server Physical Information:"
   # Get all of this from provider
   echo "Provider: ${DNS_PROVIDER_NAME}"
   echo "Provider type: ${LABEL_C_BOX_TYPE^^}"
   echo "IPv4 address: ${LABEL_C_IPV4_ADD0}"
   echo "IPv6 address: ${LABEL_C_IPV6_ADD0}"
   echo "============="
+  echo ""
   #echo "Disk space: "
   #echo "Memory/RAM: "
 
-
   # This will make sure that the hostname resolved
   ensure_host_resolved
+  echo ""
 
   sleep 1
   if [ ${backup} == "true" ]; then
@@ -1315,8 +1335,8 @@ function init_server() {
   _pause 3
 
   if [ "${DNS_PROVIDER_NAME}" == "linode" ]; then
-      # This will make sure rdns in external DNS is matched with value of hostname (Note: this will take 24 hours to propagate!)
-  ensure_linode_rdns_resolved
+    # This will make sure rdns in external DNS is matched with value of hostname (Note: this will take 24 hours to propagate!)
+    ensure_linode_rdns_resolved
 
     # This will check if the current hostname in linode matched with the config file and also it will check if IPv4 in config file (even multiple IP) match the label.
     # This is a very important check for external DNS
@@ -1453,12 +1473,12 @@ function init_server() {
       _echo "$(msg yellow)Note: The server will be turned off, if you want to continue remote setup, trigger the following commands: $(msg end)" --name
       _echo "$(msg magenta)1) Turn on the server: maxinet --start-server$(msg end)" --plain
       _echo "$(msg magenta)2) Unlock server LUKS disk encrypted: maxinet --luks-unlock$(msg end)" --plain
-      _echo "$(msg magenta)3) Automatically execute --setup on remote server: maxinet --ssh-api push-script --server-port ${LABEL_C_BOX_HOSTNAME_FQHN}:${LABEL_C_SSH_PORT} --group-user root:${LABEL_C_SSH_USERNAME} --push-maxinet-setup-script$(msg end)" --plain
+      _echo "$(msg magenta)3) Automatically execute setup action on remote server: maxinet --ssh-api push-script --server-port ${LABEL_C_BOX_HOSTNAME_FQHN}:${LABEL_C_SSH_PORT} --group-user root:${LABEL_C_SSH_USERNAME} --push-maxinet-setup-script$(msg end)" --plain
       echo ""
-      _echo "OR login into remote server and manually run --setup with the following command:" --name
-      _echo "$(msg magenta)1) Turn on server: maxinet --ssh-login root$(msg end)" --plain
+      _echo "OR login into remote server and manually run setup action with the following command:" --name
+      _echo "$(msg magenta)1) Turn on server: maxinet ssh-login root$(msg end)" --plain
       _echo "$(msg magenta)2) cd ~$(msg end)" --plain
-      _echo "$(msg magenta)3) ./${SCRIPT_NAME} --setup 2>&1 | tee ${SCRIPT_NAME}.log ~$(msg end)" --plain
+      _echo "$(msg magenta)3) ./${SCRIPT_NAME} setup 2>&1 | tee ${SCRIPT_NAME}.log ~$(msg end)" --plain
       _echo "$(msg magenta)4) See ~/readme.txt for more information$(msg end)" --plain
       linode_api_admin shutdown-linode --linode-label "${C_BOX_HOSTNAME_FQHN}"
       _exit 0
@@ -1497,7 +1517,7 @@ function init_server() {
       done
     fi
     if [ "${C_PRE_AUTORUN_SETUP}" == "false" ]; then
-      _echo "$(msg cyan) Notice, C_PRE_AUTORUN_SETUP variable is not set in config file. Hence, auto installation script is disabled! Please run --setup manually$(msg end)" --name
+      _echo "$(msg cyan) Notice, C_PRE_AUTORUN_SETUP variable is not set in config file. Hence, auto installation script is disabled! Please run setup action manually$(msg end)" --name
     else
       _echo "$(msg cyan)Resuming server installation installation by executing ${SCRIPT_NAME} script on remote server...$(msg end)" --name
       ssh_api push-script --server-port "${C_BOX_HOSTNAME_FQHN}:${C_SSH_PORT}" --group-user "root:${C_ROOT_USERNAME}" --local-script-path "${CODE_PATH}/ssh_scripts/maxinet_setup.sh"
@@ -1529,7 +1549,7 @@ function ssh_api() {
 
   action="$1"
   argnum="$#"
-  # We allow empty argument. For example for faster login use maxinet --ssh-login (by default it will login as root)
+  # We allow empty argument. For example for faster login use maxinet ssh-login (by default it will login as root)
   #echo "argnum: ${argnum}"
   #if [ ${argnum} -le 1 ]; then
   #  echo "Error, no option is supplied for action ${action}. Use [ ${SCRIPT_NAME} --iso --help ] to see the valid options"
@@ -3252,9 +3272,9 @@ function create_file() {
         echo "# Author: ${C_ADMIN_NAME} | Email: ${C_ADMIN_EMAIL} | Web: ${C_BOX_DOMAIN}"
         echo "# ==============================================="
         echo "# This is the remote setup readme file:"
-        echo "Please make sure that the execution remote environment at ${SCRIPT_PATH}/execution_env contains remote flag before running --setup option"
-        echo "Run installation with log output: ./${SCRIPT_NAME} --setup 2>&1 | tee ${SCRIPT_NAME}.log"
-        echo "Run installation with log output: ./${SCRIPT_NAME} --setup --installation-type directadmin 2>&1 | tee ${SCRIPT_NAME}.log"
+        echo "Please make sure that the execution remote environment at ${SCRIPT_PATH}/execution_env contains remote flag before running setup action"
+        echo "Run installation with log output: ./${SCRIPT_NAME} setup 2>&1 | tee ${SCRIPT_NAME}.log"
+        echo "Run installation with log output: ./${SCRIPT_NAME} setup --installation-type directadmin 2>&1 | tee ${SCRIPT_NAME}.log"
       } >"${SCRIPT_PATH}/readme.txt"
     # Remember all push scripts need to have return 0 at the end so that we can terminate the SSH from local call
     elif [[ ${create_action} == "ssh-push-scripts" ]]; then
@@ -3312,11 +3332,11 @@ function create_file() {
         echo "# This script file was automatically generated by ${SCRIPT_NAME}"
         echo "# Author: ${C_ADMIN_NAME} | Email: ${C_ADMIN_EMAIL} | Web: ${C_BOX_DOMAIN}"
         echo "# ==============================================="
-        echo "# Using --setup will trigger setup script from ${SCRIPT_NAME}"
+        echo "# Using setup will trigger setup script from ${SCRIPT_NAME}"
         echo "cd /root || exit 1"
         echo "chmod +x maxinet"
         echo "touch maxinet.log"
-        echo "./maxinet --setup 2>&1 | tee maxinet.log"
+        echo "./maxinet setup 2>&1 | tee maxinet.log"
         echo "# Put 2 times exit below to safely exit the script if the first exit is not executed"
         echo "return 0"
         echo "return 0"
@@ -6579,7 +6599,7 @@ function linode_api_admin() {
     # linode_api_admin update-reverse-dns --ip --domain
   elif [[ "${action}" == "update-reverse-dns" || "${action}" == "update-rdns" ]]; then
     local linode_api_exec request_failed
-    if is_valid ipv46 "${ip_address}"; then
+    if is_valid ipv4 "${ip_address}" || is_valid ipv6 "${ip_address}"; then
       [[ ${scripting} == "false" ]] && _echo "$(msg green)OK, the given --ip-address $(msg red)${ip_address}$(msg green) is valid$(msg end)" --name --verbose 7
     else
       [[ ${scripting} == "false" ]] && _echo "$(msg yellow)Warning, the given --ip-address $(msg red)${ip_address}$(msg green) is not valid$(msg end)" --name --verbose 4
@@ -6607,7 +6627,7 @@ function linode_api_admin() {
     # linode_api_admin ip-address-view --ip-address <ip> --get-value rdns
   elif [[ "${action}" == "ip-address-view" ]]; then
     local linode_api_exec request_failed
-    if is_valid ipv46 "${ip_address}"; then
+    if is_valid ipv4 "${ip_address}" || is_valid ipv6 "${ip_address}"; then
       [[ ${scripting} == "false" ]] && _echo "$(msg green)OK, the given --ip-address $(msg red)${ip_address}$(msg green) is valid$(msg end)" --name --verbose 7
     else
       [[ ${scripting} == "false" ]] && _echo "$(msg yellow)Warning, the given --ip-address $(msg red)${ip_address}$(msg green) is not valid$(msg end)" --name --verbose 4
@@ -6942,7 +6962,79 @@ function digitalocean_api_admin() {
 function amazonaws_api_admin() {
   :
 }
+# maxinet manage-maxicode update --app-name maxigpg --distro-name "debian"
+function maxicode_admin() {
 
+  local app_name distro_name
+
+  action="$1"
+  argnum="$#"
+
+  #echo "action ${action}"
+  #echo "argnum ${argnum}"
+
+  short_opts="h"
+  long_opts="help,app-name:,distro-name:"
+  options=$(getopt -o "${short_opts}" --long "${long_opts}" -n "${FUNCNAME[0]}@${action} in ${SCRIPT_NAME}" -- "$@")
+  retval=$?
+  if [ ${retval} != 0 ]; then
+    _echo "$(msg red)Error, invalid parsed data. Terminating...$(msg end)" >&2
+    _exit 147
+  fi
+
+  eval set -- "${options}"
+  app_name=""    # maxigpg
+  distro_name="" # debian
+
+  while true; do
+    case "$1" in
+    -h | --help)
+      manual "${FUNCNAME[0]}"
+      shift
+      exit 0
+      ;;
+    --app-name)
+      app_name="$2"
+      shift 2
+      ;;
+    --distro-name)
+      distro_name="$2"
+      shift 2
+      ;;
+    --)
+      shift
+      break
+      ;;
+    *)
+      break
+      ;;
+    esac
+  done
+
+  if [[ "${action}" == "update" ]]; then
+    if [ -z "${app_name}" ]; then
+      echo "${SCRIPT_NAME} ${action} --app-name <APP_NAME> --distro-name <DISTRO_NAME>"
+      exit 1
+    fi
+
+    if [ -z "${distro_name}" ]; then
+      #echo "${SCRIPT_NAME} ${action} --app-name <APP_NAME> --distro-name <DISTRO_NAME>"
+      distro_name="${C_BOX_ISO_OS_NAME}"
+    fi
+
+    if [ "${app_name}" == "maxigpg" ]; then
+      local code_path
+      code_path="${STORAGE_PATH}/os/${DISTRO_NAME}/usr/local/maxicode/maxigpg"
+      #echo "code_path is: ${code_path}"
+      ssh_api transfer-files --server-port "${C_BOX_HOSTNAME_FQHN}:${C_SSH_PORT}" --group-user "root:${C_ROOT_USERNAME}" \
+        --local-files "${code_path}/maxigpg ${code_path}/maxigpg-ag ${code_path}/readme.txt ${code_path}/readme.md" --remote-path /usr/local/maxicode/maxigpg/
+    else
+      echo "Error, unknown or invalid app_name ${app_name}"
+      _exit 147
+    fi
+  fi
+
+}
 # da_api_admin <action> <action-option-arguments>
 # For curl do not use --max-time or decrease time out because letsencrypt API will need more time to request cert
 function da_api_admin() {
@@ -9099,7 +9191,7 @@ function configure_net() {
         _echo "$(msg red)****Warning$(msg yellow), If you are on SSH connection, you will be disconnected from SSH but the background script will run$(msg end)" --name
         sleep 2
         _echo "$(msg red)*****Warning$(msg yellow), you will not see any output of the background process, but when it has finished running, the system will reboot automatically.$(msg end)" --name
-        _echo "$(msg yellow)You can re-run this script again with option --setup to recheck whether the interface is configured correctly before proceeding to the next step$(msg end)" --name
+        _echo "$(msg yellow)You can re-run this script again with action setup to recheck whether the interface is configured correctly before proceeding to the next step$(msg end)" --name
         # Because the script reboot, we need to re-run this function to check if interface is already set like in the config file
         _pause 30
         _echo "$(msg cyan)Executing background script ${CODE_PATH}/ssh_scripts/lan_interface_rename.sh to rename interface via ip link command and rebooting system automatically ...$(msg end)" --name
@@ -9839,11 +9931,12 @@ function install_da() {
     echo ""
     _echo "$(msg cyan)Setup will install Directadmin within 30 seconds. This would take a long time depending on the package selection or directadmin installation type, so please be patient$(msg end)" --name
     _echo "$(msg yellow)If you don't want to install Directadmin now, press (CTRL+C) to exit and remember that you can always re-run this script to resume installation (even it is halt due to error)$(msg end)" --name
-    _echo "$(msg yellow)In order to view full installation log in realtime, execute this command in another local terminal: ${SCRIPT_NAME} --login and tail -f ${SCRIPT_PATH}/log/da-install.log$(msg end)" --name
+    _echo "$(msg yellow)In order to view full installation log in realtime, execute this command in another local terminal: ${SCRIPT_NAME} login and tail -f ${SCRIPT_PATH}/log/da-install.log$(msg end)" --name
     _pause 30
     ensure_host_resolved
     echo ""
-    _echo "$(msg cyan)Note: Directadmin will be installed on ${LABEL_C_BOX_HOSTNAME_FQHN} using ${C_DA_INSTALL_TYPE} mode$(msg end)"
+    da_latest_version=$(curl -s https://www.directadmin.com/version.php | grep -Eo "[0-9]+\.[0-9]+")
+    _echo "$(msg cyan)Note: Directadmin ${da_latest_version} will be installed on ${LABEL_C_BOX_HOSTNAME_FQHN} using ${C_DA_INSTALL_TYPE} mode$(msg end)"
     echo ""
     if [[ "${C_DA_INSTALL_TYPE}" == "custom" || "${C_DA_INSTALL_TYPE}" == "original" ]]; then
       # If provided options.conf, it means we use custom else we use original
@@ -9855,7 +9948,7 @@ function install_da() {
       count=0
       while ps | grep -q " $my_pid "; do
         ((count++))
-        _echo "$(msg cyan)Installing directadmin [ PID ID: $my_pid | Elapsed time: $(show_time "${count}") ] ... $(msg end)" --start-spin
+        _echo "$(msg cyan)Installing directadmin ${da_latest_version} [ PID ID: $my_pid | Elapsed time: $(show_time "${count}") ] ... $(msg end)" --start-spin
         sleep 1
       done
       wait $my_pid
@@ -10745,7 +10838,7 @@ function install_general_csf() {
       echo "[${SCRIPT_NAME}]: Setting CSF SYSLOG_CHECK to ${C_CSF_SYSLOG_CHECK} ..."
       sed -i "s/SYSLOG_CHECK = .*/SYSLOG_CHECK = \"${C_CSF_SYSLOG_CHECK}\"/" /etc/csf/csf.conf
       sleep 1
-      echo "[${SCRIPT_NAME}]: Testing CSF after installation ..."
+      echo "[${SCRIPT_NAME}]: Testing CSF after changing configuration ..."
       echo ""
       perl /usr/local/csf/bin/csftest.pl
       echo ""
@@ -10984,11 +11077,18 @@ function configure_csf() {
       chown diradmin:diradmin "/usr/local/directadmin/data/templates/custom/blacklisted_ip.html"
       echo ""
 
-      _echo "$(msg cyan)Testing CSF after installation ...$(msg end)" --name
+      _echo "$(msg cyan)Testing CSF after changing configuration ...$(msg end)" --name
+      while :; do
+        inst_result=$(perl /usr/local/csf/bin/csftest.pl | tail -n 1 | grep -c 'RESULT: csf should function on this server')
+        if [ "${inst_result}" != "1" ]; then
+          _echo "$(msg red)Error, CSF installation test did not pass. Re-testing CSF installation in 5 seconds ...$(msg end)" --name
+          sleep 5
+        else
+          _echo "$(msg green)OK, CSF installation test passed! Installing CSF for Directadmin ...$(msg end)" --name
+          break
+        fi
+      done
       echo ""
-      perl /usr/local/csf/bin/csftest.pl
-      echo ""
-
       _echo "$(msg cyan)Starting CSF and LFD for the first time ...$(msg end)" --name
       _echo "$(msg cyan)Before we start it up, please confirm that your sshd port is listed in this output:$(msg end)" --name
       echo "-----------------"
@@ -12986,7 +13086,7 @@ function configure_maxinis() {
   end_execute_options "${option}" "${func_name}"
 }
 
-# Installing other security software based on maxicode
+# This function will configure GPG key management
 # maxigpg need to init first before caching password: run: maxigpg --init
 function configure_maxigpg() {
   local option func_name
@@ -12996,17 +13096,20 @@ function configure_maxigpg() {
   [[ "${SKIP_RUN}" == "true" ]] && return 0
   if [[ ! -f "${CONF_PATH}/${func_name}_executed" && "${FUNCTION_RUN}" == "true" ]]; then
     local maxigpg_bin ret_val gpg_priv_key gpg_priv_key_encrypted
-    echo "[${SCRIPT_NAME}]: Configuring maxigpg installation in maxicode ..."
     maxigpg_bin="/usr/local/maxicode/maxigpg/maxigpg"
+    _echo "$(msg cyan)Removing previous maxigpg symlink shortcut in /usr/local/bin ...$(msg end)" --name
+    rm -f /usr/local/bin/maxigpg
     if [ -f ${maxigpg_bin} ]; then
-      echo "[${SCRIPT_NAME}]: Creating symlink and executable for ${maxigpg_bin} ..."
-      chmod +x ${maxigpg_bin}
-      # Symbolic name
-      ln -s ${maxigpg_bin} /usr/local/bin
+      _echo "$(msg cyan)Setting ${maxigpg_bin} script to have executable permission ...$(msg end)" --name
+      chmod +x "${maxigpg_bin}"
+      _echo "$(msg cyan)Creating symlink for ${maxigpg_bin} ...$(msg end)" --name
+      ln -s "${maxigpg_bin}" /usr/local/bin
+      maxigpg -V
     else
-      echo "[${SCRIPT_NAME}]: Warning, maxigpg doesn't exist in /usr/local/maxicode !"
+      _echo "$(msg red)Warning, maxigpg binary doesn't exist inside /usr/local/maxicode ...$(msg end)" --name
       _exit 147
     fi
+
     if [ "${C_GPG_USE_EXISTING_KEY}" == "true" ]; then
       gpg_priv_key_encrypted="${DATA_PATH}/maxinet/storage/os/debian/usr/local/maxisecure/gpg/keys/priv.key.gpg"
       gpg_priv_key="${DATA_PATH}/maxinet/storage/os/debian/usr/local/maxisecure/gpg/keys/priv.key"
@@ -15731,9 +15834,9 @@ function setup_post() {
 # Setup function begin here #
 #############################
 function setup() {
-  # Just prevent running --setup if set to local, the other value still run this
+  # Just prevent running setup action if set to local, the other value still run this
   if [ "${EXECUTION_ENV}" == "local" ]; then
-    _echo "$(msg red)Error, cannot execute --setup because the execution environment file ${SCRIPT_PATH}/execution_env is not set as remote$(msg end)" --name
+    _echo "$(msg red)Error, cannot execute setup action because the execution environment file ${SCRIPT_PATH}/execution_env is not set as remote$(msg end)" --name
     _exit 147
   else
     script_header
@@ -15904,13 +16007,13 @@ function setup() {
         # " -- others ---"
 
         configure_da_custom_webs --skip # Fix this with new version
-        exit 1
+        configure_maxigpg --run
+
         configure_maxibox --run
         configure_maxicode_pre --run
         configure_maxicode --run
         configure_maxiperm --run
         configure_maxinis --run
-        configure_maxigpg --run
         configure_maxida --run
         configure_maxicron --run
         configure_maxiaide --run-force
@@ -16032,6 +16135,7 @@ CODE_PATH="${SCRIPT_PATH}/code"
 ISO_PATH="${SCRIPT_PATH}/iso"
 DOWNLOAD_PATH="${SCRIPT_PATH}/download"
 SECURE_PATH="${SCRIPT_PATH}/secure"
+STORAGE_PATH="${SCRIPT_PATH}/storage"
 TEMP_PATH="${SCRIPT_PATH}/temp"
 INST_TEMP_DIR="${TEMP_PATH}/src"
 
@@ -16043,6 +16147,7 @@ mkdir -p "${CODE_PATH}"
 mkdir -p "${ISO_PATH}"
 mkdir -p "${DOWNLOAD_PATH}"
 mkdir -p "${SECURE_PATH}"
+mkdir -p "${STORAGE_PATH}"
 mkdir -p "${TEMP_PATH}"
 mkdir -p "${INST_TEMP_DIR}"
 
@@ -16197,10 +16302,10 @@ if [ -z "${C_CONFIG_VERSION}" ]; then
     required "debian@@apt:dnsutils" "ubuntu@@apt:dnsutils"
     # Get the current host public IP
     TEST_C_HOST_PUBLIC_IP=$(dig TXT +short o-o.myaddr.l.google.com @ns1.google.com | awk -F'"' '{ print $2}')
-    if is_valid ipv46 "${TEST_C_HOST_PUBLIC_IP}"; then
+    if is_valid ipv4 "${TEST_C_HOST_PUBLIC_IP}" || is_valid ipv6 "${TEST_C_HOST_PUBLIC_IP}"; then
       C_HOST_PUBLIC_IP="${TEST_C_HOST_PUBLIC_IP}"
     else
-      if ! is_valid ipv46 "${C_HOST_PUBLIC_IP}"; then
+      if ! is_valid ipv4 "${C_HOST_PUBLIC_IP}" || ! is_valid ipv6 "${C_HOST_PUBLIC_IP}"; then
         _echo "$(msg red)Error, could not find the current host public IP and the C_HOST_PUBLIC_IP is not a valid IP. Please insert a valid host public IP manually in config file at ${CONFIG_FILE}$(msg end)" --name
         _exit 147
       else
@@ -16230,15 +16335,25 @@ if [ -z "${C_CONFIG_VERSION}" ]; then
   fi
 
 fi
+
+ACTION="$1"
 ARGNUM="$#"
-# Handle option arguments (this option handler method does not require getopt)
+
 if [ $ARGNUM -eq 0 ]; then
   _echo "$(msg red)Error, no argument is supplied. Use $(msg yellow)[ ${SCRIPT_NAME} --help ]$(msg red) to see the valid options$(msg end)" --name --verbose 3
-  _exit 1
+  _exit 147
 fi
 
+# This option handler method does not require getopt
+# because the first argument can be treated as normal action without -- or -
 while [ "$#" -gt 0 ]; do
-  case "$1" in
+  case "${ACTION}" in
+  # test-script
+  -t | --test)
+    configure_maxigpg --run-force
+    exit 0
+    break
+    ;;
   -h | --help)
     help
     exit 0
@@ -16247,27 +16362,22 @@ while [ "$#" -gt 0 ]; do
   -V | --version)
     script_header
     break
+    exit 0
     ;;
-  --config-test)
-    shift
-    :
-    break
-    ;;
-  # This one is for configuring script, for example supplying config file through terminal
+  # This one is for configuring script, for example supplying config file through terminal (TODO)
   -c | --configure)
     shift
     _echo "Configuring ${_APP_SPECIFIC_NAME} ..." --name
-    :
     break
-    ;;
-  --setup | --install)
-    shift
-    setup "$@"
     exit 0
+    ;;
+  --ct | --config-test)
+    validate_config
     break
+    exit 0
     ;;
   # Clear all paths (dangerous)
-  -cls | --clear)
+  --cls | --clear)
     rm -rf "${LOG_PATH}"
     rm -rf "${CONF_PATH}"
     rm -rf "${DATA_PATH}"
@@ -16275,6 +16385,13 @@ while [ "$#" -gt 0 ]; do
     rm -rf "${TEMP_PATH}"
     rm -rf "${INST_TEMP_DIR}"
     echo "[${SCRIPT_NAME}]: Program path cleaned"
+    exit 0
+    break
+    ;;
+  # STARTING BELOW IS ACTION (no symbol --)
+  setup | install)
+    shift
+    setup "$@"
     exit 0
     break
     ;;
@@ -16288,14 +16405,14 @@ while [ "$#" -gt 0 ]; do
   #   :This will remove all existing partitions including rescue disk and profile. No rescue disk and profile is created
   # Note3: If you run like this (without argument): maxinet --init-server
   #   :This will remove and re-create system related partitions. It will not disturb the rescue option
-  --init-server | --deploy-server | --build-server | --create-server | --setup-server)
+  init-server | deploy-server | build-server | create-server | setup-server)
     shift
     script_header
     init_server "$@"
     exit 0
     break
     ;;
-  --update-maxinet-remote-script | --update-remote-scripts | --update-remote-script | --update-remote-code)
+  update-maxinet-remote-script | update-remote-scripts | update-remote-script | update-remote-code)
     ensure_host_resolved
     shift
     ssh_api transfer-files --server-port "${C_BOX_HOSTNAME_FQHN}:${C_SSH_PORT}" --group-user "root:${C_ROOT_USERNAME}" --local-files "${SCRIPT_PATH}/maxinet ${SCRIPT_PATH}/maxinet.conf ${SCRIPT_PATH}/readme.txt" --remote-path ~/
@@ -16303,7 +16420,7 @@ while [ "$#" -gt 0 ]; do
     break
     ;;
   # This will list out what domain or subdomain that will have problem when request certificate
-  -srt | --ssl-request-test | --request-ssl-test)
+  srt | ssl-request-test | request-ssl-test)
     # Beta test
     validate_config
     configure_da_reseller_domain_ssl_pre "--run-force"
@@ -16312,15 +16429,14 @@ while [ "$#" -gt 0 ]; do
     break
     ;;
   # This will request certificate
-  -sr | --ssl-request | --request-ssl)
+  sr | ssl-request | request-ssl)
     validate_config
     configure_da_reseller_domain_ssl "--run-force"
     configure_da_user_domain_ssl "--run-force"
     exit 0
     break
     ;;
-
-  -lui | --linode-upload-iso)
+  lui | linode-upload-iso)
     ensure_host_resolved
     # This is a way to upload iso file from local to remote using scp
     shift
@@ -16341,21 +16457,21 @@ ENDSSH
     break
     ;;
 
-  -lu | --luks-unlock | --unlock-luks | --ssh-luks-unlock | --unlock-server)
+  lu | luks-unlock | unlock-luks | ssh-luks-unlock | unlock-server)
     ensure_host_resolved
     shift
     ssh_api luks-unlock "$@"
     exit 0
     break
     ;;
-  --push-ssh-script | --run-ssh-script)
+  push-ssh-script | run-ssh-script)
     ensure_host_resolved
     shift
     ssh_api push-script "$@"
     exit 0
     break
     ;;
-  --get-remote-log)
+  get-remote-log)
     ensure_host_resolved
     shift
     echo "Download setup log file into ${SCRIPT_PATH}/log/${SCRIPT_NAME}.log ..."
@@ -16370,7 +16486,7 @@ ENDSSH
     break
     ;;
   # maxinet --get-remote-files "~/maxinet.log"
-  --get-remote-files | --download-remote-files | --get-remote-file | --download-remote-file)
+  get-remote-files | download-remote-files | get-remote-file | download-remote-file)
     ensure_host_resolved
     shift
     #eg: ~/maxinet.log
@@ -16386,35 +16502,35 @@ ENDSSH
     exit 0
     break
     ;;
-    # ./maxinet --ssh-login <optional_hostname> <optional_port> <optional_user>
+    # ./maxinet ssh-login <optional_hostname> <optional_port> <optional_user>
     # If hostname or port are not provided, they will use the default ones from config file
 
-  --generate-port)
+  generate-port)
     shift
     comm -23 <(seq 49152 65535 | sort) <(ss -Htan | awk '{print $4}' | cut -d':' -f2 | sort -u) | shuf | head -n 3
     exit 0
     break
     ;;
-  --ssh-login | --login-to-server | --login)
+  ssh-login | login-to-server | login)
     ensure_host_resolved
     time ssh_api login
     shift
     exit 0
     break
     ;;
-  --ssh-api | --ssh)
+  ssh-api | ssh)
     shift
     ssh_api "$@"
     exit 0
     break
     ;;
-  --ssh-transfer)
+  ssh-transfer)
     shift
     ssh_api transfer-files "$@"
     exit 0
     break
     ;;
-  --boot-linode | --boot-server | --start-server)
+  boot-linode | boot-server | start-server)
     shift
     if [ "${DNS_PROVIDER_NAME}" == "linode" ]; then
       linode_api_admin boot-linode "$@"
@@ -16427,39 +16543,39 @@ ENDSSH
     exit 0
     break
     ;;
-  --check-server-port)
+  check-server-port)
     shift
     check_server_port "$@"
     exit 0
     break
     ;;
-  -rs | --shutdown-server)
+  rs | shutdown-server)
     shift
     _shutdown "$@"
     exit 0
     break
     ;;
   # lish-login <option>
-  -ll | --lish-console | --lish | --lish-login)
+  ll | lish-console | lish | lish-login)
     shift
     lish_console "$@"
     exit 0
     break
     ;;
-  --dropbox-api | --dropbox-api-admin | --dropbox)
+  dropbox-api | dropbox-api-admin | dropbox | manage-dropbox)
     shift
     dropbox_api "$@"
     exit 0
     break
     ;;
   # This will generate a modified operating system ISO file that can be used to automatically install OS when booting.
-  --iso-api | --iso-api-admin | --iso)
+  iso-api | iso-api-admin | iso | manage-iso)
     shift
     iso_api "$@"
     exit 0
     break
     ;;
-  --remove-da-domain)
+  remove-da-domain)
     shift
     domain="$1"
     echo "Removing domain from /etc/virtual/domains ..."
@@ -16476,7 +16592,7 @@ ENDSSH
     exit 0
     break
     ;;
-  --remove-da-user)
+  remove-da-user)
     # New method: Manually delete a user
     #-
     #rm -fr /usr/local/directadmin/data/users/examplereseller
@@ -16531,19 +16647,26 @@ ENDSSH
     ;;
     # Test or user linode API here
   # eg: maxinet --linode-api "get-linode-id" "sun.sofibox.com"
-  --linode-api | --linode_api | --linode)
+  linode-api | linode | manage-linode)
     shift
     linode_api_admin "$@"
-    exit 0
     break
+    exit 0
     ;;
-  --da-api | --da_api | --da | --directadmin-api | --directadmin_api | --directadmin)
+  da-api | da | directadmin-api | directadmin | manage-da | manage-directadmin)
     shift
     da_api_admin "$@"
     exit 0
     break
     ;;
-  -b | --build)
+  # maxinet manage-maxicode <action> --app-name maxigpg --distro-name "debian"
+  manage-maxicode)
+    shift
+    maxicode_admin "$@"
+    exit 0
+    break
+    ;;
+  build | build-package)
     shift
     package_name="$1"
     cd_to_path "${HOME}"
@@ -16564,21 +16687,10 @@ ENDSSH
     exit 0
     break
     ;;
-  -t | --test)
-    exit 0
-    break
-    ;;
-  --)
-    break
-    ;;
-  -*)
-    opt="$1"
-    echo "Invalid option '${opt}'. Use --help to see the valid options"
-    exit 147
-    ;;
   *) ;;
   esac
-  shift
+  _echo "$(msg red)Error, invalid action or option [ $1 ]. Use --help to see the valid actions or options$(msg end)" --name
+  exit 147
 done
 
 [[ ${C_LOG_VERBOSITY_LEVEL} == "8" ]] && set +x
