@@ -4,7 +4,7 @@
 
 _APP_SPECIFIC_NAME="Maxinet"
 # Note that some minor versions are not published
-_APP_VERSION="0.5.9.5"
+_APP_VERSION="0.5.9.7"
 _APP_STATUS="alpha"
 _APP_VERSION_STATUS="${_APP_VERSION}-${_APP_STATUS}"
 
@@ -1463,8 +1463,8 @@ function init_server() {
       done
     fi
 
-    _echo "$(msg cyan)Copying maxinet, maxinet.conf and readme.txt into remote server ... $(msg end)" --name
-    ssh_api transfer-files --server-port "${C_BOX_HOSTNAME_FQHN}:${C_SSH_PORT}" --group-user "root:${C_ROOT_USERNAME}" --local-files "${SCRIPT_PATH}/maxinet ${SCRIPT_PATH}/maxinet.conf ${SCRIPT_PATH}/readme.txt" --remote-path ~/
+    _echo "$(msg cyan)Copying maxinet, maxinet.conf gpg_private_key.gpg and readme.txt into remote server ... $(msg end)" --name
+    ssh_api transfer-files --server-port "${C_BOX_HOSTNAME_FQHN}:${C_SSH_PORT}" --group-user "root:${C_ROOT_USERNAME}" --local-files "${SECURE_PATH}/gpg/gpg_private_key.gpg ${SCRIPT_PATH}/maxinet ${SCRIPT_PATH}/maxinet.conf ${SCRIPT_PATH}/readme.txt" --remote-path ~/
     sleep 2
 
     if [ "${C_PRE_AUTORUN_SETUP}" == "false" ]; then
@@ -7024,7 +7024,7 @@ function maxicode_admin() {
 
     if [ "${app_name}" == "maxigpg" ]; then
       local code_path
-      code_path="${STORAGE_PATH}/os/${DISTRO_NAME}/usr/local/maxicode/maxigpg"
+      code_path="${STORAGE_PATH}/os/${distro_name}/usr/local/maxicode/maxigpg"
       #echo "code_path is: ${code_path}"
       ssh_api transfer-files --server-port "${C_BOX_HOSTNAME_FQHN}:${C_SSH_PORT}" --group-user "root:${C_ROOT_USERNAME}" \
         --local-files "${code_path}/maxigpg ${code_path}/maxigpg-ag ${code_path}/readme.txt ${code_path}/readme.md" --remote-path /usr/local/maxicode/maxigpg/
@@ -9929,13 +9929,19 @@ function install_da() {
     _echo "$(msg cyan)Setting execution permission for setup.sh ...$(msg end)" --name
     chmod 755 setup.sh
     echo ""
-    _echo "$(msg cyan)Setup will install Directadmin within 30 seconds. This would take a long time depending on the package selection or directadmin installation type, so please be patient$(msg end)" --name
-    _echo "$(msg yellow)If you don't want to install Directadmin now, press (CTRL+C) to exit and remember that you can always re-run this script to resume installation (even it is halt due to error)$(msg end)" --name
-    _echo "$(msg yellow)In order to view full installation log in realtime, execute this command in another local terminal: ${SCRIPT_NAME} login and tail -f ${SCRIPT_PATH}/log/da-install.log$(msg end)" --name
+    da_latest_version=$(curl -s https://www.directadmin.com/version.php | grep -Eo "[0-9]+\.[0-9]+")
+    _echo "$(msg magenta)=======================================================================$(msg end)" --plain
+    _echo "$(msg yellow)Setup will install Directadmin ${da_latest_version} within 30 seconds. $(msg end)" --name
+    _echo "$(msg yellow)This would take a long time depending on the package selection or directadmin installation type, so please be patient$(msg end)" --name
+    _echo "$(msg yellow)If you don't want to install Directadmin now, press (CTRL+C) to exit$(msg end)" --name
+    _echo "$(msg yellow)Remember that you can always re-run this script to resume or restart installation (even it is halt due to error)$(msg end)" --name
+    _echo "$(msg yellow)In order to view full directadmin installation log in realtime, execute this command in another local terminal: $(msg end)" --name
+    echo ""
+    _echo "$(msg yellow)${SCRIPT_NAME} login and then, tail -f ${da_install_log}$(msg end)" --plain
+    _echo "$(msg magenta)=======================================================================$(msg end)" --plain
     _pause 30
     ensure_host_resolved
     echo ""
-    da_latest_version=$(curl -s https://www.directadmin.com/version.php | grep -Eo "[0-9]+\.[0-9]+")
     _echo "$(msg cyan)Note: Directadmin ${da_latest_version} will be installed on ${LABEL_C_BOX_HOSTNAME_FQHN} using ${C_DA_INSTALL_TYPE} mode$(msg end)"
     echo ""
     if [[ "${C_DA_INSTALL_TYPE}" == "custom" || "${C_DA_INSTALL_TYPE}" == "original" ]]; then
@@ -13095,8 +13101,19 @@ function configure_maxigpg() {
   start_execute_options "${option}" "${func_name}"
   [[ "${SKIP_RUN}" == "true" ]] && return 0
   if [[ ! -f "${CONF_PATH}/${func_name}_executed" && "${FUNCTION_RUN}" == "true" ]]; then
-    local maxigpg_bin ret_val gpg_priv_key gpg_priv_key_encrypted
+    local maxigpg_bin
     maxigpg_bin="/usr/local/maxicode/maxigpg/maxigpg"
+    gpg_cache_duration_test=3
+    # Install gpg here if does not exist but most distribution came with gpg installed
+    if command -v gpg &>/dev/null; then
+      _echo "OK gpg is installed with the following details: "
+      echo ""
+      gpg --version
+    else
+      _echo "Warning, required gpg binary is not found!"
+      _exit 147
+    fi
+    echo ""
     _echo "$(msg cyan)Removing previous maxigpg symlink shortcut in /usr/local/bin ...$(msg end)" --name
     rm -f /usr/local/bin/maxigpg
     if [ -f ${maxigpg_bin} ]; then
@@ -13104,76 +13121,303 @@ function configure_maxigpg() {
       chmod +x "${maxigpg_bin}"
       _echo "$(msg cyan)Creating symlink for ${maxigpg_bin} ...$(msg end)" --name
       ln -s "${maxigpg_bin}" /usr/local/bin
-      maxigpg -V
+      # Run this later after created service and socket files
+      #_echo "$(msg cyan)Running maxigpg init ...$(msg end)" --name
+      #echo ""
+      # maxigpg init
+      echo ""
     else
       _echo "$(msg red)Warning, maxigpg binary doesn't exist inside /usr/local/maxicode ...$(msg end)" --name
       _exit 147
     fi
+    echo ""
+
+    _echo "$(msg cyan)Removing existing .gnupg folder ...$(msg end)" --name
+    rm -rf "${HOME}/.gnupg"
+    mkdir -p "${HOME}/.gnupg"
+    {
+      echo "allow-preset-passphrase"
+      echo "default-cache-ttl ${gpg_cache_duration_test}"
+      echo "max-cache-ttl ${gpg_cache_duration_test}"
+    } >"${HOME}/.gnupg/gpg-agent.conf"
+
+    chmod 700 "${HOME}/.gnupg"
+    chmod 600 "${HOME}/.gnupg/gpg-agent.conf"
+
+    _echo "Writing a new gpg-agent socket file at /etc/systemd/system/gpg-agent.socket ... " --name
+    # Writing gpg-agent.socket file
+    {
+      echo "[Unit]"
+      echo "Description=GnuPG cryptographic agent and passphrase cache"
+      echo "Documentation=man:gpg-agent(1)"
+      # Must put this partOf if I want to stop gpg-agent, this will also automatically stop the socket
+      echo "PartOf=gpg-agent.service"
+
+      echo "[Socket]"
+      echo "ListenStream=%t/gnupg/S.gpg-agent"
+      echo "FileDescriptorName=std"
+      echo "SocketMode=0600"
+      echo "DirectoryMode=0700"
+      echo ""
+      echo "[Install]"
+      echo "WantedBy=sockets.target"
+    } >"/etc/systemd/system/gpg-agent.socket"
+    echo ""
+    # Writing gpg-agent.service file
+    _echo "Writing a new gpg-agent service file at /etc/systemd/system/gpg-agent.service ... " --name
+    {
+      echo "[Unit]"
+      echo "Description=GnuPG cryptographic agent and passphrase cache"
+      echo "Documentation=man:gpg-agent(1)"
+      echo "Requires=gpg-agent.socket"
+      echo ""
+      echo "[Service]"
+      echo "ExecStart=/usr/bin/gpg-agent --options ${HOME}/.gnupg/gpg-agent.conf --supervised"
+      echo "ExecReload=/usr/bin/gpgconf --reload gpg-agent"
+
+    } >"/usr/lib/systemd/user/gpg-agent.service"
+
+    chown root:root "/usr/lib/systemd/user/gpg-agent.service" "/etc/systemd/system/gpg-agent.socket"
+    chmod 644 "/usr/lib/systemd/user/gpg-agent.service" "/etc/systemd/system/gpg-agent.socket"
+
+    systemctl --user daemon-reload
+
+    systemctl --user --global enable gpg-agent.socket
+
+    systemctl --user stop gpg-agent.service
+    #echo "Starting gpg-agent.service ..."
+    systemctl --user start gpg-agent.service
 
     if [ "${C_GPG_USE_EXISTING_KEY}" == "true" ]; then
-      gpg_priv_key_encrypted="${DATA_PATH}/maxinet/storage/os/debian/usr/local/maxisecure/gpg/keys/priv.key.gpg"
-      gpg_priv_key="${DATA_PATH}/maxinet/storage/os/debian/usr/local/maxisecure/gpg/keys/priv.key"
+      _echo "$(msg cyan)Note: Using existing GPG key because C_GPG_USE_EXISTING_KEY variable is set to true in config file  ...$(msg end)" --name
+      local gpg_priv_key gpg_priv_key_encrypted retval
+
+      # This file must be encrypted (coming from maxicode)
+      gpg_priv_key_encrypted="${SCRIPT_PATH}/gpg_private_key.gpg"
+
+      if [ ! -f "${gpg_priv_key_encrypted}" ]; then
+        _echo "$(msg cyan)Error, the GPG private key does not exist in ${gpg_priv_key_encrypted}. Make sure it exists before continue$(msg end)" --name
+        _exit 147
+      fi
+      # This is the path for unencrypted key
+      gpg_priv_key="${SCRIPT_PATH}/gpg_private_key"
+      _echo "$(msg cyan)Removing existing unencrypted private key ${gpg_priv_key} ...$(msg end)" --name
       rm -f "${gpg_priv_key}"
+      echo ""
+      _echo "$(msg cyan)Unlocking existing encrypted private key ${gpg_priv_key_encrypted} ...$(msg end)" --name
       gpg --pinentry-mode=loopback --passphrase "${C_GPG_PASSPHRASE}" -d -o "${gpg_priv_key}" "${gpg_priv_key_encrypted}"
-      echo "[${SCRIPT_NAME}]: Importing existing gpg-agent key from maxinet ..."
+      echo ""
+      echo "[${SCRIPT_NAME}]: Importing existing key into gpg-agent ..."
       gpg --pinentry-mode=loopback --passphrase "${C_GPG_PASSPHRASE}" --import "${gpg_priv_key}"
-      ret_val=$?
-      if [ ${ret_val} = 0 ]; then
-        echo "[${SCRIPT_NAME}]: Import ok"
+      retval=$?
+      if [[ "${retval}" -eq 0 ]]; then
+        local test_file
+        _echo "$(msg green)Import OK$(msg end)" --name
+        echo ""
+        # Set trust to 5 for the key so we can encrypt without prompt.
+        _echo "$(msg cyan)Setting trust to 5 for the key ${LABEL_C_GPG_OWNER_EMAIL} so we can encrypt without prompt ...$(msg end)" --name
+        echo -e "5\ny\n" | gpg --command-fd 0 --expert --edit-key "${C_GPG_OWNER_EMAIL}" trust
+        echo ""
+        test_file="${SECURE_PATH}/gpg-test-file"
+        echo "test" >"${test_file}"
+        _echo "$(msg cyan)Testing key for encrypting on file ${test_file} ...$(msg end)" --name
+        rm -f "${test_file}.asc" && gpg --verbose -e -a -r "${C_GPG_OWNER_EMAIL}" "${test_file}"
+        retval=$?
+        if [ "${retval}" -eq 0 ]; then
+          _echo "$(msg green)Encryption test OK$(msg end)" --name
+          rm -f "${test_file}"
+          echo ""
+        else
+          _echo "$(msg red)Encryption test FAILED$(msg end)" --name
+          _exit 147
+        fi
+        _echo "$(msg cyan)Testing key for decrypting on file ${test_file}.asc ...$(msg end)" --name
+        rm -f "${test_file}"
+        # When running this command, I actually cache the current passphrase in GPG
+        gpg --pinentry-mode=loopback --passphrase ${C_GPG_PASSPHRASE} --output "${test_file}" --decrypt "${test_file}.asc" >/dev/null
+        retval=$?
+
+        if [ "${retval}" -eq 0 ]; then
+          local elapsed_time retval
+          _echo "$(msg green)Decryption test OK$(msg end)" --name
+          echo ""
+          _echo "$(msg yellow)Note at this moment, the passphrase is cached in GPG agent with PID: $(pidof gpg-agent)$(msg end)"
+          echo ""
+          # rm -f "${test_file}.asc" # Do not remove this, because we still want to test the timer below
+          test_elapsed=0
+          while :; do
+            rm -f "${test_file}"
+            _echo "$(msg cyan)Testing GPG decryption cache timer with test value less than ${gpg_cache_duration_test} second(s) ...$(msg end)" --name --start-spin
+            echo 123 | gpg -q --pinentry-mode=loopback --passphrase-fd 0 --output "${test_file}" -d "${test_file}.asc" 2>/dev/null
+            retval=$?
+            if [ "${retval}" -ne 0 ]; then
+              echo ""
+              _echo "$(msg green)OK, passphrase cache was expired based on cache test duration$(msg end)" --name
+              break
+            else
+              # if [ "${test_elapsed}" -gt 3 ]; then # Testing
+              if [ "${test_elapsed}" -gt ${gpg_cache_duration_test} ]; then
+                echo ""
+                _echo "$(msg red)Error, passphrase cache is not expired based on cache test duration$(msg end)" --name --verbose 3
+                _exit 147
+              fi
+            fi
+            sleep 1
+            ((test_elapsed++))
+          done
+          echo ""
+          _echo "$(msg cyan)Creating new gpg-agent config setting to have cache duration based on config file ...$(msg end)" --name
+          {
+            echo "allow-preset-passphrase"
+            echo "default-cache-ttl ${C_GPG_CACHE_DURATION}"
+            echo "max-cache-ttl ${C_GPG_CACHE_DURATION}"
+          } >"${HOME}/.gnupg/gpg-agent.conf"
+          echo ""
+          #_echo "$(msg cyan)Restarting gpg-agent to use new config ...$(msg end)" --name
+          #systemctl --user restart gpg-agent
+          _echo "$(msg cyan)Running maxigpg init ...$(msg end)" --name
+          echo ""
+          maxigpg init
+          echo ""
+          _echo "Any files that were encrypted using the newly created cert above can be unlocked automatically without passphrase"
+          _echo "The cache passphrase has duration of ${C_GPG_CACHE_DURATION} second(s) based on config file ${HOME}/.gnupg/gpg-agent.conf"
+          _echo "The new passphrase will be cached in gpg-agent on PID $(systemctl --user show --property MainPID --value gpg-agent)"
+          echo ""
+          _echo "$(msg green)OK, done configuring existing GPG key!${gpg_priv_key} ...$(msg end)" --name
+        else
+          _echo "$(msg red)Decryption test FAILED$(msg end)" --name
+          _exit 147
+        fi
+
       else
-        echo "[${SCRIPT_NAME}]: Import failed"
+        _echo "$(msg red)Import FAILED$(msg end)" --name
         _exit 147
       fi
     else
-      # 0) Configure gpg first
-      echo "[${SCRIPT_NAME}]: Generating new gpg-agent key ..."
-      cat >gpgkey <<EOF
-     %echo Generating a basic OpenPGP key for ${C_BOX_HOSTNAME_FQHN}
-     Key-Type: RSA
-     Key-Length: 2048
-     Subkey-Type: RSA
-     Subkey-Length: 2048
-     Name-Real: ${C_ADMIN_NAME}
-     Name-Comment: This is the main GPG key for ${C_ADMIN_NAME} in ${C_BOX_HOSTNAME_FQHN}
-     Name-Email: ${C_ADMIN_EMAIL}
-     Expire-Date: 0
-     Passphrase: ${C_GPG_PASSPHRASE}
-     # Do a commit here, so that we can later print "done" :-)
-     %commit
-     %echo done
-EOF
+
+      local gpgkey_temp gpg_success_mark test_generate has_success test_file retval
+      gpgkey_temp="${SECURE_PATH}/gpgkey_temp.$(get_rnd_alpha 8)"
+      gpg_success_mark=$(get_rnd_alpha 10)
+      _echo "$(msg cyan)Creating a new GPG key template file ...$(msg end)" --name
+      # Since we use this in bash built-in echo, do not worry about password leak in process (actually I dont like heredoc)
+      {
+        echo "%echo Generating a basic OpenPGP key for ${C_BOX_HOSTNAME_FQHN}"
+        echo "Key-Type: RSA"
+        echo "Key-Length: 4096"
+        echo "Subkey-Type: RSA"
+        echo "Subkey-Length: 4096"
+        echo "Name-Real: ${C_ADMIN_NAME}"
+        echo "Name-Comment: This is the main GPG key for ${C_ADMIN_NAME} in ${C_BOX_HOSTNAME_FQHN}"
+        echo "Name-Email: ${C_GPG_OWNER_EMAIL}"
+        echo "Expire-Date: 0"
+        echo "Passphrase: ${C_GPG_PASSPHRASE}"
+        echo "# Do a commit here, so that we can later print \"done\" :-)"
+        echo "%commit"
+        echo "%echo done"
+        echo "%echo success: ${gpg_success_mark}"
+      } >"${gpgkey_temp}"
+
+      echo ""
+      _echo "$(msg cyan)Generating a new GPG key based on the template file ${gpgkey_temp} ...$(msg end)" --name
       # Generate the key based on the above information
-      gpg --verbose --batch --generate-key gpgkey
+      test_generate=$(gpg --verbose --batch --generate-key ${gpgkey_temp} <<<"${passphrase}" 2>&1)
+      retval=$?
+      echo ""
+      has_success="$(echo "${test_generate}" | grep "success: ${gpg_success_mark}")"
+      echo "${test_generate}"
+      echo ""
+
+      if [[ -n "${has_success}" && "${retval}" -eq 0 ]]; then
+        echo "OK, success"
+        # Delete the options and decrypt the original to stdout.
+        _echo "$(msg cyan)Removing the gpg key template ${gpgkey_temp} ...$(msg end)" --name
+        rm -f "${gpgkey_temp}"
+        echo ""
+      else
+        echo "Error, failed. Please check the template file syntax and make sure the file is accessible"
+        exit 1
+      fi
+      echo ""
+
       # Set trust to 5 for the key so we can encrypt without prompt.
-      echo "[${SCRIPT_NAME}]: Setting trust to 5 for the key ${C_ADMIN_EMAIL} so we can encrypt without prompt ..."
-      sleep 1
-      echo -e "5\ny\n" | gpg --command-fd 0 --expert --edit-key "${C_ADMIN_EMAIL}" trust
-      # Test the key can encrypt and decrypt.
-      echo "[${SCRIPT_NAME}]: Testing key for encrypting ..."
-      sleep 1
-      gpg -e -a -r "${C_ADMIN_EMAIL}" gpgkey
-      ret_val=$?
-      if [ ${ret_val} = 0 ]; then
-        echo "[${SCRIPT_NAME}]: Encryption test ok"
+      _echo "$(msg cyan)Setting trust to 5 for the key ${LABEL_C_GPG_OWNER_EMAIL} so we can encrypt without prompt ...$(msg end)" --name
+      echo -e "5\ny\n" | gpg --command-fd 0 --expert --edit-key "${C_GPG_OWNER_EMAIL}" trust
+      echo ""
+      test_file="${SECURE_PATH}/gpg-test-file"
+      echo "test" >"${test_file}"
+      # Test the key can encrypt and decrypt using the unused gpgkey_temp file we created
+      _echo "$(msg cyan)Testing key for encrypting on file ${test_file} ...$(msg end)" --name
+      rm -f "${test_file}.asc" && gpg --verbose -e -a -r "${C_GPG_OWNER_EMAIL}" "${test_file}"
+      retval=$?
+      if [ "${retval}" -eq 0 ]; then
+        _echo "$(msg green)Encryption test OK$(msg end)" --name
+        rm -f "${test_file}"
       else
-        echo "[${SCRIPT_NAME}]: Encryption test failed"
+        _echo "$(msg red)Encryption test FAILED$(msg end)" --name
         _exit 147
       fi
-      # Delete the options and decrypt the original to stdout.
-      rm -f gpgkey
-      echo "[${SCRIPT_NAME}]: Testing key for decrypting ..."
-      sleep 1
-      gpg -d gpgkey.asc
-      ret_val=$?
-      if [ ${ret_val} = 0 ]; then
-        echo "[${SCRIPT_NAME}]: Decryption test ok"
-        rm -f gpgkey.asc
+
+      _echo "$(msg cyan)Testing key for decrypting on file ${test_file}.asc ...$(msg end)" --name
+      rm -f "${test_file}"
+      # When running this command, I actually cache the current passphrase in GPG
+      gpg --pinentry-mode=loopback --passphrase ${C_GPG_PASSPHRASE} --output "${test_file}" --decrypt "${test_file}.asc" >/dev/null
+      retval=$?
+      if [ "${retval}" -eq 0 ]; then
+        local elapsed_time retval
+        _echo "$(msg green)Decryption test OK$(msg end)" --name
+        echo ""
+        _echo "$(msg yellow)Note at this moment, the passphrase is cached in GPG agent with PID: $(pidof gpg-agent)$(msg end)"
+        echo ""
+        # rm -f "${test_file}.asc" # Do not remove this, because we still want to test the timer below
+        test_elapsed=0
+        while :; do
+          rm -f "${test_file}"
+          _echo "$(msg cyan)Testing GPG decryption cache timer with test value less than ${gpg_cache_duration_test} second(s) ...$(msg end)" --name --start-spin
+          echo 123 | gpg -q --pinentry-mode=loopback --passphrase-fd 0 --output "${test_file}" -d "${test_file}.asc" 2>/dev/null
+          retval=$?
+          if [ "${retval}" -ne 0 ]; then
+            echo ""
+            _echo "$(msg green)OK, passphrase cache was expired based on cache test duration$(msg end)" --name
+            break
+          else
+            # if [ "${test_elapsed}" -gt 3 ]; then # Testing
+            if [ "${test_elapsed}" -gt ${gpg_cache_duration_test} ]; then
+              echo ""
+              _echo "$(msg red)Error, passphrase cache is not expired based on cache test duration$(msg end)" --name --verbose 3
+              _exit 147
+            fi
+          fi
+          sleep 1
+          ((test_elapsed++))
+        done
+        echo ""
+        _echo "$(msg cyan)Creating new gpg-agent config setting to have cache duration based on config file ...$(msg end)" --name
+        {
+          echo "allow-preset-passphrase"
+          echo "default-cache-ttl ${C_GPG_CACHE_DURATION}"
+          echo "max-cache-ttl ${C_GPG_CACHE_DURATION}"
+        } >"${HOME}/.gnupg/gpg-agent.conf"
+        echo ""
+        #_echo "$(msg cyan)Restarting gpg-agent to use new config ...$(msg end)" --name
+        #systemctl --user restart gpg-agent
+        _echo "$(msg cyan)Running maxigpg init ...$(msg end)" --name
+        echo ""
+        maxigpg init
+        echo ""
+        _echo "Any files that were encrypted using the newly created cert above can be unlocked automatically without passphrase"
+        _echo "The cache passphrase has duration of ${C_GPG_CACHE_DURATION} second(s) based on config file ${HOME}/.gnupg/gpg-agent.conf"
+        _echo "The new passphrase will be cached in gpg-agent on PID $(systemctl --user show --property MainPID --value gpg-agent)"
+        # Note I can use API to kill this gpg process (such as da_api_admin; the service variable). So that the password will not be used by other app
+        echo ""
+        _echo "$(msg green)OK, done configuring new GPG key!${gpg_priv_key} ...$(msg end)" --name
       else
-        echo "[${SCRIPT_NAME}]: Decryption test failed"
+        _echo "$(msg red)Decryption test FAILED$(msg end)" --name
         _exit 147
       fi
+
     fi
-    # Remove the unprotected key
+    echo ""
+    _echo "$(msg cyan)Removing unprotected GPG key ${gpg_priv_key} ...$(msg end)" --name
     rm -f "${gpg_priv_key}"
     echo ""
     check_finish_reboot "${func_name}"
@@ -14418,10 +14662,10 @@ function configure_da_reseller_databases() {
 
           if [[ -z "${sql_user_exist}" ]]; then
             _echo "$(msg cyan)Creating new database name ${db_name} for reseller ${da_reseller_username} on domain ${db_domain} ...$(msg end)" --name
-            #da_api_admin create-user-database --sign-as "${da_reseller_username}" --db-domain "${db_domain}" --db-name "${db_name}" --db-user "${db_user}" --db-password "${db_password}"
+            da_api_admin create-user-database --sign-as "${da_reseller_username}" --db-domain "${db_domain}" --db-name "${db_name}" --db-user "${db_user}" --db-password "${db_password}"
           else
             _echo "$(msg cyan)Creating new database name ${db_name} for reseller ${da_reseller_username} on domain ${db_domain} using existing username ${db_user} ...$(msg end)" --name
-            #da_api_admin create-user-database --sign-as "${da_reseller_username}" --db-domain "${db_domain}" --db-name "${db_name}" --db-existing-user "${db_user}"
+            da_api_admin create-user-database --sign-as "${da_reseller_username}" --db-domain "${db_domain}" --db-name "${db_name}" --db-existing-user "${db_user}"
           fi
 
           ((database_count++))
@@ -15626,10 +15870,10 @@ function configure_da_user_databases() {
 
           if [[ -z "${sql_user_exist}" ]]; then
             _echo "$(msg cyan)Creating new database name ${db_name} for user ${da_user_username} on domain ${db_domain} ...$(msg end)" --name
-            # da_api_admin create-user-database --sign-as "${da_user_username}" --db-domain "${db_domain}" --db-name "${db_name}" --db-user "${db_user}" --db-password "${db_password}"
+            da_api_admin create-user-database --sign-as "${da_user_username}" --db-domain "${db_domain}" --db-name "${db_name}" --db-user "${db_user}" --db-password "${db_password}"
           else
             _echo "$(msg cyan)Creating new database name ${db_name} for user ${da_user_username} on domain ${db_domain} using existing username ${db_user} ...$(msg end)" --name
-            # da_api_admin create-user-database --sign-as "${da_user_username}" --db-domain "${db_domain}" --db-name "${db_name}" --db-existing-user "${db_user}"
+            da_api_admin create-user-database --sign-as "${da_user_username}" --db-domain "${db_domain}" --db-name "${db_name}" --db-existing-user "${db_user}"
           fi
 
           ((database_count++))
@@ -16000,15 +16244,14 @@ function setup() {
         configure_da_user_root_domains --skip #(this is deprecated, already done in configure_da_user_accounts)
         configure_da_user_subdomains --run
         configure_da_user_wildcard_domains --skip #(Skipped: Do not use wildcard for security purpose)
-        configure_da_user_email_accounts --run    # TODO test this
-        configure_da_user_databases --run         # TODO test this
-        configure_da_user_domain_ssl_pre --skip   # Deprecated (new directadmin version has this)
-        configure_da_user_domain_ssl --skip       # Deprecated (new directadmin version has this)
+        configure_da_user_email_accounts --run
+        configure_da_user_databases --run
+        configure_da_user_domain_ssl_pre --skip # Deprecated (new directadmin version has this)
+        configure_da_user_domain_ssl --skip     # Deprecated (new directadmin version has this)
         # " -- others ---"
 
         configure_da_custom_webs --skip # Fix this with new version
         configure_maxigpg --run
-
         configure_maxibox --run
         configure_maxicode_pre --run
         configure_maxicode --run
@@ -16415,7 +16658,7 @@ while [ "$#" -gt 0 ]; do
   update-maxinet-remote-script | update-remote-scripts | update-remote-script | update-remote-code)
     ensure_host_resolved
     shift
-    ssh_api transfer-files --server-port "${C_BOX_HOSTNAME_FQHN}:${C_SSH_PORT}" --group-user "root:${C_ROOT_USERNAME}" --local-files "${SCRIPT_PATH}/maxinet ${SCRIPT_PATH}/maxinet.conf ${SCRIPT_PATH}/readme.txt" --remote-path ~/
+    ssh_api transfer-files --server-port "${C_BOX_HOSTNAME_FQHN}:${C_SSH_PORT}" --group-user "root:${C_ROOT_USERNAME}" --local-files "${SECURE_PATH}/gpg/gpg_private_key.gpg ${SCRIPT_PATH}/maxinet ${SCRIPT_PATH}/maxinet.conf ${SCRIPT_PATH}/readme.txt" --remote-path ~/
     exit 0
     break
     ;;

@@ -754,9 +754,11 @@ C_GOOGLE_RECAPTCHA_SECRET_V3="*recaptcha-v3-secret-key*"
 
 # Roundcube setting #
 C_ENABLE_ROUNDCUBE_RCGUARD=true
-
+# For using with existing key, it must match the cert and this C_GPG_OWNER_EMAIL
+C_GPG_OWNER_EMAIL="user@server.com"
 C_GPG_PASSPHRASE="GPG_PASSWORD_HERE"
 C_GPG_USE_EXISTING_KEY=true
+C_GPG_CACHE_DURATION="34560000" #34560000
 
 # =~=~ For maxiwall / suricata =~=~#
 # The URL. Need to modify this if they change this URL like the v2 to v3
