@@ -4,7 +4,7 @@
 
 _APP_SPECIFIC_NAME="Maxinet"
 # Note that some minor versions are not published
-_APP_VERSION="0.5.9.7"
+_APP_VERSION="0.5.9.8"
 _APP_STATUS="alpha"
 _APP_VERSION_STATUS="${_APP_VERSION}-${_APP_STATUS}"
 
@@ -7027,7 +7027,16 @@ function maxicode_admin() {
       code_path="${STORAGE_PATH}/os/${distro_name}/usr/local/maxicode/maxigpg"
       #echo "code_path is: ${code_path}"
       ssh_api transfer-files --server-port "${C_BOX_HOSTNAME_FQHN}:${C_SSH_PORT}" --group-user "root:${C_ROOT_USERNAME}" \
-        --local-files "${code_path}/maxigpg ${code_path}/maxigpg-ag ${code_path}/readme.txt ${code_path}/readme.md" --remote-path /usr/local/maxicode/maxigpg/
+        --local-files "${code_path}/maxigpg ${code_path}/readme.txt ${code_path}/readme.md" --remote-path /usr/local/maxicode/maxigpg/
+
+    elif [ "${app_name}" == "maxiaide" ]; then
+      local code_path
+      code_path="${STORAGE_PATH}/os/${distro_name}/usr/local/maxicode/maxiaide"
+      ssh_api transfer-files --server-port "${C_BOX_HOSTNAME_FQHN}:${C_SSH_PORT}" --group-user "root:${C_ROOT_USERNAME}" \
+        --local-files "${code_path}/maxiaide ${code_path}/readme.txt ${code_path}/readme.md" --remote-path /usr/local/maxicode/maxiaide/
+      echo ""
+      ssh_api transfer-files --server-port "${C_BOX_HOSTNAME_FQHN}:${C_SSH_PORT}" --group-user "root:${C_ROOT_USERNAME}" \
+        --local-files "${code_path}/conf/aide.conf ${code_path}/conf/custom_rules" --remote-path /usr/local/maxicode/maxiaide/conf
     else
       echo "Error, unknown or invalid app_name ${app_name}"
       _exit 147
@@ -13121,7 +13130,6 @@ function configure_maxigpg() {
       chmod +x "${maxigpg_bin}"
       _echo "$(msg cyan)Creating symlink for ${maxigpg_bin} ...$(msg end)" --name
       ln -s "${maxigpg_bin}" /usr/local/bin
-      # Run this later after created service and socket files
       #_echo "$(msg cyan)Running maxigpg init ...$(msg end)" --name
       #echo ""
       # maxigpg init
@@ -13429,6 +13437,52 @@ function configure_maxigpg() {
   end_execute_options "${option}" "${func_name}"
 }
 
+function configure_maxiaide() {
+  # Under testing for new version AIDE. New AIDE version has different config format.
+  local option func_name
+  option="$1"
+  func_name="${FUNCNAME[0]}"
+  start_execute_options "${option}" "${func_name}"
+  [[ "${SKIP_RUN}" == "true" ]] && return 0
+  if [[ ! -f "${CONF_PATH}/${func_name}_executed" && "${FUNCTION_RUN}" == "true" ]]; then
+    local maxiaide_bin
+    # install aide here
+    #echo "[${SCRIPT_NAME}]: Installing AIDE file monitoring ..."
+    apt-get -y remove aide aide-common
+    apt-get -y purge aide-common
+    required "debian@@apt:aide" "ubuntu@@apt:aide"
+    maxiaide_bin="/usr/local/maxicode/maxiaide/maxiaide"
+    _echo "$(msg cyan)Removing previous maxiaide symlink shortcut in /usr/local/bin ...$(msg end)" --name
+    rm -f /usr/local/bin/maxiaide
+    if [ -f ${maxiaide_bin} ]; then
+      _echo "$(msg cyan)Setting ${maxiaide_bin} script to have executable permission ...$(msg end)" --name
+      chmod +x "${maxiaide_bin}"
+      _echo "$(msg cyan)Creating symlink for ${maxiaide_bin} ...$(msg end)" --name
+      ln -s "${maxiaide_bin}" /usr/local/bin
+      # Do not scan, we do not interest with this yet
+      #_echo "$(msg cyan)Scanning maxiaide ...$(msg end)" --name
+      #echo ""
+      # maxiaide --scan
+      maxiaide --version
+      echo ""
+      # Remove this to start from scratch (the maxiaide script will automatically copy the original config)
+      _echo "$(msg cyan)Removing existing aide config file at /usr/local/maxicode/maxiaide/conf/aide.conf$(msg end)"
+      rm -rf /usr/local/maxicode/maxiaide/conf/aide.conf
+      echo ""
+    else
+      _echo "$(msg red)Warning, maxiaide binary doesn't exist inside /usr/local/maxicode ...$(msg end)" --name
+      _exit 147
+    fi
+    echo ""
+    check_finish_reboot "${func_name}"
+  else
+    _echo "$(msg yellow)[Skipped by system]: $(msg magenta)${func_name}()$(msg end) $(msg yellow)with current option ${option} has ran before $(msg end)" --name
+    _echo "$(msg yellow)=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=$(msg end)" --plain
+  fi
+
+  end_execute_options "${option}" "${func_name}"
+}
+
 # maxida is used to manage directadmin functionalities including APIs.
 function configure_maxida() {
   local option func_name
@@ -13517,42 +13571,6 @@ function configure_maxicron() {
       echo "[${SCRIPT_NAME}]: Warning, maxicron doesn't exist in /usr/local/maxicode !"
       _exit 147
     fi
-    echo ""
-    check_finish_reboot "${func_name}"
-  else
-    _echo "$(msg yellow)[Skipped by system]: $(msg magenta)${func_name}()$(msg end) $(msg yellow)with current option ${option} has ran before $(msg end)" --name
-    _echo "$(msg yellow)=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=$(msg end)" --plain
-  fi
-
-  end_execute_options "${option}" "${func_name}"
-}
-
-function configure_maxiaide() {
-  # Under testing for new version AIDE. New AIDE version has different config format.
-  local option func_name
-  option="$1"
-  func_name="${FUNCNAME[0]}"
-  start_execute_options "${option}" "${func_name}"
-  [[ "${SKIP_RUN}" == "true" ]] && return 0
-  if [[ ! -f "${CONF_PATH}/${func_name}_executed" && "${FUNCTION_RUN}" == "true" ]]; then
-    local maxiaide_bin
-    # install aide
-    # No need to install aide because maxiaide --initfull is designed to initialize this and install required packages
-    #echo "[${SCRIPT_NAME}]: Installing AIDE file monitoring ..."
-    #apt-get -y install aide
-    maxiaide_bin="/usr/local/maxicode/maxiaide/maxiaide"
-
-    if [ -f ${maxiaide_bin} ]; then
-      echo "[${SCRIPT_NAME}]: Creating symlink and executable for ${maxiaide_bin} ..."
-      chmod +x ${maxiaide_bin}
-      # Symbolic name
-      ln -s ${maxiaide_bin} /usr/local/bin
-    else
-      echo "[${SCRIPT_NAME}]: Warning, maxiaide doesn't exist in /usr/local/maxicode !"
-      _exit 147
-    fi
-    # Can run this scan after installation
-    # maxiaide --scan
     echo ""
     check_finish_reboot "${func_name}"
   else
@@ -16252,6 +16270,7 @@ function setup() {
 
         configure_da_custom_webs --skip # Fix this with new version
         configure_maxigpg --run
+        configure_maxiaide --run
         configure_maxibox --run
         configure_maxicode_pre --run
         configure_maxicode --run
@@ -16259,9 +16278,8 @@ function setup() {
         configure_maxinis --run
         configure_maxida --run
         configure_maxicron --run
-        configure_maxiaide --run-force
-        configure_maxiwall --run-force-exit
-        configure_maxicloud --run-exit
+        configure_maxiwall --run
+        configure_maxicloud --run
         configure_maxipass --run
         configure_maxify --skip #-- disable temporarily
         configure_logs --skip   #-- skip temporarily
@@ -16658,7 +16676,11 @@ while [ "$#" -gt 0 ]; do
   update-maxinet-remote-script | update-remote-scripts | update-remote-script | update-remote-code)
     ensure_host_resolved
     shift
-    ssh_api transfer-files --server-port "${C_BOX_HOSTNAME_FQHN}:${C_SSH_PORT}" --group-user "root:${C_ROOT_USERNAME}" --local-files "${SECURE_PATH}/gpg/gpg_private_key.gpg ${SCRIPT_PATH}/maxinet ${SCRIPT_PATH}/maxinet.conf ${SCRIPT_PATH}/readme.txt" --remote-path ~/
+    # File to push from local file
+    LOCAL_FILES_TO_PUSH=("${SECURE_PATH}/gpg/gpg_private_key.gpg \
+    ${SCRIPT_PATH}/maxinet ${SCRIPT_PATH}/maxinet.conf ${SCRIPT_PATH}/readme.txt")
+    REMOTE_LOCATION_TO_RECEIVE="~/"
+    ssh_api transfer-files --server-port "${C_BOX_HOSTNAME_FQHN}:${C_SSH_PORT}" --group-user "root:${C_ROOT_USERNAME}" --local-files "${LOCAL_FILES_TO_PUSH}" --remote-path "${REMOTE_LOCATION_TO_RECEIVE}"
     exit 0
     break
     ;;
