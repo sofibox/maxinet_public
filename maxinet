@@ -4,7 +4,7 @@
 
 _APP_SPECIFIC_NAME="Maxinet"
 # Note that some minor versions are not published
-_APP_VERSION="0.5.9.8"
+_APP_VERSION="0.5.9.9"
 _APP_STATUS="alpha"
 _APP_VERSION_STATUS="${_APP_VERSION}-${_APP_STATUS}"
 
@@ -393,16 +393,19 @@ function awksep() {
 }
 
 # This function set_linux_crlf will automatically remove CRLF character in file to make sure file is compatible with linux
+# It does not return error if the file is already in unix format before
 function set_linux_crlf() {
   local files retval
   files="$1"
-  required "debian@@apt:dos2unix" "ubuntu@@dnf:dos2unix"
+  required "debian@@apt:dos2unix" "ubuntu@@apt:dos2unix"
   for file in ${files}; do
+    echo "Checking and converting file [ ${file} ] into unix compatible file ..."
     dos2unix <"${file}" | cmp - "${file}" 2>&1
     retval=$?
     if [ "${retval}" -ne 0 ]; then
       dos2unix "${file}"
     fi
+    echo ""
   done
 }
 
@@ -965,10 +968,10 @@ function configure_dropbox_cli() {
   cp "${INST_TEMP_DIR}/dropbox_cli/dbxcli" /usr/local/bin
   touch "/root/.dropbox_uploader"
   {
-    echo "CONFIGFILE_VERSION=${DROPBOX_CONFIGFILE_VERSION}"
-    echo "OAUTH_APP_KEY=${DROPBOX_OAUTH_APP_KEY}"
-    echo "OAUTH_APP_SECRET=${DROPBOX_OAUTH_APP_SECRET}"
-    echo "OAUTH_REFRESH_TOKEN=${DROPBOX_OAUTH_REFRESH_TOKEN}"
+    echo "CONFIGFILE_VERSION=${C_DROPBOX_CONFIGFILE_VERSION}"
+    echo "OAUTH_APP_KEY=${C_DROPBOX_OAUTH_APP_KEY}"
+    echo "OAUTH_APP_SECRET=${C_DROPBOX_OAUTH_APP_SECRET}"
+    echo "OAUTH_REFRESH_TOKEN=${C_DROPBOX_OAUTH_REFRESH_TOKEN}"
   } >"/root/.dropbox_uploader"
 
   if ! command -v dbxcli &>/dev/null; then
@@ -1064,10 +1067,11 @@ function ensure_linode_rdns_resolved() {
     fi
   done
 }
+function ensure_domain_server_resolved() {
+  local failed_check_count count_check_duration
 
-function ensure_host_resolved() {
-  local failed_check_count
   failed_check_count=0
+  count_check_duration=30
 
   echo -n "Checking ${LABEL_C_BOX_DOMAIN} A record resolves with IPv4 ${LABEL_C_IPV4_ADD0} ... "
   while :; do
@@ -1093,10 +1097,26 @@ function ensure_host_resolved() {
 
       #_echo "$(msg red)Please create / check for domain ${LABEL_C_BOX_DOMAIN} that it must have an A record pointing to ${LABEL_C_IPV4_ADD0}$(msg end)" --name
       #_exit 147
-      check_duration=30
+
+      if [[ "${failed_check_count}" -eq 4 ]]; then
+        _echo "$(msg yellow)Warning, failed to propagate domain ${LABEL_C_BOX_DOMAIN} ...$(msg end)" --name
+        _echo "$(msg cyan)Creating domain ${LABEL_C_BOX_DOMAIN} in linode with rebuild option ...$(msg end)" --name
+        linode_api_admin create-domain --domain-type "master" --domain "${C_BOX_DOMAIN}" --domain-email "webmaster@${C_BOX_DOMAIN}" --domain-ttl 30 --rebuild
+        echo ""
+        _echo "$(msg cyan)Creating dns A record ${LABEL_C_BOX_DOMAIN} in linode...$(msg end)" --name
+        linode_api_admin add-dns-record --domain "${C_BOX_DOMAIN}" --record-type "A" --record-name "${C_BOX_DOMAIN}" --record-value "${C_IPV4_ADD0}" --record-ttl 30
+      fi
+
+      # Increase the check 30 seconds when failed on the 5th times and a above
+      if [[ "${failed_check_count}" -ge 15 && "${failed_check_count}" -le 100 ]]; then
+        ((count_check_duration = count_check_duration + 30))
+      else
+        count_check_duration=30
+      fi
+      check_duration="${count_check_duration}"
       while :; do
         ((check_duration--))
-        _echo "Re-checking ${LABEL_C_BOX_DOMAIN} A record resolves with IPv4 ${LABEL_C_IPV4_ADD0} within ${check_duration} seconds ... " --name --start-spin
+        _echo "[${failed_check_count}]: Re-checking ${LABEL_C_BOX_DOMAIN} A record resolves with IPv4 ${LABEL_C_IPV4_ADD0} within ${check_duration} seconds ... " --name --start-spin
         if [ "${check_duration}" -le 0 ]; then
           # echo -n "Re-checking ${LABEL_C_BOX_DOMAIN} A record resolves with IPv4 ${LABEL_C_IPV4_ADD0} in 120 seconds ... "
           break
@@ -1107,7 +1127,7 @@ function ensure_host_resolved() {
   done
 
   failed_check_count=0
-
+  count_check_duration=30
   echo -n "Checking ${LABEL_C_BOX_DOMAIN} AAAA record resolves with IPv4 ${LABEL_C_IPV6_ADD0} ... "
   while :; do
     if is_valid ipv6_resolved "${C_IPV6_ADD0}" "${C_BOX_DOMAIN}"; then
@@ -1130,12 +1150,27 @@ function ensure_host_resolved() {
         fi
       fi
 
-      #_echo "$(msg red)Please create / check for domain ${LABEL_C_BOX_DOMAIN} that it must have an AAAA record pointing to ${LABEL_C_IPV6_ADD0}$(msg end)" --name
+      #_echo "$(msg red)Please create / check for domain ${LABEL_C_BOX_DOMAIN} that it must have an AAAA record pointing to ${LABEL_C_IPV4_ADD0}$(msg end)" --name
       #_exit 147
-      check_duration=30
+      if [[ "${failed_check_count}" -eq 4 ]]; then
+        _echo "$(msg yellow)Warning, failed to propagate domain ${LABEL_C_BOX_DOMAIN} ...$(msg end)" --name
+        _echo "$(msg cyan)Creating domain ${LABEL_C_BOX_DOMAIN} in linode with rebuild option ...$(msg end)" --name
+        linode_api_admin create-domain --domain-type "master" --domain "${C_BOX_DOMAIN}" --domain-email "webmaster@${C_BOX_DOMAIN}" --domain-ttl 30 --rebuild
+        echo ""
+        _echo "$(msg cyan)Creating dns AAAA record ${LABEL_C_BOX_DOMAIN} in linode...$(msg end)" --name
+        linode_api_admin add-dns-record --domain "${C_BOX_DOMAIN}" --record-type "AAAA" --record-name "${C_BOX_DOMAIN}" --record-value "${C_IPV4_ADD0}" --record-ttl 30
+      fi
+
+      # Increase the check 30 seconds when failed on the 5th times and a above
+      if [[ "${failed_check_count}" -ge 15 && "${failed_check_count}" -le 100 ]]; then
+        ((count_check_duration = count_check_duration + 2))
+      else
+        count_check_duration=30
+      fi
+      check_duration="${count_check_duration}"
       while :; do
         ((check_duration--))
-        _echo "Re-checking ${LABEL_C_BOX_DOMAIN} AAAA record resolves with IPv6 ${LABEL_C_IPV6_ADD0} within ${check_duration} seconds ... " --name --start-spin
+        _echo "[${failed_check_count}]: Re-checking ${LABEL_C_BOX_DOMAIN} AAAA record resolves with IPv6 ${LABEL_C_IPV6_ADD0} within ${check_duration} seconds ... " --name --start-spin
         if [ "${check_duration}" -le 0 ]; then
           # echo -n "Re-checking ${LABEL_C_BOX_DOMAIN} AAAA record resolves with IPv4 ${LABEL_C_IPV6_ADD0} in 120 seconds ... "
           break
@@ -1144,8 +1179,13 @@ function ensure_host_resolved() {
       done
     fi
   done
+}
+############## FOR HOSTNAME test.server.com ################
+function ensure_fqhn_server_resolved() {
+  local failed_check_count count_check_duration
 
   failed_check_count=0
+  count_check_duration=30
   echo -n "Checking ${LABEL_C_BOX_HOSTNAME_FQHN} A record resolves with IPv4 ${LABEL_C_IPV4_ADD0} ... "
   while :; do
     if is_valid ipv4_resolved "${C_IPV4_ADD0}" "${C_BOX_HOSTNAME_FQHN}"; then
@@ -1170,10 +1210,27 @@ function ensure_host_resolved() {
 
       #_echo "$(msg red)Please create / check for domain ${C_BOX_HOSTNAME_FQHN} that it must have an A record pointing to ${LABEL_C_IPV4_ADD0}$(msg end)" --name
       #_exit 147
-      check_duration=30
+      # 30,4, 15 ,100,30
+      # If failed for the 3rd time, readd domain with --force
+      if [[ "${failed_check_count}" -eq 30 ]]; then
+        _echo "$(msg yellow)Warning, failed to propagate domain ${LABEL_C_BOX_HOSTNAME_FQHN} ...$(msg end)" --name
+        _echo "$(msg cyan)Creating domain ${LABEL_C_BOX_HOSTNAME_FQHN} in linode with rebuild option ...$(msg end)" --name
+        linode_api_admin create-domain --domain-type "master" --domain "${C_BOX_HOSTNAME_FQHN}" --domain-email "webmaster@${C_BOX_HOSTNAME_FQHN}" --domain-ttl 30 --rebuild
+        echo ""
+        _echo "$(msg cyan)Creating dns A record ${LABEL_C_BOX_HOSTNAME_FQHN} in linode...$(msg end)" --name
+        linode_api_admin add-dns-record --domain "${C_BOX_HOSTNAME_FQHN}" --record-type "A" --record-name "${C_BOX_HOSTNAME_FQHN}" --record-value "${C_IPV4_ADD0}" --record-ttl 30
+      fi
+
+      # Increase the check 30 seconds when failed on the 5th times and a above
+      if [[ "${failed_check_count}" -ge 4 && "${failed_check_count}" -le 100 ]]; then
+        ((count_check_duration = count_check_duration + 2))
+      else
+        count_check_duration=30
+      fi
+      check_duration="${count_check_duration}"
       while :; do
         ((check_duration--))
-        _echo "Re-checking ${LABEL_C_BOX_HOSTNAME_FQHN} A record resolves with IPv4 ${LABEL_C_IPV4_ADD0} within ${check_duration} seconds ... " --name --start-spin
+        _echo "[${failed_check_count}]: Re-checking ${LABEL_C_BOX_HOSTNAME_FQHN} A record resolves with IPv4 ${LABEL_C_IPV4_ADD0} within ${check_duration} seconds ... " --name --start-spin
         if [ "${check_duration}" -le 0 ]; then
           # echo -n "Re-checking ${LABEL_C_BOX_HOSTNAME_FQHN} A record resolves with IPv4 ${LABEL_C_IPV4_ADD0} in 120 seconds ... "
           break
@@ -1184,6 +1241,7 @@ function ensure_host_resolved() {
   done
 
   failed_check_count=0
+  count_check_duration=30
   echo -n "Checking ${LABEL_C_BOX_HOSTNAME_FQHN} AAAA record resolves with IPv4 ${LABEL_C_IPV6_ADD0} ... "
   while :; do
     if is_valid ipv6_resolved "${C_IPV6_ADD0}" "${C_BOX_HOSTNAME_FQHN}"; then
@@ -1207,10 +1265,26 @@ function ensure_host_resolved() {
       fi
       #_echo "$(msg red)Please create / check for domain ${LABEL_C_BOX_HOSTNAME_FQHN} that it must have an AAAA record pointing to ${LABEL_C_IPV6_ADD0}$(msg end)" --name
       #_exit 147
-      check_duration=30
+      # If failed for the 3rd time, readd domain with --force
+      if [[ "${failed_check_count}" -eq 4 ]]; then
+        _echo "$(msg yellow)Warning, failed to propagate domain ${LABEL_C_BOX_HOSTNAME_FQHN} ...$(msg end)" --name
+        _echo "$(msg cyan)Creating domain ${LABEL_C_BOX_HOSTNAME_FQHN} in linode with rebuild option ...$(msg end)" --name
+        linode_api_admin create-domain --domain-type "master" --domain "${C_BOX_HOSTNAME_FQHN}" --domain-email "webmaster@${C_BOX_HOSTNAME_FQHN}" --domain-ttl 30 --rebuild
+        echo ""
+        _echo "$(msg cyan)Creating dns AAAA record ${LABEL_C_BOX_HOSTNAME_FQHN} in linode...$(msg end)" --name
+        linode_api_admin add-dns-record --domain "${C_BOX_HOSTNAME_FQHN}" --record-type "AAAA" --record-name "${C_BOX_HOSTNAME_FQHN}" --record-value "${C_IPV6_ADD0}" --record-ttl 30
+      fi
+
+      # Increase the check 30 seconds when failed on the 5th times and a above
+      if [[ "${failed_check_count}" -ge 15 && "${failed_check_count}" -le 100 ]]; then
+        ((count_check_duration = count_check_duration + 2))
+      else
+        count_check_duration=30
+      fi
+      check_duration="${count_check_duration}"
       while :; do
         ((check_duration--))
-        _echo "Re-checking ${LABEL_C_BOX_HOSTNAME_FQHN} AAAA record resolves with IPv6 ${LABEL_C_IPV6_ADD0} within ${check_duration} seconds ... " --name --start-spin
+        _echo "[${failed_check_count}]: Re-checking ${LABEL_C_BOX_HOSTNAME_FQHN} AAAA record resolves with IPv6 ${LABEL_C_IPV6_ADD0} within ${check_duration} seconds ... " --name --start-spin
         if [ "${check_duration}" -le 0 ]; then
           break
         fi
@@ -1303,7 +1377,8 @@ function init_server() {
   #echo "Memory/RAM: "
 
   # This will make sure that the hostname resolved
-  ensure_host_resolved
+  ensure_domain_server_resolved
+  ensure_fqhn_server_resolved
   echo ""
 
   sleep 1
@@ -7036,7 +7111,7 @@ function maxicode_admin() {
         --local-files "${code_path}/maxiaide ${code_path}/readme.txt ${code_path}/readme.md" --remote-path /usr/local/maxicode/maxiaide/
       echo ""
       ssh_api transfer-files --server-port "${C_BOX_HOSTNAME_FQHN}:${C_SSH_PORT}" --group-user "root:${C_ROOT_USERNAME}" \
-        --local-files "${code_path}/conf/aide.conf ${code_path}/conf/custom_rules" --remote-path /usr/local/maxicode/maxiaide/conf
+        --local-files "${code_path}/conf/custom_aide.conf ${code_path}/conf/default_custom_aide.conf ${code_path}/conf/custom_rules" --remote-path /usr/local/maxicode/maxiaide/conf
     else
       echo "Error, unknown or invalid app_name ${app_name}"
       _exit 147
@@ -9949,7 +10024,8 @@ function install_da() {
     _echo "$(msg yellow)${SCRIPT_NAME} login and then, tail -f ${da_install_log}$(msg end)" --plain
     _echo "$(msg magenta)=======================================================================$(msg end)" --plain
     _pause 30
-    ensure_host_resolved
+    ensure_domain_server_resolved
+    ensure_fqhn_server_resolved
     echo ""
     _echo "$(msg cyan)Note: Directadmin ${da_latest_version} will be installed on ${LABEL_C_BOX_HOSTNAME_FQHN} using ${C_DA_INSTALL_TYPE} mode$(msg end)"
     echo ""
@@ -11968,8 +12044,9 @@ function configure_da_settings() {
     # so, it is better to redirect to one hostname with a valid certificate:
     # Also explained in here: https://www.directadmin.com/features.php?id=917
     # It is recommend to enable this option for security
-    _echo "$(msg cyan)Enabling directadmin to force login with only hostname ${LABEL_C_BOX_HOSTNAME_FQHN} ...$(msg end)" --name
-    ${da_bin} set force_hostname "${C_BOX_HOSTNAME_FQHN}"
+    # Note before directadmin installation, this already set by hostname.sh script
+    #_echo "$(msg cyan)Enabling directadmin to force login with only hostname ${LABEL_C_BOX_HOSTNAME_FQHN} ...$(msg end)" --name
+    #${da_bin} set force_hostname "${C_BOX_HOSTNAME_FQHN}"
     _echo "$(msg cyan)Enabling directadmin backup encryption ...$(msg end)" --name
     ${da_bin} set allow_backup_encryption "${C_DA_ALLOW_BACKUP_ENCRYPTION}"
     _echo "$(msg cyan)Setting directadmin online document ...$(msg end)" --name
@@ -12098,20 +12175,43 @@ function configure_da_cb_settings() {
   start_execute_options "${option}" "${func_name}"
   [[ "${SKIP_RUN}" == "true" ]] && return 0
   if [[ ! -f "${CONF_PATH}/${func_name}_executed" && "${FUNCTION_RUN}" == "true" ]]; then
-    local da_bin da_cb_bin
+    local da_bin da_cb_bin c_da_php_enable_dangerous_function
     da_bin="/usr/local/directadmin/directadmin"
     da_cb_bin="/usr/local/directadmin/custombuild/build"
     da_conf="/usr/local/directadmin/conf/directadmin.conf"
     da_conf="/usr/local/directadmin/conf/directadmin.conf"
+    da_cb_custom_path="/usr/local/directadmin/custombuild/custom/"
 
     _echo "$(msg cyan)Checking if directadmin binary, custombuild and directadmin.conf are presents ...$(msg end)" --name
     check_file_path "${da_bin}" "${da_cb_bin}" "${da_conf}"
     echo ""
 
-    _echo "$(msg cyan)Securing all php installation ...$(msg end)" --name
-    ${da_cb_bin} set secure_php yes
-    ${da_cb_bin} secure_php
-    echo ""
+    if [ -n "${C_DA_PHP_DISABLE_DANGEROUS_FUNCTION}" ]; then
+      local c_da_php_enable_dangerous_function
+      _echo "$(msg cyan)Disabling PHP dangerous function through custombuild...$(msg end)" --name
+      mkdir -p "${da_cb_custom_path}"
+      rm -f ${da_cb_custom_path}/php_disable_functions
+      touch "${da_cb_custom_path}/php_disable_functions"
+      c_da_php_enable_dangerous_function=$(printf ",%s" "${C_DA_PHP_DISABLE_DANGEROUS_FUNCTION[@]}")
+      c_da_php_enable_dangerous_function=${c_da_php_enable_dangerous_function:1}
+      echo "${c_da_php_enable_dangerous_function}" >"${da_cb_custom_path}/php_disable_functions"
+      echo ""
+      _echo "$(msg cyan)Securing all php installation ...$(msg end)" --name
+      ${da_cb_bin} set secure_php yes
+      ${da_cb_bin} secure_php
+      echo ""
+      _echo -n "$(msg cyan)Checking whether current PHP global disabled_functions exist ...$(msg end)" --name
+      has_php_disable_function="$(grep -w "${c_da_php_enable_dangerous_function}" /usr/local/php*/lib/php.ini | wc -l)"
+      if [[ "${has_php_disable_function}" -gt 0 ]]; then
+        _echo "$(msg green)[ OK ] written on ${has_php_disable_function} PHP(s) version$(msg end)"
+      else
+        _echo "$(msg red)[ FAILED ]$(msg end)"
+        exit 1
+      fi
+    else
+      _echo "$(msg yellow)****Warning, the value C_DA_PHP_DISABLE_DANGEROUS_FUNCTION is empty. This means all PHP dangerous functions might not be disabled$(msg end)" --name
+      sleep 3
+    fi
     echo ""
     check_finish_reboot "${func_name}"
   else
@@ -12795,7 +12895,8 @@ function configure_da_host_domain_ssl() {
       echo ""
 
       # Make sure IP and domain are resolved
-      ensure_host_resolved
+      ensure_domain_server_resolved
+      ensure_fqhn_server_resolved
 
       echo ""
       # Staging call first
@@ -12862,6 +12963,9 @@ function configure_da_host_domain_ssl() {
             break
           else
             _echo "$(msg red) FAILED$(msg end)" --plain
+            ensure_domain_server_resolved
+            ensure_fqhn_server_resolved
+            echo ""
             _echo "$(msg cyan)Retrying login into directadmin API using the main admin username ...$(msg end)" --name
           fi
           sleep 3
@@ -13465,14 +13569,34 @@ function configure_maxiaide() {
       # maxiaide --scan
       maxiaide --version
       echo ""
-      # Remove this to start from scratch (the maxiaide script will automatically copy the original config)
-      _echo "$(msg cyan)Removing existing aide config file at /usr/local/maxicode/maxiaide/conf/aide.conf$(msg end)"
-      rm -rf /usr/local/maxicode/maxiaide/conf/aide.conf
+      # Remove this to start from scratch (the maxiaide script will automatically copy the original custom config)
+      _echo "$(msg cyan)Removing existing aide config file at /usr/local/maxicode/maxiaide/conf/custom_aide.conf$(msg end)"
+      rm -rf /usr/local/maxicode/maxiaide/conf/custom_aide.conf
       echo ""
     else
       _echo "$(msg red)Warning, maxiaide binary doesn't exist inside /usr/local/maxicode ...$(msg end)" --name
       _exit 147
     fi
+    echo ""
+    check_finish_reboot "${func_name}"
+  else
+    _echo "$(msg yellow)[Skipped by system]: $(msg magenta)${func_name}()$(msg end) $(msg yellow)with current option ${option} has ran before $(msg end)" --name
+    _echo "$(msg yellow)=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=$(msg end)" --plain
+  fi
+
+  end_execute_options "${option}" "${func_name}"
+}
+
+function configure_wpcli() {
+  local option func_name
+  option="$1"
+  func_name="${FUNCNAME[0]}"
+  start_execute_options "${option}" "${func_name}"
+  [[ "${SKIP_RUN}" == "true" ]] && return 0
+  if [[ ! -f "${CONF_PATH}/${func_name}_executed" && "${FUNCTION_RUN}" == "true" ]]; then
+    curl -O https://raw.githubusercontent.com/wp-cli/builds/gh-pages/phar/wp-cli.phar
+    chmod +x wp-cli.phar
+    sudo mv wp-cli.phar /usr/local/bin/wp
     echo ""
     check_finish_reboot "${func_name}"
   else
@@ -16102,7 +16226,8 @@ function setup() {
     _exit 147
   else
     script_header
-    ensure_host_resolved
+    ensure_domain_server_resolved
+    ensure_fqhn_server_resolved
     option="$1"
     #if [ "${option}" == "remote" ];  then
     #  _echo 'yellow' "Notice, remote setup is set"
@@ -16267,10 +16392,10 @@ function setup() {
         configure_da_user_domain_ssl_pre --skip # Deprecated (new directadmin version has this)
         configure_da_user_domain_ssl --skip     # Deprecated (new directadmin version has this)
         # " -- others ---"
-
         configure_da_custom_webs --skip # Fix this with new version
         configure_maxigpg --run
         configure_maxiaide --run
+        configure_wpcli --run
         configure_maxibox --run
         configure_maxicode_pre --run
         configure_maxicode --run
@@ -16611,7 +16736,6 @@ while [ "$#" -gt 0 ]; do
   case "${ACTION}" in
   # test-script
   -t | --test)
-    configure_maxigpg --run-force
     exit 0
     break
     ;;
@@ -16674,7 +16798,8 @@ while [ "$#" -gt 0 ]; do
     break
     ;;
   update-maxinet-remote-script | update-remote-scripts | update-remote-script | update-remote-code)
-    ensure_host_resolved
+    ensure_domain_server_resolved
+    ensure_fqhn_server_resolved
     shift
     # File to push from local file
     LOCAL_FILES_TO_PUSH=("${SECURE_PATH}/gpg/gpg_private_key.gpg \
@@ -16702,7 +16827,8 @@ while [ "$#" -gt 0 ]; do
     break
     ;;
   lui | linode-upload-iso)
-    ensure_host_resolved
+    ensure_domain_server_resolved
+    ensure_fqhn_server_resolved
     # This is a way to upload iso file from local to remote using scp
     shift
     cp "${SCRIPT_PATH}"/secure/ssh/*.id_rsa* /root/.ssh/
@@ -16723,21 +16849,24 @@ ENDSSH
     ;;
 
   lu | luks-unlock | unlock-luks | ssh-luks-unlock | unlock-server)
-    ensure_host_resolved
+    ensure_domain_server_resolved
+    ensure_domain_server_resolved
     shift
     ssh_api luks-unlock "$@"
     exit 0
     break
     ;;
   push-ssh-script | run-ssh-script)
-    ensure_host_resolved
+    ensure_domain_server_resolved
+    ensure_fqhn_server_resolved
     shift
     ssh_api push-script "$@"
     exit 0
     break
     ;;
   get-remote-log)
-    ensure_host_resolved
+    ensure_domain_server_resolved
+    ensure_fqhn_server_resolved
     shift
     echo "Download setup log file into ${SCRIPT_PATH}/log/${SCRIPT_NAME}.log ..."
     ssh_api file-download --server-port "${C_BOX_HOSTNAME_FQHN}:${C_SSH_PORT}" --group-user root:root --remote-path ~/maxinet.log --local-path "${SCRIPT_PATH}/log"
@@ -16752,7 +16881,8 @@ ENDSSH
     ;;
   # maxinet --get-remote-files "~/maxinet.log"
   get-remote-files | download-remote-files | get-remote-file | download-remote-file)
-    ensure_host_resolved
+    ensure_domain_server_resolved
+    ensure_fqhn_server_resolved
     shift
     #eg: ~/maxinet.log
     remote_files_path="$1"
@@ -16777,7 +16907,8 @@ ENDSSH
     break
     ;;
   ssh-login | login-to-server | login)
-    ensure_host_resolved
+    ensure_domain_server_resolved
+    ensure_fqhn_server_resolved
     time ssh_api login
     shift
     exit 0

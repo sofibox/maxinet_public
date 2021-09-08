@@ -391,7 +391,8 @@ C_DA_PER_EMAIL_LIMIT=300
 C_DA_MAX_PER_EMAIL_SEND_LIMIT=0
 C_DA_USER_CAN_SET_EMAIL_LIMIT=1
 C_DA_WEBMAIL_LINK=roundcube
-C_DA_DNS_TTL=1
+# Disable if don't use wildcard certificate
+C_DA_DNS_TTL=0
 # This will enable the strongest SSL certificate:
 #keysize=prime256v1
 #keysize=secp384r1
@@ -629,7 +630,14 @@ C_DA_ADMIN_SQLPASS="PASSWORD"
 C_DA_ROOT_SQLPASS="PASSWORD"
 # The roundcube database password
 C_DA_ROUNDCUBE_SQLPASS="PASSWORD"
-
+# Disable custom dangerous PHP functions in DA. Leave value empty "" to enable all PHP dangerous options (not recommend)
+C_DA_PHP_DISABLE_DANGEROUS_FUNCTION=( \
+"exec" "system" "passthru" "shell_exec" "dl" "popen" "show_source" "posix_kill" \
+"posix_mkfifo" "posix_getpwuid" "posix_setpgid" "posix_setsid" "posix_setuid" "posix_setgid" \
+"posix_seteuid" "posix_setegid" "posix_uname" \
+)
+# Enable WPCLI to install wordpress automatically when domain is created or modified (refer to tutorial how to install this) # TODO
+C_DA_WP_CLI_ENABLE=true
 ############################# End directadmin related configuration #############################
 #################################################################################################
 
