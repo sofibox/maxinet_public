@@ -4,12 +4,11 @@
 
 _APP_SPECIFIC_NAME="Maxinet"
 # Note that some minor versions are not published
-_APP_VERSION="0.5.9.9"
+_APP_VERSION="0.6.0.0"
 _APP_STATUS="alpha"
 _APP_VERSION_STATUS="${_APP_VERSION}-${_APP_STATUS}"
 
 ### START TEMPORARY NOTE
-
 ### END TEMPORARY NOTE
 
 # Hello there, this is a powerful script that able initialize one or more server installation from scratch. From configuring the server disk, until you got the full working server with a live website.
@@ -1152,14 +1151,6 @@ function ensure_domain_server_resolved() {
 
       #_echo "$(msg red)Please create / check for domain ${LABEL_C_BOX_DOMAIN} that it must have an AAAA record pointing to ${LABEL_C_IPV4_ADD0}$(msg end)" --name
       #_exit 147
-      if [[ "${failed_check_count}" -eq 4 ]]; then
-        _echo "$(msg yellow)Warning, failed to propagate domain ${LABEL_C_BOX_DOMAIN} ...$(msg end)" --name
-        _echo "$(msg cyan)Creating domain ${LABEL_C_BOX_DOMAIN} in linode with rebuild option ...$(msg end)" --name
-        linode_api_admin create-domain --domain-type "master" --domain "${C_BOX_DOMAIN}" --domain-email "webmaster@${C_BOX_DOMAIN}" --domain-ttl 30 --rebuild
-        echo ""
-        _echo "$(msg cyan)Creating dns AAAA record ${LABEL_C_BOX_DOMAIN} in linode...$(msg end)" --name
-        linode_api_admin add-dns-record --domain "${C_BOX_DOMAIN}" --record-type "AAAA" --record-name "${C_BOX_DOMAIN}" --record-value "${C_IPV4_ADD0}" --record-ttl 30
-      fi
 
       # Increase the check 30 seconds when failed on the 5th times and a above
       if [[ "${failed_check_count}" -ge 15 && "${failed_check_count}" -le 100 ]]; then
@@ -1265,15 +1256,6 @@ function ensure_fqhn_server_resolved() {
       fi
       #_echo "$(msg red)Please create / check for domain ${LABEL_C_BOX_HOSTNAME_FQHN} that it must have an AAAA record pointing to ${LABEL_C_IPV6_ADD0}$(msg end)" --name
       #_exit 147
-      # If failed for the 3rd time, readd domain with --force
-      if [[ "${failed_check_count}" -eq 4 ]]; then
-        _echo "$(msg yellow)Warning, failed to propagate domain ${LABEL_C_BOX_HOSTNAME_FQHN} ...$(msg end)" --name
-        _echo "$(msg cyan)Creating domain ${LABEL_C_BOX_HOSTNAME_FQHN} in linode with rebuild option ...$(msg end)" --name
-        linode_api_admin create-domain --domain-type "master" --domain "${C_BOX_HOSTNAME_FQHN}" --domain-email "webmaster@${C_BOX_HOSTNAME_FQHN}" --domain-ttl 30 --rebuild
-        echo ""
-        _echo "$(msg cyan)Creating dns AAAA record ${LABEL_C_BOX_HOSTNAME_FQHN} in linode...$(msg end)" --name
-        linode_api_admin add-dns-record --domain "${C_BOX_HOSTNAME_FQHN}" --record-type "AAAA" --record-name "${C_BOX_HOSTNAME_FQHN}" --record-value "${C_IPV6_ADD0}" --record-ttl 30
-      fi
 
       # Increase the check 30 seconds when failed on the 5th times and a above
       if [[ "${failed_check_count}" -ge 15 && "${failed_check_count}" -le 100 ]]; then
@@ -4861,14 +4843,22 @@ function copy_local_dns_to_external_dns() {
       for i in "${!record[@]}"; do
         local record_name record_value
         record_name="${record[i]}"
+        record_value="${record2[i]}"
         # This one fixed the dot character of the ending domain
         if [[ "$(echo "${record_name: -1}")" == "." ]]; then
           echo "Fixing record[$i] that contains dot character: ${record[$i]} ..."
           record_name=$(echo "${record_name}" | sed 's/.$//')
           echo "Record record[$i] is now set as ${record_name}"
           echo ""
+
         fi
-        record_value="${record2[i]}"
+        if [[ "$(echo "${record_value: -1}")" == "." ]]; then
+          echo "Fixing record2[$i] that contains dot character: ${record2[$i]} ..."
+          record_value=$(echo "${record_value}" | sed 's/.$//')
+          echo "Record record2[$i] is now set as ${record_value}"
+          echo ""
+        fi
+
         linode_api_admin add-dns-record --domain "${domain}" --record-type "NS" --record-name "${record_name}" --record-value "${record_value}" --record-ttl 30
         echo ""
       done
@@ -5632,7 +5622,6 @@ function linode_api_admin() {
     # the record value (name server) is required and must be valid FQDN and valid character
     elif [ "${record_type}" == "NS" ]; then
       #Scope completed v1
-
       # subdomain can be anything except weird character.
       if is_valid server_record_valid_character "${record_name}"; then
         [[ ${scripting} == "false" ]] && _echo "$(msg green)OK, the given --record-name $(msg red)${record_name}$(msg green) (for subdomain) is valid character$(msg end)" --name --verbose 7
@@ -8481,9 +8470,10 @@ function setup_pre() {
       # Note 3: dnsutils contains dig command is used to find public IP
       # Note 4: net-tools for using with netstat (port troubleshooting)
       # Note 5: rsync for file transfer and backup (better than scp)
+      # Note 6: dos2unix is for conversion clrf to unix format (needed by maxiaide script from maxicode)
       _echo "$(msg cyan)Installing pre-requisite components for Debian OS ...$(msg end)" --name
       echo ""
-      apt-get -y install sudo screen nmap psmisc gpg unzip zip dnsutils net-tools rsync
+      apt-get -y install sudo screen nmap psmisc gpg unzip zip dnsutils net-tools rsync dos2unix
     elif [ "${DISTRO_ID}" == "ubuntu" ]; then
       :
     elif [ "${DISTRO_ID}" == "almalinux" ]; then
@@ -12059,7 +12049,7 @@ function configure_da_settings() {
     echo ""
     _echo "$(msg cyan)Setting directadmin nameservers ...$(msg end)" --name
     ${da_bin} set ns1 "${C_BOX_NS1}"
-    ${da_bin} set ns2 "${C_BOX_NS1}"
+    ${da_bin} set ns2 "${C_BOX_NS2}"
     echo ""
     _echo "$(msg cyan)Setting directadmin execution timeout ...$(msg end)" --name
     # Set the timeout setting in second for directadmin execution before generating a timeout signal and aborting (default 60 seconds)
@@ -12424,7 +12414,7 @@ function configure_da_dns_templates() {
 }
 
 # This function is used to configure place.server.com DKIM, DMARC, SPF and other related records
-function configure_da_host_domain() {
+function configure_da_fqhn_server() {
   local option func_name
   option="$1"
   func_name="${FUNCNAME[0]}"
@@ -12781,8 +12771,8 @@ function configure_da_ssl_pre() {
   #+ cp -f /usr/local/directadmin/conf/cacert.pem /etc/httpd/conf/ssl.crt/server.crt
   #+ cp -f /usr/local/directadmin/conf/carootcert.pem /etc/httpd/conf/ssl.crt/server.ca
 
-  # Must run this functions (configure_da_host_domain_ssl) after running CSF because we need to make sure all appropriate ports are opened to request certs
-  # Warning do not overused configure_da_host_domain_ssl function because when requesting the same cert for the same domain 7 times for a week, you will get blocked.
+  # Must run this functions (configure_da_fqhn_server_ssl) after running CSF because we need to make sure all appropriate ports are opened to request certs
+  # Warning do not overused configure_da_fqhn_server_ssl function because when requesting the same cert for the same domain 7 times for a week, you will get blocked.
   # This will set the hosting to SSL:
   # It's best to call SSL after domain propagation few hours later.
 
@@ -12851,7 +12841,7 @@ function configure_da_ssl_pre() {
   end_execute_options "${option}" "${func_name}"
 }
 
-function configure_da_host_domain_ssl() {
+function configure_da_fqhn_server_ssl() {
   # Request SSL failed due to DAD (until server restart)
   # Interesting answer: https://serverfault.com/questions/602700/debian-ipv6-is-not-asssigned-to-interface
   # Nice reading: https://www.agwa.name/blog/post/beware_the_ipv6_dad_race_condition
@@ -13569,9 +13559,10 @@ function configure_maxiaide() {
       # maxiaide --scan
       maxiaide --version
       echo ""
+      # Do not remove this (MaxiAIDE will handle this)
       # Remove this to start from scratch (the maxiaide script will automatically copy the original custom config)
-      _echo "$(msg cyan)Removing existing aide config file at /usr/local/maxicode/maxiaide/conf/custom_aide.conf$(msg end)"
-      rm -rf /usr/local/maxicode/maxiaide/conf/custom_aide.conf
+      #_echo "$(msg cyan)Removing existing aide config file at /usr/local/maxicode/maxiaide/conf/custom_aide.conf$(msg end)"
+      #rm -rf /usr/local/maxicode/maxiaide/conf/custom_aide.conf
       echo ""
     else
       _echo "$(msg red)Warning, maxiaide binary doesn't exist inside /usr/local/maxicode ...$(msg end)" --name
@@ -16359,9 +16350,9 @@ function setup() {
         # Important to run configure_da_dns_templates first before creating any domains so that the DNS record can use new template automatically
         configure_da_dns_templates --run
         # " -- host --"
-        configure_da_host_domain --run
+        configure_da_fqhn_server --run
         configure_da_ssl_pre --run
-        configure_da_host_domain_ssl --run
+        configure_da_fqhn_server_ssl --run
         # " -- owner --"
         configure_da_owner_accounts --run
         configure_da_owner_skins --run
@@ -16396,10 +16387,10 @@ function setup() {
         configure_maxigpg --run
         configure_maxiaide --run
         configure_wpcli --run
+        configure_maxiperm --run
         configure_maxibox --run
         configure_maxicode_pre --run
         configure_maxicode --run
-        configure_maxiperm --run
         configure_maxinis --run
         configure_maxida --run
         configure_maxicron --run
@@ -16424,9 +16415,9 @@ function setup() {
         # Important to run configure_da_dns_templates first before creating any domains so that the DNS record can use new template automatically
         configure_da_dns_templates --run
         # " -- host --"
-        configure_da_host_domain --run
+        configure_da_fqhn_server --run
         configure_da_ssl_pre --run-force
-        configure_da_host_domain_ssl --run-force-exit
+        configure_da_fqhn_server_ssl --run-force-exit
       fi
     elif [[ "${C_SERVER_TYPE}" == "general" ]]; then
       install_da_pre --run
