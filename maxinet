@@ -4,7 +4,7 @@
 
 _APP_SPECIFIC_NAME="Maxinet"
 # Note that some minor versions are not published
-_APP_VERSION="0.6.0.0"
+_APP_VERSION="0.6.0.1"
 _APP_STATUS="alpha"
 _APP_VERSION_STATUS="${_APP_VERSION}-${_APP_STATUS}"
 
@@ -86,6 +86,21 @@ function script_exit() {
   exit 1
 }
 
+function get_listening_port() {
+  local port
+  port="$1"
+  netstat -na | grep "${port}"
+}
+
+function generate_unused_port() {
+  local port
+  read lowerport upperport </proc/sys/net/ipv4/ip_local_port_range
+  while :; do
+    port="$(shuf -i ${lowerport}-${upperport} -n 1)"
+    ss -lpn | grep -q ":${port} " || break
+  done
+  echo "${port}"
+}
 # Directadmin debug exit trap
 function da_debug_exit() {
   # echo "Trapped: $1"
@@ -106,6 +121,19 @@ function da_debug_exit() {
   fi
   # clean exit
   exit 1
+}
+
+# This function will read current status of the last script passed to the first argument whether it is return 0 or not
+# If it returns 0, display [ OK ] else display [ FAILED ] and exit
+function get_status_message() {
+  local retval
+  retval="$1"
+  if [[ "${retval}" -eq 0 ]]; then
+    echo " [ OK ]"
+  else
+    echo " [ FAILED ]"
+    exit 1
+  fi
 }
 
 # _echo "hello $(msg red)this is red $(msg end)" --report --timestamp --name
@@ -1521,7 +1549,13 @@ function init_server() {
     fi
 
     _echo "$(msg cyan)Copying maxinet, maxinet.conf gpg_private_key.gpg and readme.txt into remote server ... $(msg end)" --name
-    ssh_api transfer-files --server-port "${C_BOX_HOSTNAME_FQHN}:${C_SSH_PORT}" --group-user "root:${C_ROOT_USERNAME}" --local-files "${SECURE_PATH}/gpg/gpg_private_key.gpg ${SCRIPT_PATH}/maxinet ${SCRIPT_PATH}/maxinet.conf ${SCRIPT_PATH}/readme.txt" --remote-path ~/
+    local file_to_transfer
+    if [ "${C_DA_RESTORE_HOSTNAME_FQHN_SSL}" == "true" ]; then
+      file_to_transfer="${SECURE_PATH}/gpg/gpg_private_key.gpg ${SCRIPT_PATH}/maxinet ${SCRIPT_PATH}/maxinet.conf ${SCRIPT_PATH}/readme.txt ${SECURE_PATH}/ssl/.lego/certificates/${C_BOX_HOSTNAME_FQHN}.crt ${SECURE_PATH}/ssl/.lego/certificates/${C_BOX_HOSTNAME_FQHN}.issuer.crt ${SECURE_PATH}/ssl/.lego/certificates/${C_BOX_HOSTNAME_FQHN}.key ${SECURE_PATH}/ssl/.lego/certificates/${C_BOX_HOSTNAME_FQHN}.json"
+    else
+      file_to_transfer="${SECURE_PATH}/gpg/gpg_private_key.gpg ${SCRIPT_PATH}/maxinet ${SCRIPT_PATH}/maxinet.conf ${SCRIPT_PATH}/readme.txt"
+    fi
+    ssh_api transfer-files --server-port "${C_BOX_HOSTNAME_FQHN}:${C_SSH_PORT}" --group-user "root:${C_ROOT_USERNAME}" --local-files "${file_to_transfer}" --remote-path ~/
     sleep 2
 
     if [ "${C_PRE_AUTORUN_SETUP}" == "false" ]; then
@@ -3703,9 +3737,9 @@ function create_file() {
         echo "cp /cdrom/user_${C_SSH_USERNAME}_${C_BOX_HOSTNAME_FQHN}.id_rsa.pub /target/root/user_${C_SSH_USERNAME}_${C_BOX_HOSTNAME_FQHN}.id_rsa.pub; \\"
         # Copy and run os_initialize.sh (this file contain initial script such as configuration of /etc/fstab)
         echo "cp /cdrom/os_initialize.sh /target/root/os_initialize.sh; \\"
-        echo "chmod +x /target/root/os_initialize.sh; \\"
-        # TODO test if this is executed
-        echo "sh /target/root/os_initialize.sh; \\"
+        echo "in-target chmod +x /root/os_initialize.sh; \\"
+        # TODO fix this (this is just a place holder but make sure it is executed for next feature)
+        echo "in-target /root/os_initialize.sh; \\"
         # Configuring SSH
         echo "chmod -R go-rwx /target/root/.ssh; \\"
         echo "sed -i 's/^#PermitRootLogin.*/PermitRootLogin prohibit-password/g' /target/etc/ssh/sshd_config; \\"
@@ -3834,10 +3868,15 @@ function dropbox_api() {
   if [[ "${action}" == "upload" ]]; then
     [[ ${scripting} == "false" ]] && _echo "$(msg cyan)Uploading file ${source} into ${destination} ...$(msg end)" --name
     if [[ ${scripting} == "false" ]]; then
-      #dbxcli delete ${destination}
+      # The reason to delete the remote file first before uploading:
+      # 1) When you upload the same file name, dropbox will not change the unique URL
+      #    so, you will always get the same link even the file size or content has changed.
+      #    this lead to problem because dropbox might cap the download speed for the same link
+      #    So, best is to remove the remote file first to generate the new link
+      dbxcli delete ${destination}
       dbxcli upload "${source}" "${destination}"
     else
-      #dbxcli -q delete ${destination}
+      dbxcli -q delete ${destination}
       dbxcli -q upload "${source}" "${destination}"
     fi
   elif [[ "${action}" == "share" ]]; then
@@ -8435,6 +8474,11 @@ function end_execute_options() {
   echo ""
 }
 
+# This is an alias function to setup_pre()
+function pre_setup() {
+  setup_pre "$@"
+}
+
 # This is the setup pre function
 # This will setup gpg from here
 function setup_pre() {
@@ -9301,7 +9345,7 @@ function configure_net2() {
   start_execute_options "${option}" "${func_name}"
   [[ "${SKIP_RUN}" == "true" ]] && return 0
   if [[ ! -f "${CONF_PATH}/${func_name}_executed" && "${FUNCTION_RUN}" == "true" ]]; then
-    local current_host host_count
+    local current_host host_count clean_host
     # So, at this stage we know our LAN would be ${C_NIC_INTERFACE_NAME} then we can insert network information directly into ${C_NIC_INTERFACE_NAME}
     if [[ "${DISTRO_ID}" == "centos" || "${DISTRO_ID}" == "almalinux" ]]; then
       # Create network static IP configuration
@@ -9415,52 +9459,61 @@ function configure_net2() {
     # Compiling
     _echo "$(msg cyan)Updating resolvconf ...$(msg end)" --name
     sudo resolvconf -u
+    get_status_message "$?"
     echo ""
     _echo "$(msg cyan)Getting the current hostname ...$(msg end)" --name
     # if it is empty, put a placeholder as old.host.com
     current_host=$(hostname --fqdn)
-    if [ "${current_host}" = "" ]; then
+    # Set hostname to ${C_BOX_HOSTNAME_FQHN}
+    _echo "$(msg cyan)Setting hostname to ${LABEL_C_BOX_HOSTNAME_FQHN} ...$(msg end)" --name
+    hostname "${C_BOX_HOSTNAME_FQHN}"
+    #echo "current_hostname: ${current_host}"
+    if [ -z "${current_host}" ]; then
       current_host=old.host.com
-      _echo "$(msg yellow)Warning, the current hostname is blank$(msg end)" --name
+      _echo "$(msg yellow)Warning, the current hostname was blank and is now set to ${current_host}$(msg end)" --name
     fi
     echo ""
-    #remove any previous hostnames.
-    _echo "$(msg cyan)Removing any previous hostnames and store in /etc/hosts.tmp ...$(msg end)" --name
-    grep -Fv "${C_BOX_HOSTNAME}" /etc/hosts | grep -Fv ${current_host} | grep -v '#' >/etc/hosts.tmp
+    #Copy everything from /etc/hosts except domain.com and current hostname and comments and store in /etc/hosts.tmp
+    _echo "$(msg cyan)Removing previous domain C_BOX_HOSTNAME hostnames and store in /etc/hosts.tmp ...$(msg end)" --name
+    clean_host=$(grep -wv "${C_BOX_HOSTNAME_FQHN}" /etc/hosts | grep -wv ${current_host} | grep -v '#')
+    echo "${clean_host}" >/etc/hosts.tmp
     echo ""
-
     _echo "$(msg cyan)Rewrite a new host contents based on /etc/hosts.tmp ...$(msg end)" --name
-    #start the file over
+    # start a new host template:
     {
       echo "# ==============================================="
       echo "# This configuration file was generated by ${SCRIPT_NAME}"
       echo "# Author: ${C_ADMIN_NAME} | Email: ${C_ADMIN_EMAIL} | Web: ${C_BOX_DOMAIN}"
       echo "# ==============================================="
+      # This was a standard warning message from previous distro
       echo "# Do not remove the following line, or various programs"
       echo "# that require network functionality will fail."
     } >/etc/hosts
 
-    host_count=$(grep -c localhost /etc/hosts.tmp)
-    if [ "${host_count}" -lt 1 ]; then
-      echo -e "127.0.0.1\t\tlocalhost localhost.localdomain" >>/etc/hosts
+    host_count_tmp=$(grep -c "localhost" /etc/hosts.tmp)
+
+    if [ "${host_count_tmp}" -lt 1 ]; then
+      echo -e "127.0.0.1\t\t localhost.localdomain localhost" >>/etc/hosts
     fi
     echo ""
     _echo "$(msg cyan)Adding IP (IPv4) and (IPv6) and entries in /etc/hosts ...$(msg end)" --name
     {
       cat /etc/hosts.tmp
       echo ""
-      echo "#IP information for ${C_BOX_HOSTNAME_FQHN}:"
+      echo "# IP information for ${C_BOX_HOSTNAME_FQHN}:"
       printf '%s\t%s\t%s\n' "${C_IPV4_ADD0}" "${C_BOX_HOSTNAME_FQHN}" "${C_BOX_HOSTNAME}"
       printf '%s\t%s\t%s\n' "${C_IPV6_ADD0}" "${C_BOX_HOSTNAME_FQHN}" "${C_BOX_HOSTNAME}"
     } >>/etc/hosts
     chmod 644 /etc/hosts
-
     _echo "$(msg cyan)Preventing /etc/hosts from being modified by other processes using chattr +i immutable$(msg end)" --name
     # When using a VPS, managed dedicated server that use auto network manager provided by registrar, it will keep replacing this hosts file.
     # So, we don't want anyone to disturb this beautiful written host file by using chattr +i on this file
     # Note directadmin setup also trying to modify this /etc/hosts file during setup using its script called: /usr/local/directadmin/scripts/hostname.sh
-    # It will get an error operation not permitted but do not worry because /etc/hosts is correctly configured now. The file is perfect and should be readonly mode
+    # It will get an error operation not permitted but do not worry because /etc/hosts is correctly configured now.
+    # Another reason why I don't want directadmin to modify this host file is because directadmin will not write IPv6 value automatically (it will mess up the /etc/hosts).
+    # The file is perfect and should be readonly mode
     chattr +i /etc/hosts
+    get_status_message "$?"
     echo ""
     check_finish_reboot "${func_name}"
   else
@@ -9956,13 +10009,13 @@ function install_da_pre() {
       fi
 
     elif [[ "${C_DA_INSTALL_TYPE}" == "ori" || "${C_DA_INSTALL_TYPE}" == "original" ]]; then
-      _echo "$(msg cyan)Directadmin installation type is C_DA_INSTALL_TYPE set to ori or original. This will make the installation of directadmin using its default options might have few questions$(msg end)" --name
+      _echo "$(msg cyan)Directadmin installation type C_DA_INSTALL_TYPE is set to ori or original. This will make the installation of directadmin using its default options might have few questions$(msg end)" --name
       C_DA_INSTALL_TYPE="original"
     elif [[ "${C_DA_INSTALL_TYPE}" == "int" || "${C_DA_INSTALL_TYPE}" == "interactive" ]]; then
-      _echo "$(msg cyan)Directadmin installation type is C_DA_INSTALL_TYPE set to int or interactive. This will make the installation of directadmin using more questions$(msg end)" --name
+      _echo "$(msg cyan)Directadmin installation type C_DA_INSTALL_TYPE is set to int or interactive. This will make the installation of directadmin using more questions$(msg end)" --name
       C_DA_INSTALL_TYPE="interactive"
     elif [[ "${C_DA_INSTALL_TYPE}" == "auto" || "${C_DA_INSTALL_TYPE}" == "automatic" ]]; then
-      _echo "$(msg cyan)Directadmin installation type is C_DA_INSTALL_TYPE set to auto or automatic. This will make the installation of directadmin using its common default components including CSF without any questions$(msg end)" --name
+      _echo "$(msg cyan)Directadmin installation type C_DA_INSTALL_TYPE is set to auto or automatic. This will make the installation of directadmin using its common default components including CSF without any questions$(msg end)" --name
       C_DA_INSTALL_TYPE="automatic"
     else
       _echo "$(msg red)Error, invalid installation type C_DA_INSTALL_TYPE set for directadmin in config file.$(msg end)" --name
@@ -10074,18 +10127,27 @@ function install_da() {
       _echo "$(msg cyan)Please fix the error and re-run this setup again to restart the installation$(msg end)" --name
       _exit 147
     else
-      local install_complete_line
+      local install_complete_line port
+      _echo "$(msg cyan)Checking if directadmin binary, custombuild and directadmin.conf are presents ...$(msg end)" --name
+      check_file_path "${da_bin}" "${da_cb_bin}" "${da_conf}"
+      echo ""
+      port="$(cat /usr/local/directadmin/conf/directadmin.conf | grep '^port=' | cut -d= -f2)"
       # Here I can display the current login information (only interested on this information) the other directadmin installation output are useless.
       install_complete_line=$(grep '^## INSTALL_COMPLETE' "${da_install_log}")
       if [[ -n "${install_complete_line}" ]]; then
         echo ""
         _echo "$(msg green)${install_complete_line}$(msg end)" --plain
-        # TODO this is sensitive information, hide later
         _echo "$(msg red) ================================== $(msg end)" --plain
-        grep "^Admin username:   " "${da_install_log}"
-        grep "^Admin password:   " "${da_install_log}"
-        grep "^Admin email:   " "${da_install_log}"
-        echo "URL:    http://${C_BOX_HOSTNAME_FQHN}:2222"
+        if [ "${C_HIDE_SENSITIVE_TEXT}" == "true" ]; then
+          echo "*** LOGIN INFORMATION IS HIDDEN BECAUSE C_HIDE_SENSITIVE_TEXT=true ***"
+        else
+          grep "^Admin username:   " "${da_install_log}"
+          grep "^Admin password:   " "${da_install_log}"
+          grep "^Admin email:   " "${da_install_log}"
+          echo "URL:    http://${C_BOX_HOSTNAME_FQHN}:${port}"
+        fi
+        echo "If the above information is hidden. You can always view this from:"
+        echo "cat /usr/local/directadmin/scripts/setup.txt"
         _echo "$(msg red) ================================== $(msg end)" --plain
         echo ""
       else
@@ -10094,9 +10156,6 @@ function install_da() {
       fi
     fi
 
-    echo ""
-    _echo "$(msg cyan)Checking if directadmin binary, custombuild and directadmin.conf are presents ...$(msg end)" --name
-    check_file_path "${da_bin}" "${da_cb_bin}" "${da_conf}"
     echo ""
     _echo "$(msg cyan)Rewriting virtual host files ... $(msg end)" --name
     ${da_cb_bin} rewrite_confs
@@ -10335,10 +10394,8 @@ function secure_da_auth() {
     ${da_bin} set port "${C_DA_PORT}" restart
     echo ""
 
-    # No need to restart, just pass argument restart
-    # It might be best to restart directadmin after changing admin username because admin has so many configs
-    # _echo "$(msg cyan)Requesting directadmin to restart ...${bind_named}$(msg end)" --name
-    # restart_da
+    _echo "$(msg cyan)Requesting directadmin to restart ...$(msg end)" --name
+    restart_da
     echo ""
     check_finish_reboot "${func_name}"
   else
@@ -11025,7 +11082,7 @@ function install_general_csf() {
   end_execute_options "${option}" "${func_name}"
 }
 # Install CSF Firewall
-# Not if you use --run-force and want to reinstall CSF at this stage, please execute this command first:
+# Note if you use --run-force and want to reinstall CSF at this stage, please execute this command first:
 # sh /etc/csf/uninstall.sh (I don't include this command inside this function because CSF should not be reinstalled without permission)
 function configure_csf() {
   local option func_name
@@ -11203,7 +11260,6 @@ function configure_csf() {
       # This is a temporary allowed IP during setup which won't be blocked by firewall.
       _echo "$(msg cyan)Temporarily allow IP ${LABEL_C_HOST_PUBLIC_IP} in /etc/etc/csf/csf.allow during setup in CSF$(msg end)" --name
       csf -a "${C_HOST_PUBLIC_IP}" "Added by ${SCRIPT_NAME} for ${C_BOX_HOSTNAME_FQHN} as temporary allowed IP during setup"
-      # TODO test if the server still need to restart before requesting certificate
       # After that, the next step is requesting SSL and seems like the box need to restart
       # The reason it needs to restart here because if I don't restart at this point, the front page is not accessible (seems like port 80 is blocked)
       # If I don't restart at this point, I will not be able to renew cert (letsencrypt will produce error like firewall problem but it's not).
@@ -12853,15 +12909,20 @@ function configure_da_fqhn_server_ssl() {
   [[ "${SKIP_RUN}" == "true" ]] && return 0
   if [[ ! -f "${CONF_PATH}/${func_name}_executed" && "${FUNCTION_RUN}" == "true" ]]; then
     if [ "${C_ENABLE_DA_HOST_SSL}" == "true" ]; then
-      local da_bin da_cb_bin da_conf da_script_path
+      local da_bin da_cb_bin dataskq da_conf task_queue da_script_path lego_data_path
+
       da_bin="/usr/local/directadmin/directadmin"
       da_cb_bin="/usr/local/directadmin/custombuild/build"
+      dataskq="/usr/local/directadmin/dataskq"
       da_conf="/usr/local/directadmin/conf/directadmin.conf"
+      da_conf_path="/usr/local/directadmin/conf"
       da_script_path="/usr/local/directadmin/scripts"
+      # This file does not exist by default
+      task_queue="/usr/local/directadmin/data/task.queue.cb"
 
       _echo "$(msg cyan)Checking directadmin required files ...$(msg end)" --name
-      check_file_path "${da_bin}" "${da_cb_bin}" "${da_conf}"
-      check_folder_path "${da_script_path}"
+      check_file_path "${da_bin}" "${da_cb_bin}" "${dataskq}" "${da_conf}"
+      check_folder_path "${da_script_path}" "${da_conf_path}"
       echo ""
 
       _echo "$(msg cyan)Configuring Directadmin SSL for host certificate ...$(msg end)" --name
@@ -12870,101 +12931,284 @@ function configure_da_fqhn_server_ssl() {
       # echo "[${SCRIPT_NAME}]: Setting ssl_redirect_host to ${LABEL_C_BOX_HOSTNAME_FQHN} in directadmin.conf config ..."
       # ${da_bin} set ssl_redirect_host "${C_BOX_HOSTNAME_FQHN}"
 
-      _echo "$(msg cyan)Enabling ssl=1 in directadmin.conf config...$(msg end)" --name
-      ${da_bin} set ssl 1
-      echo ""
-      _echo "$(msg cyan)Enabling cacert in directadmin.conf config...$(msg end)" --name
-      ${da_bin} set cacert /usr/local/directadmin/conf/cacert.pem
-      echo ""
-      _echo "$(msg cyan)Enabling cakey in directadmin.conf config...$(msg end)" --name
-      ${da_bin} set cakey /usr/local/directadmin/conf/cakey.pem
-      echo ""
-      # Add wellknown-alias by rewrite_confs
-      _echo "$(msg cyan)Creating dummy acme-challenge texts through custombuild rewrite_confs ...$(msg end)" --name
-      ${da_cb_bin} rewrite_confs
-      echo ""
+      if [ "${C_DA_RESTORE_HOSTNAME_FQHN_SSL}" == "true" ]; then
+        local key cert cacert eximkey eximcert lego_cert_path lego_data_path lego_key_path lego_issuer_cert_path \
+          set_da_cacert
 
-      # Make sure IP and domain are resolved
-      ensure_domain_server_resolved
-      ensure_fqhn_server_resolved
+        # This guide is based on directadmin letsencrypt.sh
 
-      echo ""
-      # Staging call first
-      has_ecc_certificates=$(cat "${da_conf}" | grep "^ecc_certificates=" | cut -d= -f2)
-      _echo "$(msg cyan)Staging request SSL certificate for ${LABEL_C_BOX_HOSTNAME_FQHN} ...$(msg end)" --name
-      if [ -n "${has_ecc_certificates}" ]; then
-        staging=yes ${da_script_path}/letsencrypt.sh request_single ${C_BOX_HOSTNAME_FQHN} ${C_DA_CERTIFICATE_SIZE}
+        # By default the path .lego does not exist
+        lego_data_path="/usr/local/directadmin/data/.lego"
+        mkdir -p "${lego_data_path}/certificates"
+        # This 3 files must be pushed from SSH into ${lego_data_path} then check them if they exist
+        lego_cert_path="${lego_data_path}/certificates/${C_BOX_HOSTNAME_FQHN}.crt"
+        lego_key_path="${lego_data_path}/certificates/${C_BOX_HOSTNAME_FQHN}.key"
+        lego_issuer_cert_path=$(echo "${lego_cert_path}" | sed 's/\.crt/.issuer.crt/')
+        lego_cert_json_path="${lego_data_path}/certificates/${C_BOX_HOSTNAME_FQHN}.json"
+
+        echo -n "Copying ${SCRIPT_PATH}/${C_BOX_HOSTNAME_FQHN}.crt into ${lego_cert_path} ... "
+        cp "${SCRIPT_PATH}/${C_BOX_HOSTNAME_FQHN}.crt" "${lego_cert_path}"
+        get_status_message "$?"
+        echo -n "Copying ${SCRIPT_PATH}/${C_BOX_HOSTNAME_FQHN}.key into ${lego_key_path} ... "
+        cp "${SCRIPT_PATH}/${C_BOX_HOSTNAME_FQHN}.key" "${lego_key_path}"
+        get_status_message "$?"
+        echo -n "Copying ${SCRIPT_PATH}/${C_BOX_HOSTNAME_FQHN}.issuer.key into ${lego_issuer_cert_path} ... "
+        cp "${SCRIPT_PATH}/${C_BOX_HOSTNAME_FQHN}.issuer.crt" "${lego_issuer_cert_path}"
+        get_status_message "$?"
+        echo -n "Copying ${SCRIPT_PATH}/${C_BOX_HOSTNAME_FQHN}.json into ${lego_cert_json_path} ... "
+        cp "${SCRIPT_PATH}/${C_BOX_HOSTNAME_FQHN}.json" "${lego_cert_json_path}"
+        get_status_message "$?"
+        _echo "$(msg cyan)Correcting permission of certificate ...$(msg end)" --name
+        chmod 600 "${lego_cert_path}" "${lego_key_path}" "${lego_issuer_cert_path}" "${lego_cert_json_path}"
+        get_status_message "$?"
+
+        _echo "$(msg cyan)Checking previous certificate for ${LABEL_C_BOX_HOSTNAME_FQHN} ...$(msg end)" --name
+        check_file_path "${lego_cert_path}" "${lego_key_path}" "${lego_issuer_cert_path}" "${lego_cert_json_path}"
+
+        key=$(${da_bin} c | grep ^cakey= | cut -d= -f2)
+        cert=$(${da_bin} c | grep ^cacert= | cut -d= -f2)
+        cacert=$(${da_bin} c | grep ^carootcert= | cut -d= -f2)
+
+        set_da_cacert=false
+        if [ "${cacert}" = "" ] || [ "${cert}" = "${da_conf_path}/carootcert.pem" ]; then
+          cert="${da_conf_path}/cacert.pem"
+          cacert="${da_conf_path}/carootcert.pem"
+          set_da_cacert=true
+        fi
+
+        if [ -s "${lego_cert_path}" ] && [ -s "${lego_key_path}" ]; then
+          if [ $(grep -c "BEGIN CERTIFICATE" "${lego_cert_path}") -eq 1 ]; then
+            cp -pf "${lego_cert_path}" ${cert}
+          else
+            openssl x509 -in "${lego_cert_path}" -out ${cert}
+            get_status_message "$?"
+          fi
+          cp -pf "${lego_key_path}" ${key}
+          if [ -s "${lego_issuer_cert_path}" ]; then
+            cp -pf "${lego_issuer_cert_path}" ${cacert}
+            cat ${cert} ${cacert} >${cert}.combined
+          else
+            cp -pf "${lego_cert_path}" ${cert}.combined
+          fi
+          date +%s >${cert}.creation_time
+          chown diradmin:mail ${key} ${cert} ${cert}.combined ${cacert} ${cert}.creation_time
+          # This file is the one that renew certificate, if this is deleted, renewal will be disable
+          chmod 640 ${key} ${cert} ${cert}.combined ${cacert} ${cert}.creation_time
+          echo "Certificate for ${C_BOX_HOSTNAME_FQHN} has been created successfully!"
+        else
+          echo "New key/certificate is empty. Exiting..."
+          exit 1
+        fi
+
+        echo "DirectAdmin certificate for ${BOX_HOSTNAME_FQDN} has been setup."
+
+        if grep -m1 -q "^cacert=${da_conf_path}/carootcert.pem$" /usr/local/directadmin/conf/directadmin.conf; then
+          ${da_bin} set cacert ${da_conf_path}/cacert.pem
+        fi
+        if ${set_da_cacert}; then
+          ${da_bin} set carootcert ${cacert}
+        fi
+        if ${da_bin} c | grep -m1 -q "^ssl=0$"; then
+          ${da_bin} set ssl 1
+        fi
+
+        #Exim
+        echo "Setting up cert for Exim..."
+        if command -v exim &>/dev/null; then
+          local eximkey eximcert
+          eximkey="/etc/exim.key"
+          eximcert="/etc/exim.cert"
+          cp -f ${key} ${eximkey}
+          cat ${cert} ${cacert} >${eximcert}
+          chown mail:mail ${eximkey} ${eximcert}
+          chmod 600 ${eximkey} ${eximcert}
+
+          echo "action=exim&value=restart" >>${task_queue}
+          echo "action=dovecot&value=restart" >>${task_queue}
+        fi
+        #Apache
+        echo "Setting up cert for WWW server..."
+        if [ -d /etc/httpd/conf/ssl.key ] && [ -d /etc/httpd/conf/ssl.crt ]; then
+          local apachekey apachecert apachecacert apachecertcombined httpd_action graceful
+          apachekey="/etc/httpd/conf/ssl.key/server.key"
+          apachecert="/etc/httpd/conf/ssl.crt/server.crt"
+          apachecacert="/etc/httpd/conf/ssl.crt/server.ca"
+          apachecertcombined="${apachecert}.combined"
+
+          cp -f ${key} ${apachekey}
+          cp -f ${cert} ${apachecert}
+          cp -f ${cacert} ${apachecacert}
+          cat ${apachecert} ${apachecacert} >${apachecertcombined}
+          chown root:root ${apachekey} ${apachecert} ${apachecacert} ${apachecertcombined}
+          chmod 600 ${apachekey} ${apachecert} ${apachecacert} ${apachecertcombined}
+
+          httpd_action=restart
+          graceful=$(${da_bin} c | grep ^graceful_restarts= | cut -d= -f2)
+          if [ "${graceful}" = "1" ]; then
+            local systemd
+            systemd=$(${da_bin} c | grep ^systemd= | cut -d= -f2)
+            if [ "${systemd}" = "1" ]; then
+              httpd_action=reload
+            else
+              httpd_action=graceful
+            fi
+          fi
+          echo "action=httpd&value=${httpd_action}&affect_php_fpm=no" >>${task_queue}
+        fi
+
+        #Nginx
+        if [ -d /etc/nginx/ssl.key ] && [ -d /etc/nginx/ssl.crt ]; then
+          local nginxkey nginxcert nginxcacert nginxcertcombined
+          nginxkey="/etc/nginx/ssl.key/server.key"
+          nginxcert="/etc/nginx/ssl.crt/server.crt"
+          nginxcacert="/etc/nginx/ssl.crt/server.ca"
+          nginxcertcombined="${nginxcert}.combined"
+          cp -f ${key} ${nginxkey}
+          cp -f ${cert} ${nginxcert}
+          cp -f ${cacert} ${nginxcacert}
+          cat ${nginxcert} ${nginxcacert} >${nginxcertcombined}
+          chown root:root ${nginxkey} ${nginxcert} ${nginxcacert} ${nginxcertcombined}
+          chmod 600 ${nginxkey} ${nginxcert} ${nginxcacert} ${nginxcertcombined}
+
+          echo "action=nginx&value=restart&affect_php_fpm=no" >>${task_queue}
+        fi
+
+        #OLS
+        if [ -d /usr/local/lsws/ssl.key ] && [ -d /usr/local/lsws/ssl.crt ]; then
+          local olskey olscer olscacert olscertcombined
+          olskey="/usr/local/lsws/ssl.key/server.key"
+          olscert="/usr/local/lsws/ssl.crt/server.crt"
+          olscacert="/usr/local/lsws/ssl.crt/server.ca"
+          olscertcombined="${olscert}.combined"
+          cp -f ${key} ${olskey}
+          cp -f ${cert} ${olscert}
+          cp -f ${cacert} ${olscacert}
+          cat ${olscert} ${olscacert} >${olscertcombined}
+          chown root:root ${olskey} ${olscert} ${olscacert} ${olscertcombined}
+          chmod 600 ${olskey} ${olscert} ${olscacert} ${olscertcombined}
+          echo "action=openlitespeed&value=restart&affect_php_fpm=no" >>${task_queue}
+        fi
+
+        #FTP
+        if command -v pure-ftpd &>/dev/null; then
+          echo "Setting up cert for FTP server..."
+          cat ${key} ${cert} ${cacert} >/etc/pure-ftpd.pem
+          chmod 600 /etc/pure-ftpd.pem
+          chown root:root /etc/pure-ftpd.pem
+
+          if ${da_bin} c | grep -m1 -q "^pureftp=1\$"; then
+            echo "action=pure-ftpd&value=restart" >>${task_queue}
+          else
+            echo "action=proftpd&value=restart" >>${task_queue}
+          fi
+        fi
+
+        echo "action=directadmin&value=restart" >>${task_queue}
+        echo "The services will be restarted in about 1 minute via the dataskq."
+        ${dataskq} --custombuild
+
       else
-        staging=yes ${da_script_path}/letsencrypt.sh request_single ${C_BOX_HOSTNAME_FQHN}
-      fi
-      retval=$?
-      if [ "${retval}" -eq 0 ]; then
-        _echo "$(msg green)OK, certificate staging request test return success code$(msg end)" --name
-
-      else
-        _echo "$(msg red)Error, certificate staging request test failed with return code ${retval}$(msg end)" --name
-        _exit 147
-      fi
-      echo ""
-      #7) Now let's request the real certificate after staging
-      _echo "$(msg cyan)Requesting SSL certificate for ${LABEL_C_BOX_HOSTNAME_FQHN} ...$(msg end)" --name
-      has_ecc_certificates=$(cat "${da_conf}" | grep "^ecc_certificates=" | cut -d= -f2)
-      if [ -n "${has_ecc_certificates}" ]; then
-        ${da_script_path}/letsencrypt.sh request_single ${C_BOX_HOSTNAME_FQHN} ${C_DA_CERTIFICATE_SIZE}
-      else
-        ${da_script_path}/letsencrypt.sh request_single ${C_BOX_HOSTNAME_FQHN}
-      fi
-
-      retval=$?
-      if [ "${retval}" -eq 0 ]; then
-        _echo "$(msg green)OK, certificate request return success code$(msg end)" --name
-        echo ""
+        # Below for requesting new certificate with staging test request
         _echo "$(msg cyan)Enabling ssl=1 in directadmin.conf config...$(msg end)" --name
         ${da_bin} set ssl 1
         echo ""
-
-        # This fixed http protocol problem if cert has been requested as I reported here https://forum.directadmin.com/threads/might-be-bug-api-http-protocol-is-not-working-after-requesting-certificate.64408/
-        # I also have another workaround to let the script select http or https (if available). To use this workaround enable this setting:
-        # AUTO_SELECT_DA_API_PROTOCOL=true (remember this is beta feature. When directadmin released bug fixed, this feature will be disabled by default)
-
-        # If I disable ssl below (set ssl=0 in directadmin.conf and restart), I can use both http and https on API for host domain:
-        # BUT at this point, I decided to use my workaround using AUTO_SELECT_DA_API_PROTOCOL=true (so, I don't have to disable ssl option below. Only uncomment below if this failed)
-        #_echo "$(msg cyan)Disabling ssl=0 in directadmin.conf config...$(msg end)" --name
-        #${da_bin} set ssl 0
-
-        # This is to redirect hostname automatically to https
-        _echo "$(msg cyan)Setting redirect_host_https yes in Directadmin options.conf config ...$(msg end)" --name
-        ${da_cb_bin} set redirect_host_https yes
+        _echo "$(msg cyan)Enabling cacert in directadmin.conf config...$(msg end)" --name
+        ${da_bin} set cacert /usr/local/directadmin/conf/cacert.pem
         echo ""
-        # if you want everyone to be redirected on hostname use this
-        _echo "$(msg cyan)Setting use_hostname_for_alias yes in Directadmin options.conf config ...$(msg end)" --name
-        ${da_cb_bin} set use_hostname_for_alias yes
+        _echo "$(msg cyan)Enabling cakey in directadmin.conf config...$(msg end)" --name
+        ${da_bin} set cakey /usr/local/directadmin/conf/cakey.pem
         echo ""
-        # Always a good idea to restart directadmin after changing directadmin.conf
-        _echo "$(msg cyan)Restarting directadmin after changing directadmin.conf ...$(msg end)" --name
-        restart_da
+        # Add wellknown-alias by rewrite_confs
+        _echo "$(msg cyan)Creating dummy acme-challenge texts through custombuild rewrite_confs ...$(msg end)" --name
+        ${da_cb_bin} rewrite_confs
         echo ""
-        while :; do
-          local test_login
-          _echo "$(msg cyan)Testing login into directadmin API using the main admin username ...$(msg end)" --name
-          test_login=$(da_api_admin test-login --username $(get_current_da_owner_username) --scripting | grep "error=0")
-          if [ -n "${test_login}" ]; then
-            _echo "$(msg green) OK$(msg end)" --plain
-            break
-          else
-            _echo "$(msg red) FAILED$(msg end)" --plain
-            ensure_domain_server_resolved
-            ensure_fqhn_server_resolved
-            echo ""
-            _echo "$(msg cyan)Retrying login into directadmin API using the main admin username ...$(msg end)" --name
-          fi
-          sleep 3
-        done
-      else
-        _echo "$(msg red)Error, server SSL certificate installation failed with return code ${retval}$(msg end)" --name
-        _exit 147
+
+        # Make sure IP and domain are resolved
+        ensure_domain_server_resolved
+        ensure_fqhn_server_resolved
+
+        echo ""
+        # Staging call first
+        has_ecc_certificates=$(cat "${da_conf}" | grep "^ecc_certificates=" | cut -d= -f2)
+        _echo "$(msg cyan)Staging request SSL certificate for ${LABEL_C_BOX_HOSTNAME_FQHN} ...$(msg end)" --name
+        if [ -n "${has_ecc_certificates}" ]; then
+          staging=yes ${da_script_path}/letsencrypt.sh request_single ${C_BOX_HOSTNAME_FQHN} ${C_DA_CERTIFICATE_SIZE}
+        else
+          staging=yes ${da_script_path}/letsencrypt.sh request_single ${C_BOX_HOSTNAME_FQHN}
+        fi
+        retval=$?
+        if [ "${retval}" -eq 0 ]; then
+          _echo "$(msg green)OK, certificate staging request test return success code$(msg end)" --name
+
+        else
+          _echo "$(msg red)Error, certificate staging request test failed with return code ${retval}$(msg end)" --name
+          _exit 147
+        fi
+        echo ""
+        #7) Now let's request the real certificate after staging
+        _echo "$(msg cyan)Requesting SSL certificate for ${LABEL_C_BOX_HOSTNAME_FQHN} ...$(msg end)" --name
+        has_ecc_certificates=$(cat "${da_conf}" | grep "^ecc_certificates=" | cut -d= -f2)
+        if [ -n "${has_ecc_certificates}" ]; then
+          ${da_script_path}/letsencrypt.sh request_single ${C_BOX_HOSTNAME_FQHN} ${C_DA_CERTIFICATE_SIZE}
+        else
+          ${da_script_path}/letsencrypt.sh request_single ${C_BOX_HOSTNAME_FQHN}
+        fi
+
+        retval=$?
+        if [ "${retval}" -eq 0 ]; then
+          _echo "$(msg green)OK, certificate request return success code$(msg end)" --name
+          echo ""
+          _echo "$(msg cyan)Enabling ssl=1 in directadmin.conf config...$(msg end)" --name
+          ${da_bin} set ssl 1
+          echo ""
+
+          # This fixed http protocol problem if cert has been requested as I reported here https://forum.directadmin.com/threads/might-be-bug-api-http-protocol-is-not-working-after-requesting-certificate.64408/
+          # I also have another workaround to let the script select http or https (if available). To use this workaround enable this setting:
+          # AUTO_SELECT_DA_API_PROTOCOL=true (remember this is beta feature. When directadmin released bug fixed, this feature will be disabled by default)
+
+          # If I disable ssl below (set ssl=0 in directadmin.conf and restart), I can use both http and https on API for host domain:
+          # BUT at this point, I decided to use my workaround using AUTO_SELECT_DA_API_PROTOCOL=true (so, I don't have to disable ssl option below. Only uncomment below if this failed)
+          #_echo "$(msg cyan)Disabling ssl=0 in directadmin.conf config...$(msg end)" --name
+          #${da_bin} set ssl 0
+
+          # This is to redirect hostname automatically to https
+          _echo "$(msg cyan)Setting redirect_host_https yes in Directadmin options.conf config ...$(msg end)" --name
+          ${da_cb_bin} set redirect_host_https yes
+          echo ""
+          # if you want everyone to be redirected on hostname use this
+          _echo "$(msg cyan)Setting use_hostname_for_alias yes in Directadmin options.conf config ...$(msg end)" --name
+          ${da_cb_bin} set use_hostname_for_alias yes
+          echo ""
+          # Always a good idea to restart directadmin after changing directadmin.conf
+          _echo "$(msg cyan)Restarting directadmin after changing directadmin.conf ...$(msg end)" --name
+          restart_da
+          echo ""
+          while :; do
+            local test_login
+            _echo "$(msg cyan)Testing login into directadmin API using the main admin username ...$(msg end)" --name
+            test_login=$(da_api_admin test-login --username $(get_current_da_owner_username) --scripting | grep "error=0")
+            if [ -n "${test_login}" ]; then
+              _echo "$(msg green) OK$(msg end)" --plain
+              break
+            else
+              _echo "$(msg red) FAILED$(msg end)" --plain
+              ensure_domain_server_resolved
+              ensure_fqhn_server_resolved
+              echo ""
+              _echo "$(msg cyan)Retrying login into directadmin API using the main admin username ...$(msg end)" --name
+            fi
+            sleep 3
+          done
+        else
+          _echo "$(msg red)Error, server SSL certificate installation failed with return code ${retval}$(msg end)" --name
+          _exit 147
+        fi
       fi
+    else
+      _echo "$(msg yellow)Warning, skipped requesting certificate for ${LABEL_C_BOX_HOSTNAME_FQHN} because C_ENABLE_DA_HOST_SSL is not set to true $(msg end)" --name
+      sleep 5
     fi
+
     echo ""
     check_finish_reboot "${func_name}"
   else
@@ -13198,6 +13442,7 @@ function configure_maxinis() {
 # This function will configure GPG key management
 # maxigpg need to init first before caching password: run: maxigpg --init
 function configure_maxigpg() {
+  # Importatnt set passphrase https://www.gnupg.org/documentation/manuals/gnupg/Invoking-gpg_002dpreset_002dpassphrase.html
   local option func_name
   option="$1"
   func_name="${FUNCNAME[0]}"
@@ -16177,6 +16422,11 @@ function configure_os_services() {
 
 }
 
+# This is an alias function of setup_post
+function post_setup() {
+  setup_post "$@"
+}
+
 # This is used to install extra packages like ncdu, htop and more
 function setup_post() {
   local option func_name
@@ -16416,8 +16666,8 @@ function setup() {
         configure_da_dns_templates --run
         # " -- host --"
         configure_da_fqhn_server --run
-        configure_da_ssl_pre --run-force
-        configure_da_fqhn_server_ssl --run-force-exit
+        configure_da_ssl_pre --run
+        configure_da_fqhn_server_ssl --run
       fi
     elif [[ "${C_SERVER_TYPE}" == "general" ]]; then
       install_da_pre --run
@@ -16793,8 +17043,11 @@ while [ "$#" -gt 0 ]; do
     ensure_fqhn_server_resolved
     shift
     # File to push from local file
-    LOCAL_FILES_TO_PUSH=("${SECURE_PATH}/gpg/gpg_private_key.gpg \
-    ${SCRIPT_PATH}/maxinet ${SCRIPT_PATH}/maxinet.conf ${SCRIPT_PATH}/readme.txt")
+    if [ "${C_DA_RESTORE_HOSTNAME_FQHN_SSL}" == "true" ]; then
+      LOCAL_FILES_TO_PUSH="${SECURE_PATH}/gpg/gpg_private_key.gpg ${SCRIPT_PATH}/maxinet ${SCRIPT_PATH}/maxinet.conf ${SCRIPT_PATH}/readme.txt ${SECURE_PATH}/ssl/.lego/certificates/${C_BOX_HOSTNAME_FQHN}.crt ${SECURE_PATH}/ssl/.lego/certificates/${C_BOX_HOSTNAME_FQHN}.issuer.crt ${SECURE_PATH}/ssl/.lego/certificates/${C_BOX_HOSTNAME_FQHN}.key ${SECURE_PATH}/ssl/.lego/certificates/${C_BOX_HOSTNAME_FQHN}.json"
+    else
+      LOCAL_FILES_TO_PUSH="${SECURE_PATH}/gpg/gpg_private_key.gpg ${SCRIPT_PATH}/maxinet ${SCRIPT_PATH}/maxinet.conf ${SCRIPT_PATH}/readme.txt"
+    fi
     REMOTE_LOCATION_TO_RECEIVE="~/"
     ssh_api transfer-files --server-port "${C_BOX_HOSTNAME_FQHN}:${C_SSH_PORT}" --group-user "root:${C_ROOT_USERNAME}" --local-files "${LOCAL_FILES_TO_PUSH}" --remote-path "${REMOTE_LOCATION_TO_RECEIVE}"
     exit 0
@@ -16893,7 +17146,13 @@ ENDSSH
 
   generate-port)
     shift
-    comm -23 <(seq 49152 65535 | sort) <(ss -Htan | awk '{print $4}' | cut -d':' -f2 | sort -u) | shuf | head -n 3
+    generate_unused_port
+    exit 0
+    break
+    ;;
+  get-listening-port)
+    shift
+    get_listening_port "$@"
     exit 0
     break
     ;;

@@ -286,6 +286,10 @@ C_DA_INSTALL_GEOIP=true
 # This variable is used to enable server/host domain SSL. Leave this this option enabled for security
 C_ENABLE_DA_HOST_SSL=true
 
+# This will restore the SSL certificate for hostname without requesting new
+# If C_ENABLE_DA_HOST_SSL is set to false, this setting has no effect
+C_DA_RESTORE_HOSTNAME_FQHN_SSL=true
+
 # C_DA_AUTO_ADD_IPV46_ENTRY:
 # This is a feature to add automatically ipv6 or ipv4 config file in directadmin.
 # When this option is enabled (true), we do not need to manually add IPv6 through directadmin GUI.
