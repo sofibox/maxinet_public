@@ -4,7 +4,7 @@
 
 _APP_SPECIFIC_NAME="Maxinet"
 # Note that some minor versions are not published
-_APP_VERSION="0.6.0.1"
+_APP_VERSION="0.6.2.0"
 _APP_STATUS="alpha"
 _APP_VERSION_STATUS="${_APP_VERSION}-${_APP_STATUS}"
 
@@ -1550,7 +1550,7 @@ function init_server() {
 
     _echo "$(msg cyan)Copying maxinet, maxinet.conf gpg_private_key.gpg and readme.txt into remote server ... $(msg end)" --name
     local file_to_transfer
-    if [ "${C_DA_RESTORE_HOSTNAME_FQHN_SSL}" == "true" ]; then
+    if [ "${C_DA_RESTORE_PREVIOUS_HOSTNAME_SSL}" == "true" ]; then
       file_to_transfer="${SECURE_PATH}/gpg/gpg_private_key.gpg ${SCRIPT_PATH}/maxinet ${SCRIPT_PATH}/maxinet.conf ${SCRIPT_PATH}/readme.txt ${SECURE_PATH}/ssl/.lego/certificates/${C_BOX_HOSTNAME_FQHN}.crt ${SECURE_PATH}/ssl/.lego/certificates/${C_BOX_HOSTNAME_FQHN}.issuer.crt ${SECURE_PATH}/ssl/.lego/certificates/${C_BOX_HOSTNAME_FQHN}.key ${SECURE_PATH}/ssl/.lego/certificates/${C_BOX_HOSTNAME_FQHN}.json"
     else
       file_to_transfer="${SECURE_PATH}/gpg/gpg_private_key.gpg ${SCRIPT_PATH}/maxinet ${SCRIPT_PATH}/maxinet.conf ${SCRIPT_PATH}/readme.txt"
@@ -7140,6 +7140,11 @@ function maxicode_admin() {
       echo ""
       ssh_api transfer-files --server-port "${C_BOX_HOSTNAME_FQHN}:${C_SSH_PORT}" --group-user "root:${C_ROOT_USERNAME}" \
         --local-files "${code_path}/conf/custom_aide.conf ${code_path}/conf/default_custom_aide.conf ${code_path}/conf/custom_rules" --remote-path /usr/local/maxicode/maxiaide/conf
+    elif [ "${app_name}" == "maxiperm" ]; then
+      local code_path
+      code_path="${STORAGE_PATH}/os/${distro_name}/usr/local/maxicode/maxiperm"
+      ssh_api transfer-files --server-port "${C_BOX_HOSTNAME_FQHN}:${C_SSH_PORT}" --group-user "root:${C_ROOT_USERNAME}" \
+        --local-files "${code_path}/perm ${code_path}/readme.txt ${code_path}/readme.md" --remote-path /usr/local/maxicode/maxiperm/
     else
       echo "Error, unknown or invalid app_name ${app_name}"
       _exit 147
@@ -9996,7 +10001,7 @@ function install_da_pre() {
         sed -i "s|^modsecurity_ruleset=.*|modsecurity_ruleset=${C_DA_CB_MODSECURITY_RULESET}|" /usr/local/directadmin/custombuild/options.conf
         echo ""
 
-        _echo "$(msg cyan)Changing clamv enabled option to ${C_DA_CB_INSTALL_CLAMAV} ...$(msg end)" --name
+        _echo "$(msg cyan)Changing clamav enabled option to ${C_DA_CB_INSTALL_CLAMAV} ...$(msg end)" --name
         sed -i "s|^clamav=.*|clamav=${C_DA_CB_INSTALL_CLAMAV}|" /usr/local/directadmin/custombuild/options.conf
         echo ""
 
@@ -11208,12 +11213,25 @@ function configure_csf() {
       _echo "$(msg cyan)Inserting CSF RECAPTCHA_SECRET ...$(msg end)" --name
       sed -i "s/RECAPTCHA_SECRET = \"\"/RECAPTCHA_SECRET = \"${C_GOOGLE_RECAPTCHA_SECRET_V2}\"/" /etc/csf/csf.conf
       echo ""
-      _echo "$(msg cyan)Setting up CSF firewall blacklist template taken from maxicode ...$(msg end)" --name
-      mkdir -p /usr/local/directadmin/data/templates/custom
-      cp "${LATEST_OS_CODE_PATH}/usr/local/directadmin/data/templates/custom/blacklisted_ip.html" "/usr/local/directadmin/data/templates/custom/blacklisted_ip.html"
-      chmod 644 "/usr/local/directadmin/data/templates/custom/blacklisted_ip.html"
-      chown diradmin:diradmin "/usr/local/directadmin/data/templates/custom/blacklisted_ip.html"
-      echo ""
+
+      if [[ "${C_SERVER_TYPE}" == "directadmin" ]]; then
+        _echo "$(msg cyan)Setting LF_DIRECTADMIN = 5 ...$(msg end)" --name
+        sed -i "s|^LF_DIRECTADMIN=.*|LF_DIRECTADMIN = \"5\"|" /etc/csf/csf.conf
+        echo ""
+        _echo "$(msg cyan)Setting LF_DIRECTADMIN_PERM = 1 ...$(msg end)" --name
+        sed -i "s|^LF_DIRECTADMIN_PERM=.*|LF_DIRECTADMIN_PERM = \"5\"|" /etc/csf/csf.conf
+        echo ""
+        _echo "$(msg cyan)Setting PORTS_directadmin into ${LABEL_C_DA_PORT} ...$(msg end)" --name
+        sed -i "s|^PORTS_directadmin=.*|PORTS_directadmin = \"${C_DA_PORT}\"|" /etc/csf/csf.conf
+        echo ""
+        _echo "$(msg cyan)Setting up CSF firewall blacklist template taken from maxicode ...$(msg end)" --name
+        mkdir -p /usr/local/directadmin/data/templates/custom
+        cp "${LATEST_OS_CODE_PATH}/usr/local/directadmin/data/templates/custom/blacklisted_ip.html" "/usr/local/directadmin/data/templates/custom/blacklisted_ip.html"
+        chmod 644 "/usr/local/directadmin/data/templates/custom/blacklisted_ip.html"
+        chown diradmin:diradmin "/usr/local/directadmin/data/templates/custom/blacklisted_ip.html"
+        echo ""
+
+      fi
 
       _echo "$(msg cyan)Testing CSF after changing configuration ...$(msg end)" --name
       while :; do
@@ -12089,10 +12107,11 @@ function configure_da_settings() {
     # eg: userdomain.com:2222 . Sometimes this user does not have valid certificate, thus this will cause security issue.
     # so, it is better to redirect to one hostname with a valid certificate:
     # Also explained in here: https://www.directadmin.com/features.php?id=917
+
     # It is recommend to enable this option for security
     # Note before directadmin installation, this already set by hostname.sh script
-    #_echo "$(msg cyan)Enabling directadmin to force login with only hostname ${LABEL_C_BOX_HOSTNAME_FQHN} ...$(msg end)" --name
-    #${da_bin} set force_hostname "${C_BOX_HOSTNAME_FQHN}"
+    _echo "$(msg cyan)Enabling directadmin to force login with only hostname ${LABEL_C_BOX_HOSTNAME_FQHN} ...$(msg end)" --name
+    ${da_bin} set force_hostname "${C_BOX_HOSTNAME_FQHN}"
     _echo "$(msg cyan)Enabling directadmin backup encryption ...$(msg end)" --name
     ${da_bin} set allow_backup_encryption "${C_DA_ALLOW_BACKUP_ENCRYPTION}"
     _echo "$(msg cyan)Setting directadmin online document ...$(msg end)" --name
@@ -12198,6 +12217,17 @@ function configure_da_settings() {
       ${da_bin} set dns_caa 0
     fi
 
+    # This will enable hsts for hostname on login port only
+    if [[ "${C_DA_ENABLE_HOST_HSTS}" != "false" ]]; then
+      ${da_bin} set hsts "${C_DA_ENABLE_HOST_HSTS}"
+      # The document also recommend to enable force_hostname (this was done on top)
+    fi
+
+    # This will either hide DA version or show in header
+    ${da_bin} set show_info_in_header "${C_DA_SHOW_INFO_IN_HEADER}"
+
+    # # This will either hide DA version or show in web title
+    ${da_bin} set show_info_in_title "${C_DA_SHOW_INFO_IN_TITLE}"
     echo ""
     # A lot of setting have been changed, now we need to restart directadmin
     _echo "$(msg cyan)Requesting directadmin to restart ...$(msg end)" --name
@@ -12254,6 +12284,9 @@ function configure_da_cb_settings() {
         _echo "$(msg red)[ FAILED ]$(msg end)"
         exit 1
       fi
+      echo ""
+      _echo -n "$(msg cyan)Setting userdir_access into ${C_DA_CB_USERDIR_ACCESS} ... $(msg end)" --name
+      ${da_cb_bin} set userdir_access "${C_DA_CB_USERDIR_ACCESS}"
     else
       _echo "$(msg yellow)****Warning, the value C_DA_PHP_DISABLE_DANGEROUS_FUNCTION is empty. This means all PHP dangerous functions might not be disabled$(msg end)" --name
       sleep 3
@@ -12931,7 +12964,7 @@ function configure_da_fqhn_server_ssl() {
       # echo "[${SCRIPT_NAME}]: Setting ssl_redirect_host to ${LABEL_C_BOX_HOSTNAME_FQHN} in directadmin.conf config ..."
       # ${da_bin} set ssl_redirect_host "${C_BOX_HOSTNAME_FQHN}"
 
-      if [ "${C_DA_RESTORE_HOSTNAME_FQHN_SSL}" == "true" ]; then
+      if [ "${C_DA_RESTORE_PREVIOUS_HOSTNAME_SSL}" == "true" ]; then
         local key cert cacert eximkey eximcert lego_cert_path lego_data_path lego_key_path lego_issuer_cert_path \
           set_da_cacert
 
@@ -16421,7 +16454,111 @@ function configure_os_services() {
   ##===================#
 
 }
+function configure_services() {
+  :
+}
 
+# This is used to get A+ rating for SSL and increase security
+function configure_domain_security() {
+
+  if [ "${C_DA_ENABLE_DOMAIN_SECURITY_HEADER}" == "true" ]; then
+    if [[ "${C_DA_CB_WEBSERVER_SOFTWARE}" == "nginx" || "${C_DA_CB_WEBSERVER_SOFTWARE}" == "nginx_apache" ]]; then
+      local da_bin da_cb_bin da_template_custom_path
+      da_bin="/usr/local/directadmin/directadmin"
+      da_cb_bin="/usr/local/directadmin/custombuild/build"
+      da_template_custom_path="/usr/local/directadmin/data/templates/custom"
+      _echo -n "$(msg cyan)Writing hsts rule for ${C_DA_CB_WEBSERVER_SOFTWARE} ...$(msg end)" --name
+      mkdir -p "${da_template_custom_path}"
+      {
+        # Note 1
+        # Below can be added into the 3rd box of custom nginx (need testing) for individual domain
+        # add_header Strict-Transport-Security "max-age=63072000; includeSubdomains; preload";
+        # https://forum.directadmin.com/threads/enable-strict-transport-security-hsts.51351/
+
+        # This if for global domain (every domain will have this header except host):
+        # For host, it use option hsts=${second}
+        echo "# ==============================================="
+        echo "# This file was automatically generated by ${SCRIPT_NAME}"
+        echo "# Author: ${C_ADMIN_NAME} | Email: ${C_ADMIN_EMAIL} | Web: ${C_BOX_DOMAIN}"
+        echo "# ==============================================="
+        echo "add_header X-Content-Type-Options \"nosniff\";"
+        echo "add_header X-Frame-Options \"SAMEORIGIN\" always;"
+        echo "add_header X-XSS-Protection \"1\";"
+        echo "add_header X-Download-Options \"noopen\";"
+        echo "add_header X-Permitted-Cross-Domain-Policies \"master-only\";"
+        echo "add_header X-DNS-Prefetch-Control \"on\";"
+        echo "add_header Referrer-Policy \"no-referrer-when-downgrade\";"
+        echo ""
+        if [ "${C_DA_ENABLE_DOMAIN_HSTS}" != "false" ]; then
+          echo "|*if SSL_TEMPLATE=\"1\"|"
+          # The preload part is important, so that after you have submitted the domain into preload list https://hstspreload.org/,
+          # people will not able to delete your domain there. This preload list must be included so people in Google know you want to
+          # redirect people to https.
+          echo "  add_header Strict-Transport-Security \"max-age=${C_DA_ENABLE_DOMAIN_HSTS}; includeSubDomains; preload\";"
+          echo "|*endif|"
+        fi
+        echo ""
+        echo "add_header Content-Security-Policy \"block-all-mixed-content\";"
+        echo "add_header Permissions-Policy 'geolocation=*, midi=(), sync-xhr=(self \"https://|DOMAIN|\" \"https://www.|DOMAIN|\"), \
+microphone=(), camera=(), magnetometer=(), gyroscope=(), payment=(), fullscreen=(self \"https://|DOMAIN|\" \"https://www.|DOMAIN|\" )';"
+        # This is the extra condition to first redirect (if I dont put this, I will have problem submitting preload hsts):
+        # Related to my post here: https://forum.directadmin.com/threads/problem-with-ssl-on-hostname-and-da-and-hsts-with-other-aplications-on-other-ports.64137/post-335495
+        echo ""
+        echo "|*if SSL_TEMPLATE=\"0\"|"
+        echo "  return 301 https://\$host\$request_uri;"
+        echo "|*endif|"
+      } >"${da_template_custom_path}/cust_nginx.CUSTOM.post"
+      get_status_message "$?"
+      echo ""
+
+    elif [[ "${C_DA_CB_WEBSERVER_SOFTWARE}" == "apache" ]]; then
+      {
+        # Reference: https://docs.directadmin.com/webservices/apache/virtualhost-level.html#adding-security-headers-to-get-an-a-rating
+        echo "# ==============================================="
+        echo "# This file was automatically generated by ${SCRIPT_NAME}"
+        echo "# Author: ${C_ADMIN_NAME} | Email: ${C_ADMIN_EMAIL} | Web: ${C_BOX_DOMAIN}"
+        echo "# ==============================================="
+        echo "<IfModule mod_headers.c>"
+        echo "Header always set X-Content-Type-Options \"nosniff\""
+        echo "<FilesMatch \"\\.(php|html)quot;>"
+        echo "Header always unset X-Powered-By"
+        echo "Header unset X-Powered-By"
+        echo "Header set X-Frame-Options \"SAMEORIGIN\""
+        echo "Header set X-XSS-Protection \"1\""
+        echo "Header set X-Download-Options \"noopen\""
+        echo "Header set X-Permitted-Cross-Domain-Policies \"master-only\""
+        echo "Header set X-DNS-Prefetch-Control \"on\""
+        echo "Header set Referrer-Policy \"no-referrer-when-downgrade\""
+        echo ""
+        if [ "${C_DA_ENABLE_DOMAIN_HSTS}" != "false" ]; then
+          echo "|*if SSL_TEMPLATE=\"1\"|"
+          echo "  Header set Strict-Transport-Security \"max-age=${C_DA_ENABLE_DOMAIN_HSTS}\" includeSubDomains; preload"
+          echo "|*endif|"
+        fi
+        echo ""
+        echo "Header set Content-Security-Policy \"block-all-mixed-content\""
+        echo "Header Set Permissions-Policy 'geolocation=*, midi=(), sync-xhr=(self \"https://|DOMAIN|\" \"https://www.|DOMAIN|\"), \
+    microphone=(), camera=(), magnetometer=(), gyroscope=(), payment=(), fullscreen=(self \"https://|DOMAIN|\" \"https://www.|DOMAIN|\")'"
+        echo ""
+        echo "|*if SSL_TEMPLATE=\"0\"|"
+        echo "  return 301 https://\$host\$request_uri;"
+        echo "|*endif|"
+        echo "</FilesMatch>"
+        echo "</IfModule>"
+      } >"${da_template_custom_path}/cust_httpd.CUSTOM.post"
+    fi
+
+    _echo "$(msg cyan)Rewriting virtual host config ...$(msg end)" --name
+    ${da_cb_bin} rewrite_confs
+    get_status_message "$?"
+    echo ""
+    sleep 5
+    # Test the first user domain for header
+    _echo "$(msg cyan)Testing header message for ${LABEL_C_DA_USER_DOMAIN1}...$(msg end)" --name
+    curl -s -D- https://${C_DA_USER_DOMAIN1[0]} | grep -i Strict
+    get_status_message "$?"
+  fi
+}
 # This is an alias function of setup_post
 function post_setup() {
   setup_post "$@"
@@ -16653,6 +16790,7 @@ function setup() {
         # Still need to add more based on lynis suggestion
         harden_with_lynis --run
         configure_services --run
+        configure_domain_security --run
         setup_post --run
       elif [[ "${C_DA_INSTALL_TYPE}" == "auto" ]]; then
         install_da_pre --run
@@ -17043,7 +17181,7 @@ while [ "$#" -gt 0 ]; do
     ensure_fqhn_server_resolved
     shift
     # File to push from local file
-    if [ "${C_DA_RESTORE_HOSTNAME_FQHN_SSL}" == "true" ]; then
+    if [ "${C_DA_RESTORE_PREVIOUS_HOSTNAME_SSL}" == "true" ]; then
       LOCAL_FILES_TO_PUSH="${SECURE_PATH}/gpg/gpg_private_key.gpg ${SCRIPT_PATH}/maxinet ${SCRIPT_PATH}/maxinet.conf ${SCRIPT_PATH}/readme.txt ${SECURE_PATH}/ssl/.lego/certificates/${C_BOX_HOSTNAME_FQHN}.crt ${SECURE_PATH}/ssl/.lego/certificates/${C_BOX_HOSTNAME_FQHN}.issuer.crt ${SECURE_PATH}/ssl/.lego/certificates/${C_BOX_HOSTNAME_FQHN}.key ${SECURE_PATH}/ssl/.lego/certificates/${C_BOX_HOSTNAME_FQHN}.json"
     else
       LOCAL_FILES_TO_PUSH="${SECURE_PATH}/gpg/gpg_private_key.gpg ${SCRIPT_PATH}/maxinet ${SCRIPT_PATH}/maxinet.conf ${SCRIPT_PATH}/readme.txt"

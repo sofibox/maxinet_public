@@ -1,0 +1,431 @@
+#!/bin/bash
+# ==================================================
+_APP_SPECIFIC_NAME="Maxiperm"
+_APP_VERSION="0.1"
+_APP_STATUS="alpha"
+_APP_INFO="${_APP_SPECIFIC_NAME} Maxiperm is a file manager utility to
+manage file, folder permission and other extra features"
+_APP_VERSION_STATUS="${_APP_VERSION}-${_APP_STATUS}"
+_AUTHOR="Author: Arafat Ali | Email: arafat@sofibox.com | (C) 2019-2021"
+# ====================================================
+
+# perm without argument, will check current directory
+
+# This is a standalone function to display script usage
+# Usage: perm --help
+function usage() {
+  local usage_file
+  usage_file="${SCRIPT_PATH}/readme.txt"
+  if [ -f "${usage_file}" ]; then
+    cat "${SCRIPT_PATH}/readme.txt"
+    echo ""
+  else
+    echo "Error, the usage file ${usage_file} does not exist."
+    exit 1
+  fi
+}
+
+# This function will read current status of the last script passed to the first argument whether it is return 0 or not
+# If it returns 0, display [ OK ] else display [ FAILED ] and exit
+function get_status_message() {
+  local retval
+  retval="$1"
+  if [[ "${retval}" -eq 0 ]]; then
+    echo " [ OK ]"
+  else
+    echo " [ FAILED ]"
+    exit 1
+  fi
+}
+
+# perm check
+function perm_check() {
+  local my_path
+  my_paths="${MY_PATH}"
+
+  if [ -z "${my_paths}" ]; then
+    # If option path empty empty use current path
+    my_paths="${PWD}"
+  fi
+
+  if [ "${RECURSIVE}" == "true" ]; then
+    echo ""
+    for my_path in ${my_paths[*]}; do
+      echo "details of ${my_path}/*: "
+      echo "-------"
+      #stat -c '%A %a %h %U %G %s %y %n' ${my_path}/*
+      # stat -c "%a %A %h %U:%G %s %y %F %n" ${my_path}/*
+      stat --printf="%a:%A\t%U:%G\t%h:%s\t%.19y\t%F:%n\n" .* ${my_path}/*
+      echo "-------"
+      echo ""
+    done
+    echo ""
+  else
+    echo ""
+    for my_path in ${my_paths[*]}; do
+      echo "details of ${my_path}: "
+      echo "-------"
+      # stat -c '%A %a %h %U %G %s %y %n' ${my_path}
+      # stat -c "%a %A %h %U:%G %s %y %F %n" ${my_path}
+      stat --printf="%a:%A\t%U:%G\t%h:%s\t%.19y\t%F:%n\n" ${my_path}
+      echo "-------"
+      echo ""
+    done
+    echo ""
+  fi
+}
+
+# perm change with action
+# perm change -x 755 -p /var/www (OK)
+# perm change -x 755 -p /var/www --recursive (OK) - not many people want to do this
+# perm change -d 755 -f 644 -p /var/www --recursive (OK)
+# The above equivalent to: perm change -d 755 -f 644 -p /var/www (no need to pass --recursive) (OK)
+# perm change -d 755 /var/www
+
+function perm_change() {
+  local perm file_perm dir_perm check_path recursive path_type
+  perm="${PERMISSION}"
+  file_perm="${FILE_PERM}"
+  dir_perm="${DIR_PERM}"
+  check_path="${MY_PATH}"
+  recursive="${RECURSIVE}"
+
+  # First path is required when using action change. If path empty we exit
+
+  if [ -z "${check_path}" ]; then
+    # echo "[${SCRIPT_NAME}]: Error, please specify a path with option -p or --path"
+    # exit 1
+    check_path="${PWD}"
+  fi
+
+  if [ -f "${check_path}" ]; then
+    path_type="file"
+  elif [ -d "${check_path}" ]; then
+    path_type="folder"
+  fi
+
+  # Debug:
+  #echo "perm: ${perm}"
+  #echo "file_perm: ${file_perm}"
+  #echo "dir_perm: ${dir_perm}"
+  #echo "path: ${check_path}"
+  #echo "recursive? : ${RECURSIVE}"
+
+
+
+  # The path must be valid folder or file if not exit
+  if [[ -f "${check_path}" || -d "${check_path}" ]]; then
+    :
+  else
+    echo "[${SCRIPT_NAME}]: Error, [ ${check_path} ] is not a valid path. Please specify a valid path with option -p or --path"
+    exit 1
+  fi
+
+  # If --file-perm (or -f) and --dir-perm (or -d) are both passed, we enable recursive (this will ignore -x or --permission option)
+  if [[ -n "${FILE_PERM}" && -n "${DIR_PERM}" ]]; then
+    recursive=true
+
+    if [ "${recursive}" == "true" ]; then
+
+      read -p "[${SCRIPT_NAME}]: Warning, recursively set permission for files and folders inside ${check_path} as [ FILE=${file_perm} | DIR=${dir_perm} ]. Are you sure [y/n]?" -n 1 -r
+      echo
+      if [[ ${REPLY} =~ ^[Yy]$ ]]; then
+        echo -n "[${SCRIPT_NAME}]: Recursively set permission for all files inside ${check_path} as ${file_perm} ..."
+        find "${check_path}" -mindepth 1 -type f -print0 | xargs -0 chmod "${file_perm}"
+        get_status_message "$?"
+        echo -n "[${SCRIPT_NAME}]: Recursively set permission for all folders inside ${check_path} as ${dir_perm} ..."
+        find "${check_path}" -mindepth 1 -type d -print0 | xargs -0 chmod "${dir_perm}"
+        get_status_message "$?"
+      else
+        echo "[${SCRIPT_NAME}]: Operation cancelled!"
+      fi
+
+    fi
+
+    exit 0
+  elif [ -n "${FILE_PERM}" ]; then
+    recursive=true
+
+    if [ "${recursive}" == "true" ]; then
+
+      read -p "[${SCRIPT_NAME}]: Warning, recursively set permission for files inside ${check_path} as [ FILE=${file_perm} ]. Are you sure [y/n]?" -n 1 -r
+      echo
+      if [[ ${REPLY} =~ ^[Yy]$ ]]; then
+        echo -n "[${SCRIPT_NAME}]: Recursively set permission for all files inside ${check_path} as ${file_perm} ..."
+        find "${check_path}" -mindepth 1 -type f -print0 | xargs -0 chmod "${file_perm}"
+        get_status_message "$?"
+      else
+        echo "[${SCRIPT_NAME}]: Operation cancelled!"
+      fi
+
+    fi
+    exit 0
+  elif [ -n "${DIR_PERM}" ]; then
+    recursive=true
+
+    if [ "${recursive}" == "true" ]; then
+
+      read -p "[${SCRIPT_NAME}]: Warning, recursively set permission for folders inside ${check_path} as [ DIR=${dir_perm} ]. Are you sure [y/n]?" -n 1 -r
+      echo
+      if [[ ${REPLY} =~ ^[Yy]$ ]]; then
+        echo -n "[${SCRIPT_NAME}]: Recursively set permission for all folders inside ${check_path} as ${dir_perm} ..."
+        find "${check_path}" -mindepth 1 -type d -print0 | xargs -0 chmod "${dir_perm}"
+        get_status_message "$?"
+      else
+        echo "[${SCRIPT_NAME}]: Operation cancelled!"
+      fi
+
+    fi
+    exit 0
+  fi
+
+  # If -x or --permission is supplied, recursive depends on the option -r or --recursive
+  if [ -n "${perm}" ]; then
+    if [ "${recursive}" == "true" ]; then
+      read -p "[${SCRIPT_NAME}]: Warning, changing ${path_type}'s permission of ${check_path} and its contents recursively to ${perm}. Are you sure [y/n]? " -n 1 -r
+      echo
+      if [[ ${REPLY} =~ ^[Yy]$ ]]; then
+        echo -n "[${SCRIPT_NAME}]: Changing ${path_type}'s permission of ${check_path} and its contents recursively to ${perm} ..."
+        chmod --recursive --silent "${perm}" "${check_path}"
+        get_status_message "$?"
+      else
+        echo "[${SCRIPT_NAME}]: Operation cancelled!"
+      fi
+    else
+      echo -n "[${SCRIPT_NAME}]: Changing ${path_type}'s permission of ${check_path} to ${perm} ..."
+      chmod --silent "${perm}" "${check_path}"
+      get_status_message "$?"
+    fi
+  fi
+
+}
+
+SCRIPT_PATH="$(dirname "$(readlink -f "$0")")"
+SCRIPT_NAME=$(basename -- "$0")
+
+BIN_DEPS=""
+for BIN_DEP in $BIN_DEPS; do
+  which "${BIN_DEP}" >/dev/null ||
+    NOT_FOUND="${BIN_DEP} ${NOT_FOUND}"
+done
+
+if [ -n "${NOT_FOUND}" ]; then
+  echo -e "Error: Required program could not be found: ${NOT_FOUND}"
+  exit 1
+fi
+
+LOG_PATH="${SCRIPT_PATH}/log"
+CONFIG_PATH="${SCRIPT_PATH}/conf"
+DB_PATH="${SCRIPT_PATH}/db"
+TEMP_PATH="${SCRIPT_PATH}/tmp"
+
+mkdir -p "${LOG_PATH}"
+mkdir -p "${CONFIG_PATH}"
+mkdir -p "${DB_PATH}"
+mkdir -p "${TEMP_PATH}"
+
+ACTION="$1"
+CHECK_PATH="$2"
+ARGNUM="$#"
+ARG="$*"
+RECURSIVE=false
+FILE_PERM=""
+DIR_PERM=""
+while [ "${ARGNUM}" -ge 0 ]; do
+  case "$1" in
+  # Display help and usage
+  -h | --help | help)
+    usage
+    exit 0
+    ;;
+  -V | --version | version) # Display Program version
+    echo "${_APP_INFO}"
+    echo ""
+    echo "${_APP_SPECIFIC_NAME}-${_APP_VERSION_STATUS}"
+    echo "${_AUTHOR}"
+    exit 0
+    break
+    ;;
+  -t | --test | test)
+    echo "This is a test"
+    exit 0
+    break
+    ;;
+
+  # This is the default option
+  check)
+    SHORT_OPTS="v,p:,f:,d:,r,R"
+    LONG_OPTS="verbose,path:,file-perm:,dir-perm:,recursive"
+    OPTIONS=$(getopt -o "${SHORT_OPTS}" --long "${LONG_OPTS}" -n "[${SCRIPT_NAME}]" -- "$@")
+    RETVAL=$?
+    if [ ${RETVAL} != 0 ]; then
+      echo "[${SCRIPT_NAME}]: Error, invalid option"
+      exit 1
+    fi
+    eval set -- "${OPTIONS}"
+    VERBOSE=false
+    MY_PATH=""
+    FILE_PERM=""
+    DIR_PERM=""
+    RECURSIVE=false
+
+    while true; do
+      case "$1" in
+      -v | --verbose)
+        VERBOSE=true
+        shift
+        ;;
+      -p | --path)
+        MY_PATH="$2"
+        shift 2
+        ;;
+      -r | -R | R | --recursive)
+        RECURSIVE=true
+        shift
+        ;;
+      --)
+        shift
+        break
+        ;;
+      -*)
+        echo "[${SCRIPT_NAME}]: Error, invalid option e.g: ${SCRIPT_NAME} ${ACTION}"
+        exit 1
+        ;;
+      *)
+        break
+        ;;
+      esac
+    done
+    perm_check
+    break
+    ;;
+  change)
+    SHORT_OPTS="v,f:,d:,x:,p:,r,R"
+    LONG_OPTS="verbose,file-perm:,dir-perm:,permission:,path:,recursive"
+    OPTIONS=$(getopt -o "${SHORT_OPTS}" --long "${LONG_OPTS}" -n "[${SCRIPT_NAME}]" -- "$@")
+    RETVAL=$?
+    if [ ${RETVAL} != 0 ]; then
+      echo "[${SCRIPT_NAME}]: Error, invalid option"
+      exit 1
+    fi
+    eval set -- "${OPTIONS}"
+    VERBOSE=false
+    FILE_PERM=""
+    DIR_PERM=""
+    MY_PATH=""
+    RECURSIVE=false
+    while true; do
+      case "$1" in
+      -v | --verbose)
+        VERBOSE=true
+        shift
+        ;;
+      -f | --file-perm)
+        FILE_PERM="$2"
+        shift 2
+        ;;
+      -d | --dir-perm)
+        DIR_PERM="$2"
+        shift 2
+        ;;
+      -x | --permission)
+        PERMISSION="$2"
+        shift 2
+        ;;
+      -p | --path)
+        MY_PATH="$2"
+        shift 2
+        ;;
+      -r | -R | R | --recursive)
+        RECURSIVE=true
+        shift
+        ;;
+      --)
+        shift
+        break
+        ;;
+      -*)
+        echo "[${SCRIPT_NAME}]: Error, invalid option e.g: ${SCRIPT_NAME} ${ACTION}"
+        exit 1
+        ;;
+      *)
+        break
+        ;;
+      esac
+    done
+    perm_change
+    break
+    ;;
+  -r | -R | R | --recursive)
+    RECURSIVE=true
+    ;;
+  --)
+    break
+    ;;
+  -*)
+    echo "[${SCRIPT_NAME}]: Invalid action or option $1. Use --help to see the valid options"
+    exit 1
+    ;;
+  *) ;;
+  esac
+  # This is a special case, first argument can have an option -r or --recursive
+  # eg: perm -r
+
+  # Another special case is, the first argument can have path or file to check
+  # eg: perm /var/www
+
+  #echo "ARG: ${ARG}"
+  #echo "ARGNUM ${ARGNUM}"
+
+  if [ "${ARGNUM}" -gt 4 ]; then
+    echo "[${SCRIPT_NAME}]: Error, invalid argument [ ${*:2} ]. Use --help to see the valid actions or options"
+    exit 1
+  fi
+
+  if [[ -z "${CHECK_PATH}" ]]; then
+    CHECK_PATH="${PWD}"
+  fi
+
+  if [[ -f "${ACTION}" || -d "${ACTION}" ]]; then
+    echo ""
+    echo "details of ${ACTION}: "
+    echo "-------"
+    stat --printf="%a:%A\t%U:%G\t%h:%s\t%.19y\t%F:%n\n" ${ACTION}
+    echo "-------"
+    echo ""
+  elif [[ -z "${ACTION}" ]]; then
+    echo ""
+    echo "details of ${CHECK_PATH}: "
+    echo "-------"
+    stat --printf="%a:%A\t%U:%G\t%h:%s\t%.19y\t%F:%n\n" ${CHECK_PATH}
+    echo "-------"
+    echo ""
+  elif [[ "${RECURSIVE}" == "true" ]]; then
+    #stat -c "%a %A %h %U:%G %s %y %F %n" ${CHECK_PATH}/*
+    if [ -f "${CHECK_PATH}" ]; then
+      #PATH_TYPE="file"
+      # Regular file cannot recursive so, we use normal check without recursive option /*
+      echo "details of ${CHECK_PATH}: "
+      echo "-------"
+      stat --printf="%a:%A\t%U:%G\t%h:%s\t%.19y\t%F:%n\n" ${CHECK_PATH}
+      echo "-------"
+      echo ""
+    elif [ -d "${CHECK_PATH}" ]; then
+      # PATH_TYPE="folder"
+      echo ""
+      echo "details of ${CHECK_PATH}/*: "
+      echo "-------"
+      stat --printf="%a:%A\t%U:%G\t%h:%s\t%.19y\t%F:%n\n" .* ${CHECK_PATH}/*
+      echo "-------"
+      echo ""
+    fi
+
+  else
+
+    echo "[${SCRIPT_NAME}]: Error, invalid action ${ACTION}. Use --help to see the valid actions or options"
+    exit 1
+  fi
+
+  exit 0
+
+done

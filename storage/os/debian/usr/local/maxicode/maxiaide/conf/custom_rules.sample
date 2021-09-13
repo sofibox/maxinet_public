@@ -1,0 +1,128 @@
+# Add custom rules here and then,
+# run maxiaide update-rule to update this custom rules into /etc/aide/aide.conf.d/
+# Important note: The ending of this file must contain at least one new empty line
+# Example below will ignore changes on folder /usr not the file or folder sub-content change
+# !/usr$ d
+
+/ MaxiRule
+
+# ---------------------
+# START general
+
+!/var/lib/systemd/timesync/clock$ f
+
+# Ignore the .bash_history file
+!/root/.bash_history$ f
+
+# Ignore /run/ folder because they are just running program here
+!/run/*
+
+# END general
+# ---------------------
+
+# ---------------------
+# START aide
+
+!/var/lib/aide/aide.db$ f
+!/var/lib/aide/.*.archived$
+
+# END aide
+# ---------------------
+
+# ------------------
+# START exim
+
+# Note the similar rule is already in /etc/aide/aide.conf.d but it is for exim4 path
+!/var/spool/exim/input/[a-zA-Z0-9]{6}-[a-zA-Z0-9]{6}-[a-zA-Z0-9]{2}-[DHJ]$ f
+!/var/log/exim/mainlog$ f
+
+# END exim
+#-------------------#
+
+#-----------------------
+# Ignore virtual / usage
+#-----------------------
+!/etc/virtual/usage/*
+!/etc/virtual/sofibox.com/usage/webmaster/*
+#-----------------------
+
+# ------------------#
+# START directadmin #
+!/usr/local/directadmin/data/admin$ d
+
+# Ignore directadmin bruteforce entries
+!/usr/local/directadmin/data/admin/brute.conf$ f
+!/usr/local/directadmin/data/admin/brute_ip.data$ f
+!/usr/local/directadmin/data/admin/brute_log_entries.list$ f
+
+# Ignore directadmin BFM blocked list
+!/root/blocked_ips.txt$ f
+
+# Ignore directadmin failed_logins message
+#!/usr/local/directadmin/data/admin/ip_access/@@{IP4ADDRESS}/failed_logins
+#!/usr/local/directadmin/data/admin/ip_access/@@{IP6ADDRESS}/failed_logins
+
+# Ignore directadmin log files
+!/var/log/directadmin/.*.log$ f
+# Ignore directadmin usage files
+!/usr/local/directadmin/data/users/admin/DAdminUsage.bytes$ f
+# END directadmin   #
+#-------------------#
+
+
+# ------------------#
+# START maxicode    #
+
+#  maxiaide log files
+!/usr/local/maxicode/.*./log/.*$
+
+# END maxicode      #
+#-------------------#
+
+# ------------------#
+# START csf/lfd     #
+
+# Ignore lock files
+!/var/lib/csf/lock/.*.lock$ f
+
+# Ignore LFD messenger log file
+!/var/log/lfd_messenger.log$ f
+
+# Ignore csf iptables_log
+!/var/lib/csf/stats/iptables_log$ f
+
+# END csf/lfd       #
+#-------------------#
+
+# ------------------#
+# START rspamd       #
+
+!/var/lib/rspamd/rspamd.rrd$ f
+!/var/lib/rspamd/stats.ucl$ f
+
+# END spamd         #
+#-------------------#
+
+# ------------------#
+# START apache/nginx#
+
+# Ignore apache logs
+!/var/log/httpd/homedir.log$ f
+!/var/log/httpd/access_log$ f
+!/var/log/httpd/error_log$ f
+
+# Ignore nginx logs
+!/var/log/nginx/access_log$ f
+!/var/log/nginx/error_log$ f
+
+# END apache/nginx  #
+#-------------------#
+
+# ------------------#
+# START modsecurity #
+
+# Ignore nginx mod_security log
+!/var/log/nginx/modsec_audit.log$ f
+
+# END modsecurity   #
+#-------------------#

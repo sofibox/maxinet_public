@@ -1,0 +1,547 @@
+#!/bin/bash
+# ==================================================
+_APP_SPECIFIC_NAME="MaxiGPG"
+_APP_VERSION="0.3.3"
+_APP_STATUS="beta"
+_APP_INFO="${_APP_SPECIFIC_NAME} is a bash script CLI extension to manage
+GPG encryption key with extra features.
+GPG is copyright by Free Software Foundation, Inc."
+_APP_VERSION_STATUS="${_APP_VERSION}-${_APP_STATUS}"
+_AUTHOR="Author: Arafat Ali | Email: arafat@sofibox.com | (C) 2019-2021"
+# ====================================================
+
+# Introduction:
+# Since the version gpg v2, there is no official way how to check a valid password from gpg-agent.
+# So this script can be used to check that. First, it will ask for gpg passphrase and validate it. Then,
+# if you input wrong or non-existing KEY_ID as an argument it can validate that as well
+# When a valid passphrase is cached, the next time you run this script, it will not ask you to re-enter a passphrase
+# It also can start gpg-agent using custom config, give remaining time when the cached passphrase will be expired
+# # Check gpg cache every 1 minute (run this on cronjob):
+# * * * * *       root    /usr/local/maxicode/maxigpg/maxigpg -k 2B705B8B6FA943B1 --cron-warn-only > /dev/null
+# usage ./maxigpg -k <KEY_ID>   | ./maxigpg -k 2B705B8B6FA943B1
+# Use case for this script: You can set this script to ask a passphrase and cache it in gpg-agent, so you can decrypt file without having to manually enter passphrase.
+# This is very useful if you have scripts that need to use gpg encryption or decryption automatically. You can set expired time for the cached passphrase for security
+# This is the example of real use case discussion for using gpg-agent with rclone: https://forum.rclone.org/t/rclone-mount-with-configuration-password/573
+# TODO 1: send log files to onedrive cloud
+# TODO 2: Next version will support multiple key cache in one gpg-agent process
+#######################
+# FUNCTION START HERE #
+#######################
+
+# This function save configuration files with variable assignment pattern for GPG_CONFIG
+function set_config() {
+  local conf_file
+  conf_file="$3"
+  sed -i "s/^\($1\s*=\s*\).*\$/\1$2/" "${conf_file}"
+}
+
+# This function converts seconds into days, hours, minutes and seconds
+function show_time() {
+  local num min hour day
+  num="$1"
+  min=0
+  hour=0
+  day=0
+  if ((num > 59)); then
+    ((sec = num % 60))
+    ((num = num / 60))
+    if ((num > 59)); then
+      ((min = num % 60))
+      ((num = num / 60))
+      if ((num > 23)); then
+        ((hour = num % 24))
+        ((day = num / 24))
+      else
+        ((hour = num))
+      fi
+    else
+      ((min = num))
+    fi
+  else
+    ((sec = num))
+  fi
+  echo "${day}"d "${hour}"h "${min}"m "${sec}"s
+}
+
+# This function show gpg-agent run status
+function gpg_runstatus() {
+  echo "[${SCRIPT_NAME}]: Systemd service details:"
+  echo ""
+  systemctl --user --no-pager status gpg-agent
+  echo ""
+  echo "[${SCRIPT_NAME}]: PID output:"
+  get_pid_output
+  echo ""
+}
+
+# This function output PID information for one or more gpg-agents
+function get_pid_output() {
+  # This functions will be called many times,
+  # so get the new setting for each call to detect new process and compare with the setting
+  local p_count pid current_process_count #cached_process_id
+  #source "${GPG_CONFIG}"
+  #cached_process_id=$(sed -n 's/^process_id=//p' "${GPG_CONFIG}")
+
+  p_count=0
+  echo ""
+  # PID is global variable (dont make it local)
+  for pid in $(pidof gpg-agent | tr ' ' '\n'); do
+    ((p_count++))
+    echo "---------------------------"
+    echo "--- (${p_count}) gpg-agent PID: ${pid} ---"
+    echo "Process ID details:"
+    ps -p "${pid}" -o pid,vsz=MEMORY -o user,group=GROUP -o comm,args=ARGS
+    echo "Process TREE details:"
+    pstree -sang "${pid}"
+    echo ""
+
+    # if [ "${pid}" -eq "${PROCESS_ID}" ]; then
+    # Show a peace message
+    #   echo "OK, current gpg-agent PID (${p_count})[${PID}] is matched with the cached PID [${process_id}]" | tee -a "${REPORT_FILE}"
+    #  else
+    # Show warning message
+    #    echo "Warning, current gpg-agent PID (${p_count})[${PID}] does not match with the cached gpg-agent PID [${process_id}]" | tee -a "${REPORT_FILE}"
+    #  fi
+  done
+  echo "---------------------------" | tee -a "${REPORT_FILE}"
+  current_process_count=$(pidof -x gpg-agent | wc -w)
+  if [ "${current_process_count}" -gt 1 ]; then
+    echo "[${SCRIPT_NAME}]: Warning, there are ${current_process_count} gpg-agent processes that are currently running: [$(pidof gpg-agent)]" | tee -a "${REPORT_FILE}"
+    echo "[${SCRIPT_NAME}]: This is a known mystery-bug and it happens only when a 'sudo' command is being executed from cronjob: https://dev.gnupg.org/T5076" | tee -a "${REPORT_FILE}"
+    echo "[${SCRIPT_NAME}]: 1) The bad thing about this is, the passphrase that have been cached manually from all running gpg-agents before will become invalid until the other new random process(es) are terminated or" | tee -a "${REPORT_FILE}"
+    echo "[${SCRIPT_NAME}]: 2) You can just re-enter the same passphrase again to cache in the new gpg-agent random process(es) and you will have valid passphrase again or" | tee -a "${REPORT_FILE}"
+    echo "[${SCRIPT_NAME}]: 3) You can wait until the new random gpg-agent processes terminate itself (normally after a sudo command has finished running from cronjob)" | tee -a "${REPORT_FILE}"
+  fi
+}
+
+# Get the process ID of gpg-agent
+function get_gpg_pid_count() {
+  local pidof_count
+  pidof_count=$(pidof -x gpg-agent | wc -w)
+  echo "${pidof_count}"
+}
+
+# This is a standalone function to display script usage
+# Usage: maxigpg --help
+function usage() {
+  local usage_file
+  usage_file="${SCRIPT_PATH}/readme.txt"
+  if [ -f "${usage_file}" ]; then
+    cat "${SCRIPT_PATH}/readme.txt"
+    echo ""
+  else
+    echo "Error, the usage file ${usage_file} does not exist."
+    exit 1
+  fi
+}
+
+function gpg_init() {
+  echo "[${SCRIPT_NAME}]: Stopping gpg-agent process ..."
+  systemctl --user stop gpg-agent
+  echo ""
+
+  echo "[${SCRIPT_NAME}]: Writing new GPG config file at ${GPG_AGENT_CONF_FILE} ..."
+  touch "${GPG_AGENT_CONF_FILE}"
+  {
+    echo "allow-preset-passphrase"
+    echo "default-cache-ttl 34560000"
+    echo "max-cache-ttl 34560000"
+  } >"${GPG_AGENT_CONF_FILE}"
+
+  chmod 700 "${GPG_HOME_DIR}"
+  chmod 600 "${GPG_AGENT_CONF_FILE}"
+
+  echo ""
+
+  echo "[${SCRIPT_NAME}]: Writing a new gpg-agent socket file at /etc/systemd/system/gpg-agent.socket ... "
+  # Writing gpg-agent.socket file
+  {
+    echo "[Unit]"
+    echo "Description=GnuPG cryptographic agent and passphrase cache"
+    echo "Documentation=man:gpg-agent(1)"
+    # Must put this partOf if I want to stop gpg-agent, this will also automatically stop the socket
+    echo "PartOf=gpg-agent.service"
+
+    echo "[Socket]"
+    echo "ListenStream=%t/gnupg/S.gpg-agent"
+    echo "FileDescriptorName=std"
+    echo "SocketMode=0600"
+    echo "DirectoryMode=0700"
+    echo ""
+    echo "[Install]"
+    echo "WantedBy=sockets.target"
+  } >"/etc/systemd/system/gpg-agent.socket"
+  echo ""
+  # Writing gpg-agent.service file
+  echo "[${SCRIPT_NAME}]: Writing a new gpg-agent service file at /etc/systemd/system/gpg-agent.service ... "
+  {
+    echo "[Unit]"
+    echo "Description=GnuPG cryptographic agent and passphrase cache"
+    echo "Documentation=man:gpg-agent(1)"
+    echo "Requires=gpg-agent.socket"
+    echo ""
+    echo "[Service]"
+    echo "ExecStart=/usr/bin/gpg-agent --options ${HOME}/.gnupg/gpg-agent.conf --supervised"
+    echo "ExecReload=/usr/bin/gpgconf --reload gpg-agent"
+
+  } >"/usr/lib/systemd/user/gpg-agent.service"
+
+  chown root:root "/usr/lib/systemd/user/gpg-agent.service" "/etc/systemd/system/gpg-agent.socket"
+  chmod 644 "/usr/lib/systemd/user/gpg-agent.service" "/etc/systemd/system/gpg-agent.socket"
+
+  systemctl --user daemon-reload
+
+  systemctl --user --global enable gpg-agent.socket
+
+  systemctl --user stop gpg-agent.service
+
+  systemctl --user start gpg-agent.service
+
+  echo ""
+
+  echo "[${SCRIPT_NAME}]: Initializing new ${SCRIPT_NAME} config file at ${GPG_CONFIG} ..."
+  rm -f "${GPG_CONFIG}"
+  touch "${GPG_CONFIG}"
+  {
+    echo "C_DATE_CACHED=\"\""
+    echo "C_PROCESS_ID=$(systemctl --user show --property MainPID --value gpg-agent)"
+    echo "C_CACHED_KEY_ID=\"\""
+    echo "C_EXPIRED_TIMESTAMP=\"\""
+  } >"${GPG_CONFIG}"
+
+  echo ""
+
+  # Source the custom setting, we need this initial values
+  if [ -f "${GPG_CONFIG}" ]; then
+    source "${GPG_CONFIG}"
+  else
+    echo "[${SCRIPT_NAME}]: Error, config file ${GPG_CONFIG} not found"
+    exit 4
+  fi
+
+}
+
+function gpg_show_valid_info() {
+  local retval key_id key_pass
+  key_id="$1"
+  source "${GPG_CONFIG}"
+  if [ -z "${KEY_ID}" ]; then
+    if [ -n "${key_id}" ]; then
+      KEY_ID="${key_id}"
+    else
+      # If no KEY_ID is supplied, we use the C_CACHED_KEY_ID from the config file
+      if [ -n "${C_CACHED_KEY_ID}" ]; then
+        KEY_ID="${C_CACHED_KEY_ID}"
+      else
+        echo "[${SCRIPT_NAME}]: Error, KEY_ID is empty. You might need to cache the passphrase first"
+        exit 1
+      fi
+    fi
+  fi
+  # The option --passphrase-fd 0 is to avoid the script from asking passphrase, because here we just want to validate
+  # To cache passphrase we use gpg_key_in_pass() instead
+  key_pass=$(echo "1234" | gpg -q --pinentry-mode=loopback --status-fd 1 --sign --local-user "${KEY_ID}" --passphrase-fd 0 2>&1 >/dev/null)
+  retval=$?
+
+  if [ ${retval} -eq 0 ]; then
+    if [ -n "${C_DATE_CACHED}" ]; then
+      # Must convert this to UTC date if not will get error
+      date_cached=$(date -u -d @"${C_DATE_CACHED}")
+      #echo "date_cached: ${date_cached}"
+      second_to_expired=$(grep "^C_EXPIRED_TIMESTAMP=" "${GPG_CONFIG}" | cut -d= -f2)
+      #echo "second_to_expired: ${second_to_expired}"
+      expired_date=$(date -u -d "${date_cached} + ${second_to_expired} seconds")
+      #echo "expired_date: ${expired_date}"
+      second_left="$(($(date -d "$expired_date" "+%s") - $(date +%s)))"
+      #echo "second_left: ${second_left}"
+      echo "[${SCRIPT_NAME}]: The passphrase is valid with the following information:"
+      echo ""
+      echo "------------------------------"
+      echo "Valid since: [$(date -d @"${C_DATE_CACHED}")]"
+      echo "Valid for: [$(show_time "${second_to_expired}")]"
+      echo "Expired on: [$(date -d "${expired_date}")]"
+      echo "Expired in: [$(show_time ${second_left})]"
+      echo "------------------------------"
+    else
+      echo "Error, C_DATE_CACHED is empty in ${GPG_CONFIG}!"
+      echo "You might need to cache the passphrase first with valid KEY_ID. eg ${SCRIPT_NAME} setkey --key <KEY_ID>"
+      exit 1
+    fi
+  else
+    echo "Error, invalid passphrase cached in gpg-agent!"
+    echo "You might need to cache a passphrase first with valid KEY_ID. eg ${SCRIPT_NAME} setkey --key <KEY_ID>"
+    echo "Error details:"
+    echo "${key_pass}"
+    exit 1
+  fi
+}
+
+# Always clear GPG first (this will cache new passphrase even it is cached before)
+function gpg_key_in_pass() {
+  local retval
+  if [ -z "${KEY_ID}" ]; then
+    echo "[${SCRIPT_NAME}]: Error, KEY_ID is empty"
+    exit 1
+  fi
+  # Clear the previous cache:
+  systemctl --user restart gpg-agent
+
+  echo "[${SCRIPT_NAME}]: Key in GPG passphrase for key ID ${KEY_ID}: "
+  # It is important to set gpg passphrase first before validate
+  echo "------"
+  #echo "1234" | gpg -q --pinentry-mode=loopback --status-fd 1 --sign --local-user "${KEY_ID}" --passphrase-fd 0 > /dev/null
+  echo "1234" | gpg -q --pinentry-mode=loopback --status-fd 1 --sign --local-user "${KEY_ID}" >/dev/null
+  retval=$?
+  if [ ${retval} -eq 0 ]; then
+    echo "[${SCRIPT_NAME}]: OK, a passphrase is valid in gpg-agent [$(systemctl --user show --property MainPID --value gpg-agent)]"
+    # Set all information on the maxigpg config file
+    set_config C_DATE_CACHED "$(date -u +%s)" "${GPG_CONFIG}"
+    set_config C_PROCESS_ID "$(systemctl --user show --property MainPID --value gpg-agent)" "${GPG_CONFIG}"
+    set_config C_CACHED_KEY_ID "${KEY_ID}" "${GPG_CONFIG}"
+    set_config C_EXPIRED_TIMESTAMP "$(grep -oP 'max-cache-ttl\s*\K\d+' "${GPG_AGENT_CONF_FILE}")" "${GPG_CONFIG}"
+    # Source the file
+    source "${GPG_CONFIG}"
+    gpg_show_valid_info "${KEY_ID}"
+  else
+
+    echo "[${SCRIPT_NAME}]: Error, invalid passphrase is cached in gpg-agent. Validation return code: [${retval}]"
+    # gpg_clearpass # This is only useful when using manual preset key in
+
+    if [[ "${CRONJOB}" == "true" ]]; then
+      #echo "[${SCRIPT_NAME}]: To cache a passphrase in gpg-agent, run the following script manually in the terminal: [./${SCRIPT_NAME} $KEY_ID]"
+      #echo "[${SCRIPT_NAME}]: Script is now terminated!" | tee -a "${REPORT_FILE}"
+      #echo "[${SCRIPT_NAME}]: Status is [${WARN_STATUS}]" | tee -a "${REPORT_FILE}"
+      #$MAIL_BIN -s "[${SCRIPT_NAME} | ${WARN_STATUS}]: Warning, gpg-agent has no cached passphrase!" "${ADMIN_EMAIL}" <"${REPORT_FILE}"
+      exit 1
+    else
+      :
+      #gpg_key_in_passphrase
+    fi
+
+  fi
+  echo "------"
+}
+
+# This standalone function clears all gpg passphrases
+# Usage: maxigpg --clearpass
+function gpg_clearpass() {
+  echo "[${SCRIPT_NAME}]: Restarting gpg-agent to forgot all passphrase ..."
+  systemctl --user restart gpg-agent
+
+}
+
+# This standalone function stop gpg-agent process
+# Usage: maxigpg --stop
+function gpg_stop() {
+  local retval
+  echo -n "[${SCRIPT_NAME}]: Stopping gpg-agent and purging its data ... "
+  systemctl --user restart gpg-agent
+  retval=$?
+  if [ ${retval} = 0 ]; then
+    echo " [ OK ]"
+  else
+    echo " [ FAILED ]"
+    echo "[${SCRIPT_NAME}]: Error, something is wrong when stopping gpg-agent [return code: ${retval}]"
+    exit 1
+  fi
+}
+
+############################
+# MAIN FUNCTION START HERE #
+############################
+
+# This script was tested on Debian 11 (Bullseye)
+
+ADMIN_EMAIL="webmaster@sofibox.com"
+SCRIPT_PATH="$(dirname "$(readlink -f "$0")")"
+SCRIPT_NAME=$(basename -- "$0")
+BOX_HOSTNAME=$(hostname)
+BIN_DEPS="date mail gpgconf tty"
+GPG_PRESET_PASS_BIN="/usr/lib/gnupg2/gpg-preset-passphrase"
+GPG_HOME_DIR="${HOME}/.gnupg"
+mkdir -p "${GPG_HOME_DIR}"
+GPG_AGENT_CONF_FILE="${GPG_HOME_DIR}/gpg-agent.conf"
+
+# Make sure this script is executed with root permission
+if [[ "${EUID}" -ne 0 ]]; then
+  echo "[${SCRIPT_NAME}]: Error, this script must be run as root!"
+  exit 1
+fi
+
+for BIN_DEP in $BIN_DEPS; do
+  which "${BIN_DEP}" >/dev/null ||
+    NOT_FOUND="${BIN_DEP} ${NOT_FOUND}"
+done
+
+if [ -n "${NOT_FOUND}" ]; then
+  echo -e "[${SCRIPT_NAME}]: Error, Required program could not be found: ${NOT_FOUND}"
+  exit 2
+fi
+
+if [ ! -f "${GPG_PRESET_PASS_BIN}" ]; then
+  echo -e "[${SCRIPT_NAME}]: Error, the GPG preset pass utility could not be found: ${GPG_PRESET_PASS_BIN}"
+  exit 3
+fi
+
+LOG_PATH="${SCRIPT_PATH}/log"
+CONFIG_PATH="${SCRIPT_PATH}/conf"
+SECURE_PATH="${SCRIPT_PATH}/secure"
+GPG_CONFIG="${CONFIG_PATH}/gpg.conf"
+
+mkdir -p "${LOG_PATH}"
+mkdir -p "${CONFIG_PATH}"
+mkdir -p "${SECURE_PATH}"
+
+DATE_TIME_NOW="$(date '+%d-%m-%Y_%H-%M-%S')" #31-08-2021_11-56-16
+REPORT_FILE="${LOG_PATH}/${SCRIPT_NAME}-${DATE_TIME_NOW}-report.log"
+cat /dev/null >"${REPORT_FILE}"
+
+# export GPG_TTY and create this in .profile if it does not exist
+GPG_TTY=$(tty)
+export GPG_TTY
+HAS_GPG_TTY_EXPORT=$(grep "^export GPG_TTY=" "${HOME}/.profile")
+if [ -z "${HAS_GPG_TTY_EXPORT}" ]; then
+  echo "export GPG_TTY=\$(tty)" >>"${HOME}/.profile"
+  #if [ $? -eq 0 ]; then
+  #  echo "The global variable GPG_TTY is written in .profile"
+  #fi
+fi
+
+RETVAL=1
+ACTION="$1"
+ARGNUM="$#"
+
+if [ $ARGNUM -eq 0 ]; then
+  echo "[${SCRIPT_NAME}]: Error, no argument is supplied. Use [ ${SCRIPT_NAME} --help ] to see the valid options"
+  exit 2
+fi
+
+while [ "$#" -gt 0 ]; do
+  case "${ACTION}" in
+  -h | --help)
+    usage
+    exit 0
+    ;;
+  -V | --version) # Display Program version
+    echo "${_APP_INFO}"
+    echo ""
+    echo "${_APP_SPECIFIC_NAME}-${_APP_VERSION_STATUS}"
+    echo "${_AUTHOR}"
+    exit 0
+    break
+    ;;
+  -t | --test)
+    echo "This is a test"
+    exit 0
+    break
+    ;;
+  stop | -x | --stop)
+    gpg_stop
+    rm -f "${REPORT_FILE}"
+    exit 0
+    break
+    ;;
+  clearpass | --clearpass)
+    gpg_clearpass
+    rm -f "${REPORT_FILE}"
+    exit 0
+    break
+    ;;
+  status | -s | --status)
+    KEY_ID="$2"
+    gpg_runstatus
+    gpg_show_valid_info "${KEY_ID}"
+    exit 0
+    break
+    ;;
+  init | --init | --initialize)
+    gpg_init
+    break
+    ;;
+  # maxigpg setkey --key <KEY_ID>
+  setkey | setpass | setpassword | -k | --key | --setkey | --setpass | --setpassword)
+    SHORT_OPTS="k:,c,v"
+    LONG_OPTS="key:,key-id:,cron,cronjob,verbose"
+    OPTIONS=$(getopt -o "${SHORT_OPTS}" --long "${LONG_OPTS}" -n "[${SCRIPT_NAME}]" -- "$@")
+    RETVAL=$?
+    if [ ${RETVAL} != 0 ]; then
+      echo "[${SCRIPT_NAME}]: Error, invalid option. e.g: maxigpg setkey --key 2B705B8B6FA943B1"
+      exit 1
+    fi
+    eval set -- "${OPTIONS}"
+    CRONJOB=false
+    VERBOSE=false
+    KEY_ID=""
+    while true; do
+      case "$1" in
+      -k | --key | --key-id)
+        KEY_ID="$2"
+        shift 2
+        ;;
+      -c | --cron | --cronjob)
+        CRONJOB=true
+        shift
+        ;;
+      -v | --verbose)
+        VERBOSE=true
+        shift
+        ;;
+      --)
+        shift
+        break
+        ;;
+      -*)
+        echo "[${SCRIPT_NAME}]: Error, missing --key-id value. e.g: ${SCRIPT_NAME} ${ACTION} --key-id 2B705B8B6FA943B1"
+        exit 1
+        ;;
+      *)
+        break
+        ;;
+      esac
+    done
+
+    if [ -z "${KEY_ID}" ]; then
+      echo "[${SCRIPT_NAME}]: Error, missing --key-id value. e.g: ${SCRIPT_NAME} ${ACTION} --key-id 2B705B8B6FA943B1"
+      exit 1
+    fi
+
+    # echo "GET PID OF COUNT GPG $(get_gpg_pid_count)"
+
+    if [[ "$(get_gpg_pid_count)" -gt 0 ]]; then
+      # If it is running, then just display the PID information:
+      [[ "${VERBOSE}" == "true" ]] && echo "[${SCRIPT_NAME}]: OK, gpg-agent daemon is already running"
+      [[ "${VERBOSE}" == "true" ]] && get_pid_output
+    else
+      systemctl --user restart gpg-agent
+      RETVAL=$?
+      if [ "${RETVAL}" -eq 0 ]; then
+        echo "[${SCRIPT_NAME}]: OK, gpg-agent daemon is already running"
+        get_pid_output
+        # Write the PID in the config file
+        set_config PROCESS_ID "$(systemctl show --property MainPID --value gpg-agent)" "${GPG_CONFIG}"
+        # Refresh new setting
+        source "${GPG_CONFIG}"
+
+      else
+        echo "[${SCRIPT_NAME}]: Error, something is wrong when starting gpg-agent daemon [return code: ${RETVAL}]"
+      fi
+
+    fi
+
+    gpg_key_in_pass
+
+    exit 0
+    break
+    ;;
+  --)
+    break
+    ;;
+  -*)
+    echo "[${SCRIPT_NAME}]: Invalid action or option $1. Use --help to see the valid options"
+    exit 1
+    ;;
+  *) ;;
+  esac
+  echo "[${SCRIPT_NAME}]: Error, invalid action or option [ $1 ]. Use --help to see the valid actions or options"
+  exit 1
+done

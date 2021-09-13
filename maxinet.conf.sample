@@ -287,8 +287,8 @@ C_DA_INSTALL_GEOIP=true
 C_ENABLE_DA_HOST_SSL=true
 
 # This will restore the SSL certificate for hostname without requesting new
-# If C_ENABLE_DA_HOST_SSL is set to false, this setting has no effect
-C_DA_RESTORE_HOSTNAME_FQHN_SSL=true
+# If C_DA_RESTORE_PREVIOUS_HOSTNAME_SSL is set to false, this setting has no effect
+C_DA_RESTORE_PREVIOUS_HOSTNAME_SSL=true
 
 # C_DA_AUTO_ADD_IPV46_ENTRY:
 # This is a feature to add automatically ipv6 or ipv4 config file in directadmin.
@@ -407,6 +407,16 @@ C_DA_ECC_CERTIFICATES=1
 # 2048, 4096, prime256v1, secp384r1
 C_DA_CERTIFICATE_SIZE="secp384r1"
 
+# This will enable host hsts via directadmin
+# to disable just put false, to enable provide the value in second:
+C_DA_ENABLE_HOST_HSTS="31536000"
+
+# This will hide directadmin version and license ID (da v1.62 has internal default 0)
+C_DA_SHOW_INFO_IN_HEADER=0
+
+# This will hide directadmin version in web title
+C_DA_SHOW_INFO_IN_TITLE=0
+
 #---- End directadmin.conf settings ----
 #---------------------------------------
 
@@ -416,6 +426,7 @@ C_DA_CERTIFICATE_SIZE="secp384r1"
 C_DA_CB_VERSION="2.0"
 C_DA_CB_FTP_SOFTWARE="pureftpd"
 C_DA_CB_EXIMCONF_RELEASE="4.5"
+# nginx, apache, nginx_apache, litespeed (litespeed is not tested)
 C_DA_CB_WEBSERVER_SOFTWARE="nginx_apache"
 # or owasp
 C_DA_CB_INSTALL_MODSECURITY="yes"
@@ -431,7 +442,8 @@ C_DA_CB_PHP_VERSION="7.4:php-fpm,8.0:php-fpm"
 C_DA_CB_INSTALL_CLAMAV="yes"
 # Enable / disable clamav service
 C_ENABLE_CLAMAV_SERVICE=false
-
+# Enable / disable user directory access
+C_DA_CB_USERDIR_ACCESS="no"
 #---- End custombuild options.conf settings ----
 #-----------------------------------------------
 
@@ -453,7 +465,7 @@ C_DA_OWNER_USERNAME1="owner47"
 C_DA_OWNER_USERPASS1="PASSWORD"
 # DA owner email will use $ROOT_EMAIL variable above but we can declare here too for future reference
 C_DA_OWNER_SYSTEM_EMAIL1="owner@codegix.com"
-# Can be empty =""
+# Can be empty = ""
 C_DA_OWNER_SECURITY_QNA1=(\
 "Kau suka makan apa?|||budu" \
 "Kau punya hobi apa?|||programming" \
@@ -642,6 +654,11 @@ C_DA_PHP_DISABLE_DANGEROUS_FUNCTION=( \
 )
 # Enable WPCLI to install wordpress automatically when domain is created or modified (refer to tutorial how to install this) # TODO
 C_DA_WP_CLI_ENABLE=true
+# Disable or enable security header for all domain
+C_DA_ENABLE_DOMAIN_SECURITY_HEADER=true
+# Enable or disable hsts header. To disable put value to false
+C_DA_ENABLE_DOMAIN_HSTS="31536000"
+
 ############################# End directadmin related configuration #############################
 #################################################################################################
 
