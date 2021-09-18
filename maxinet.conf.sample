@@ -235,10 +235,16 @@ C_ADMIN_EMAIL="admin@codegix.com"
 ############################# Start directadmin related configuration ###########################
 #################################################################################################
 
-#AUTO_SELECT_DA_API_PROTOCOL:
+# This should be always false, only use this if the directadmin installation has problem to finish
+# It will use some common known pre fixes before directadmin installation
+# This bug normally happen if a new software is released on directadmin side
+# Default should be false
+C_DA_ENABLE_PRE_INSTALL_TEMP_FIX=true
+
+#C_DA_AUTO_SELECT_API_PROTOCOL:
 # Automatically select https protocol if available to use with API
 # Note 1: This feature is beta (enable this if API has error with SSL.)
-AUTO_SELECT_DA_API_PROTOCOL=true
+C_DA_AUTO_SELECT_API_PROTOCOL=true
 
 # C_DA_INSTALL_TYPE:
 # This variable is used to specify directadmin installation type. Currently it has 4 types:
@@ -315,6 +321,8 @@ C_DA_LOGIN_METHOD="sign-as"
 # Start directadmin.conf options ( Directadmin version: 1.62.7 )  #
 #------------------------------------------------------------------
 
+# Ability to generate debug output from tokenizer when running DA in debug mode
+C_DA_TOKENIZER_DEBUG=1
 # Directadmin execution timeout in second
 C_DA_TIMEOUT="120"
 # Directadmin session timeout in minutes
@@ -440,6 +448,9 @@ C_DA_CB_SQL_VERSION="mariadb-10.6"
 C_DA_CB_PHP_VERSION="7.4:php-fpm,8.0:php-fpm"
 # This for installing
 C_DA_CB_INSTALL_CLAMAV="yes"
+# Put "latest" to install the latest version
+# or specify version number if the latest version has problem
+C_DA_CB_CLAMAV_VERSION="latest"
 # Enable / disable clamav service
 C_ENABLE_CLAMAV_SERVICE=false
 # Enable / disable user directory access
@@ -657,12 +668,17 @@ C_DA_WP_CLI_ENABLE=true
 # Disable or enable security header for all domain
 C_DA_ENABLE_DOMAIN_SECURITY_HEADER=true
 # Enable or disable hsts header. To disable put value to false
-C_DA_ENABLE_DOMAIN_HSTS="31536000"
+# To enable globally for all domains put "global:<number_of_second>"
+# (Planned feature) To enable only specific domain just put <number_of_seconds>,then
+# the script will look at C_DA_<ROLE>_ENABLE_DOMAIN_HSTS=("domain.com")
+# this option required C_DA_ENABLE_DOMAIN_SECURITY_HEADER set to true
+C_DA_ENABLE_DOMAIN_HSTS="global:31536000"
 
 ############################# End directadmin related configuration #############################
 #################################################################################################
 
-
+# Whether to run own DNS service (do not enable this if you only run external DNS)
+C_ENABLE_BIND=false
 # When enable secure the custom directory with password
 C_SECURE_LOGIN_ROUTE=true
 # Create phpmyadmin custom route here instead of using /pma, begin with /: eg /dbx123a.

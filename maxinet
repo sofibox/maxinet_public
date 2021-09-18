@@ -4,7 +4,7 @@
 
 _APP_SPECIFIC_NAME="Maxinet"
 # Note that some minor versions are not published
-_APP_VERSION="0.6.2.0"
+_APP_VERSION="0.6.3.0"
 _APP_STATUS="alpha"
 _APP_VERSION_STATUS="${_APP_VERSION}-${_APP_STATUS}"
 
@@ -136,6 +136,17 @@ function get_status_message() {
   fi
 }
 
+function get_ordinal() {
+  local integer
+  integer="$1"
+  case "${integer}" in
+  *1[0-9] | *[04-9]) echo "${integer}"th ;;
+  *1) echo "${integer}"st ;;
+  *2) echo "${integer}"nd ;;
+  *3) echo "${integer}"rd ;;
+  esac
+}
+
 # _echo "hello $(msg red)this is red $(msg end)" --report --timestamp --name
 # _echo "hello $(msg red)this is red $(msg end) and $(msg underline)$(msg -b yellow)$(msg green)this is underline with yellow background and green color $(msg end)" --report --timestamp --name
 # Default value for verbose should be 6, so if we dont' specify verbose value, it will use this
@@ -148,7 +159,7 @@ function _echo() {
   declare -A LOG_LEVELS
 
   short_opts="vqsprtn"
-  long_opts="verbose:,quiet,silent,plain,report,timestamp,name,start-spin,stop-spin,push-notification,push-notification-silent"
+  long_opts="verbose:,quiet,silent,plain,report,timestamp,name,start-spin,stop-spin,push-notification,push-notification-silent,progress-style:"
 
   options=$(getopt -a -o "${short_opts}" --long "${long_opts}" -n "${FUNCNAME[0]} ${SCRIPT_NAME}" -- "$@")
   retval=$?
@@ -170,6 +181,7 @@ function _echo() {
   push_notification=false
   push_notification_silent=false
   silent=false
+  progress_style=""
   while true; do
     case "$1" in
     -v | --verbose)
@@ -222,6 +234,10 @@ function _echo() {
       push_notification_silent=true
       shift
       ;;
+    --progress-style)
+      progress_style="$2"
+      shift 2
+      ;;
     --)
       shift
       break
@@ -257,8 +273,11 @@ function _echo() {
   fi
 
   if [[ ${start_spin} == "true" ]]; then
-    echo -ne "\r\e[0K${msg} [${C_SPIN_PROGRESS:SPIN_COUNT++:1}]"
-    ((SPIN_COUNT == ${#C_SPIN_PROGRESS})) && SPIN_COUNT=0
+    if [[ -z "${progress_style}" ]]; then
+      progress_style="${C_SPIN_PROGRESS}"
+    fi
+    echo -ne "\r\e[0K${msg} [${progress_style:SPIN_COUNT++:1}]"
+    ((SPIN_COUNT == ${#progress_style})) && SPIN_COUNT=0
     # hide cursor
     tput civis
   elif [[ ${stop_spin} == "true" ]]; then
@@ -4926,6 +4945,7 @@ function copy_local_dns_to_external_dns() {
       for i in "${!record[@]}"; do
         local record_value record_name record_priority
         record_value="${record[i]}"
+        # record_name="${record2[i]}"
 
         if [[ "$(echo "${record_value: -1}")" == "." ]]; then
 
@@ -4934,11 +4954,19 @@ function copy_local_dns_to_external_dns() {
           echo "Record record[$i] is now set as ${record_value}"
 
         fi
+
         record_name="$(echo "${record2[i]}" | awk '{ print $2 }')"
+
+        if [[ "$(echo "${record_name: -1}")" == "." ]]; then
+          echo "Fixing record_name that contains dot character: ${record_name} ..."
+          record_name=$(echo "${record_name}" | sed 's/.$//')
+          echo "Record record_name is now set as ${record_name}"
+        fi
+
         record_priority="$(echo "${record2[i]}" | awk '{ print $1 }')"
 
         echo "record_name ${record_name}"
-        echo "record_value ${record[i]}"
+        echo "record_value ${record_value}"
         echo "record priority ${record_priority}"
 
         linode_api_admin add-dns-record --domain "${domain}" --record-type "MX" --record-name "${record_name}" --record-value "${record_value}" --record-priority "${record_priority}" --record-ttl 30
@@ -7145,8 +7173,18 @@ function maxicode_admin() {
       code_path="${STORAGE_PATH}/os/${distro_name}/usr/local/maxicode/maxiperm"
       ssh_api transfer-files --server-port "${C_BOX_HOSTNAME_FQHN}:${C_SSH_PORT}" --group-user "root:${C_ROOT_USERNAME}" \
         --local-files "${code_path}/perm ${code_path}/readme.txt ${code_path}/readme.md" --remote-path /usr/local/maxicode/maxiperm/
+    elif [ "${app_name}" == "maxinance" ]; then
+      local code_path
+      code_path="${STORAGE_PATH}/os/${distro_name}/usr/local/maxicode/maxinance"
+      ssh_api transfer-files --server-port "${C_BOX_HOSTNAME_FQHN}:${C_SSH_PORT}" --group-user "root:${C_ROOT_USERNAME}" \
+        --local-files "${code_path}/maxinance ${code_path}/readme.txt ${code_path}/readme.md" --remote-path /usr/local/maxicode/maxinance/
+    elif [ "${app_name}" == "maxida" ]; then
+      local code_path
+      code_path="${STORAGE_PATH}/os/${distro_name}/usr/local/maxicode/maxida"
+      ssh_api transfer-files --server-port "${C_BOX_HOSTNAME_FQHN}:${C_SSH_PORT}" --group-user "root:${C_ROOT_USERNAME}" \
+        --local-files "${code_path}/maxida ${code_path}/dacli ${code_path}/readme.txt ${code_path}/readme.md" --remote-path /usr/local/maxicode/maxida/
     else
-      echo "Error, unknown or invalid app_name ${app_name}"
+      _echo "$(msg red)Error, unknown or invalid app_name ${app_name}$(msg end)" --name
       _exit 147
     fi
   fi
@@ -7160,7 +7198,7 @@ function da_api_admin() {
     email name nameserver1 nameserver2 where_username_is \
     package_name \
     domain subdomain ip_type \
-    record_type record_name record_value record_ttl affect_pointers \
+    record_type record_name record_value record_domain record_priority record_subdomain record_ttl affect_pointers \
     special_type \
     skin_name logo_mode logo_file \
     answer question \
@@ -7169,7 +7207,6 @@ function da_api_admin() {
     db_domain db_name db_user db_password db_existing_user \
     api_username api_password \
     scripting
-
   action="$1"
   argnum="$#"
 
@@ -7177,7 +7214,7 @@ function da_api_admin() {
   short_opts="h"
   long_opts="help,sign-as:,username:,password:,ip-address:,netmask:,email:,name:,nameserver1:,nameserver2:,where-username-is:,text-output:,package-name:, \
   mail-domain:, mail-user:, mail-password:, mail-quota:, mail-limit:, db-domain:, db-name:, db-user:, db-password:, db-existing-user:,\
-  recommend-values,domain:,subdomain:,ip-type:, record-type:, record-name:, record-value:, record-ttl:, affect-pointers:, special-type:, skin-name:, \
+  recommend-values,domain:,subdomain:,ip-type:, record-type:, record-name:, record-value:, record-domain:, record-priority:, record-subdomain:, record-ttl:, affect-pointers:, special-type:, skin-name:, \
   logo-mode:,logo-file:,question:,answer:,api-username:,api-password:,scripting"
   options=$(getopt -o "${short_opts}" --long "${long_opts}" -n "${FUNCNAME[0]}@${action} in ${SCRIPT_NAME}" -- "$@")
   retval=$?
@@ -7210,22 +7247,25 @@ function da_api_admin() {
   db_existing_user=""  # dbuser123
   package_name=""      # UNLIMITED_PACKAGE
   recommend_values=false
-  domain=""          # sofibox.com
-  subdomain=""       # abc (don not specify full domain)
-  ip_type=""         # shared, server etc
-  api_username=""    # arafatx
-  api_password=""    # 1234x
-  record_type=""     # txt,a,aaaa etc
-  record_name=""     # _domainkey
-  record_value=""    # value
-  record_ttl=""      # 36000
-  affect_pointers="" #yes or no
-  special_type=""    # dkim, dmarc, spf, dkim-policy
-  skin_name=""       # evolution, enhanced etc
-  logo_mode=""       # default-logo, dark-logo, favicon
-  logo_file=""       # /tmp/logo.png
-  question=""        # Kau dah lama hidup?
-  answer=""          # Belum
+  domain=""           # sofibox.com
+  subdomain=""        # abc (don not specify full domain)
+  ip_type=""          # shared, server etc
+  api_username=""     # arafatx
+  api_password=""     # 1234x
+  record_type=""      # txt,a,aaaa etc
+  record_name=""      # _domainkey
+  record_value=""     # value
+  record_domain=""    # abc.com
+  record_priority=""  # 10
+  record_subdomain="" # change
+  record_ttl=""       # 36000
+  affect_pointers=""  #yes or no
+  special_type=""     # dkim, dmarc, spf, dkim-policy
+  skin_name=""        # evolution, enhanced etc
+  logo_mode=""        # default-logo, dark-logo, favicon
+  logo_file=""        # /tmp/logo.png
+  question=""         # Kau dah lama hidup?
+  answer=""           # Belum
   scripting=false
   while true; do
     case "$1" in
@@ -7354,6 +7394,18 @@ function da_api_admin() {
       record_ttl="$2"
       shift 2
       ;;
+    --record-domain)
+      record_domain="$2"
+      shift 2
+      ;;
+    --record-priority)
+      record_priority="$2"
+      shift 2
+      ;;
+    --record-subdomain)
+      record_subdomain="$2"
+      shift 2
+      ;;
     --affect-pointers)
       affect_pointers="$2"
       shift 2
@@ -7464,7 +7516,7 @@ function da_api_admin() {
     _exit 147
   fi
 
-  if [ "${AUTO_SELECT_DA_API_PROTOCOL}" == "true" ]; then
+  if [ "${C_DA_AUTO_SELECT_API_PROTOCOL}" == "true" ]; then
     if is_valid ssl_site "${C_BOX_HOSTNAME_FQHN}"; then
       [[ "${scripting}" == "false" ]] && _echo "OK, ${C_BOX_HOSTNAME_FQHN} is a valid SSL/https site"
       ssl_protocol="https"
@@ -7881,12 +7933,20 @@ function da_api_admin() {
       _echo "$(msg green)OK, API with action ${action} executed with the following status: $(msg end)" --name
       _echo "$(msg green)${da_api_exec}$(msg end)" --plain | urldecode | awksep '&'
     fi
-  # da_api_admin create-dns-record --domain test.com --record-type TXT --record-name name11 --record-value value1 --record-ttl 30 --affect-pointers yes
+    # Other DNS record:
+    # da_api_admin create-dns-record --domain test.com --record-type TXT --record-name name11 --record-value value1 --record-ttl 30 --affect-pointers yes
+    # MX RECORD:
+    # da_api_admin create-dns-record --sign-as "${da_reseller_uname}" --domain "${da_reseller_domain_first}" --record-type MX --record-domain "${da_reseller_domain_first}." --record-priority "${record_priority}" --record-subdomain  "${record_subdomain}" --record-ttl 30 --affect-pointers yes
   elif [[ "${action}" == "create-dns-record" || "${action}" == "add-dns-record" ]]; then
     local cmd_api data method retval da_api_exec has_success record_value
     cmd_api="CMD_API_DNS_CONTROL"
     affect_pointers=yes
-    data="domain=${domain}&type=${record_type}&name=${record_name}&value=${record_value}&ttl=${record_ttl}&affect_pointers=${affect_pointers}&action=add"
+    if [[ "${record_type^^}" == "MX" ]]; then
+      # for mx record, record name is the domain, record value is priority, record subdomain is mx_value
+      data="domain=${domain}&type=${record_type}&name=${record_domain}&value=${record_priority}&mx_value=${record_subdomain}&ttl=${record_ttl}&affect_pointers=${affect_pointers}&action=add"
+    else
+      data="domain=${domain}&type=${record_type}&name=${record_name}&value=${record_value}&ttl=${record_ttl}&affect_pointers=${affect_pointers}&action=add"
+    fi
     method="POST"
     da_api_exec=$(curl --silent --request "${method}" --user "${da_api_username}":"${da_api_password}" --data "${data}" "${ssl_protocol}://${C_BOX_HOSTNAME_FQHN}:${port}/${cmd_api}")
     has_success=$(echo "${da_api_exec}" | grep -w '^error=0')
@@ -8520,9 +8580,10 @@ function setup_pre() {
       # Note 4: net-tools for using with netstat (port troubleshooting)
       # Note 5: rsync for file transfer and backup (better than scp)
       # Note 6: dos2unix is for conversion clrf to unix format (needed by maxiaide script from maxicode)
+      # Note 7: ncdu is for file management
       _echo "$(msg cyan)Installing pre-requisite components for Debian OS ...$(msg end)" --name
       echo ""
-      apt-get -y install sudo screen nmap psmisc gpg unzip zip dnsutils net-tools rsync dos2unix
+      apt-get -y install sudo screen nmap psmisc gpg unzip zip dnsutils net-tools rsync dos2unix ncdu
     elif [ "${DISTRO_ID}" == "ubuntu" ]; then
       :
     elif [ "${DISTRO_ID}" == "almalinux" ]; then
@@ -9148,19 +9209,6 @@ function configure_net() {
   [[ "${SKIP_RUN}" == "true" ]] && return 0
   if [[ ! -f "${CONF_PATH}/${func_name}_executed" && "${FUNCTION_RUN}" == "true" ]]; then
     local current_active_lan grub_search
-    # Download this from git better
-    if [[ -f "${LATEST_OS_CODE_PATH}/etc/named.conf" ]]; then
-      # This is bind or bind setting called named.conf. If we put this first in /etc, when install bind it will use this setting
-      # Bind setting is the same config for centos, almalinux, debian and ubuntu
-      _echo "$(msg cyan)Copying custom named.conf config from ${LATEST_OS_CODE_PATH}/etc/named.conf into /etc/named.conf ...$(msg end)" --name
-      cp "${LATEST_OS_CODE_PATH}/etc/named.conf" /etc/named.conf
-    else
-      # This is weird error and should exit
-      _echo "$(msg yellow)Warning, file named.conf does not exist in ${LATEST_OS_CODE_PATH}/etc/named.conf! Please inspect because the file should be there!$(msg end)" --name
-      _exit 147
-    fi
-    echo ""
-
     _echo "$(msg cyan)Writing email ${LABEL_C_ROOT_EMAIL} into /root/.email.txt to override system email ...$(msg end)" --name
     #Root email will use this one
     echo "${C_ROOT_EMAIL}" >/root/.email.txt
@@ -9904,8 +9952,10 @@ function install_da_pre() {
   start_execute_options "${option}" "${func_name}"
   [[ "${SKIP_RUN}" == "true" ]] && return 0
   if [[ ! -f "${CONF_PATH}/${func_name}_executed" && "${FUNCTION_RUN}" == "true" ]]; then
-    local da_latest_version da_sql_type da_sql_version da_php_mode_v1 da_php_mode_v2 da_php_mode_v3 da_php_mode_v4 count
+    local da_latest_version da_sql_type da_sql_version da_php_mode_v1 da_php_mode_v2 da_php_mode_v3 da_php_mode_v4 count \
+      db_custom_version_txt="/usr/local/directadmin/custombuild/custom_versions.txt"
     da_latest_version=$(curl -s https://www.directadmin.com/version.php | grep -Eo "[0-9]+\.[0-9]+")
+    touch "${db_custom_version_txt}"
     _echo "$(msg cyan)The latest version of Directadmin is ${da_latest_version}$(msg end)" --name
     _pause 5
     _echo "$(msg cyan)Configuring directadmin custombuild version ...$(msg end)" --name
@@ -10013,7 +10063,27 @@ function install_da_pre() {
         _exit 147
       fi
 
-    elif [[ "${C_DA_INSTALL_TYPE}" == "ori" || "${C_DA_INSTALL_TYPE}" == "original" ]]; then
+      ###### Below are some fixes
+      if [ "${C_DA_CB_CLAMAV_VERSION}" != "latest" ]; then
+        _echo "$(msg cyan)Configuring clamav to use version ${C_DA_CB_CLAMAV_VERSION} before installation ...$(msg end)" --name
+        echo "clamav:${C_DA_CB_CLAMAV_VERSION}:" >>"${db_custom_version_txt}"
+        get_status_message "$?"
+        echo ""
+      fi
+
+      if [ "${C_DA_ENABLE_PRE_INSTALL_TEMP_FIX}" == "true" ]; then
+        _echo "$(msg cyan)Applying fixes for known issue ...$(msg end)" --name
+        if [ "${DISTRO_ID}" == "debian" ]; then
+          _echo "$(msg cyan)Installing required package for clamav ...$(msg end)" --name
+          apt-get -y install libbz2-dev
+          # https://forum.directadmin.com/threads/clamav-0-104-0-nginx-1-21-3.64522/post-335560
+        fi
+        echo ""
+      fi
+
+    elif
+      [[ "${C_DA_INSTALL_TYPE}" == "ori" || "${C_DA_INSTALL_TYPE}" == "original" ]]
+    then
       _echo "$(msg cyan)Directadmin installation type C_DA_INSTALL_TYPE is set to ori or original. This will make the installation of directadmin using its default options might have few questions$(msg end)" --name
       C_DA_INSTALL_TYPE="original"
     elif [[ "${C_DA_INSTALL_TYPE}" == "int" || "${C_DA_INSTALL_TYPE}" == "interactive" ]]; then
@@ -10084,16 +10154,6 @@ function install_da() {
         exit $?
       ) &
       my_pid=$!
-      count=0
-      while ps | grep -q " $my_pid "; do
-        ((count++))
-        _echo "$(msg cyan)Installing directadmin ${da_latest_version} [ PID ID: $my_pid | Elapsed time: $(show_time "${count}") ] ... $(msg end)" --start-spin
-        sleep 1
-      done
-      wait $my_pid
-      retval=$?
-      echo ""
-      _echo "Installation return code is ${retval}" --verbose 7
     elif [[ "${C_DA_INSTALL_TYPE}" == "interactive" ]]; then
       # This will ask questions (so do not put in background)
       bash <(curl -Ss https://www.directadmin.com/setup.sh) | tee -a "${da_install_log}"
@@ -10107,30 +10167,53 @@ function install_da() {
         exit $?
       ) &
       my_pid=$!
-      count=0
+    fi
+
+    if [ -n "${my_pid}" ]; then
+      _echo "$(msg cyan)Installing directadmin ${da_latest_version} [ PID ID: ${my_pid} ] for the $(get_ordinal ${INSTALL_COUNT}) time(s) ... $(msg end)" --name
+      echo ""
       while ps | grep -q " $my_pid "; do
+        local progress_text memory_usage_percentage
         ((count++))
-        _echo "$(msg cyan)Installing directadmin [ PID ID: $my_pid | Elapsed time: $(show_time "${count}") ] ... $(msg end)" --start-spin
+        memory_usage_percentage="$(free -m | grep Mem | awk '{printf("%.2f" ,($3/$2)*100)}')"
+        progress_text="$(tail -n 1 ${da_install_log})"
+        _echo "$(msg yellow)Memory: ${memory_usage_percentage}% | Elapsed time: $(show_time "${count}") | ${progress_text:0:47} ... $(msg end)" --start-spin --progress-style=".oO@*"
         sleep 1
       done
       wait $my_pid
       retval=$?
-      echo ""
-      _echo "Installation return code is ${retval}" --verbose 7
     fi
+    echo ""
+    _echo "Installation return code is ${retval}" --verbose 7
 
+    ((INSTALL_COUNT++))
     if [[ "${retval}" -ne 0 ]]; then
-      local error_msg
-      _echo "$(msg red)Error, directadmin installation contains error. Please inspect the last 10 lines of the installation log below:$(msg end)" --name
-      error_msg=$(tail -n 10 "${da_install_log}")
+      local error_msg total_error_line
+      # How many line of errors to show:
+      total_error_line=20
+      _echo "$(msg red)Error, directadmin installation contains error. Please inspect the last ${total_error_line} lines of the installation log below:$(msg end)" --name
+      error_msg=$(tail -n ${total_error_line} "${da_install_log}")
       echo ""
       echo "============================================"
       echo ""
       _echo "$(msg red)${error_msg}$(msg end)" --plain
       echo ""
       echo "============================================"
-      _echo "$(msg cyan)Please fix the error and re-run this setup again to restart the installation$(msg end)" --name
-      _exit 147
+      # _echo "$(msg yellow)Please fix the error and re-run this setup again to restart the installation$(msg end)" --name
+      # _exit 147
+      _echo "$(msg yellow)Performing backup log file from ${da_install_log} as ${da_install_log}.${DATE_TIME_NOW} ...$(msg end)" --name
+      cp -f "${da_install_log}" "${da_install_log}.${DATE_TIME_NOW}"
+      sleep 10
+      echo ""
+
+      if [ "${C_DA_ENABLE_PRE_INSTALL_TEMP_FIX}" == "true" ]; then
+        _echo "$(msg yellow)Re-executing install_da_pre ...$(msg end)" --name
+        install_da_pre --run-force
+        echo ""
+      fi
+      _echo "$(msg yellow)Reinstalling directadmin within 10 seconds for the $(get_ordinal ${INSTALL_COUNT})...$(msg end)" --name
+      install_da --run
+      echo ""
     else
       local install_complete_line port
       _echo "$(msg cyan)Checking if directadmin binary, custombuild and directadmin.conf are presents ...$(msg end)" --name
@@ -10299,48 +10382,6 @@ function install_da_post() {
     fi
     echo ""
     # At this moment directadmin can be login using a new port ${LABEL_C_DA_PORT}"
-
-    # Enable DNSSEC if supported
-    if [ "${C_ENABLE_DNSSEC}" == "true" ]; then
-      local bind_named grep_found
-      bind_named="/etc/bind/named.conf.options"
-      _echo "$(msg cyan)Installing DNSSEC using directadmin script (dnssec.sh) ...$(msg end)" --name
-      if [[ "${DNS_PROVIDER}" == "linode" ]]; then
-        _echo "$(msg yellow)[Skipped]: Warning, the DNS provider ${DNS_PROVIDER} does not support DNSSEC$(msg end)" --name
-        _exit 147
-      fi
-      ${da_script_path}/dnssec.sh install
-      echo ""
-      _echo "$(msg cyan)Adding the following strings into the 'options { .... }' section at ${bind_named}$(msg end)" --name
-      if [ -f "${bind_named}" ]; then
-        grep_found=$(grep -ic 'bindkeys-file \"\/etc\/bind\/named.iscdlv.key\";' "${bind_named}")
-        if [ "${grep_found}" = 0 ]; then
-          sed -i "s|\options {|&\n\tbindkeys-file \"\/etc\/bind\/named.iscdlv.key\";|" "${bind_named}"
-        fi
-        grep_found=$(grep -ic 'dnssec-lookaside auto;' "${bind_named}")
-        if [ "${grep_found}" = 0 ]; then
-          sed -i "s|\options {|&\n\tdnssec-lookaside auto;|" "${bind_named}"
-        fi
-        grep_found=$(grep -ic 'dnssec-enable yes;' "${bind_named}")
-        if [ "${grep_found}" = 0 ]; then
-          sed -i "s|\options {|&\n\tdnssec-enable yes;|" "${bind_named}"
-        fi
-
-        # This setting is only useful when DNSSEC is installed (by default it is disabled)
-        _echo "$(msg cyan)Enabling TLSA DNS record in directadmin.conf ...$(msg end)" --name
-        ${da_bin} set dns_tlsa 1
-        echo ""
-        _echo "$(msg cyan)Requesting directadmin to restart ...$(msg end)" --name
-        restart_da
-        echo ""
-      else
-        _echo "$(msg red)Error,the file ${bind_named} does not exist! Make sure bind is installed first!$(msg end)" --name
-        _exit 147
-      fi
-    else
-      _echo "$(msg yellow)[Skipped]: The setting C_ENABLE_DNSSEC is not set to true. DNSSEC installation is skipped!$(msg end)" --name
-    fi
-    echo ""
     check_finish_reboot "${func_name}"
   else
     _echo "$(msg yellow)[Skipped by system]: $(msg magenta)${func_name}()$(msg end) $(msg yellow)with current option ${option} has ran before $(msg end)" --name
@@ -10401,6 +10442,181 @@ function secure_da_auth() {
 
     _echo "$(msg cyan)Requesting directadmin to restart ...$(msg end)" --name
     restart_da
+    echo ""
+    check_finish_reboot "${func_name}"
+  else
+    _echo "$(msg yellow)[Skipped by system]: $(msg magenta)${func_name}()$(msg end) $(msg yellow)with current option ${option} has ran before $(msg end)" --name
+    _echo "$(msg yellow)=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=$(msg end)" --plain
+  fi
+
+  end_execute_options "${option}" "${func_name}"
+}
+
+function configure_bind() {
+  local option extra_option func_name
+  option="$1"
+  extra_option="$2"
+  func_name="${FUNCNAME[0]}"
+  start_execute_options "${option}" "${func_name}"
+  [[ "${SKIP_RUN}" == "true" ]] && return 0
+  if [[ ! -f "${CONF_PATH}/${func_name}_executed" && "${FUNCTION_RUN}" == "true" ]]; then
+    local bind_named_conf grep_found
+
+    if [ "${C_ENABLE_BIND}" == "true" ]; then
+      if [ "${DISTRO_ID}" == "debian" ]; then
+        bind_named_conf="/etc/bind/named.conf.options"
+        if [[ ! -f "${bind_named_conf}" ]]; then
+          # This bind option should exist
+          _echo "$(msg yellow)Warning, file named.conf does not exist in ${bind_named_conf}! Installing bind9$(msg end)" --name
+          apt-get -y install bind9
+        fi
+
+      else
+        # Have not implemented for other distro
+        _echo "$(msg yellow)Warning, please inspect the bind.conf location for this DISTRO ${DISTRO_ID}!$(msg end)" --name
+        _exit 147
+      fi
+
+      # Make sure bind is enabled:
+      if [ "${C_SERVER_TYPE}" == "directadmin" ]; then
+        _echo -n "$(msg cyan)Enabling DNS service (named) in directadmin services.status ...$(msg end)" --name
+        sed -i 's/named=OFF/named=ON/' /usr/local/directadmin/data/admin/services.status
+        get_status_message "$?"
+      fi
+
+      _echo -n "$(msg cyan)Stopping DNS service (named) ...$(msg end)" --name
+      service named start
+      get_status_message "$?"
+      _echo -n "$(msg cyan)Enabling DNS service (named) execution script in /etc/init.d/named ...$(msg end)" --name
+      #cp -f /etc/init.d/named.original.backup /etc/init.d/named
+      sed -i '/exit 0; #New line from/d' /etc/init.d/named
+      get_status_message "$?"
+      _echo -n "$(msg cyan)Enabling DNS service (named) from systemd startup  in /usr/lib/systemd/system/named.service ...$(msg end)" --name
+      # Original: ExecStart=/usr/sbin/named -f $OPTIONS
+      sed -i "s/ExecStart=.*/ExecStart=\/usr\/sbin\/named -f \$OPTIONS/" /usr/lib/systemd/system/named.service
+      get_status_message "$?"
+      _echo -n "$(msg cyan)Enabling DNS service (named) from systemd startup  in /etc/systemd/system/named.service...$(msg end)" --name
+      # Original: ExecStart=/usr/sbin/named -f -u bind
+      sed -i "s/ExecStart=.*/ExecStart=\/usr\/sbin\/named -f -u bind/" /etc/systemd/system/named.service
+      get_status_message "$?"
+      _echo -n "$(msg cyan)Reloading systemd startup ...$(msg end)" --name
+      systemctl daemon-reload
+      get_status_message "$?"
+      echo ""
+
+      # Configure bind here (if needed), based on the named.conf
+      grep_found=$(grep -ic 'allow-query { localhost; };' "${bind_named_conf}")
+      if [ "${grep_found}" = 0 ]; then
+        _echo -n "$(msg cyan)Adding option allow-query into ${bind_named_conf}...$(msg end)" --name
+        sed -i "s|\options {|&\n\tallow-query \{ localhost; }; #New line from ${SCRIPT_NAME}|" "${bind_named_conf}"
+        get_status_message "$?"
+      else
+        _echo "$(msg yellow)[Skipped]: The allow-query value was previously set in ${bind_named_conf}$(msg end)" --name
+      fi
+      grep_found=$(grep -ic 'allow-recursion { localhost; };' "${bind_named_conf}")
+      if [ "${grep_found}" = 0 ]; then
+        _echo -n "$(msg cyan)Adding option allow-recursion into ${bind_named_conf}...$(msg end)" --name
+        sed -i "s|\options {|&\n\tallow-recursion\{ localhost; }; #New line from ${SCRIPT_NAME}|" "${bind_named_conf}"
+        get_status_message "$?"
+      else
+        _echo "$(msg yellow)[Skipped]: The allow-query value was previously set in ${bind_named_conf}$(msg end)" --name
+      fi
+
+      grep_found=$(grep -ic 'version "NA";' "${bind_named_conf}")
+      if [ "${grep_found}" = 0 ]; then
+        _echo -n "$(msg cyan)Adding option version N/A into ${bind_named_conf}...$(msg end)" --name
+        sed -i "s|\options {|&\n\tversion \"NA\"; #New line from ${SCRIPT_NAME}|" "${bind_named_conf}"
+        get_status_message "$?"
+      else
+        _echo "$(msg yellow)[Skipped]: The version value was previously set in ${bind_named_conf}$(msg end)" --name
+      fi
+
+      grep_found=$(grep -ic 'recursion yes;' "${bind_named_conf}")
+      if [ "${grep_found}" = 0 ]; then
+        _echo -n "$(msg cyan)Adding option recursion yes into ${bind_named_conf}...$(msg end)" --name
+        sed -i "s|\options {|&\n\trecursion yes; #New line from ${SCRIPT_NAME}|" "${bind_named_conf}"
+        get_status_message "$?"
+      else
+        _echo "$(msg yellow)[Skipped]: The version value was previously set in ${bind_named_conf}$(msg end)" --name
+      fi
+      echo ""
+      # Enable DNSSEC if supported
+      if [ "${C_ENABLE_DNSSEC}" == "true" ]; then
+        if [[ "${DNS_PROVIDER}" == "linode" ]]; then
+          _echo "$(msg yellow)[Skipped]: Warning, the DNS provider ${DNS_PROVIDER} does not support DNSSEC$(msg end)" --name
+        else
+          _echo "$(msg cyan)Installing DNSSEC using directadmin script (dnssec.sh) ...$(msg end)" --name
+          ${da_script_path}/dnssec.sh install
+          echo ""
+          _echo "$(msg cyan)Adding the some strings into the 'options { .... }' section at ${bind_named_conf} to enable DNSSEC ...$(msg end)" --name
+          if [ -f "${bind_named_conf}" ]; then
+            grep_found=$(grep -ic 'bindkeys-file \"\/etc\/bind\/named.iscdlv.key\";' "${bind_named_conf}")
+            if [ "${grep_found}" = 0 ]; then
+              sed -i "s|\options {|&\n\tbindkeys-file \"\/etc\/bind\/named.iscdlv.key\";|" "${bind_named_conf}"
+            fi
+            grep_found=$(grep -ic 'dnssec-lookaside auto;' "${bind_named_conf}")
+            if [ "${grep_found}" = 0 ]; then
+              sed -i "s|\options {|&\n\tdnssec-lookaside auto;|" "${bind_named_conf}"
+            fi
+            grep_found=$(grep -ic 'dnssec-enable yes;' "${bind_named_conf}")
+            if [ "${grep_found}" = 0 ]; then
+              sed -i "s|\options {|&\n\tdnssec-enable yes;|" "${bind_named_conf}"
+            fi
+
+            # This setting is only useful when DNSSEC is installed (by default it is disabled)
+            _echo "$(msg cyan)Enabling TLSA DNS record in directadmin.conf ...$(msg end)" --name
+            ${da_bin} set dns_tlsa 1
+            echo ""
+            _echo "$(msg cyan)Requesting directadmin to restart ...$(msg end)" --name
+            restart_da
+            echo ""
+          else
+            _echo "$(msg red)Error,the file ${bind_named_conf} does not exist! Make sure bind is installed first!$(msg end)" --name
+            _exit 147
+          fi
+        fi
+      else
+        _echo "$(msg yellow)[Skipped]: The setting C_ENABLE_DNSSEC is not set to true. DNSSEC installation is skipped!$(msg end)" --name
+      fi
+    else
+      # Guide: https://help.directadmin.com/item.php?id=25
+      # Disable named or DNS service
+      if [ "${C_SERVER_TYPE}" == "directadmin" ]; then
+        _echo -n "$(msg cyan)Disabling DNS service (named) in directadmin services.status ...$(msg end)" --name
+        sed -i 's/named=ON/named=OFF/' /usr/local/directadmin/data/admin/services.status
+        get_status_message "$?"
+      fi
+      _echo -n "$(msg cyan)Stopping DNS service (named) ...$(msg end)" --name
+      service named stop
+      get_status_message "$?"
+
+      grep_found=$(grep -ic 'exit 0; \#New line' /etc/init.d/named)
+      if [ "${grep_found}" = 0 ]; then
+        _echo -n "$(msg cyan)Halting DNS service (named) execution script in /etc/init.d/named ...$(msg end)" --name
+        sed -i "s|\#\!\/bin\/sh -e|&\nexit 0; #New line from ${SCRIPT_NAME}|" /etc/init.d/named
+        get_status_message "$?"
+      else
+        _echo -n "$(msg yellow)[Skipped]: Already halted DNS service (named) execution script in /etc/init.d/named ...$(msg end)" --name
+      fi
+      echo ""
+      #cp -f /etc/init.d/named /etc/init.d/named.original.backup
+      #{
+      #  echo "#!/bin/bash"
+      #  echo "exit 0;"
+      #} >/etc/init.d/named
+      _echo -n "$(msg cyan)Halting DNS service (named) from systemd startup  in /usr/lib/systemd/system/named.service ...$(msg end)" --name
+      # Original: ExecStart=/usr/sbin/named -f $OPTIONS
+      sed -i "s/ExecStart=.*/ExecStart=echo -n ''/" /usr/lib/systemd/system/named.service
+      get_status_message "$?"
+      _echo -n "$(msg cyan)Halting DNS service (named) from systemd startup  in /etc/systemd/system/named.service...$(msg end)" --name
+      # Original: ExecStart=/usr/sbin/named -f -u bind
+      sed -i "s/ExecStart=.*/ExecStart=echo -n ''/" /etc/systemd/system/named.service
+      get_status_message "$?"
+      _echo -n "$(msg cyan)Reloading systemd startup ...$(msg end)" --name
+      systemctl daemon-reload
+      get_status_message "$?"
+      echo ""
+    fi
     echo ""
     check_finish_reboot "${func_name}"
   else
@@ -10511,7 +10727,7 @@ function configure_da_ips() {
       if [ "${C_DA_AUTO_ADD_IPV46_ENTRY}" == "true" ]; then
         _echo "$(msg cyan)Automatically adding missing IPv6 IP address using directadmin API ... $(msg end)" --name
         #1) First method: Create ipv6 file using directadmin API
-        # Use converted IPv6
+        # Use converted IPv6 (I don't have to convert it actually, this will be done automatically)
         da_api_admin add-ip --ip-address "${c_da_ipv6}" --netmask "${C_IPV6_NETMASK0}"
 
         #2) Second method: Manually create ipv6 file (alternative way) if the above method API doesn't produce the IP file (just in case)
@@ -12130,6 +12346,9 @@ function configure_da_settings() {
     # Set the timeout setting in second for directadmin execution before generating a timeout signal and aborting (default 60 seconds)
     ${da_bin} set timeout "${C_DA_TIMEOUT}"
     echo ""
+    # https://www.directadmin.com/features.php?id=930
+    ${da_bin} set tokenizer_debug "${C_DA_TOKENIZER_DEBUG}"
+    echo ""
     #_echo "$(msg cyan)Setting directadmin session minutes ...$(msg end)" --name
     # Set the login session timeout in minutes (when idle), session counter reset to 0 if any da page is reload (default 60 minutes / 1 hour)
     # 2880 = 2 days / 48 hours
@@ -12254,7 +12473,6 @@ function configure_da_cb_settings() {
     local da_bin da_cb_bin c_da_php_enable_dangerous_function
     da_bin="/usr/local/directadmin/directadmin"
     da_cb_bin="/usr/local/directadmin/custombuild/build"
-    da_conf="/usr/local/directadmin/conf/directadmin.conf"
     da_conf="/usr/local/directadmin/conf/directadmin.conf"
     da_cb_custom_path="/usr/local/directadmin/custombuild/custom/"
 
@@ -12735,9 +12953,11 @@ function configure_da_reseller_accounts() {
       # No need to encode the value, it's working it seems like directadmin know how to handle this data in API, in debug mode it added extra quote for the value
       da_api_admin create-dns-record --sign-as "${da_reseller_uname}" --domain "${da_reseller_domain_first}" --record-type TXT --record-name "_domainkey" --record-value "o=~; r=webmaster@${da_reseller_domain_first}" --record-ttl 30 --affect-pointers yes
       echo ""
-
+      _echo "$(msg cyan)Creating Mail MX record for ${da_reseller_domain_first} without subdomain ...$(msg end)" --name
+      #da_api_admin create-dns-record --sign-as "${da_reseller_uname}" --domain "${da_reseller_domain_first}" --record-type MX --record-domain "${da_reseller_domain_first}." --record-priority "${record_priority}" --record-subdomain "${record_subdomain}" --record-ttl 30 --affect-pointers yes
+      da_api_admin create-dns-record --sign-as "${da_reseller_uname}" --domain "${da_reseller_domain_first}" --record-type MX --record-domain "${da_reseller_domain_first}." --record-priority "10" --record-subdomain "." --record-ttl 30 --affect-pointers yes
+      echo ""
       copy_local_dns_to_external_dns "${da_reseller_domain_first}"
-
       # This will be executed if reseller has more than 1 domains. We add the extra domains here and skipped the default domain:
       if [ "${da_reseller_domain_count}" -gt 1 ]; then
         _echo "$(msg cyan)Notice, this reseller ${da_reseller_uname} has ${da_reseller_domain_count} domains$(msg end)" --name
@@ -12747,7 +12967,6 @@ function configure_da_reseller_accounts() {
             _echo "$(msg cyan)Skipped adding the default domain: ${da_reseller_domain_first}$(msg end)" --name
             continue
           fi
-
           _echo "$(msg cyan)Creating extra domain ${extra_domain} for reseller ${da_reseller_uname} ...$(msg end)" --name
           da_api_admin create-domain --sign-as "${da_reseller_uname}" --domain "${extra_domain}" --recommend-values
           echo ""
@@ -12757,7 +12976,8 @@ function configure_da_reseller_accounts() {
           _echo "$(msg cyan)Creating DKIM signing policy TXT record for extra domain ${extra_domain} ...$(msg end)" --name
           da_api_admin create-dns-record --sign-as "${da_reseller_uname}" --domain "${extra_domain}" --record-type TXT --record-name "_domainkey" --record-value "o=~; r=webmaster@${extra_domain}" --record-ttl 30 --affect-pointers yes
           echo ""
-
+          _echo "$(msg cyan)Creating Mail MX record for ${extra_domain} without subdomain ...$(msg end)" --name
+          da_api_admin create-dns-record --sign-as "${da_reseller_uname}" --domain "${extra_domain}" --record-type MX --record-domain "${extra_domain}." --record-priority "10" --record-subdomain "." --record-ttl 30 --affect-pointers yes
           copy_local_dns_to_external_dns "${extra_domain}"
 
         done # End looping for adding extra domains
@@ -13197,10 +13417,10 @@ function configure_da_fqhn_server_ssl() {
 
           # This fixed http protocol problem if cert has been requested as I reported here https://forum.directadmin.com/threads/might-be-bug-api-http-protocol-is-not-working-after-requesting-certificate.64408/
           # I also have another workaround to let the script select http or https (if available). To use this workaround enable this setting:
-          # AUTO_SELECT_DA_API_PROTOCOL=true (remember this is beta feature. When directadmin released bug fixed, this feature will be disabled by default)
+          # C_DA_AUTO_SELECT_API_PROTOCOL=true (remember this is beta feature. When directadmin released bug fixed, this feature will be disabled by default)
 
           # If I disable ssl below (set ssl=0 in directadmin.conf and restart), I can use both http and https on API for host domain:
-          # BUT at this point, I decided to use my workaround using AUTO_SELECT_DA_API_PROTOCOL=true (so, I don't have to disable ssl option below. Only uncomment below if this failed)
+          # BUT at this point, I decided to use my workaround using C_DA_AUTO_SELECT_API_PROTOCOL=true (so, I don't have to disable ssl option below. Only uncomment below if this failed)
           #_echo "$(msg cyan)Disabling ssl=0 in directadmin.conf config...$(msg end)" --name
           #${da_bin} set ssl 0
 
@@ -13441,7 +13661,6 @@ function configure_maxinis() {
     echo "[${SCRIPT_NAME}]: Getting latest version of lynis ..."
     lynis_latest_version=$(curl 'https://downloads.cisofy.com/lynis/' | grep -oP 'href="lynis-\K[0-9]+\.[0-9]+\.[0-9]+' | sort -t. -rn -k1,1 -k2,2 -k3,3 | head -1)
     echo "[${SCRIPT_NAME}]: Latest version detected as ${lynis_latest_version}. Downloading lynis version ${lynis_latest_version} ..."
-    sleep 1
     mkdir -p /usr/local/lynis
     cd_to_path "/usr/local"
     wget --no-verbose "https://cisofy.com/files/lynis-${lynis_latest_version}.tar.gz"
@@ -13809,6 +14028,38 @@ function configure_maxigpg() {
   end_execute_options "${option}" "${func_name}"
 }
 
+function configure_maxinance() {
+  local option func_name
+  option="$1"
+  func_name="${FUNCNAME[0]}"
+  start_execute_options "${option}" "${func_name}"
+  [[ "${SKIP_RUN}" == "true" ]] && return 0
+  if [[ ! -f "${CONF_PATH}/${func_name}_executed" && "${FUNCTION_RUN}" == "true" ]]; then
+    local maxinance_bin
+    maxinance_bin="/usr/local/maxicode/maxinance/maxinance"
+    _echo "$(msg cyan)Removing previous maxinance symlink shortcut in /usr/local/bin ...$(msg end)" --name
+    rm -f /usr/local/bin/maxinance
+    if [ -f ${maxinance_bin} ]; then
+      _echo "$(msg cyan)Setting ${maxinance_bin} script to have executable permission ...$(msg end)" --name
+      chmod +x "${maxinance_bin}"
+      _echo "$(msg cyan)Creating symlink for ${maxinance_bin} ...$(msg end)" --name
+      ln -s "${maxinance_bin}" /usr/local/bin
+      maxinance --version
+      echo ""
+    else
+      _echo "$(msg red)Warning, maxinance binary doesn't exist inside /usr/local/maxicode ...$(msg end)" --name
+      _exit 147
+    fi
+    echo ""
+    check_finish_reboot "${func_name}"
+  else
+    _echo "$(msg yellow)[Skipped by system]: $(msg magenta)${func_name}()$(msg end) $(msg yellow)with current option ${option} has ran before $(msg end)" --name
+    _echo "$(msg yellow)=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=$(msg end)" --plain
+  fi
+
+  end_execute_options "${option}" "${func_name}"
+}
+
 function configure_maxiaide() {
   # Under testing for new version AIDE. New AIDE version has different config format.
   local option func_name
@@ -13856,7 +14107,7 @@ function configure_maxiaide() {
   end_execute_options "${option}" "${func_name}"
 }
 
-function configure_wpcli() {
+function configure_da_wpcli() {
   local option func_name
   option="$1"
   func_name="${FUNCNAME[0]}"
@@ -13876,7 +14127,13 @@ function configure_wpcli() {
   end_execute_options "${option}" "${func_name}"
 }
 
+function configure_maxicli() {
+  :
+}
+
 # maxida is used to manage directadmin functionalities including APIs.
+# This is a very important tool if installed with directadmin
+# the alias binary name is dacli
 function configure_maxida() {
   local option func_name
   option="$1"
@@ -13884,56 +14141,25 @@ function configure_maxida() {
   start_execute_options "${option}" "${func_name}"
   [[ "${SKIP_RUN}" == "true" ]] && return 0
   if [[ ! -f "${CONF_PATH}/${func_name}_executed" && "${FUNCTION_RUN}" == "true" ]]; then
-    local maxida_bin maxida_conf_sample maxida_conf
-    echo "[${SCRIPT_NAME}]: Configuring maxida installation in maxicode ..."
-    maxida_bin="/usr/local/maxicode/maxida/maxida"
-    maxida_sl_bin="/usr/local/bin/maxida"
-    maxida_conf_sample="/usr/local/maxicode/maxida/maxida.conf.sample"
-    maxida_conf="/usr/local/maxicode/maxida/maxida.conf"
-    maxida_maxipass_conf_path="/usr/local/maxicode/maxipass/cross/maxida"
-    maxida_maxipass_conf="${maxida_maxipass_conf_path}/maxida.conf"
-    # Use config file from maxipass
-    maxida_conf="${maxida_maxipass_conf}"
-    mkdir -p "${maxida_maxipass_conf_path}"
-    _echo "Removing existing config file from ${maxida_conf}"
-    rm -f "${maxida_conf}"
-    if [ -f ${maxida_bin} ]; then
-      _echo "Creating symlink and executable for ${maxida_bin} ..."
-      sleep 1
-      chmod +x ${maxida_bin}
-      # Symbolic name
-      if ! [ -L ${maxida_sl_bin} ]; then
-        ln -s ${maxida_bin} /usr/local/bin
+    if [ "${C_SERVER_TYPE}" == "directadmin" ]; then
+      local dacli_bin
+      dacli_bin="/usr/local/maxicode/maxida/dacli"
+      _echo "$(msg cyan)Removing previous maxinance symlink shortcut in /usr/local/bin ...$(msg end)" --name
+      rm -f /usr/local/bin/dacli
+      if [ -f ${dacli_bin} ]; then
+        _echo "$(msg cyan)Setting ${dacli_bin} script to have executable permission ...$(msg end)" --name
+        chmod +x "${dacli_bin}"
+        _echo "$(msg cyan)Creating symlink for ${dacli_bin} ...$(msg end)" --name
+        ln -s "${dacli_bin}" /usr/local/bin
+        dacli --version
+        echo ""
       else
-        _echo "Symbolic link exist for ${maxida_sl_bin}!"
+        _echo "$(msg red)Warning, dacli  binary doesn't exist inside /usr/local/maxicode ...$(msg end)" --name
+        _exit 147
       fi
     else
-      _echo "Warning, maxida doesn't exist in /usr/local/maxicode !"
-      _exit 147
+      _echo "$(msg yellow)[Skipped]: maxida is only for server with directadmin installation$(msg end)" --name
     fi
-
-    if [ -f ${maxida_conf_sample} ]; then
-      cp "${maxida_conf_sample}" "${maxida_conf}"
-      # Here we create environment variables to use maxida API (Directadmin API). Very important to supply initial authentication
-      _echo "Creating environment config for maxida at ${maxida_conf} ..."
-      sleep 1
-      # Put admin authentication:
-      # Use | instead of \ so we can escape the slash for example when providing URL with /
-      #sed "s/regex/replace/" file --- > sed "s|regex|replace|" file
-
-      sed -i "s|^API_USERNAME=.*|API_USERNAME=\"${C_DA_OWNER_USERNAME1}\"|" "${maxida_conf}"
-      sed -i "s|^API_USERPASS=.*|API_USERPASS=\"${C_DA_OWNER_USERPASS1}\"|" "${maxida_conf}"
-      sed -i "s|^BOX_HOSTNAME_FQDN=.*|BOX_HOSTNAME_FQDN=\"${C_BOX_HOSTNAME_FQHN}\"|" "${maxida_conf}"
-      sed -i "s|^DA_PORT=.*|DA_PORT=\"${C_DA_PORT}\"|" "${maxida_conf}"
-      sed -i "s|^SETUP_GIT_URL=.*|SETUP_GIT_URL=\"${C_SETUP_GIT_URL}\"|" "${maxida_conf}"
-      sed -i "s|^GIT_TOKEN=.*|GIT_TOKEN=\"${C_GIT_TOKEN}\"|" "${maxida_conf}"
-    else
-      _echo "Warning, maxida.conf.sample doesn't exist in ${maxida_conf_sample}!"
-      _exit 147
-    fi
-
-    # Update directadmin all custom scripts
-    ${maxida_bin} --update all
 
     echo ""
     check_finish_reboot "${func_name}"
@@ -15189,7 +15415,9 @@ function configure_da_user_accounts() {
       # No need to encode the value, it's working it seems like directadmin know how to handle this data in API, in debug mode it added extra quote for the value
       da_api_admin create-dns-record --sign-as "${da_user_uname}" --domain "${da_user_domain_first}" --record-type TXT --record-name "_domainkey" --record-value "o=~; r=webmaster@${da_user_domain_first}" --record-ttl 30 --affect-pointers yes
       echo ""
-
+      _echo "$(msg cyan)Creating Mail MX record for ${da_user_domain_first} without subdomain ...$(msg end)" --name
+      da_api_admin create-dns-record --sign-as "${da_reseller_uname}" --domain "${da_user_domain_first}" --record-type MX --record-domain "${da_user_domain_first}." --record-priority "10" --record-subdomain "." --record-ttl 30 --affect-pointers yes
+      echo ""
       copy_local_dns_to_external_dns "${da_user_domain_first}"
 
       # This will be executed if user has more than 1 domains. We add the extra domains here and skipped the default domain:
@@ -15210,7 +15438,9 @@ function configure_da_user_accounts() {
           _echo "$(msg cyan)Creating DKIM signing policy TXT record for extra domain ${extra_domain} ...$(msg end)" --name
           da_api_admin create-dns-record --sign-as "${da_user_uname}" --domain "${extra_domain}" --record-type TXT --record-name "_domainkey" --record-value "o=~; r=webmaster@${extra_domain}" --record-ttl 30 --affect-pointers yes
           echo ""
-
+          _echo "$(msg cyan)Creating Mail MX record for ${extra_domain} without subdomain ...$(msg end)" --name
+          da_api_admin create-dns-record --sign-as "${da_reseller_uname}" --domain "${extra_domain}" --record-type MX --record-domain "${extra_domain}." --record-priority "10" --record-subdomain "." --record-ttl 30 --affect-pointers yes
+          echo ""
           copy_local_dns_to_external_dns "${extra_domain}"
 
         done # End looping for adding extra domains
@@ -16380,7 +16610,9 @@ function configure_cronjobs() {
   if [[ ! -f "${CONF_PATH}/${func_name}_executed" && "${FUNCTION_RUN}" == "true" ]]; then
     # Stopping some services to reduce memory usage like clamav:
     maxicron --stop-some-services
+    # TODO add this:
 
+    # 23 */12 * * * /usr/local/subcode/centmin/csfcf.sh csf >/dev/null 2>&1
     # Add the above command in crontab so it will run on startup
     {
       echo "# Stop some high memory processes 180 seconds (3 minutes) after reboot"
@@ -16459,7 +16691,9 @@ function configure_services() {
 }
 
 # This is used to get A+ rating for SSL and increase security
-function configure_domain_security() {
+# TODO Warning, the next DA version 1.62.9 (currently in alpha) will release this hsts header for specific domain via ui, check this for compatibility on next version
+# https://www.directadmin.com/features.php?id=2602
+function configure_da_domain_security() {
 
   if [ "${C_DA_ENABLE_DOMAIN_SECURITY_HEADER}" == "true" ]; then
     if [[ "${C_DA_CB_WEBSERVER_SOFTWARE}" == "nginx" || "${C_DA_CB_WEBSERVER_SOFTWARE}" == "nginx_apache" ]]; then
@@ -16467,7 +16701,7 @@ function configure_domain_security() {
       da_bin="/usr/local/directadmin/directadmin"
       da_cb_bin="/usr/local/directadmin/custombuild/build"
       da_template_custom_path="/usr/local/directadmin/data/templates/custom"
-      _echo -n "$(msg cyan)Writing hsts rule for ${C_DA_CB_WEBSERVER_SOFTWARE} ...$(msg end)" --name
+      _echo -n "$(msg cyan)Writing hsts rule for ${C_DA_CB_WEBSERVER_SOFTWARE} into ${da_template_custom_path}/cust_nginx.CUSTOM.post ...$(msg end)" --name
       mkdir -p "${da_template_custom_path}"
       {
         # Note 1
@@ -16477,77 +16711,96 @@ function configure_domain_security() {
 
         # This if for global domain (every domain will have this header except host):
         # For host, it use option hsts=${second}
-        echo "# ==============================================="
-        echo "# This file was automatically generated by ${SCRIPT_NAME}"
-        echo "# Author: ${C_ADMIN_NAME} | Email: ${C_ADMIN_EMAIL} | Web: ${C_BOX_DOMAIN}"
-        echo "# ==============================================="
-        echo "add_header X-Content-Type-Options \"nosniff\";"
-        echo "add_header X-Frame-Options \"SAMEORIGIN\" always;"
-        echo "add_header X-XSS-Protection \"1\";"
-        echo "add_header X-Download-Options \"noopen\";"
-        echo "add_header X-Permitted-Cross-Domain-Policies \"master-only\";"
-        echo "add_header X-DNS-Prefetch-Control \"on\";"
-        echo "add_header Referrer-Policy \"no-referrer-when-downgrade\";"
-        echo ""
+        echo -e "\t# ===============================================\n"
+        echo -e "\t# This security header section was automatically generated by ${SCRIPT_NAME}\n"
+        echo -e "\t# Author: ${C_ADMIN_NAME} | Email: ${C_ADMIN_EMAIL} | Web: ${C_BOX_DOMAIN}\n"
+        echo -e "\t# ===============================================\n"
+        echo -e "\tadd_header X-Content-Type-Options \"nosniff\";\n"
+        echo -e "\tadd_header X-Frame-Options \"SAMEORIGIN\" always;\n"
+        echo -e "\tadd_header X-XSS-Protection \"1\";\n"
+        echo -e "\tadd_header X-Download-Options \"noopen\";\n"
+        echo -e "\tadd_header X-Permitted-Cross-Domain-Policies \"master-only\";\n"
+        echo -e "\tadd_header X-DNS-Prefetch-Control \"on\";\n"
+        echo -e "\tadd_header Referrer-Policy \"no-referrer-when-downgrade\";\n"
+        echo -e "\n"
         if [ "${C_DA_ENABLE_DOMAIN_HSTS}" != "false" ]; then
-          echo "|*if SSL_TEMPLATE=\"1\"|"
-          # The preload part is important, so that after you have submitted the domain into preload list https://hstspreload.org/,
-          # people will not able to delete your domain there. This preload list must be included so people in Google know you want to
-          # redirect people to https.
-          echo "  add_header Strict-Transport-Security \"max-age=${C_DA_ENABLE_DOMAIN_HSTS}; includeSubDomains; preload\";"
-          echo "|*endif|"
+          local enable_type hsts_max_age
+          enable_type=$(echo "${C_DA_ENABLE_DOMAIN_HSTS}" | awk -F':' '{ print $1 }')
+          hsts_max_age=$(echo "${C_DA_ENABLE_DOMAIN_HSTS}" | awk -F':' '{ print $2 }')
+          if [ "${enable_type}" == "global" ]; then
+            echo -e "\t|*if SSL_TEMPLATE=\"1\"|\n"
+            # The preload part is important, so that after you have submitted the domain into preload list https://hstspreload.org/,
+            # people will not able to delete your domain there. This preload list must be included so people in Google know you want to
+            # redirect people to https.
+            echo -e "\tadd_header Strict-Transport-Security \"max-age=${hsts_max_age}; includeSubDomains; preload\";\n"
+            echo -e "\t|*endif|\n"
+          else
+            :
+            # TODO add hsts based on user ROLE config (let the other header global) (planned feature)
+          fi
         fi
-        echo ""
-        echo "add_header Content-Security-Policy \"block-all-mixed-content\";"
-        echo "add_header Permissions-Policy 'geolocation=*, midi=(), sync-xhr=(self \"https://|DOMAIN|\" \"https://www.|DOMAIN|\"), \
-microphone=(), camera=(), magnetometer=(), gyroscope=(), payment=(), fullscreen=(self \"https://|DOMAIN|\" \"https://www.|DOMAIN|\" )';"
+        echo -e "\n"
+        echo -e "\tadd_header Content-Security-Policy \"block-all-mixed-content\";"
+        echo -e "\tadd_header Permissions-Policy 'geolocation=*, midi=(), sync-xhr=(self \"https://|DOMAIN|\" \"https://www.|DOMAIN|\"), \
+microphone=(), camera=(), magnetometer=(), gyroscope=(), payment=(), fullscreen=(self \"https://|DOMAIN|\" \"https://www.|DOMAIN|\" )';\n"
         # This is the extra condition to first redirect (if I dont put this, I will have problem submitting preload hsts):
         # Related to my post here: https://forum.directadmin.com/threads/problem-with-ssl-on-hostname-and-da-and-hsts-with-other-aplications-on-other-ports.64137/post-335495
-        echo ""
-        echo "|*if SSL_TEMPLATE=\"0\"|"
-        echo "  return 301 https://\$host\$request_uri;"
-        echo "|*endif|"
+        echo -e "\n"
+        echo -e "\t|*if SSL_TEMPLATE=\"0\"|\n"
+        echo -e "\treturn 301 https://\$host\$request_uri;\n"
+        echo -e "\t|*endif|\n"
       } >"${da_template_custom_path}/cust_nginx.CUSTOM.post"
       get_status_message "$?"
       echo ""
 
     elif [[ "${C_DA_CB_WEBSERVER_SOFTWARE}" == "apache" ]]; then
+      _echo -n "$(msg cyan)Writing hsts rule for ${C_DA_CB_WEBSERVER_SOFTWARE} into ${da_template_custom_path}/cust_httpd.CUSTOM.post ...$(msg end)" --name
       {
         # Reference: https://docs.directadmin.com/webservices/apache/virtualhost-level.html#adding-security-headers-to-get-an-a-rating
-        echo "# ==============================================="
-        echo "# This file was automatically generated by ${SCRIPT_NAME}"
-        echo "# Author: ${C_ADMIN_NAME} | Email: ${C_ADMIN_EMAIL} | Web: ${C_BOX_DOMAIN}"
-        echo "# ==============================================="
-        echo "<IfModule mod_headers.c>"
-        echo "Header always set X-Content-Type-Options \"nosniff\""
-        echo "<FilesMatch \"\\.(php|html)quot;>"
-        echo "Header always unset X-Powered-By"
-        echo "Header unset X-Powered-By"
-        echo "Header set X-Frame-Options \"SAMEORIGIN\""
-        echo "Header set X-XSS-Protection \"1\""
-        echo "Header set X-Download-Options \"noopen\""
-        echo "Header set X-Permitted-Cross-Domain-Policies \"master-only\""
-        echo "Header set X-DNS-Prefetch-Control \"on\""
-        echo "Header set Referrer-Policy \"no-referrer-when-downgrade\""
-        echo ""
+        echo -e "\t# ===============================================\n"
+        echo -e "\t# This security header section was automatically generated by ${SCRIPT_NAME}\n"
+        echo -e "\t# Author: ${C_ADMIN_NAME} | Email: ${C_ADMIN_EMAIL} | Web: ${C_BOX_DOMAIN}\n"
+        echo -e "\t# ===============================================\n"
+        echo -e "\t<IfModule mod_headers.c>\n"
+        echo -e "\tHeader always set X-Content-Type-Options \"nosniff\"\n"
+        echo -e "\t<FilesMatch \"\\.(php|html)quot;>\n"
+        echo -e "\tHeader always unset X-Powered-By\n"
+        echo -e "\tHeader unset X-Powered-By\n"
+        echo -e "\tHeader set X-Frame-Options \"SAMEORIGIN\"\n"
+        echo -e "\tHeader set X-XSS-Protection \"1\"\n"
+        echo -e "\tHeader set X-Download-Options \"noopen\"\n"
+        echo -e "\tHeader set X-Permitted-Cross-Domain-Policies \"master-only\"\n"
+        echo -e "\tHeader set X-DNS-Prefetch-Control \"on\"\n"
+        echo -e "\tHeader set Referrer-Policy \"no-referrer-when-downgrade\"\n"
+        echo -e "\n"
         if [ "${C_DA_ENABLE_DOMAIN_HSTS}" != "false" ]; then
-          echo "|*if SSL_TEMPLATE=\"1\"|"
-          echo "  Header set Strict-Transport-Security \"max-age=${C_DA_ENABLE_DOMAIN_HSTS}\" includeSubDomains; preload"
-          echo "|*endif|"
+          local enable_type hsts_max_age
+          enable_type=$(echo "${C_DA_ENABLE_DOMAIN_HSTS}" | awk -F':' '{ print $1 }')
+          hsts_max_age=$(echo "${C_DA_ENABLE_DOMAIN_HSTS}" | awk -F':' '{ print $2 }')
+          if [ "${enable_type}" == "global" ]; then
+            echo -e "\t|*if SSL_TEMPLATE=\"1\"|\n"
+            echo -e "\tHeader set Strict-Transport-Security \"max-age=${hsts_max_age}\" includeSubDomains; preload\n"
+            echo -e "\t|*endif|\n"
+          else
+            :
+            # TODO add hsts based on user ROLE config (let the other header global) (planned feature)
+          fi
         fi
-        echo ""
-        echo "Header set Content-Security-Policy \"block-all-mixed-content\""
-        echo "Header Set Permissions-Policy 'geolocation=*, midi=(), sync-xhr=(self \"https://|DOMAIN|\" \"https://www.|DOMAIN|\"), \
-    microphone=(), camera=(), magnetometer=(), gyroscope=(), payment=(), fullscreen=(self \"https://|DOMAIN|\" \"https://www.|DOMAIN|\")'"
-        echo ""
-        echo "|*if SSL_TEMPLATE=\"0\"|"
-        echo "  return 301 https://\$host\$request_uri;"
-        echo "|*endif|"
-        echo "</FilesMatch>"
-        echo "</IfModule>"
+        echo -e "\n"
+        echo -e "\tHeader set Content-Security-Policy \"block-all-mixed-content\"\n"
+        echo -e "\tHeader Set Permissions-Policy 'geolocation=*, midi=(), sync-xhr=(self \"https://|DOMAIN|\" \"https://www.|DOMAIN|\"), \
+    microphone=(), camera=(), magnetometer=(), gyroscope=(), payment=(), fullscreen=(self \"https://|DOMAIN|\" \"https://www.|DOMAIN|\")'\n"
+        echo -e "\n"
+        echo -e "\t|*if SSL_TEMPLATE=\"0\"|\n"
+        echo -e "\treturn 301 https://\$host\$request_uri;\n"
+        echo -e "\t|*endif|\n"
+        echo -e "\t</FilesMatch>\n"
+        echo -e "\t</IfModule>\n"
       } >"${da_template_custom_path}/cust_httpd.CUSTOM.post"
     fi
-
+    # Important, since the above 2 written in global custom virtual host, some headers can be unset via .htaccess for specific domain:
+    # eg: Header always unset X-Frame-Options
+    # Or I can enable this via specific domain only (TODO)
     _echo "$(msg cyan)Rewriting virtual host config ...$(msg end)" --name
     ${da_cb_bin} rewrite_confs
     get_status_message "$?"
@@ -16719,6 +16972,7 @@ function setup() {
         install_da --run
         install_da_post --run
         secure_da_auth --run
+        configure_bind --run
         install_da_csf --run
         configure_csf --run
         # Add da ipv6 and linking with ipv4 and vice versa (this option has --init argument)
@@ -16769,34 +17023,41 @@ function setup() {
         configure_da_user_databases --run
         configure_da_user_domain_ssl_pre --skip # Deprecated (new directadmin version has this)
         configure_da_user_domain_ssl --skip     # Deprecated (new directadmin version has this)
+
         # " -- others ---"
+        configure_da_domain_security
         configure_da_custom_webs --skip # Fix this with new version
+        configure_da_wpcli --run
+
+        # " -- maxicode ---"
+        configure_maxicode_pre --skip
+        configure_maxicode --run
         configure_maxigpg --run
         configure_maxiaide --run
-        configure_wpcli --run
         configure_maxiperm --run
+        configure_maxinance --run
         configure_maxibox --run
-        configure_maxicode_pre --run
-        configure_maxicode --run
         configure_maxinis --run
+        configure_maxicli --run
         configure_maxida --run
         configure_maxicron --run
         configure_maxiwall --run
         configure_maxicloud --run
         configure_maxipass --run
-        configure_maxify --skip #-- disable temporarily
+        configure_maxify --skip # (skipped deprecated)
         configure_logs --skip   #-- skip temporarily
         configure_cronjobs --run
         # Still need to add more based on lynis suggestion
         harden_with_lynis --run
+        # This will disable some services
         configure_services --run
-        configure_domain_security --run
         setup_post --run
       elif [[ "${C_DA_INSTALL_TYPE}" == "auto" ]]; then
         install_da_pre --run
         install_da --run
         install_da_post --run
         secure_da_auth --run
+        configure_bind --run
         configure_csf --run
         # Add da ipv6 and linking with ipv4 and vice versa (this option has --init argument)
         configure_da_ips --run
@@ -16921,6 +17182,9 @@ SPIN_COUNT=0
 
 # A global variable that temporarily holds initial seconds value
 HOLD_SECONDS=0
+
+# A global variable that hold installation count
+INSTALL_COUNT=1
 
 # A global variable that holds the switch whether to run a function based on argument
 FUNCTION_RUN=false
