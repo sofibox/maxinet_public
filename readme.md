@@ -12,6 +12,9 @@ Running example:
 maxinet create-server --rebuild-all --backup
 ````
 
+For example if everything is configured correctly for Directadmin and Linode in maxinet.conf, the above command will configure a new server disk and config in linode, it will then create custom ISO file for Debian, then it will install this operating system.
+then do a lot of thing behind ... bla2 bla2 ... (read the code to understand what it does because it is huge to write what it does) ... and finally you will get a fully working server with live websites. So, with only a single command, you will get a clean server with security hardened features
+
 The feature is currently huge to list out.
 
 It might contain bugs for other distributions. This script is fully tested on Debian 10, Debian 11 and with Directadmin custom and auto installation. This script compatible with linode + directadmin
