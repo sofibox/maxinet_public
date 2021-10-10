@@ -712,8 +712,9 @@ C_SSH_PASSPHRASE="**SSH_PASSPHRASE***"
 # Possible values are: true, false
 C_USE_LATEST_ISO=false
 C_BOX_ISO_OS_NAME="debian"
-C_OS_SELECT_VERSION="11.0.0"
-C_OS_CODE_NAME="bullseye"
+C_OS_SELECT_VERSION="11.1.0"
+# Useful for creating ISO
+C_OS_SET_CODE_NAME="bullseye"
 # possible value: cfq, noop, deadline
 # noob for SSD (testing)
 C_OS_IO_SCHEDULER="cfq"
@@ -802,7 +803,8 @@ C_ENABLE_ROUNDCUBE_RCGUARD=true
 # For using with existing key, it must match the cert and this C_GPG_OWNER_EMAIL
 C_GPG_OWNER_EMAIL="user@server.com"
 C_GPG_PASSPHRASE="GPG_PASSWORD_HERE"
-C_GPG_USE_EXISTING_KEY=true
+# Remember to push the existing cert during installation if set to true
+C_GPG_USE_EXISTING_KEY=false
 C_GPG_CACHE_DURATION="34560000" #34560000
 
 # =~=~ For maxiwall / suricata =~=~#
@@ -810,7 +812,8 @@ C_GPG_CACHE_DURATION="34560000" #34560000
 # Select version for suricata. Best is to use version 6+ because version 6 has new different packages need to include:
 # Working = 6.0.1 | version 6.0.2 (both version required rustup. current rustup version has bug with Debian). Using backport temporarily
 # SURICATA_SELECT_VERSION=backport: This will use the latest backport version which is easier to maintain (especially for debian)
-C_SURICATA_SELECT_VERSION="6.0.2"
+# value can be version number, backport or distro. Version number is limited.
+C_SURICATA_SELECT_VERSION="distro"
 C_MAXIWALL_AIPDB_CHECK_URL="https://api.abuseipdb.com/api/v2/check"
 C_MAXIWALL_AIPDB_REPORT_URL="https://api.abuseipdb.com/api/v2/report"
 # The main abuseAIPDB key
@@ -847,14 +850,19 @@ C_LINODE_LABEL="${C_BOX_HOSTNAME_FQHN}"
 # Alternative packages version
 C_INSTALL_RUSTC_VERSION="1.52.0"
 
+# Or set to false to disable yq installation
+# Latest: 4.3.12
+C_YQ_VERSION=false
+
 # GOTIFY configuration
-C_GOTIFY_INSTALLATION=true
+# Temporarily disable to enable SSL first later and check for vulnerabilities:
+C_GOTIFY_INSTALLATION=false
 C_GOTIFY_SYSTEM_USERNAME="gotify"
 C_GOTIFY_SYSTEM_GROUP="gotify"
 # 0 (No notification) , 1-3 (Icon in notification bar)
 # 4-7 (Icon in notification bar + Sound), 8-10 (Icon in notification bar + Sound + Vibration)
 C_GOTIFY_PUSH_PRIORITY=10
-C_GOTIFY_VERSION="2.0.23"
+C_GOTIFY_VERSION="2.1.0" # Previous 2.0.23 (work)
 C_GOTIFY_PLATFORM="linux-amd64"
 C_GOTIFY_PORT="8722"
 C_GOTIFY_USERNAME="admin"
