@@ -4,7 +4,7 @@
 
 _APP_SPECIFIC_NAME="Maxinet"
 # Note that some minor versions are not published
-_APP_VERSION="0.6.5"
+_APP_VERSION="0.6.6"
 _APP_STATUS="alpha"
 _APP_VERSION_STATUS="${_APP_VERSION}-${_APP_STATUS}"
 
@@ -1886,7 +1886,7 @@ ssh_api() {
 
     # Do not quote local_path to enable multiple file transfers
     _echo "$(msg cyan)Getting remote files(s) from remote path ${remote_path} to ${local_path} via SSH ...$(msg end)" --name
-    scp -o "StrictHostKeyChecking no" -P "${port}" -i "${rsa_key}" "${user}@${server}:${remote_path}" "${local_path}" 2> >(grep -v 'Permanently' 1>&2)
+    scp -r -o "StrictHostKeyChecking no" -P "${port}" -i "${rsa_key}" "${user}@${server}:${remote_path}" "${local_path}" 2> >(grep -v 'Permanently' 1>&2)
 
   elif [[ "${action}" == "file-upload" || "${action}" == "upload-files" || "${action}" == "transfer-files" || "${action}" == "transfer-file" || "${action}" == "file-transfer" || "${action}" == "files-transfer" ]]; then
     # ssh_api transfer-files/file-transfer/transfer-file --server-port ${C_BOX_HOSTNAME_FQHN}:${C_SSH_PORT} --group-user root:${C_ROOT_USERNAME} --local-files "/tmp/file1 /var/file2" --remote-path ~/
@@ -7235,14 +7235,13 @@ maxicode_admin() {
         --local-files "${code_path}/code/search_field.awk" --remote-path /usr/local/maxicode/maxiwall/code/
       # For all .lua report
       ssh_api transfer-files --server-port "${C_BOX_HOSTNAME_FQHN}:${C_SSH_PORT}" --group-user "root:${C_ROOT_USERNAME}" \
-        --local-files "${code_path}/code/etc/suricata/lua-output/maxiwall.lua \
-        ${code_path}/code/etc/suricata/lua-output/maxiwall-http.lua" --remote-path /etc/suricata/lua-output/
+        --local-files "${code_path}/code/etc/suricata/lua-output/maxiwall.lua ${code_path}/code/etc/suricata/lua-output/maxiwall-http.lua" --remote-path /etc/suricata/lua-output/
       # For suricata.yaml and suricata-test.yaml
       ssh_api transfer-files --server-port "${C_BOX_HOSTNAME_FQHN}:${C_SSH_PORT}" --group-user "root:${C_ROOT_USERNAME}" \
         --local-files "${code_path}/code/etc/suricata/suricata.yaml ${code_path}/code/etc/suricata/suricata-test.yaml" --remote-path /etc/suricata/
-      # For custom rules (maxiwall.rules)
+      # For custom rules (maxiwall.rules and maxiwall-test.rules)
       ssh_api transfer-files --server-port "${C_BOX_HOSTNAME_FQHN}:${C_SSH_PORT}" --group-user "root:${C_ROOT_USERNAME}" \
-        --local-files "${code_path}/code/etc/suricata/rules/maxiwall.rules ${code_path}/code/etc/suricata/rules/test.rules" --remote-path /etc/suricata/rules/
+        --local-files "${code_path}/code/etc/suricata/rules/maxiwall.rules ${code_path}/code/etc/suricata/rules/maxiwall-test.rules" --remote-path /etc/suricata/rules/
       # For blcheck_service_file.lst (the custom blcheck blocklist file)
       ssh_api transfer-files --server-port "${C_BOX_HOSTNAME_FQHN}:${C_SSH_PORT}" --group-user "root:${C_ROOT_USERNAME}" \
         --local-files "${code_path}/conf/blcheck_service_file.lst ${code_path}/conf/maxiwall_alert_log.lst" --remote-path /usr/local/maxicode/maxiwall/conf/
@@ -7270,6 +7269,7 @@ da_api_admin() {
     text_output recommend_values \
     mail_domain mail_user mail_password mail_quota mail_limit \
     db_domain db_name db_user db_password db_existing_user \
+    ssl_provider ssl_root_domain ssl_subdomains_query \
     api_username api_password \
     scripting
   action="$1"
@@ -7312,25 +7312,28 @@ da_api_admin() {
   db_existing_user=""  # dbuser123
   package_name=""      # UNLIMITED_PACKAGE
   recommend_values=false
-  domain=""           # sofibox.com
-  subdomain=""        # abc (don not specify full domain)
-  ip_type=""          # shared, server etc
-  api_username=""     # arafatx
-  api_password=""     # 1234x
-  record_type=""      # txt,a,aaaa etc
-  record_name=""      # _domainkey
-  record_value=""     # value
-  record_domain=""    # abc.com
-  record_priority=""  # 10
-  record_subdomain="" # change
-  record_ttl=""       # 36000
-  affect_pointers=""  #yes or no
-  special_type=""     # dkim, dmarc, spf, dkim-policy
-  skin_name=""        # evolution, enhanced etc
-  logo_mode=""        # default-logo, dark-logo, favicon
-  logo_file=""        # /tmp/logo.png
-  question=""         # Kau dah lama hidup?
-  answer=""           # Belum
+  domain=""               # sofibox.com
+  subdomain=""            # abc (don not specify full domain)
+  ip_type=""              # shared, server etc
+  api_username=""         # arafatx
+  api_password=""         # 1234x
+  record_type=""          # txt,a,aaaa etc
+  record_name=""          # _domainkey
+  record_value=""         # value
+  record_domain=""        # abc.com
+  record_priority=""      # 10
+  record_subdomain=""     # change
+  record_ttl=""           # 36000
+  affect_pointers=""      #yes or no
+  special_type=""         # dkim, dmarc, spf, dkim-policy
+  skin_name=""            # evolution, enhanced etc
+  logo_mode=""            # default-logo, dark-logo, favicon
+  logo_file=""            # /tmp/logo.png
+  question=""             # Kau dah lama hidup?
+  answer=""               # Belum
+  ssl_provider=""         # letsencrypt, amazonaws, digitalocean
+  ssl_root_domain=""      # test.com
+  ssl_subdomains_query="" # the subdomain query in directadmin
   scripting=false
   while true; do
     case "$1" in
@@ -7513,6 +7516,19 @@ da_api_admin() {
       scripting=true
       shift
       ;;
+    --ssl-provider)
+      ssl_provider="$2"
+      shift 2
+      ;;
+    --ssl-root-domain)
+      ssl_root_domain="$2"
+      shift 2
+      ;;
+    --ssl-subdomains-query)
+      ssl_subdomains_query="$2"
+      shift 2
+      ;;
+
     --)
       shift
       break
@@ -7747,32 +7763,30 @@ da_api_admin() {
     #da_api_admin set-da-admin-settings --recommend-values
   elif [[ "${action}" == "set-da-admin-settings" ]]; then
     # Big NOTE! directadmin does not have CMD_API_ADMIN_SETTINGS
-    local cmd_api data method retval da_api_exec has_success cmd_api_release
-    cmd_api_release=false
-    _echo "$(msg yellow)Note, directadmin does not have CMD_API_ADMIN_SETTINGS (https://forum.directadmin.com/threads/api-set-server-hostname.37872/post-188426). Using CMD_ADMIN_SETTINGS ...$(msg end)" --name
+    local cmd_api data method retval da_api_exec has_success has_cmd_api
+    has_cmd_api="false"
+    _echo "$(msg yellow)Note, directadmin does not have CMD_API_ADMIN_SETTINGS for this call (https://forum.directadmin.com/threads/api-set-server-hostname.37872/post-188426). Using CMD_ADMIN_SETTINGS ...$(msg end)" --name
     #error=1&text=You%20cannot%20execute%20that%20command&details=The%20request%20you%27ve%20made%20cannot%20be%20executed%20because%20it%20does%20not%20exist%20in%20your%20authority%20level
     # Note this CMD_API_ADMIN_SETTINGS have not been released. So, we need to use json and ignore error checking
-    # If the API is released, just put cmd_api_release=true, this will automatically use the new API
+    # If the API is released, just put has_cmd_api=true, this will automatically use the new API
     method="POST"
     # This API includes security settings and email settings (DA combined this)
-    if [ "${cmd_api_release}" == "false" ]; then
+    if [ "${has_cmd_api}" == "false" ]; then
       cmd_api="CMD_ADMIN_SETTINGS"
       if [ "${recommend_values}" == "true" ]; then
         # TODO: Note the auto_update=yes here might be part of custombuild setting (check that)
         # Remember to use json=yes, if not no output or weird output because API has not released
-        data="auto_update=yes&backup_threshold=90&demo_admin=no&demo_reseller=no&demo_user=no&oversell=yes \
-      &service_email_active=yes&suspend=yes&user_backup=yes&action=save&json=yes"
+        data="auto_update=yes&backup_threshold=90&demo_admin=no&demo_reseller=no&demo_user=no&oversell=yes&service_email_active=yes&suspend=yes&user_backup=yes&action=save&json=yes"
       else
         _echo "$(msg red)Error, please temporarily use the option --recommend-values for this action ${action} $(msg end)" --name
         # Add single values here
         _exit 147
       fi
       curl --silent --request "${method}" --user "${da_api_username}":"${da_api_password}" --data "${data}" "${ssl_protocol}://${C_BOX_HOSTNAME_FQHN}:${port}/${cmd_api}"
-    else
+    else # If API released true
       cmd_api="CMD_API_ADMIN_SETTINGS"
       if [ "${recommend_values}" == "true" ]; then
-        data="auto_update=yes&backup_threshold=90&demo_admin=no&demo_reseller=no&demo_user=no&oversell=yes \
-      &service_email_active=yes&suspend=yes&user_backup=yes&action=save"
+        data="auto_update=yes&backup_threshold=90&demo_admin=no&demo_reseller=no&demo_user=no&oversell=yes&service_email_active=yes&suspend=yes&user_backup=yes&action=save"
       else
         _echo "$(msg red)Error, please temporarily use the option --recommend-values for this action ${action} $(msg end)" --name
         # Add single values here
@@ -7792,10 +7806,10 @@ da_api_admin() {
       fi
     fi
   elif [[ "${action}" == "set-da-server-settings" ]]; then
-    local cmd_api data method retval da_api_exec has_success cmd_api_not_release
-    cmd_api_not_release=true
+    local cmd_api data method retval da_api_exec has_success has_cmd_api
+    has_cmd_api=false
     cmd_api="CMD_ADMIN_SETTINGS"
-    _echo "$(msg yellow)Note, directadmin does not have CMD_API_ADMIN_SETTINGS (https://forum.directadmin.com/threads/api-set-server-hostname.37872/post-188426). Using CMD_ADMIN_SETTINGS ...$(msg end)" --name
+    _echo "$(msg yellow)Note, directadmin does not have CMD_API_ADMIN_SETTINGS for this call (https://forum.directadmin.com/threads/api-set-server-hostname.37872/post-188426). Using CMD_ADMIN_SETTINGS ...$(msg end)" --name
 
     if [ "${recommend_values}" == "true" ]; then
       # Recommend values
@@ -7816,7 +7830,7 @@ da_api_admin() {
       _exit 147
     fi
     method="POST"
-    if [ "${cmd_api_not_release}" == "true" ]; then
+    if [ "${has_cmd_api}" == "false" ]; then
       curl --silent --request "${method}" --user "${da_api_username}":"${da_api_password}" --data "${data}" "${ssl_protocol}://${C_BOX_HOSTNAME_FQHN}:${port}/${cmd_api}"
     else
       da_api_exec=$(curl --silent --request "${method}" --user "${da_api_username}":"${da_api_password}" --data "${data}" "${ssl_protocol}://${C_BOX_HOSTNAME_FQHN}:${port}/${cmd_api}")
@@ -8233,14 +8247,14 @@ da_api_admin() {
     rm -f "${logo_file}"
   # da_api_admin set-security-question --question "Awak suka makan budu tak?" --answer "suka"
   elif [[ "${action}" == "set-security-qna" || "${action}" == "set-security-question" ]]; then
-    local cmd_api data method retval da_api_exec has_success cmd_api_release
-    cmd_api_release=false
+    local cmd_api data method retval da_api_exec has_success has_cmd_api
+    has_cmd_api=false
     # Note this CMD_API_SECURITY_QUESTIONS have not been released. So, we need to use json and ignore error checking
-    # If the API is released, just put cmd_api_release=true
+    # If the API is released, just put has_cmd_api=true
     method="POST"
-    if [ "${cmd_api_release}" == "false" ]; then
+    if [ "${has_cmd_api}" == "false" ]; then
       cmd_api="CMD_SECURITY_QUESTIONS"
-      _echo "$(msg yellow)Note, directadmin does not have CMD_API_SECURITY_QUESTIONS. Using CMD_SECURITY_QUESTIONS ...$(msg end)" --name
+      _echo "$(msg yellow)Note, directadmin does not have CMD_API_SECURITY_QUESTIONS call. Using CMD_SECURITY_QUESTIONS ...$(msg end)" --name
 
       # Note This does not work. Posted here: https://forum.directadmin.com/threads/bug-in-api-cmd_security_questions-bug-with-parameter-order.64318/
       #data="type=custom&value=${answer}&action=add&custom_question=${question}&json=yes"
@@ -8314,14 +8328,14 @@ da_api_admin() {
   #da_api_admin create-user-database --db-domain "maxibi.com" --db-name abc --db-user maxibi --db-password 12321aa (create new user database)
   #da_api_admin --db-domain "maxibi.com" create-user-database --db-name abc --existing-user maxibi  (create database with existing user)
   elif [ "${action}" == "create-user-database" ]; then
-    local cmd_api data method retval da_api_exec has_success cmd_api_release
-    cmd_api_release=false
+    local cmd_api data method retval da_api_exec has_success has_cmd_api
+    has_cmd_api=false
     _echo "$(msg yellow)Note, directadmin does not have CMD_API_DB (https://forum.directadmin.com/threads/api-set-server-hostname.37872/post-188426). Using CMD_DB ...$(msg end)" --name
     # Note this CMD_API_DB have not been released. So, we need to use json and ignore error checking
-    # If the API is released, just put cmd_api_release=true, this will automatically use the new API
+    # If the API is released, just put has_cmd_api=true, this will automatically use the new API
     method="POST"
     # This API includes security settings and email settings (DA combined this)
-    if [ "${cmd_api_release}" == "false" ]; then
+    if [ "${has_cmd_api}" == "false" ]; then
       # CMD_API_DB not working but CMD_DB is working
       cmd_api="CMD_DB"
       if [ -n "${db_existing_user}" ]; then
@@ -8379,30 +8393,41 @@ da_api_admin() {
     data="confirmed=Confirm&delete=yes&select0=${username}"
     method="POST"
     echo "Now, executing API with action name: ${action}"
+    # Deprecated syntax:
     # da_api_admin "request-domain-ssl" <provider> <root_domain> <keysize> <encryption> <ssl_sub_domains_query>
     # da_api_admin "request-domain-ssl" letsencrypt codegix.com secp521r1 sha256 "le_select0=codegix.com&le_select1=www.codegix.com&le_select2=ftp.codegix.com \
     # &le_select3=mail.codegix.com&le_select4=pop.codegix.com&le_select5=smtp.codegix.com&le_select6=dashboard.codegix.com&le_select7=secure.codegix.com"
+    # New syntax:
+    # da_api_admin requst-domain-ssl --ssl-provider letsencrypt --ssl-root-domain test.com --ssl-subdomain-query <query_string>
+
   elif [ "${action}" == "request-domain-ssl" ]; then
-    local ssl_root_domain ssl_key_size ssl_encryption
-    shift
-    ssl_provider="$1"
-    ssl_root_domain="$2"
-    ssl_key_size="$3"
-    ssl_encryption="$4"
-    ssl_sub_domains_query="$5"
+    local cmd_api data method da_api_exec has_success
     # CMD_API_SUBDOMAIN AND CMD_API_SUBDOMAINS are the same thing: https://www.directadmin.com/features.php?id=1589
-    command="CMD_API_SSL"
+    cmd_api="CMD_API_SSL"
+    method="POST"
     if [ "${ssl_provider}" == "letsencrypt" ]; then
-      data="type=create&request=letsencrypt&name=${ssl_root_domain}&keysize=${ssl_key_size}&encryption=${ssl_encryption} \
-      &wildcard=no&domain=${ssl_root_domain}&json=yes&action=save&background=auto&${ssl_sub_domains_query}"
+      data="type=create&request=letsencrypt&name=${ssl_root_domain}&keysize=${C_DA_CERTIFICATE_SIZE}&encryption=${C_DA_CERTIFICATE_ENCRYPTION_ALGORITHM} \
+      &wildcard=no&domain=${ssl_root_domain}&action=save&background=auto&${ssl_subdomains_query}"
     else
       # Give error because we focus on letsencrypt first
-      echo "[${SCRIPT_NAME}]: Error, this provider ${ssl_provider} has no API yet"
+      _echo "$(msg red) Error, this provider ${ssl_provider} has no API yet to request domain for SSL$(msg end)" --name
       _exit 147
     fi
-    method="POST"
-    echo "Now, executing API with action name: ${action}"
+
+    da_api_exec=$(curl --silent --request "${method}" --user "${da_api_username}":"${da_api_password}" --data "${data}" "${ssl_protocol}://${C_BOX_HOSTNAME_FQHN}:${port}/${cmd_api}")
+    has_success=$(echo "${da_api_exec}" | grep -w '^error=0')
+
+    if [ -z "${has_success}" ]; then
+      _echo "$(msg red)Error, API with action ${action} executed with the following error: $(msg end)" --name
+      _echo "$(msg red)${da_api_exec}$(msg end)" --plain | urldecode | awksep '&'
+    #_exit 147
+    else
+      _echo "$(msg green)OK, API with action ${action} executed with the following status: $(msg end)" --name
+      _echo "$(msg green)${da_api_exec}$(msg end)" --plain | urldecode | awksep '&'
+    fi
+
   else
+
     _echo "$(msg red)The API action ${action} does not exist!$(msg end)" --name
     _exit 147
   fi
@@ -8698,9 +8723,9 @@ setup_pre() {
       # Note 8: gcc is needed to compile program from source. (eg meson build need gcc to compile ipcalc c code)
       # Note 9: curl is needed on most system (for directadmin, we will use custombuild, so this will be removed before installation)
       # Note 10: wget is needed on most system
+      # Note 11: ipvc6calc is used by directadmin API, maxiwall and other scripts (important to have)
       _echo "$(msg cyan)Installing pre-requisite components for ${DISTRO_ID^} OS ...$(msg end)" --name
-      apt-get -y install git sudo nmap psmisc unzip zip dnsutils net-tools rsync dos2unix ncdu meson htop gcc curl \
-        wget
+      apt-get -y install git sudo nmap psmisc unzip zip dnsutils net-tools rsync dos2unix ncdu meson htop gcc curl wget ipv6calc
       echo ""
 
       # Installing program from sources:
@@ -8724,8 +8749,24 @@ setup_pre() {
       cp -p "${INST_TEMP_DIR}/ipcalc/build/ipcalc" "/usr/bin"
       ipcalc -v
       get_status_message "$?"
+
+      # Installing grepaddr from source:
+      _echo "$(msg cyan)Removing previous grepaddr ...$(msg end)" --name
+      rm -f /usr/local/bin/grepaddr
+      echo ""
+      _echo "$(msg cyan)Installing grepaddr ...$(msg end)" --name
+      wget -O /usr/local/bin/grepaddr https://raw.githubusercontent.com/sofibox/grepaddr/master/grepaddr.py
+      chmod +x /usr/local/bin/grepaddr
+      echo ""
+      _echo "$(msg cyan)Running grepaddr -h ...$(msg end)" --name
+      grepaddr -h
+      get_status_message "$?"
       # Another build here
-    elif [ "${DISTRO_ID}" == "ubuntu" ]; then
+
+    elif
+
+      [ "${DISTRO_ID}" == "ubuntu" ]
+    then
       :
     elif [ "${DISTRO_ID}" == "almalinux" ]; then
       :
@@ -12554,7 +12595,7 @@ configure_nginx_apache() {
   fi
 }
 
-build_da_custom_settings() {
+configure_da_custom_configs() {
   # This function will create / copy all custom configs like roundcube, phpmyadmin, ap2 etc in DA custom folder
   # So when we update Directadmin, it won't replace these files.
   local run_mode func_name
@@ -12698,7 +12739,7 @@ configure_web_apps() {
 
     cat /dev/null >/var/www/html/index.php
     {
-      echo "<? php"
+      echo "<?php"
       echo "MaXi32 - Arafat Ali - Rebuilding"
       echo "?>"
     } >/var/www/html/index.php
@@ -12745,7 +12786,7 @@ configure_da_settings() {
 
     # Using API (some values are not present in directadmin.conf), so we use this extra API
     # For DA Administrator Settings:
-    _echo "$(msg cyan)Configuring Directadmin Admin settings with recommend values ...$(msg end)" -- name
+    _echo "$(msg cyan)Configuring Directadmin Admin settings with recommend values ...$(msg end)" --name
     da_api_admin set-da-admin-settings --recommend-values
     _echo "$(msg cyan)Configuring Directadmin Server, Security and Email settings with recommend values ...$(msg end)" --name
     da_api_admin set-da-server-settings --recommend-values
@@ -13151,7 +13192,7 @@ configure_da_dns_templates() {
     da_bin="/usr/local/directadmin/directadmin"
     da_cb_bin="/usr/local/directadmin/custombuild/build"
     da_conf="/usr/local/directadmin/conf/directadmin.conf"
-    dns_compatible_version="1.62.7"
+    dns_compatible_version="1.62.9"
 
     _echo "$(msg cyan)Checking if directadmin binary, custombuild and directadmin.conf are presents ...$(msg end)" --name
     check_path "${da_bin}" "${da_cb_bin}" "${da_conf}"
@@ -13167,7 +13208,7 @@ configure_da_dns_templates() {
     if [ "${da_current_version}" == "v.${dns_compatible_version}" ]; then
       :
     else
-      _echo "$(msg cyan)Warning, current DNS config is compatible with directadmin ${dns_compatible_version} but directadmin version is ${da_current_version}. Please check compatibility issue before proceeding$(msg end)" --name
+      _echo "$(msg yellow)Warning, current DNS config is compatible with directadmin ${dns_compatible_version} but directadmin version is ${da_current_version}. Please check compatibility issue before proceeding$(msg end)" --name
       _exit 147
     fi
 
@@ -13730,6 +13771,8 @@ configure_da_fqhn_server_ssl() {
       # ${da_bin} set ssl_redirect_host "${C_BOX_HOSTNAME_FQHN}"
 
       if [ "${C_DA_RESTORE_PREVIOUS_HOSTNAME_SSL}" == "true" ]; then
+        _echo "$(msg cyan)Restoring host SSL certificate (from previous backup) ...$(msg end)" --name
+
         local key cert cacert eximkey eximcert lego_cert_path lego_data_path lego_key_path lego_issuer_cert_path \
           set_da_cacert
 
@@ -13798,7 +13841,7 @@ configure_da_fqhn_server_ssl() {
           exit 1
         fi
 
-        echo "DirectAdmin certificate for ${BOX_HOSTNAME_FQDN} has been setup."
+        echo "DirectAdmin certificate for ${C_BOX_HOSTNAME_FQHN} has been setup."
 
         if grep -m1 -q "^cacert=${da_conf_path}/carootcert.pem$" /usr/local/directadmin/conf/directadmin.conf; then
           ${da_bin} set cacert ${da_conf_path}/cacert.pem
@@ -13901,6 +13944,19 @@ configure_da_fqhn_server_ssl() {
           fi
         fi
 
+        echo ""
+        _echo "$(msg cyan)Enabling ssl=1 in directadmin.conf config...$(msg end)" --name
+        ${da_bin} set ssl 1
+        echo ""
+        # This is to redirect hostname automatically to https
+        _echo "$(msg cyan)Setting redirect_host_https yes in Directadmin options.conf config ...$(msg end)" --name
+        ${da_cb_bin} set redirect_host_https yes
+        echo ""
+        # if you want everyone to be redirected on hostname use this
+        _echo "$(msg cyan)Setting use_hostname_for_alias yes in Directadmin options.conf config ...$(msg end)" --name
+        ${da_cb_bin} set use_hostname_for_alias yes
+        echo ""
+
         echo "action=directadmin&value=restart" >>${task_queue}
         echo "The services will be restarted in about 1 minute via the dataskq."
         ${dataskq} --custombuild
@@ -13922,7 +13978,6 @@ configure_da_fqhn_server_ssl() {
         echo ""
 
         # Make sure IP and domain are resolved
-        ensure_internet_connected
         ensure_domain_server_resolved
         ensure_fqhn_server_resolved
 
@@ -14220,6 +14275,9 @@ configure_maxiperm() {
       chmod +x ${maxiperm_bin}
       # Symbolic name
       ln -s ${maxiperm_bin} /usr/local/bin
+      echo "[${SCRIPT_NAME}]: Running perm -V ${maxiperm_bin} ..."
+      perm -V
+      get_status_message "$?"
     else
       echo "[${SCRIPT_NAME}]: Warning, maxiperm doesn't exist in /usr/local/maxicode !"
       _exit 147
@@ -14331,9 +14389,9 @@ configure_maxigpg() {
       chmod +x "${maxigpg_bin}"
       _echo "$(msg cyan)Creating symlink for ${maxigpg_bin} ...$(msg end)" --name
       ln -s "${maxigpg_bin}" /usr/local/bin
-      #_echo "$(msg cyan)Running maxigpg init ...$(msg end)" --name
-      #echo ""
-      # maxigpg init
+      _echo "$(msg cyan)Running maxigpg -V ...$(msg end)" --name
+      maxigpg -V
+      get_status_message "$?"
       echo ""
     else
       _echo "$(msg red)Warning, maxigpg binary doesn't exist inside /usr/local/maxicode ...$(msg end)" --name
@@ -14710,12 +14768,16 @@ configure_maxiaide() {
       chmod +x "${maxiaide_bin}"
       _echo "$(msg cyan)Creating symlink for ${maxiaide_bin} ...$(msg end)" --name
       ln -s "${maxiaide_bin}" /usr/local/bin
+
+      _echo "$(msg cyan)Running maxiaide -V ...$(msg end)" --name
+      maxiaide -V
+      get_status_message "$?"
+      echo ""
       # Do not scan, we do not interest with this yet
       #_echo "$(msg cyan)Scanning maxiaide ...$(msg end)" --name
       #echo ""
       # maxiaide --scan
-      maxiaide --version
-      echo ""
+
       # Do not remove this (MaxiAIDE will handle this)
       # Remove this to start from scratch (the maxiaide script will automatically copy the original custom config)
       #_echo "$(msg cyan)Removing existing aide config file at /usr/local/maxicode/maxiaide/conf/custom_aide.conf$(msg end)"
@@ -14835,7 +14897,10 @@ configure_maxida() {
         chmod +x "${dacli_bin}"
         _echo "$(msg cyan)Creating symlink for ${dacli_bin} ...$(msg end)" --name
         ln -s "${dacli_bin}" /usr/local/bin
-        dacli --version
+        echo ""
+        _echo "$(msg cyan)Running dacli -V ...$(msg end)" --name
+        dacli -V
+        get_status_message "$?"
         echo ""
       else
         _echo "$(msg red)Warning, dacli  binary doesn't exist inside /usr/local/maxicode ...$(msg end)" --name
@@ -14911,13 +14976,20 @@ configure_maxirbl() {
   if [[ ! -f "${CONF_PATH}/${func_name}_executed" && "${FUNCTION_RUN}" == "true" ]]; then
     local blcheck_bin
     blcheck_bin="/usr/local/maxicode/maxirbl/blcheck"
+    _echo "$(msg cyan)Removing previous blcheck symlink shortcut in /usr/local/bin ...$(msg end)" --name
+    rm -f /usr/local/bin/blcheck
     if [ -f ${blcheck_bin} ]; then
-      echo "[${SCRIPT_NAME}]: Creating symlink and executable for ${blcheck_bin} ..."
-      chmod +x ${blcheck_bin}
-      # Symbolic name
-      ln -s ${blcheck_bin} /usr/local/bin
+      _echo "$(msg cyan)Setting ${blcheck_bin} script to have executable permission ...$(msg end)" --name
+      chmod +x "${blcheck_bin}"
+      _echo "$(msg cyan)Creating symlink for ${blcheck_bin} ...$(msg end)" --name
+      ln -s "${blcheck_bin}" /usr/local/bin
+      echo ""
+      _echo "$(msg cyan)Running blcheck -V ...$(msg end)" --name
+      blcheck -V
+      get_status_message "$?"
+      echo ""
     else
-      echo "[${SCRIPT_NAME}]: Warning, blcheck doesn't exist in /usr/local/maxicode!"
+      _echo "$(msg red)Warning, blcheck  binary doesn't exist inside /usr/local/maxicode ...$(msg end)" --name
       _exit 147
     fi
     echo ""
@@ -14950,6 +15022,116 @@ configure_maxiwall() {
   if [[ ! -f "${CONF_PATH}/${func_name}_executed" && "${FUNCTION_RUN}" == "true" ]]; then
     local latest_suricata_version suricata_preferred_version rustup_preferred_version maxiwall_bin rblscan_bin # suricata_conf suricata_service is_masked
 
+    if ! command -v blcheck &>/dev/null; then
+      rblscan_bin="/usr/local/maxicode/maxiwall/rblscan"
+
+      if [ -f ${rblscan_bin} ]; then
+        echo "[${SCRIPT_NAME}]: Creating symlink and executable for ${rblscan_bin} ..."
+        chmod +x ${rblscan_bin}
+        # Symbolic name
+        ln -s ${rblscan_bin} /usr/local/bin
+      else
+        echo "[${SCRIPT_NAME}]: Warning, rblscan doesn't exist in /usr/local/maxicode !"
+        _exit 147
+      fi
+    fi
+
+    # Must write config first because maxiwall -V needs this
+    # Writing a new maxiwall.conf file (all sensitive variables should be declared in maxinet.conf and pass here)
+    echo "[${SCRIPT_NAME}]: Writing default maxiwall.conf config file ..."
+    sleep 1
+    {
+      echo "# CONFIG VERSION:"
+      echo "CONFIG_VERSION=\"1.0\""
+      echo ""
+      echo "BOX_HOSTNAME_FQHN=\"${BOX_HOSTNAME_FQDN}\""
+      echo ""
+      echo "# GENERAL CONFIG:"
+      echo "ENABLE_LOG=\"true"\"
+      echo ""
+      echo "# SURICATA setting"
+      echo "SURICATA_ENABLE_SCRIPT_LOG=\"true\""
+      echo ""
+      echo "# MAXIWALL.lua config"
+      echo "MAXIWALL_ENABLE_LOG_RULE=\"true\""
+      echo "MAXIWALL_REPORT_EMAIL=\"webmaster@sofibox.com\""
+      echo "MAXIWALL_ENABLE_MAIL_REPORT=\"true\""
+      echo "MAXIWALL_ENABLE_MAIL_ERROR_REPORT=\"true\""
+      echo "MAXIWALL_ENABLE_AUTO_ACTION=\"true\""
+      echo "MAXIWALL_ENABLE_SCRIPT_LOG=\"true\""
+      echo "# These log names are located at /var/log/suricata/"
+      echo "MAXIWALL_SCRIPT_LOG_NAME=\"maxiwall.log\""
+      echo "MAXIWALL_ALERT_LOG_NAME=\"maxiwall-alert.log\""
+      echo "MAXIWALL_MAIL_REPORT_LOG_NAME=\"mail-report.log\""
+      echo "MAXIWALL_ENABLE_WHITELIST_IP=\"true\""
+      echo "MAXIWALL_ENABLE_IGNORE_IP=\"true\""
+      echo "MAXIWALL_ENABLE_SUPPRESS_IP=\"true\""
+      echo "MAXIWALL_ENABLE_SUPPRESS_MSG=\"true\""
+      echo "# Put value 0 to disable"
+      echo "MAXIWALL_IP_ALERT_SLEEP_DURATION=\"3\""
+      echo "# This is limit for IP SUSPICIOUS LOG"
+      echo "MAXIWALL_IP_LOG_ALERT_MAX_COUNT=\"100\""
+      echo "MAXIWALL_LIMIT_EMAIL_ALERT_REPORT_RATE=\"50\""
+      echo "MAXIWALL_LIMIT_EMAIL_ERROR_REPORT_RATE=\"5\""
+      echo "# Normally alert will have infinite alert count in log file"
+      echo "# and it can crash the system if the count is so big"
+      echo "# This will limit the number of alert and restart them automatically if they reached N count"
+      echo "# Benefit of limiting this, it will reduce script reading the log file."
+      echo "# Maximum is 100000"
+      echo "# NOTE BLCHECK has its own limit"
+      echo "MAXIWALL_LUA_ALERT_MAX_COUNT=\"1000\""
+      echo ""
+      echo "# GOTIFY CONFIG:"
+      echo "ENABLE_GOTIFY_REPORT=\"true\""
+      echo ""
+      echo "# BLCHECK CONFIG:"
+      echo "BLCHECK_ENABLE_RULE=\"true\""
+      echo ""
+      echo "# CSF CONFIG:"
+      echo "CSF_ENABLE_AUTO_BLOCK=\"true\""
+      echo "CSF_ENABLE_IPV4_CIDR_24_NETWORK_BLOCK=\"true\""
+      echo "CSF_ENABLE_IP_WEB_REPORT=\"true\""
+      echo ""
+      echo "# AIPDB CONFIG:"
+      echo "AIPDB_ENABLE_RULE=\"true\""
+      echo "AIPDB_ENABLE_IP_WEB_REPORT=\"true\""
+      echo "AIPDB_ENABLE_CACHE=\"true\""
+      echo "# After N second, AIPDB IP info cache that has timestamp over this duration will be removed"
+      echo "# 3600 = 1 hour"
+      echo "AIPDB_IP_CACHE_INFO_DURATION=\"3600\""
+      echo "# After N second, AIPDB IP report cache that has timestamp over this duration will be removed"
+      echo "# 900 = 15 minutes"
+      echo "AIPDB_IP_CACHE_REPORT_DURATION=\"900\""
+      echo "AIPDB_CHECK_URL=\"${C_MAXIWALL_AIPDB_CHECK_URL}"\"
+      echo "AIPDB_REPORT_URL=\"${C_MAXIWALL_AIPDB_REPORT_URL}"\"
+      echo "# The main AIPDB key"
+      echo "AIPDB_API_KEY=\"${C_MAXIWALL_AIPDB_API_KEY}"\"
+      echo ""
+      echo "LINODE_ENABLE_FIREWALL=\"true\""
+      echo "LINODE_AIPDB_API_KEY=\"${C_LINODE_API}\""
+
+    } \
+      >"/usr/local/maxicode/maxiwall/maxiwall.conf"
+
+    _echo "$(msg cyan)Removing previous maxiwall symlink shortcut in /usr/local/bin ...$(msg end)" --name
+    rm -f /usr/local/bin/maxiwall
+
+    maxiwall_bin="/usr/local/maxicode/maxiwall/maxiwall"
+
+    if [ -f ${maxiwall_bin} ]; then
+
+      echo "[${SCRIPT_NAME}]: Creating symlink and executable for ${maxiwall_bin} ..."
+      chmod +x ${maxiwall_bin}
+      # Symbolic name
+      ln -s ${maxiwall_bin} /usr/local/bin
+      echo "[${SCRIPT_NAME}]: Running maxiwall -V ..."
+      maxiwall -V
+      get_status_message "$?"
+    else
+      echo "[${SCRIPT_NAME}]: Warning, maxiwall doesn't exist in /usr/local/maxicode !"
+      _exit 147
+    fi
+
     # Remove built-in package of rustc
     _echo "$(msg cyan)Removing rustc existing installation (with purge command)...$(msg end)" --name
     apt -y remove --purge rustc
@@ -14980,12 +15162,20 @@ configure_maxiwall() {
     rm -f /etc/init.d/suricata
     rm -f /etc/systemd/system/suricata.service
     echo ""
-    _echo "$(msg cyan)Removing rustup using rustup self uninstall command ...$(msg end)" --name
-    rustup self uninstall -y
-    echo ""
+
+    if command -v rustup &>/dev/null; then
+      _echo "$(msg cyan)Removing rustup using rustup self uninstall command ...$(msg end)" --name
+      rustup self uninstall -y
+      echo ""
+    fi
     _echo "Reloading systemctl daemon service after making changes to systemd service ..."
     systemctl daemon-reload
     echo ""
+
+    # What version should be installed
+    suricata_preferred_version="${C_SURICATA_SELECT_VERSION}"
+    rustup_preferred_version="${C_INSTALL_RUSTC_VERSION}"
+
     if [ "${suricata_preferred_version}" == "distro" ]; then
       if [ ${DISTRO_CODENAME} == "bullseye" ]; then
         local suricata_log_file suricata_config_file retval
@@ -14999,68 +15189,18 @@ configure_maxiwall() {
         # Check the path after install suricata
         check_path "${suricata_log_file}" "${suricata_config_file}"
         echo ""
-        _echo "$(msg cyan)Checking suricata known issue from log file ${suricata_log_file} ...$(msg end)" --name
-        # Known issue 1
-        grep -q "SC_ERR_NO_RULES(42)] - No rule files match the pattern \/var\/lib\/suricata\/rules\/suricata.rules" "${suricata_log_file}"
-        retval=$?
-        # Fix 1
-        if [ "${retval}" -eq 0 ]; then
-          _echo -n "$(msg cyan)Fixing suricata log path in ${suricata_config_file} ...$(msg end)" --name
-          sed -i "s|^default-rule-path:.*|default-rule-path: \/var\/lib\/suricata\/rules|" ${suricata_config_file}
-          get_status_message "$?"
-          echo ""
-        fi
-        _echo "$(msg cyan)Enabling suricata 3rd party rules ...$(msg end)" --name
-        suricata-update enable-source sslbl/ssl-fp-blacklist
-        suricata-update enable-source ptresearch/attackdetection
-        suricata-update enable-source etnetera/aggressive
-        suricata-update enable-source oisf/trafficid
-        suricata-update enable-source sslbl/ja3-fingerprints
-        suricata-update enable-source et/open
-        suricata-update add-source timon-rules/cybergon https://gitlab.com/cybergon/timon-rules/raw/master/cybergon.rules
-        echo ""
-        # Some rules above required file-store enable so:
-        # Rewriting rule is complicated (sometimes new setting change). So, below is not used
 
-        #_echo -n "$(msg cyan)Changing suricata default rule path ...$(msg end)" --name
-        #sed -i "s|^default-rule-path:.*|default-rule-path: \/var\/lib\/suricata\/rules|" ${suricata_config_file}
-        #get_status_message "$?"
-        #echo ""
-        #_echo -n "$(msg cyan)Enabling file-store log option ...$(msg end)" --name
-        #sed -i '/^[ ]*  - file-store:/,/^[ ]*  - file-store[^:]*:/ { /enabled:/ s/[^ ][^ ]*$/yes/ }' ${suricata_config_file}
-        #get_status_message "$?"
-        #echo ""
+        # This will update all the code
+        maxiwall update_scripts
+        # This will add extra rules (3rd party)
+        maxiwall add-extra-rules
+        # This will initialize and run suricata with rule update
+        maxiwall init
 
-        # Disable optional log (to improve performance)
-        #_echo -n "$(msg cyan)Disabling tcp-data log option ...$(msg end)" --name
-        #sed -i '/^[ ]*  - tcp-data:/,/^[ ]*  - tcp-data[^:]*:/ { /enabled:/ s/[^ ][^ ]*$/no/ }' ${suricata_config_file}
-        #get_status_message "$?"
-        #echo ""
-        #_echo -n "$(msg cyan)Disabling stats log option ...$(msg end)" --name
-        #sed -i '/^[ ]*  - stats:/,/^[ ]*  - stats[^:]*:/ { /enabled:/ s/[^ ][^ ]*$/no/ }' ${suricata_config_file}
-        #get_status_message "$?"
-        #echo ""
-        #_echo -n "$(msg cyan)Disabling eve.json log option ...$(msg end)" --name
-        #sed -i '/^[ ]*   - eve-log:/,/^[ ]*   - eve-log[^:]*:/ { /enabled:/ s/[^ ][^ ]*$/no/ }' ${suricata_config_file}
-        #get_status_message "$?"
-        #echo ""
-
-        _echo "$(msg cyan)Updating suricata new 3rd party source rules ...$(msg end)" --name
-        suricata-update update-sources
-        echo ""
-        _echo -n "$(msg cyan)Updating suricata new rule into /var/lib/suricata/rules/ ...$(msg end)" --name
-        suricata-update 2>&1 | grep -v 'Found duplicate rule SID'
         # The rule file must exist:
         check_path "/var/lib/suricata/rules/suricata.rules"
         echo ""
-        _echo -n "$(msg cyan)Clearing suricata log file ...$(msg end)" --name
-        cat /dev/null >${suricata_config_file}
-        get_status_message "$?"
-        echo ""
-        _echo -n "$(msg cyan)Restarting suricata service ...$(msg end)" --name
-        systemctl restart suricata
-        get_status_message "$?"
-        echo ""
+
         _echo "$(msg cyan)Checking whether suricata log file contains <Warning> line ...$(msg end)" --name
         grep "<Warning>" "${suricata_log_file}"
         retval=$?
@@ -15126,8 +15266,6 @@ configure_maxiwall() {
       # For CentOS rpm package will install only version 5. So the best is to compile from source using this trick:
 
       latest_suricata_version=$(curl 'https://www.openinfosecfoundation.org/download/' | grep -oP 'href="suricata-\K[0-9]+\.[0-9]+\.[0-9]+' | sort -t. -rn -k1,1 -k2,2 -k3,3 | head -1)
-      suricata_preferred_version="${C_SURICATA_SELECT_VERSION}"
-      rustup_preferred_version="${C_INSTALL_RUSTC_VERSION}"
 
       _echo "Installing the latest rustc package manually ..."
       rustup_install=$(curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y 2>&1 | grep 'likely because of mounting /tmp')
@@ -15265,41 +15403,6 @@ configure_maxiwall() {
     #  _exit 147
     #fi
 
-    maxiwall_bin="/usr/local/maxicode/maxiwall/maxiwall"
-
-    if [ -f ${maxiwall_bin} ]; then
-      echo "[${SCRIPT_NAME}]: Creating symlink and executable for ${maxiwall_bin} ..."
-      chmod +x ${maxiwall_bin}
-      # Symbolic name
-      ln -s ${maxiwall_bin} /usr/local/bin
-    else
-      echo "[${SCRIPT_NAME}]: Warning, maxiwall doesn't exist in /usr/local/maxicode !"
-      _exit 147
-    fi
-
-    rblscan_bin="/usr/local/maxicode/maxiwall/rblscan"
-
-    if [ -f ${rblscan_bin} ]; then
-      echo "[${SCRIPT_NAME}]: Creating symlink and executable for ${rblscan_bin} ..."
-      chmod +x ${rblscan_bin}
-      # Symbolic name
-      ln -s ${rblscan_bin} /usr/local/bin
-    else
-      echo "[${SCRIPT_NAME}]: Warning, rblscan doesn't exist in /usr/local/maxicode !"
-      _exit 147
-    fi
-
-    # Writing a new maxiwall.conf file (all sensitive variables should be declared in maxinet.conf and pass here)
-    echo "[${SCRIPT_NAME}]: Writing new maxiwall.conf file ..."
-    sleep 1
-    {
-      echo "# The URL. Need to modify this if they change this URL like the v2 to v3"
-      echo "AIPDB_CHECK_URL=\"${C_MAXIWALL_AIPDB_CHECK_URL}"\"
-      echo "AIPDB_REPORT_URL=\"${C_MAXIWALL_AIPDB_REPORT_URL}"\"
-      echo "# The main AIPDB key"
-      echo "AIPDB_API_KEY=\"${C_MAXIWALL_AIPDB_API_KEY}"\"
-    } >"/usr/local/maxicode/maxiwall/conf/maxiwall.conf"
-
     # maxiwall --initfull will handle 3rd party rules and signature update
     # suricata-update update-sources
     #echo "[${SCRIPT_NAME}]: Updating suricata new signature ..."
@@ -15308,9 +15411,9 @@ configure_maxiwall() {
 
     # Maxiwall --initfull will do all the commented above (already have this function long time ago).
     # Must have maxiwall.conf file first before running --initfull
-    echo "[${SCRIPT_NAME}]: Running maxiwall --initfull ..."
+    echo "[${SCRIPT_NAME}]: Running maxiwall init ..."
     sleep 1
-    maxiwall --initfull
+    maxiwall init
 
     echo ""
     check_finish_reboot "${func_name}"
@@ -16909,30 +17012,30 @@ configure_da_reseller_domain_ssl_pre() {
   fi
   [[ "${SKIP_RUN}" == "true" ]] && return 0
   if [[ ! -f "${CONF_PATH}/${func_name}_executed" && "${FUNCTION_RUN}" == "true" ]]; then
-    local da_reseller_ssl_sub_names da_reseller_ssl_sub_names_count count_x count_n count_o
+    local reseller_count da_reseller_ssl_sub_names da_reseller_ssl_sub_names_count count_n count_o
     local this_da_reseller_uname this_da_reseller_userpass this_da_reseller_enable_domain_ssl \
       this_da_reseller_ssl_subdomains retval le_select_query
     # Get all the reseller ssl_sub_names
     da_reseller_ssl_sub_names="${!C_DA_RESELLER_SSL_SUBDOMAIN@}"
     # Get the total count for reseller ssl_sub_names
     da_reseller_ssl_sub_names_count=$(echo "${da_reseller_ssl_sub_names}" | wc -w)
-    count_x=1
+
+    reseller_count=1
     echo "[${SCRIPT_NAME}]: Creating acme-challenge file through custombuild rewrite_confs ..."
     /usr/local/directadmin/custombuild/build rewrite_confs
-    while [[ ${count_x} -le ${da_reseller_ssl_sub_names_count} ]]; do
+    while [[ ${reseller_count} -le ${da_reseller_ssl_sub_names_count} ]]; do
       echo ""
-      echo "===== Loop count: ${count_x} ========="
-      typeset -n "this_da_reseller_username"="C_DA_RESELLER_USERNAME${count_x}"
-      typeset -n "this_da_reseller_userpass"="C_DA_RESELLER_USERPASS${count_x}"
-      typeset -n "this_da_reseller_enable_domain_ssl"="C_DA_RESELLER_ENABLE_DOMAIN_SSL${count_x}"
-      typeset -n "this_da_reseller_ssl_subdomains"="C_DA_RESELLER_SSL_SUBDOMAIN${count_x}"
+      echo "===== Loop count: ${reseller_count} ========="
+      typeset -n "this_da_reseller_username"="C_DA_RESELLER_USERNAME${reseller_count}"
+      typeset -n "this_da_reseller_userpass"="C_DA_RESELLER_USERPASS${reseller_count}"
+      typeset -n "this_da_reseller_enable_domain_ssl"="C_DA_RESELLER_ENABLE_DOMAIN_SSL${reseller_count}"
+      typeset -n "this_da_reseller_ssl_subdomains"="C_DA_RESELLER_SSL_SUBDOMAIN${reseller_count}"
 
       echo "this_da_reseller_username: ${this_da_reseller_username}"
       echo "this_da_reseller_userpass: ${this_da_reseller_userpass}"
       echo "this_da_reseller_enable_domain_ssl: ${this_da_reseller_enable_domain_ssl}"
       echo "this_da_reseller_ssl_subdomains: ${this_da_reseller_ssl_subdomains[*]}"
-      this_da_reseller_ssl_subdomains_count=${#this_da_reseller_ssl_subdomains[@]}
-      echo "this_da_reseller_ssl_subdomains_count: ${this_da_reseller_ssl_subdomains_count}"
+      echo "this_da_reseller_ssl_subdomains_count: ${#this_da_reseller_ssl_subdomains[*]}"
       echo "=========================================="
 
       if [[ ${this_da_reseller_enable_domain_ssl} == "yes" ]]; then
@@ -16982,7 +17085,7 @@ configure_da_reseller_domain_ssl_pre() {
         echo "Warning This user is set to not enable SSL. Do nothing for this"
       fi
       echo ""
-      ((count_x++))
+      ((reseller_count++))
 
     done
     echo ""
@@ -17087,9 +17190,8 @@ configure_da_user_domain_ssl_pre() {
   fi
 }
 
+# This will also take care the subdomain
 configure_da_reseller_domain_ssl() {
-  # Here we configure SSL for specific domains we want based on the config variable: C_DA_RESELLER_ENABLE_DOMAIN_SSL{?}
-  # Where Domain can have 1 or more
   local run_mode func_name
   run_mode="$1"
   extra_option="$2"
@@ -17101,23 +17203,25 @@ configure_da_reseller_domain_ssl() {
   fi
   [[ "${SKIP_RUN}" == "true" ]] && return 0
   if [[ ! -f "${CONF_PATH}/${func_name}_executed" && "${FUNCTION_RUN}" == "true" ]]; then
-    local da_reseller_ssl_sub_names da_reseller_ssl_sub_names_count
+    local reseller_count da_reseller_ssl_sub_names da_reseller_ssl_sub_names_count
     local this_da_reseller_uname this_da_reseller_userpass this_da_reseller_enable_domain_ssl \
       this_da_reseller_ssl_subdomains retval
     # Get all the reseller ssl_sub_names
-    da_reseller_ssl_sub_names="${!DA_RESELLER_SSL_SUB_NAME@}"
+    da_reseller_ssl_sub_names="${!C_DA_RESELLER_SSL_SUBDOMAIN@}"
     # Get the total count for reseller ssl_sub_names
     da_reseller_ssl_sub_names_count=$(echo "${da_reseller_ssl_sub_names}" | wc -w)
-    count_x=1
+
     echo "[${SCRIPT_NAME}]: Creating acme-challenge file through custombuild rewrite_confs ..."
     /usr/local/directadmin/custombuild/build rewrite_confs
-    while [[ ${count_x} -le ${da_reseller_ssl_sub_names_count} ]]; do
+    echo ""
+    reseller_count=1
+    while [[ ${reseller_count} -le ${da_reseller_ssl_sub_names_count} ]]; do
       echo ""
-      echo "===== Loop count: ${count_x} ========="
-      typeset -n "this_da_reseller_username"="C_DA_RESELLER_USERNAME${count_x}"
-      typeset -n "this_da_reseller_userpass"="C_DA_RESELLER_USERPASS${count_x}"
-      typeset -n "this_da_reseller_enable_domain_ssl"="C_DA_RESELLER_ENABLE_DOMAIN_SSL${count_x}"
-      typeset -n "this_da_reseller_ssl_subdomains"="C_DA_RESELLER_SSL_SUBDOMAIN${count_x}"
+      echo "===== Loop count: ${reseller_count} ========="
+      typeset -n "this_da_reseller_username"="C_DA_RESELLER_USERNAME${reseller_count}"
+      typeset -n "this_da_reseller_userpass"="C_DA_RESELLER_USERPASS${reseller_count}"
+      typeset -n "this_da_reseller_enable_domain_ssl"="C_DA_RESELLER_ENABLE_DOMAIN_SSL${reseller_count}"
+      typeset -n "this_da_reseller_ssl_subdomains"="C_DA_RESELLER_SSL_SUBDOMAIN${reseller_count}"
 
       echo "this_da_reseller_username: ${this_da_reseller_username}"
       echo "this_da_reseller_userpass: ${this_da_reseller_userpass}"
@@ -17132,7 +17236,6 @@ configure_da_reseller_domain_ssl() {
         count_n=0
         while [ ${count_n} -le $((this_da_reseller_ssl_subdomains_count - 1)) ]; do
           echo ""
-
           ssl_provider=$(echo "${this_da_reseller_ssl_subdomains[count_n]}" | awk -F':' '{ print $1 }')
           ssl_domain=$(echo "${this_da_reseller_ssl_subdomains[count_n]}" | awk -F':' '{ print $2 }')
           ssl_subdomains_raw=$(echo "${this_da_reseller_ssl_subdomains[count_n]}" | awk -F':' '{ print $3 }')
@@ -17141,7 +17244,6 @@ configure_da_reseller_domain_ssl() {
           echo "SSL_PROVIDER: ${ssl_provider}"
           echo "SSL_DOMAIN: ${ssl_domain}"
           echo "SSL_SUBDOMAINS_RAW: ${ssl_subdomains_raw}"
-
           if [ "${ssl_provider}" == "letsencrypt" ]; then
             echo "Testing, requesting letsencrypt SSL certificate for domain ${ssl_domain} in staging mode ..."
             staging=yes /usr/local/directadmin/scripts/letsencrypt.sh request "${ssl_domain}"
@@ -17170,13 +17272,9 @@ configure_da_reseller_domain_ssl() {
             echo "================-------------------======================="
             echo ""
             # Now we got all variables. Call API here:
-            # da_api_admin "request-domain-ssl" <provider> <root_domain> <keysize> <encryption> <ssl_sub_domains_query>
             # Seems like DA admin or owner level also can use this authentication to request certificate for user (I will verify this again)
-            da_api_admin "signas+${this_da_reseller_username}+${this_da_reseller_userpass}"
-            # Most secure key now is secp521r1 and sha256
             echo "Requesting SSL for domain ${ssl_domain} with the following query: ${le_select_query}"
-            echo "This might take sometimes ... (please wait)"
-            da_api_admin "request-domain-ssl" "${ssl_provider}" "${ssl_domain}" "secp521r1" "sha256" "${le_select_query}"
+            da_api_admin request-domain-ssl --sign-as "${this_da_reseller_username}" --ssl-provider "${ssl_provider}" --ssl-root-domain "${ssl_domain}" --ssl-subdomain-query "${le_select_query}"
           elif [ "${ssl_provider}" == "digicert" ]; then
             :
           fi
@@ -17186,7 +17284,7 @@ configure_da_reseller_domain_ssl() {
         echo "Warning This user is set to not enable SSL. Do nothing for this"
       fi
       echo ""
-      ((count_x++))
+      ((reseller_count++))
 
     done
     echo ""
@@ -17368,8 +17466,8 @@ configure_da_admin_security() {
           _echo "$(msg magenta)=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=$(msg end)" --name --verbose 7
 
           _echo "$(msg cyan)Setting up security questions and answers for user ${da_admin_username}$(msg end)" --name
-          #da_api_admin set-security-qna --sign-as "${da_admin_username}" --question "${security_question}" --answer "${security_answer}"
-          #echo ""
+          da_api_admin set-security-qna --sign-as "${da_admin_username}" --question "${security_question}" --answer "${security_answer}"
+          echo ""
           ((question_count++))
         done
 
@@ -17442,8 +17540,8 @@ configure_da_reseller_security() {
           _echo "$(msg magenta)=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=$(msg end)" --name --verbose 7
 
           _echo "$(msg cyan)Setting up security questions and answers for user ${da_reseller_username}$(msg end)" --name
-          #da_api_admin set-security-qna --sign-as "${da_reseller_username}" --question "${security_question}" --answer "${security_answer}"
-          #echo ""
+          da_api_admin set-security-qna --sign-as "${da_reseller_username}" --question "${security_question}" --answer "${security_answer}"
+          echo ""
           ((question_count++))
         done
 
@@ -17518,8 +17616,8 @@ configure_da_user_security() {
           _echo "$(msg magenta)=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=$(msg end)" --name --verbose 7
 
           _echo "$(msg cyan)Setting up security questions and answers for user ${da_user_username}$(msg end)" --name
-          #da_api_admin set-security-qna --sign-as "${da_user_username}" --question "${security_question}" --answer "${security_answer}"
-          #echo ""
+          da_api_admin set-security-qna --sign-as "${da_user_username}" --question "${security_question}" --answer "${security_answer}"
+          echo ""
           ((question_count++))
         done
 
@@ -17815,122 +17913,145 @@ configure_services() {
 # TODO Warning, the next DA version 1.62.9 (currently in alpha) will release this hsts header for specific domain via ui, check this for compatibility on next version
 # https://www.directadmin.com/features.php?id=2602
 configure_da_domain_security() {
+  local run_mode func_name
+  run_mode="$1"
+  extra_option="$2"
+  func_name="${FUNCNAME[0]}"
+  if [[ "${extra_option}" == "--silent-if-executed" ]]; then
+    start_execute_options "${run_mode}" "${func_name}" &>/dev/null
+  else
+    start_execute_options "${run_mode}" "${func_name}"
+  fi
+  [[ "${SKIP_RUN}" == "true" ]] && return 0
+  if [[ ! -f "${CONF_PATH}/${func_name}_executed" && "${FUNCTION_RUN}" == "true" ]]; then
 
-  if [ "${C_DA_ENABLE_DOMAIN_SECURITY_HEADER}" == "true" ]; then
-    if [[ "${C_DA_CB_WEBSERVER_SOFTWARE}" == "nginx" || "${C_DA_CB_WEBSERVER_SOFTWARE}" == "nginx_apache" ]]; then
-      local da_bin da_cb_bin da_template_custom_path
-      da_bin="/usr/local/directadmin/directadmin"
-      da_cb_bin="/usr/local/directadmin/custombuild/build"
-      da_template_custom_path="/usr/local/directadmin/data/templates/custom"
-      _echo -n "$(msg cyan)Writing hsts rule for ${C_DA_CB_WEBSERVER_SOFTWARE} into ${da_template_custom_path}/cust_nginx.CUSTOM.post ...$(msg end)" --name
-      mkdir -p "${da_template_custom_path}"
-      {
-        # Note 1
-        # Below can be added into the 3rd box of custom nginx (need testing) for individual domain
-        # add_header Strict-Transport-Security "max-age=63072000; includeSubdomains; preload";
-        # https://forum.directadmin.com/threads/enable-strict-transport-security-hsts.51351/
+    if [ "${C_DA_ENABLE_DOMAIN_SECURITY_HEADER}" == "true" ]; then
+      if [[ "${C_DA_CB_WEBSERVER_SOFTWARE}" == "nginx" || "${C_DA_CB_WEBSERVER_SOFTWARE}" == "nginx_apache" ]]; then
+        local da_bin da_cb_bin da_template_custom_path
+        da_bin="/usr/local/directadmin/directadmin"
+        da_cb_bin="/usr/local/directadmin/custombuild/build"
+        da_template_custom_path="/usr/local/directadmin/data/templates/custom"
+        _echo -n "$(msg cyan)Writing hsts rule for ${C_DA_CB_WEBSERVER_SOFTWARE} into ${da_template_custom_path}/cust_nginx.CUSTOM.post ...$(msg end)" --name
+        mkdir -p "${da_template_custom_path}"
+        {
+          # Note 1
+          # Below can be added into the 3rd box of custom nginx (need testing) for individual domain
+          # add_header Strict-Transport-Security "max-age=63072000; includeSubdomains; preload";
+          # https://forum.directadmin.com/threads/enable-strict-transport-security-hsts.51351/
 
-        # This if for global domain (every domain will have this header except host):
-        # For host, it use option hsts=${second}
-        echo -e "\t# ===============================================\n"
-        echo -e "\t# This security header section was automatically generated by ${SCRIPT_NAME}\n"
-        echo -e "\t# Author: ${C_ADMIN_NAME} | Email: ${C_ADMIN_EMAIL} | Web: ${C_BOX_DOMAIN}\n"
-        echo -e "\t# ===============================================\n"
-        echo -e "\tadd_header X-Content-Type-Options \"nosniff\";\n"
-        echo -e "\tadd_header X-Frame-Options \"SAMEORIGIN\" always;\n"
-        echo -e "\tadd_header X-XSS-Protection \"1\";\n"
-        echo -e "\tadd_header X-Download-Options \"noopen\";\n"
-        echo -e "\tadd_header X-Permitted-Cross-Domain-Policies \"master-only\";\n"
-        echo -e "\tadd_header X-DNS-Prefetch-Control \"on\";\n"
-        echo -e "\tadd_header Referrer-Policy \"no-referrer-when-downgrade\";\n"
-        echo -e "\n"
-        if [ "${C_DA_ENABLE_DOMAIN_HSTS}" != "false" ]; then
-          local enable_type hsts_max_age
-          enable_type=$(echo "${C_DA_ENABLE_DOMAIN_HSTS}" | awk -F':' '{ print $1 }')
-          hsts_max_age=$(echo "${C_DA_ENABLE_DOMAIN_HSTS}" | awk -F':' '{ print $2 }')
-          if [ "${enable_type}" == "global" ]; then
-            echo -e "\t|*if SSL_TEMPLATE=\"1\"|\n"
-            # The preload part is important, so that after you have submitted the domain into preload list https://hstspreload.org/,
-            # people will not able to delete your domain there. This preload list must be included so people in Google know you want to
-            # redirect people to https.
-            echo -e "\tadd_header Strict-Transport-Security \"max-age=${hsts_max_age}; includeSubDomains; preload\";\n"
-            echo -e "\t|*endif|\n"
-          else
-            :
-            # TODO add hsts based on user ROLE config (let the other header global) (planned feature)
+          # This if for global domain (every domain will have this header except host):
+          # For host, it use option hsts=${second}
+          echo -e "\t# ===============================================\n"
+          echo -e "\t# This security header section was automatically generated by ${SCRIPT_NAME}\n"
+          echo -e "\t# Author: ${C_ADMIN_NAME} | Email: ${C_ADMIN_EMAIL} | Web: ${C_BOX_DOMAIN}\n"
+          echo -e "\t# ===============================================\n"
+          echo -e "\tadd_header X-Content-Type-Options \"nosniff\";\n"
+          echo -e "\tadd_header X-Frame-Options \"SAMEORIGIN\" always;\n"
+          echo -e "\tadd_header X-XSS-Protection \"1\";\n"
+          echo -e "\tadd_header X-Download-Options \"noopen\";\n"
+          echo -e "\tadd_header X-Permitted-Cross-Domain-Policies \"master-only\";\n"
+          echo -e "\tadd_header X-DNS-Prefetch-Control \"on\";\n"
+          echo -e "\tadd_header Referrer-Policy \"no-referrer-when-downgrade\";\n"
+          echo -e "\n"
+          if [ "${C_DA_ENABLE_DOMAIN_HSTS}" != "false" ]; then
+            local enable_type hsts_max_age
+            enable_type=$(echo "${C_DA_ENABLE_DOMAIN_HSTS}" | awk -F':' '{ print $1 }')
+            hsts_max_age=$(echo "${C_DA_ENABLE_DOMAIN_HSTS}" | awk -F':' '{ print $2 }')
+            if [ "${enable_type}" == "global" ]; then
+              echo -e "\t|*if SSL_TEMPLATE=\"1\"|\n"
+              # The preload part is important, so that after you have submitted the domain into preload list https://hstspreload.org/,
+              # people will not able to delete your domain there. This preload list must be included so people in Google know you want to
+              # redirect people to https.
+              echo -e "\tadd_header Strict-Transport-Security \"max-age=${hsts_max_age}; includeSubDomains; preload\";\n"
+              echo -e "\t|*endif|\n"
+            else
+              :
+              # TODO add hsts based on user ROLE config (let the other header global) (planned feature)
+            fi
           fi
-        fi
-        echo -e "\n"
-        echo -e "\tadd_header Content-Security-Policy \"block-all-mixed-content\";"
-        echo -e "\tadd_header Permissions-Policy 'geolocation=*, midi=(), sync-xhr=(self \"https://|DOMAIN|\" \"https://www.|DOMAIN|\"), \
+          echo -e "\n"
+          echo -e "\tadd_header Content-Security-Policy \"block-all-mixed-content\";"
+          echo -e "\tadd_header Permissions-Policy 'geolocation=*, midi=(), sync-xhr=(self \"https://|DOMAIN|\" \"https://www.|DOMAIN|\"), \
 microphone=(), camera=(), magnetometer=(), gyroscope=(), payment=(), fullscreen=(self \"https://|DOMAIN|\" \"https://www.|DOMAIN|\" )';\n"
-        # This is the extra condition to first redirect (if I dont put this, I will have problem submitting preload hsts):
-        # Related to my post here: https://forum.directadmin.com/threads/problem-with-ssl-on-hostname-and-da-and-hsts-with-other-aplications-on-other-ports.64137/post-335495
-        echo -e "\n"
-        echo -e "\t|*if SSL_TEMPLATE=\"0\"|\n"
-        echo -e "\treturn 301 https://\$host\$request_uri;\n"
-        echo -e "\t|*endif|\n"
-      } >"${da_template_custom_path}/cust_nginx.CUSTOM.post"
+          # This is the extra condition to first redirect (if I dont put this, I will have problem submitting preload hsts):
+          # Related to my post here: https://forum.directadmin.com/threads/problem-with-ssl-on-hostname-and-da-and-hsts-with-other-aplications-on-other-ports.64137/post-335495
+          echo -e "\n"
+          echo -e "\t|*if SSL_TEMPLATE=\"0\"|\n"
+          echo -e "\treturn 301 https://\$host\$request_uri;\n"
+          echo -e "\t|*endif|\n"
+        } >"${da_template_custom_path}/cust_nginx.CUSTOM.post"
+        get_status_message "$?"
+        echo ""
+
+      elif [[ "${C_DA_CB_WEBSERVER_SOFTWARE}" == "apache" ]]; then
+        _echo -n "$(msg cyan)Writing hsts rule for ${C_DA_CB_WEBSERVER_SOFTWARE} into ${da_template_custom_path}/cust_httpd.CUSTOM.post ...$(msg end)" --name
+        {
+          # Reference: https://docs.directadmin.com/webservices/apache/virtualhost-level.html#adding-security-headers-to-get-an-a-rating
+          echo -e "\t# ===============================================\n"
+          echo -e "\t# This security header section was automatically generated by ${SCRIPT_NAME}\n"
+          echo -e "\t# Author: ${C_ADMIN_NAME} | Email: ${C_ADMIN_EMAIL} | Web: ${C_BOX_DOMAIN}\n"
+          echo -e "\t# ===============================================\n"
+          echo -e "\t<IfModule mod_headers.c>\n"
+          echo -e "\tHeader always set X-Content-Type-Options \"nosniff\"\n"
+          echo -e "\t<FilesMatch \"\\.(php|html)quot;>\n"
+          echo -e "\tHeader always unset X-Powered-By\n"
+          echo -e "\tHeader unset X-Powered-By\n"
+          echo -e "\tHeader set X-Frame-Options \"SAMEORIGIN\"\n"
+          echo -e "\tHeader set X-XSS-Protection \"1\"\n"
+          echo -e "\tHeader set X-Download-Options \"noopen\"\n"
+          echo -e "\tHeader set X-Permitted-Cross-Domain-Policies \"master-only\"\n"
+          echo -e "\tHeader set X-DNS-Prefetch-Control \"on\"\n"
+          echo -e "\tHeader set Referrer-Policy \"no-referrer-when-downgrade\"\n"
+          echo -e "\n"
+          if [ "${C_DA_ENABLE_DOMAIN_HSTS}" != "false" ]; then
+            local enable_type hsts_max_age
+            enable_type=$(echo "${C_DA_ENABLE_DOMAIN_HSTS}" | awk -F':' '{ print $1 }')
+            hsts_max_age=$(echo "${C_DA_ENABLE_DOMAIN_HSTS}" | awk -F':' '{ print $2 }')
+            if [ "${enable_type}" == "global" ]; then
+              echo -e "\t|*if SSL_TEMPLATE=\"1\"|\n"
+              echo -e "\tHeader set Strict-Transport-Security \"max-age=${hsts_max_age}\" includeSubDomains; preload\n"
+              echo -e "\t|*endif|\n"
+            else
+              :
+              # TODO add hsts based on user ROLE config (let the other header global) (planned feature)
+            fi
+          fi
+          echo -e "\n"
+          echo -e "\tHeader set Content-Security-Policy \"block-all-mixed-content\"\n"
+          echo -e "\tHeader Set Permissions-Policy 'geolocation=*, midi=(), sync-xhr=(self \"https://|DOMAIN|\" \"https://www.|DOMAIN|\"), \
+    microphone=(), camera=(), magnetometer=(), gyroscope=(), payment=(), fullscreen=(self \"https://|DOMAIN|\" \"https://www.|DOMAIN|\")'\n"
+          echo -e "\n"
+          echo -e "\t|*if SSL_TEMPLATE=\"0\"|\n"
+          echo -e "\treturn 301 https://\$host\$request_uri;\n"
+          echo -e "\t|*endif|\n"
+          echo -e "\t</FilesMatch>\n"
+          echo -e "\t</IfModule>\n"
+        } >"${da_template_custom_path}/cust_httpd.CUSTOM.post"
+      fi
+      # Important, since the above 2 written in global custom virtual host, some headers can be unset via .htaccess for specific domain:
+      # eg: Header always unset X-Frame-Options
+      # Or I can enable this via specific domain only (TODO)
+      _echo "$(msg cyan)Rewriting virtual host config ...$(msg end)" --name
+      ${da_cb_bin} rewrite_confs
       get_status_message "$?"
       echo ""
-
-    elif [[ "${C_DA_CB_WEBSERVER_SOFTWARE}" == "apache" ]]; then
-      _echo -n "$(msg cyan)Writing hsts rule for ${C_DA_CB_WEBSERVER_SOFTWARE} into ${da_template_custom_path}/cust_httpd.CUSTOM.post ...$(msg end)" --name
-      {
-        # Reference: https://docs.directadmin.com/webservices/apache/virtualhost-level.html#adding-security-headers-to-get-an-a-rating
-        echo -e "\t# ===============================================\n"
-        echo -e "\t# This security header section was automatically generated by ${SCRIPT_NAME}\n"
-        echo -e "\t# Author: ${C_ADMIN_NAME} | Email: ${C_ADMIN_EMAIL} | Web: ${C_BOX_DOMAIN}\n"
-        echo -e "\t# ===============================================\n"
-        echo -e "\t<IfModule mod_headers.c>\n"
-        echo -e "\tHeader always set X-Content-Type-Options \"nosniff\"\n"
-        echo -e "\t<FilesMatch \"\\.(php|html)quot;>\n"
-        echo -e "\tHeader always unset X-Powered-By\n"
-        echo -e "\tHeader unset X-Powered-By\n"
-        echo -e "\tHeader set X-Frame-Options \"SAMEORIGIN\"\n"
-        echo -e "\tHeader set X-XSS-Protection \"1\"\n"
-        echo -e "\tHeader set X-Download-Options \"noopen\"\n"
-        echo -e "\tHeader set X-Permitted-Cross-Domain-Policies \"master-only\"\n"
-        echo -e "\tHeader set X-DNS-Prefetch-Control \"on\"\n"
-        echo -e "\tHeader set Referrer-Policy \"no-referrer-when-downgrade\"\n"
-        echo -e "\n"
-        if [ "${C_DA_ENABLE_DOMAIN_HSTS}" != "false" ]; then
-          local enable_type hsts_max_age
-          enable_type=$(echo "${C_DA_ENABLE_DOMAIN_HSTS}" | awk -F':' '{ print $1 }')
-          hsts_max_age=$(echo "${C_DA_ENABLE_DOMAIN_HSTS}" | awk -F':' '{ print $2 }')
-          if [ "${enable_type}" == "global" ]; then
-            echo -e "\t|*if SSL_TEMPLATE=\"1\"|\n"
-            echo -e "\tHeader set Strict-Transport-Security \"max-age=${hsts_max_age}\" includeSubDomains; preload\n"
-            echo -e "\t|*endif|\n"
-          else
-            :
-            # TODO add hsts based on user ROLE config (let the other header global) (planned feature)
-          fi
-        fi
-        echo -e "\n"
-        echo -e "\tHeader set Content-Security-Policy \"block-all-mixed-content\"\n"
-        echo -e "\tHeader Set Permissions-Policy 'geolocation=*, midi=(), sync-xhr=(self \"https://|DOMAIN|\" \"https://www.|DOMAIN|\"), \
-    microphone=(), camera=(), magnetometer=(), gyroscope=(), payment=(), fullscreen=(self \"https://|DOMAIN|\" \"https://www.|DOMAIN|\")'\n"
-        echo -e "\n"
-        echo -e "\t|*if SSL_TEMPLATE=\"0\"|\n"
-        echo -e "\treturn 301 https://\$host\$request_uri;\n"
-        echo -e "\t|*endif|\n"
-        echo -e "\t</FilesMatch>\n"
-        echo -e "\t</IfModule>\n"
-      } >"${da_template_custom_path}/cust_httpd.CUSTOM.post"
+      sleep 5
+      # Test the first user domain for header
+      _echo "$(msg cyan)Testing header message for ${LABEL_C_DA_USER_DOMAIN1}...$(msg end)" --name
+      curl -s -D- https://${C_DA_USER_DOMAIN1[0]} | grep -i Strict
+      get_status_message "$?"
     fi
-    # Important, since the above 2 written in global custom virtual host, some headers can be unset via .htaccess for specific domain:
-    # eg: Header always unset X-Frame-Options
-    # Or I can enable this via specific domain only (TODO)
-    _echo "$(msg cyan)Rewriting virtual host config ...$(msg end)" --name
-    ${da_cb_bin} rewrite_confs
-    get_status_message "$?"
     echo ""
-    sleep 5
-    # Test the first user domain for header
-    _echo "$(msg cyan)Testing header message for ${LABEL_C_DA_USER_DOMAIN1}...$(msg end)" --name
-    curl -s -D- https://${C_DA_USER_DOMAIN1[0]} | grep -i Strict
-    get_status_message "$?"
+    check_finish_reboot "${func_name}"
+  else
+    _echo "$(msg yellow)[Skipped by system]: $(msg magenta)${func_name}()$(msg end) $(msg yellow)with current option ${run_mode} has ran before $(msg end)" --name
+    _echo "$(msg yellow)=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=$(msg end)" --plain
+  fi
+
+  if [[ "${extra_option}" == "--silent-if-executed" ]]; then
+    end_execute_options "${run_mode}" "${func_name}" &>/dev/null
+  else
+    end_execute_options "${run_mode}" "${func_name}"
   fi
 }
 # This is an alias function of setup_post
@@ -17984,6 +18105,7 @@ setup() {
   # Just prevent running setup action if set to local, the other value still run this
   if [ "${EXECUTION_ENV}" == "local" ]; then
     _echo "$(msg red)Error, cannot execute setup action because the execution environment file ${SCRIPT_PATH}/execution_env is not set as remote$(msg end)" --name
+    _echo "$(msg red)You can only run this function on remote server$(msg end)" --name
     _exit 147
   else
     script_header
@@ -18069,9 +18191,7 @@ setup() {
     # Upgrade system
     upgrade_os --run
     # Note 1: Clone all setup script from git (recommend to run as --run-force instead of --run so we always get the latest security update)
-    get_latest_code --run        # When script completed, always use --run-force
-    # Note 1: Get the latest security codes from maxicode (recommend to run as --run-force instead of --run so we always get the latest security update)
-    update_latest_maxicode --run # When script completed, always use --run-force
+    get_latest_code --run
     # Note 1: This call contains security hardening server
     secure_os --run
     # Note 1: This is for push notification (eg: to receive notification via android phone)
@@ -18113,7 +18233,7 @@ setup() {
         configure_da_mail --run
         configure_da_ftp --run
         configure_nginx_apache --run
-        build_da_custom_settings --run
+        configure_da_custom_configs --run
         configure_web_apps --run
         configure_da_settings --run
         configure_da_cb_settings --run
@@ -18121,10 +18241,11 @@ setup() {
         configure_da_memcached --skip # (deprecated: skip this use redis instead)
         configure_da_geoip --skip     # (skip temporarily until found useful)
         # Important to run configure_da_dns_templates first before creating any domains so that the DNS record can use new template automatically
-        configure_da_dns_templates --run-exit
+        configure_da_dns_templates --run
         # " -- host --"
         configure_da_fqhn_server --run
         configure_da_ssl_pre --run
+        # If server is in hsts mode (for the domain), then it is a must to request certificate for this server.
         configure_da_fqhn_server_ssl --run
         # " -- owner --"
         configure_da_owner_accounts --run
@@ -18143,8 +18264,8 @@ setup() {
         configure_da_reseller_wildcard_domains --skip #(Skipped: Do not use wildcard for security purpose)
         configure_da_reseller_email_accounts --run
         configure_da_reseller_databases --run
-        configure_da_reseller_domain_ssl_pre --skip # Deprecated (new directadmin version has this)
-        configure_da_reseller_domain_ssl --skip     # Deprecated (new directadmin version has this)
+        configure_da_reseller_domain_ssl_pre --skip # Deprecated and not needed (new directadmin version has this)
+        configure_da_reseller_domain_ssl --skip     # Directadmin has autoSSL but I need this incase autoSSL is slow
         # " -- user ---"
         configure_da_user_accounts --run
         configure_da_user_security --run
@@ -18154,23 +18275,24 @@ setup() {
         configure_da_user_email_accounts --run
         configure_da_user_databases --run
         configure_da_user_domain_ssl_pre --skip # Deprecated (new directadmin version has this)
-        configure_da_user_domain_ssl --skip     # Deprecated (new directadmin version has this)
-
+        configure_da_user_domain_ssl --skip     # Directadmin has autoSSL but I need this incase autoSSL is slow
         # " -- others ---"
-        configure_da_domain_security
+        configure_da_domain_security --run
         configure_da_custom_webs --skip # Fix this with new version
         configure_da_wpcli --run
-
+        exit 1
         # " -- maxicode ---"
+        # Note 1: Get the latest security codes from maxicode (recommend to run as --run-force instead of --run so we always get the latest security update)
+        update_latest_maxicode --run
         configure_maxicode_pre --skip
         configure_maxicode --run
         configure_maxigpg --run
         configure_maxiaide --run
         configure_maxiperm --run
         configure_maxida --run
-        configure_maxinance --skip   # (Deprecated function, already combined in maxida)
-        configure_maxibox --run
-        configure_maxinis --run-exit
+        configure_maxinance --skip # (Deprecated function, already combined in maxida)
+        configure_maxibox --run    # TODO improve this script (haven't implemented)
+        configure_maxinis --run    # TODO improve this script (it contains bug)
         configure_maxirbl --run
         configure_maxiwall --run
         configure_maxicli --run
@@ -18194,6 +18316,17 @@ setup() {
         configure_csf --run
         # Add da ipv6 and linking with ipv4 and vice versa (this option has --init argument)
         configure_da_ips --run
+        configure_da_sql --run
+        configure_da_mail --run
+        configure_da_ftp --run
+        configure_nginx_apache --run
+        configure_da_custom_configs --run
+        configure_web_apps --run
+        configure_da_settings --run
+        configure_da_cb_settings --run
+        configure_da_redis --run
+        configure_da_memcached --skip # (deprecated: skip this use redis instead)
+        configure_da_geoip --skip     # (skip temporarily until found useful)
         # Important to run configure_da_dns_templates first before creating any domains so that the DNS record can use new template automatically
         configure_da_dns_templates --run
         # " -- host --"

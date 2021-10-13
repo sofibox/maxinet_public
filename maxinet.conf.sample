@@ -239,7 +239,7 @@ C_ADMIN_EMAIL="admin@codegix.com"
 # It will use some common known pre fixes before directadmin installation
 # This bug normally happen if a new software is released on directadmin side
 # Default should be false
-C_DA_ENABLE_PRE_INSTALL_TEMP_FIX=true
+C_DA_ENABLE_PRE_INSTALL_TEMP_FIX=false
 
 #C_DA_AUTO_SELECT_API_PROTOCOL:
 # Automatically select https protocol if available to use with API
@@ -294,6 +294,8 @@ C_ENABLE_DA_HOST_SSL=true
 
 # This will restore the SSL certificate for hostname without requesting new
 # If C_DA_RESTORE_PREVIOUS_HOSTNAME_SSL is set to false, this setting has no effect
+# There is a popular known issue on the month of october 2021 that all certificate became invalid in letsencrypt
+# If that is the case, do not set this to true to fix those errors first, once the backup cert is placed properly then this can be set to true
 C_DA_RESTORE_PREVIOUS_HOSTNAME_SSL=true
 
 # C_DA_AUTO_ADD_IPV46_ENTRY:
@@ -409,11 +411,14 @@ C_DA_DNS_TTL=0
 #keysize=prime256v1
 #keysize=secp384r1
 #keysize=secp521r1
-# But do note that secp521r1 is not supported by letsencrypt and most browser still don't support it
+# Most secure key now is secp521r1 with sha256
+# But do note that secp521r1 is not supported by letsencrypt and most browser still don't support it so use secp384r1
 C_DA_ECC_CERTIFICATES=1
 # Choose the certificate size
 # 2048, 4096, prime256v1, secp384r1
 C_DA_CERTIFICATE_SIZE="secp384r1"
+# This is certificate encryption algorithm for the SSL certificate (most common is sha256 is enough)
+C_DA_CERTIFICATE_ENCRYPTION_ALGORITHM="sha256"
 
 # This will enable host hsts via directadmin
 # to disable just put false, to enable provide the value in second:
@@ -829,9 +834,9 @@ C_DNS_PROVIDER_NAME=""
 C_DNS_PROVIDER_USER=""
 # Format <provider_name>:<provider_username>:<api_key>
 # If you change the API key, remove this file /root/.config/linode-cli, and linode will re-add the new key automatically
+C_LINODE_API="LINODE_API_TOKEN_HERE"
 C_DNS_PROVIDER_API1="linode:linode_username:LINODE_API_TOKEN_HERE"
 C_DNS_PROVIDER_TERMINAL_SERVER="lish-usa1.linode.com"
-
 # For linode configuration
 C_LINODE_OS_CONFIG_LABEL="OS_Config"
 C_LINODE_BOOT_CONFIG_LABEL="Boot_Config"
@@ -874,7 +879,7 @@ C_GOTIFY_CLI_VERSION="2.2.0"
 
 # Dropbox (This value can be obtained first from dbxcli)
 # For security reason, do not use full scope dropbox, use app scope
-DROPBOX_CONFIGFILE_VERSION="2.0"
-DROPBOX_OAUTH_APP_KEY="KEY"
-DROPBOX_OAUTH_APP_SECRET="KEY"
-DROPBOX_OAUTH_REFRESH_TOKEN="TOKEN"
+C_DROPBOX_CONFIGFILE_VERSION="2.0"
+C_DROPBOX_OAUTH_APP_KEY="KEY"
+C_DROPBOX_OAUTH_APP_SECRET="KEY"
+C_DROPBOX_OAUTH_REFRESH_TOKEN="TOKEN"
