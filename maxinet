@@ -4,22 +4,31 @@
 
 _APP_SPECIFIC_NAME="Maxinet"
 # Note that some minor versions are not published
-_APP_VERSION="0.6.6"
+_APP_VERSION="0.6.7"
 _APP_STATUS="alpha"
 _APP_VERSION_STATUS="${_APP_VERSION}-${_APP_STATUS}"
 
 ### START TEMPORARY NOTE
 ### END TEMPORARY NOTE
 
-# Hello there, this is a powerful script that able initialize one or more server installation from scratch. From configuring the server disk, until you got the full working server with a live website.
-# It also includes many security and hardening script.
-# Initially this script was designed to work 100% with Directadmin installation but it can be used to install other server stacks such as LEMP, Laravel, Magento, Prestashop and more
-# This script is very portable. You can always re-run this script to resume installation if it's halt due to known error or script has performed reboot
-# You can also use this script to perform other tasks such as automatically login into SSH and more. Trigger ${script_name} --help for more information
-# URL (public): github.com/sofibox/maxinet_public | (private) github.com/sofibox/maxinet (need access token)
-# =~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~="
-# Run installation with log output: ./${script_name} setup 2>&1 | tee maxinet.log
-# Run initialize installation with log output: ./${script_name} create-server --rebuild-all --backup 2>&1 | tee maxinet.log
+# This is a personal project that I wrote for server automation to reduce server configuration time.
+# The aim is this project is to have everything automated when deploying a new server without wasting a lot of time.
+# For example setting up a secured server from scratch with hardened configs might take few days (I've experienced this) but this script will reduce that longer period to about 1 hour with one command!
+# I focused a lot of security enhancements in this script for a new server deployment in order to reduce server malicious attack.
+
+# Warning, you should not use this script if you dont know the purpose of this script. This script might contain bug (especially this public version)
+# There is another private version without _public name URL that always have the latest code and features.
+# Running example:
+
+# maxinet create-server --rebuild-all --backup
+
+# For example if everything is configured correctly for Directadmin and Linode in maxinet.conf,
+# the above command will configure a new server disk and config in linode, it will then create custom ISO file for Debian, then it will install this operating system.
+# then do a lot of thing behind ... bla2 bla2 ... (read the code to understand what it does because it is huge to write what it does) ... and finally you will get a fully working server with live websites. So, with only a single command, you will get a clean server with security hardened features
+# The feature is currently huge to list out.
+# It might contain bugs for other distributions. This script is fully tested on Debian 10, Debian 11 and with Directadmin custom and auto installation. This script compatible with linode + directadmin
+# Author: Arafat Ali | Email: arafat@sofibox.com | Personal Blog: arafatx.com
+# See maxinet --help for more information
 
 #######################
 # FUNCTION BEGIN HERE #
@@ -1355,6 +1364,7 @@ ensure_fqhn_server_resolved() {
 # This function initialize or deploy server installation from scratch with few options
 # See <script_name> --init-server --help or look at manual() section under "init_server" for more information
 init_server() {
+
   local argnum options retval rebuild_iso rebuild_partition rebuild_config rebuild_all backup max_wait wait_count
   argnum="$#"
   # We should allow empty argument for creating server without rebuild or backup option
@@ -1597,11 +1607,13 @@ init_server() {
     fi
 
     _echo "$(msg cyan)Copying maxinet, maxinet.conf gpg_private_key.gpg and readme.txt into remote server ... $(msg end)" --name
-    local file_to_transfer
-    if [ "${C_DA_RESTORE_PREVIOUS_HOSTNAME_SSL}" == "true" ]; then
-      file_to_transfer="${SECURE_PATH}/gpg/gpg_private_key.gpg ${SCRIPT_PATH}/maxinet ${SCRIPT_PATH}/maxinet.conf ${SCRIPT_PATH}/readme.txt ${SECURE_PATH}/ssl/.lego/certificates/${C_BOX_HOSTNAME_FQHN}.crt ${SECURE_PATH}/ssl/.lego/certificates/${C_BOX_HOSTNAME_FQHN}.issuer.crt ${SECURE_PATH}/ssl/.lego/certificates/${C_BOX_HOSTNAME_FQHN}.key ${SECURE_PATH}/ssl/.lego/certificates/${C_BOX_HOSTNAME_FQHN}.json"
-    else
-      file_to_transfer="${SECURE_PATH}/gpg/gpg_private_key.gpg ${SCRIPT_PATH}/maxinet ${SCRIPT_PATH}/maxinet.conf ${SCRIPT_PATH}/readme.txt"
+    local file_to_transfer hostname_certificate_to_transfer
+    file_to_transfer="${SECURE_PATH}/gpg/gpg_private_key.gpg ${SCRIPT_PATH}/maxinet ${SCRIPT_PATH}/maxinet.conf ${SCRIPT_PATH}/readme.txt"
+
+    if [[ "${C_DA_RESTORE_PREVIOUS_HOSTNAME_SSL}" == "true" ]]; then
+      hostname_certificate_to_transfer="${SECURE_PATH}/ssl/.lego/certificates/${C_BOX_HOSTNAME_FQHN}.crt ${SECURE_PATH}/ssl/.lego/certificates/${C_BOX_HOSTNAME_FQHN}.issuer.crt \
+      ${SECURE_PATH}/ssl/.lego/certificates/${C_BOX_HOSTNAME_FQHN}.key ${SECURE_PATH}/ssl/.lego/certificates/${C_BOX_HOSTNAME_FQHN}.json"
+      file_to_transfer="${file_to_transfer} ${hostname_certificate_to_transfer}"
     fi
     ssh_api transfer-files --server-port "${C_BOX_HOSTNAME_FQHN}:${C_SSH_PORT}" --group-user "root:${C_ROOT_USERNAME}" --local-files "${file_to_transfer}" --remote-path ~/
     sleep 2
@@ -1889,7 +1901,8 @@ ssh_api() {
     scp -r -o "StrictHostKeyChecking no" -P "${port}" -i "${rsa_key}" "${user}@${server}:${remote_path}" "${local_path}" 2> >(grep -v 'Permanently' 1>&2)
 
   elif [[ "${action}" == "file-upload" || "${action}" == "upload-files" || "${action}" == "transfer-files" || "${action}" == "transfer-file" || "${action}" == "file-transfer" || "${action}" == "files-transfer" ]]; then
-    # ssh_api transfer-files/file-transfer/transfer-file --server-port ${C_BOX_HOSTNAME_FQHN}:${C_SSH_PORT} --group-user root:${C_ROOT_USERNAME} --local-files "/tmp/file1 /var/file2" --remote-path ~/
+    # ssh_api transfer-files/file-transfer/transfer-file --server-port ${C_BOX_HOSTNAME_FQHN}:${C_SSH_PORT} --group-user root:${C_ROOT_USERNAME}
+    # --local-files "/tmp/file1 /var/file2" --remote-path ~/
     #ssh_api transfer-files/file-transfer/transfer-file --server ${C_BOX_HOSTNAME_FQHN} ---port ${C_SSH_PORT} --group root --user ${C_ROOT_USERNAME} --local-files "/tmp/file1 /var/file2" --remote-path ~/
     local private_key_name private_key_file
 
@@ -8255,7 +8268,6 @@ da_api_admin() {
     if [ "${has_cmd_api}" == "false" ]; then
       cmd_api="CMD_SECURITY_QUESTIONS"
       _echo "$(msg yellow)Note, directadmin does not have CMD_API_SECURITY_QUESTIONS call. Using CMD_SECURITY_QUESTIONS ...$(msg end)" --name
-
       # Note This does not work. Posted here: https://forum.directadmin.com/threads/bug-in-api-cmd_security_questions-bug-with-parameter-order.64318/
       #data="type=custom&value=${answer}&action=add&custom_question=${question}&json=yes"
       # This work
@@ -8723,7 +8735,7 @@ setup_pre() {
       # Note 8: gcc is needed to compile program from source. (eg meson build need gcc to compile ipcalc c code)
       # Note 9: curl is needed on most system (for directadmin, we will use custombuild, so this will be removed before installation)
       # Note 10: wget is needed on most system
-      # Note 11: ipvc6calc is used by directadmin API, maxiwall and other scripts (important to have)
+      # Note 11: ipc6calc is used by directadmin API, maxiwall and other scripts (important to have)
       _echo "$(msg cyan)Installing pre-requisite components for ${DISTRO_ID^} OS ...$(msg end)" --name
       apt-get -y install git sudo nmap psmisc unzip zip dnsutils net-tools rsync dos2unix ncdu meson htop gcc curl wget ipv6calc
       echo ""
@@ -9238,6 +9250,7 @@ get_latest_code() {
 
 }
 # This function updates the maxicode to the latest binary
+# Very important NOTE: When use --run-force in this function, this will reset permission of the binary .. make sure all the binary is set as executable from here
 update_latest_maxicode() {
   local run_mode func_name
   run_mode="$1"
@@ -10325,93 +10338,226 @@ install_da_pre() {
         # No need to install libcurl now, it's working without installing libcurl. I have updated the post.
         # We do not need any curl versions because directadmin will install it, if we dont remove this we will have curl conflict with the following error:
         # curl: /usr/local/lib/libcurl.so.4: no version information available (required by curl)
-        #apt-get -y remove curl # dont remove yet, we use system curl instead of the one from directadmin
-        #echo "[${SCRIPT_NAME}]: Installing Debian libcurl ..."
-        #sudo apt-get -y install libcurl4-openssl-dev
+        # apt-get -y remove curl # dont remove yet, we use system curl instead of the one from directadmin
+        # echo "[${SCRIPT_NAME}]: Installing Debian libcurl ..."
+        # sudo apt-get -y install libcurl4-openssl-dev
         :
       else
         _echo "$(msg red)Error, unknown value for distribution ID ${DISTRO_ID}. The distribution ID is not supported!$(msg end)" --name
         _exit 147
       fi
+      _echo "$(msg cyan)Writing new custombuild custom options.conf into /usr/local/directadmin/custombuild/options.conf (as a placeholder) ...$(msg end)" --name
 
-      if [[ -d "${LATEST_OS_CODE_PATH}/usr/local/directadmin/custombuild" ]]; then
-        _echo "$(msg cyan)Copying the latest custombuild custom options.conf into /usr/local/directadmin/custombuild/options.conf ...$(msg end)" --name
-        cp "${LATEST_OS_CODE_PATH}/usr/local/directadmin/custombuild/options.conf" "/usr/local/directadmin/custombuild/options.conf"
+      {
+        echo "# Note on PHP setting: At this moment if using php2 as 8.0 and php1 as 7.4 fixed roundcube issue."
+        echo "# Should not use php 8.0 as main it contains bug"
+        echo "php1_release=7.4"
+        echo "php1_mode=php-fpm"
+        echo "php2_release=8.0"
+        echo "php2_mode=php-fpm"
+        echo "php3_release=no"
+        echo "php3_mode=php-fpm"
+        echo "php4_release=no"
+        echo "php4_mode=php-fpm"
+        echo "secure_php=yes"
+        echo "php_ini=yes"
+        echo "php_timezone=Asia/Kuala_Lumpur"
+        echo "php_ini_type=production"
+        echo "x_mail_header=yes"
         echo ""
-        _echo "$(msg cyan)Changing the value redirect_host= into redirect_host=${LABEL_C_BOX_HOSTNAME_FQHN} from options.conf ...$(msg end)" --name
-        sed -i "s|^redirect_host=.*|redirect_host=${C_BOX_HOSTNAME_FQHN}|" /usr/local/directadmin/custombuild/options.conf
+        echo "#MySQL Settings"
+        echo "mysql=5.7"
+        echo "mariadb=10.6"
+        echo "mysql_inst=mariadb"
+        echo "mysql_backup=yes"
+        echo "mysql_backup_gzip=yes"
+        echo "mysql_backup_dir=/usr/local/directadmin/custombuild/mysql_backups"
+        echo "mysql_force_compile=no"
         echo ""
-        _echo "$(msg cyan)Changing the value email= into email=${LABEL_C_ADMIN_EMAIL} from options.conf ...$(msg end)" --name
-        sed -i "s|^email=.*|email=${C_ADMIN_EMAIL}|" /usr/local/directadmin/custombuild/options.conf
+        echo "#WEB Server Settings"
+        echo "unit=no"
+        echo "webserver=nginx_apache"
+        echo "http_methods=ALL"
+        echo "litespeed_serialno=trial"
+        echo "modsecurity=no"
+        echo "modsecurity_ruleset=owasp"
+        echo "apache_ver=2.4"
+        echo "apache_mpm=auto"
+        echo "mod_ruid2=no"
+        echo "# This is a security feature, disable user directory access"
+        echo "userdir_access=no"
+        echo "# This is a security feature to disable FollowSymLinks and replace with SymLinksIfOwnerMatch"
+        echo "harden_symlinks_patch=yes"
+        echo "# Set is to redirect everyone to hostname. We set to no, and enable later in script"
+        echo "use_hostname_for_alias=no"
+        echo "# Place holder, change later in script"
+        echo "redirect_host=\"host.domain.com\""
+        echo "# This is to redirect hostname automatically to https. We set to no, and enable later in script"
+        echo "redirect_host_https=no"
         echo ""
-        _echo "$(msg cyan)Changing the value php_timezone= into php_timezone=${LABEL_C_BOX_TIMEZONE} from options.conf ...$(msg end)" --name
-        sed -i "s|^php_timezone=.*|php_timezone=${C_BOX_TIMEZONE}|" /usr/local/directadmin/custombuild/options.conf
+        echo "#WEB Applications Settings"
+        echo "phpmyadmin=yes"
+        echo "phpmyadmin_public=yes"
+        echo "phpmyadmin_ver=5"
+        echo "squirrelmail=no"
+        echo "roundcube=yes"
+        echo "webapps_inbox_prefix=no"
+        echo "#ClamAV-related Settings"
+        echo "clamav=no"
+        echo "clamav_exim=yes"
+        echo "modsecurity_uploadscan=no"
+        echo "proftpd_uploadscan=no"
+        echo "pureftpd_uploadscan=no"
+        echo "suhosin_php_uploadscan=no"
         echo ""
-        # This will change the sql info in options.conf based on the value from config file C_DA_CB_SQL_VERSION
-
-        _echo "$(msg cyan)Configuring SQL databases ...$(msg end)" --name
-        da_sql_type=$(echo "${C_DA_CB_SQL_VERSION}" | awk -F'-' '{ print $1 }')
-        da_sql_version=$(echo "${C_DA_CB_SQL_VERSION}" | awk -F'-' '{ print $2 }')
-        _echo "$(msg cyan)Changing mysql type to ${da_sql_type} ...$(msg end)" --name
-        sed -i "s|^mysql_inst=.*|mysql_inst=${da_sql_type}|" /usr/local/directadmin/custombuild/options.conf
-        _echo "$(msg cyan)Changing mysql version to ${da_sql_version} ...$(msg end)" --name
-        sed -i "s|^${da_sql_type}=.*|${da_sql_type}=${da_sql_version}|" /usr/local/directadmin/custombuild/options.conf
+        echo "#Mail Settings"
+        echo "exim=yes"
+        echo "eximconf=yes"
+        echo "eximconf_release=4.5"
+        echo "blockcracking=yes"
+        echo "easy_spam_fighter=yes"
+        echo "spamd=rspamd"
+        echo "sa_update=daily"
+        echo "dovecot=yes"
+        echo "dovecot_conf=yes"
+        echo "mail_compress=yes"
+        echo "pigeonhole=yes"
         echo ""
-
-        # This will setup PHP version
-        _echo "$(msg cyan)Configuring PHP multiple versions ...$(msg end)" --name
-
-        da_php_mode_v1="$(echo "${C_DA_CB_PHP_VERSION}" | awk -F',' '{ print $1 }')"
-        da_php_mode_v2="$(echo "${C_DA_CB_PHP_VERSION}" | awk -F',' '{ print $2 }')"
-        da_php_mode_v3="$(echo "${C_DA_CB_PHP_VERSION}" | awk -F',' '{ print $3 }')"
-        da_php_mode_v4="$(echo "${C_DA_CB_PHP_VERSION}" | awk -F',' '{ print $4 }')"
-
-        count=1
-        for php_mode_v in ${da_php_mode_v1} ${da_php_mode_v2} ${da_php_mode_v3} ${da_php_mode_v4}; do
-          local php_version php_mode
-          php_version=$(echo "${php_mode_v}" | awk -F':' '{ print $1}')
-          php_mode=$(echo "${php_mode_v}" | awk -F':' '{ print $2}')
-
-          # Use default value of php_version if empty
-          if [ -z "${php_version}" ]; then
-            php_version="no"
-          fi
-
-          # Use default value of php_mode if empty
-          if [ -z "${php_mode}" ]; then
-            php_mode="php-fpm"
-          fi
-
-          #echo "PHP version is ${php_version}"
-          #echo "PHP mod is ${php_mode}"
-          echo "Changing php${count}_release to ${php_version} ..."
-          sed -i "s|^php${count}_release=.*|php${count}_release=${php_version}|" /usr/local/directadmin/custombuild/options.conf
-          echo ""
-          echo "Changing php${count}_mod to ${php_mode} ..."
-          sed -i "s|^php${count}_mod=.*|php${count}_mod=${php_mode}|" /usr/local/directadmin/custombuild/options.conf
-          echo ""
-          ((count++))
-        done
-        _echo "$(msg cyan)Changing modsecurity enabled option to ${C_DA_CB_INSTALL_MODSECURITY} ...$(msg end)" --name
-        sed -i "s|^modsecurity=.*|modsecurity=${C_DA_CB_INSTALL_MODSECURITY}|" /usr/local/directadmin/custombuild/options.conf
+        echo "#FTP Settings"
+        echo "ftpd=pureftpd"
         echo ""
-
-        _echo "$(msg cyan)Changing modsecurity ruleset option to ${C_DA_CB_MODSECURITY_RULESET} ...$(msg end)" --name
-        sed -i "s|^modsecurity_ruleset=.*|modsecurity_ruleset=${C_DA_CB_MODSECURITY_RULESET}|" /usr/local/directadmin/custombuild/options.conf
+        echo "# Statistics Settings"
+        echo "# We do not need this enabled (speed up server)"
+        echo "awstats=no"
+        echo "webalizer=no"
         echo ""
-
-        _echo "$(msg cyan)Changing clamav enabled option to ${C_DA_CB_INSTALL_CLAMAV} ...$(msg end)" --name
-        sed -i "s|^clamav=.*|clamav=${C_DA_CB_INSTALL_CLAMAV}|" /usr/local/directadmin/custombuild/options.conf
+        echo "#CustomBuild Settings"
+        echo "custombuild=2.0"
+        echo "custombuild_plugin=yes"
+        echo "autover=yes"
+        echo "bold=yes"
+        echo "clean=yes"
+        echo "cleanapache=yes"
+        echo "clean_old_tarballs=yes"
+        echo "clean_old_webapps=yes"
+        echo "downloadserver=files.directadmin.com"
+        echo "unofficial_mirrors=no"
         echo ""
+        echo "#Cronjob Settings"
+        echo "cron=no"
+        echo "cron_frequency=daily"
+        echo "email=webmaster@sofibox.com"
+        echo "notifications=yes"
+        echo "# Do not auto update directadmin"
+        echo "da_autoupdate=no"
+        echo "updates=no"
+        echo "webapps_updates=yes"
+        echo ""
+        echo "#CloudLinux Settings"
+        echo "cloudlinux=no"
+        echo "cloudlinux_beta=no"
+        echo "cagefs=no"
+        echo ""
+        echo "#Advanced Settings"
+        echo "# This option is used to install curl by directadmin. We will install curl by system first"
+        echo "curl=no"
+        echo "ssl_configuration=intermediate"
+        echo ""
+        echo "#PHP extensions can be found in php_extensions.conf"
+      } >"/usr/local/directadmin/custombuild/options.conf"
 
-        _echo "$(msg cyan)Copying the latest custombuild custom php_extensions.conf into /usr/local/directadmin/custombuild/php_extensions.conf ...$(msg end)" --name
-        cp "${LATEST_OS_CODE_PATH}/usr/local/directadmin/custombuild/php_extensions.conf" /usr/local/directadmin/custombuild/php_extensions.conf
-      else
-        # This is weird error and should exit, we should had this at the beginning.
-        _echo "$(msg red)Error, the directory ${LATEST_OS_CODE_PATH}/usr/local/directadmin/custombuild does not exist. Please inspect because the directory should be there!$(msg end)" --name
-        _exit 147
-      fi
+      # _echo "$(msg cyan)Copying the latest custombuild custom options.conf into /usr/local/directadmin/custombuild/options.conf ...$(msg end)" --name
+      #cp "${LATEST_OS_CODE_PATH}/usr/local/directadmin/custombuild/options.conf" "/usr/local/directadmin/custombuild/options.conf"
+      echo ""
 
+      _echo "$(msg cyan)Changing the value redirect_host= into redirect_host=${LABEL_C_BOX_HOSTNAME_FQHN} from options.conf ...$(msg end)" --name
+      sed -i "s|^redirect_host=.*|redirect_host=${C_BOX_HOSTNAME_FQHN}|" /usr/local/directadmin/custombuild/options.conf
+      echo ""
+      _echo "$(msg cyan)Changing the value email= into email=${LABEL_C_ADMIN_EMAIL} from options.conf ...$(msg end)" --name
+      sed -i "s|^email=.*|email=${C_ADMIN_EMAIL}|" /usr/local/directadmin/custombuild/options.conf
+      echo ""
+      _echo "$(msg cyan)Changing the value php_timezone= into php_timezone=${LABEL_C_BOX_TIMEZONE} from options.conf ...$(msg end)" --name
+      sed -i "s|^php_timezone=.*|php_timezone=${C_BOX_TIMEZONE}|" /usr/local/directadmin/custombuild/options.conf
+      echo ""
+      # This will change the sql info in options.conf based on the value from config file C_DA_CB_SQL_VERSION
+
+      _echo "$(msg cyan)Configuring SQL databases ...$(msg end)" --name
+      da_sql_type=$(echo "${C_DA_CB_SQL_VERSION}" | awk -F'-' '{ print $1 }')
+      da_sql_version=$(echo "${C_DA_CB_SQL_VERSION}" | awk -F'-' '{ print $2 }')
+      _echo "$(msg cyan)Changing mysql type to ${da_sql_type} ...$(msg end)" --name
+      sed -i "s|^mysql_inst=.*|mysql_inst=${da_sql_type}|" /usr/local/directadmin/custombuild/options.conf
+      _echo "$(msg cyan)Changing mysql version to ${da_sql_version} ...$(msg end)" --name
+      sed -i "s|^${da_sql_type}=.*|${da_sql_type}=${da_sql_version}|" /usr/local/directadmin/custombuild/options.conf
+      echo ""
+
+      # This will setup PHP version
+      _echo "$(msg cyan)Configuring PHP multiple versions ...$(msg end)" --name
+      da_php_mode_v1="$(echo "${C_DA_CB_PHP_VERSION}" | awk -F',' '{ print $1 }')"
+      da_php_mode_v2="$(echo "${C_DA_CB_PHP_VERSION}" | awk -F',' '{ print $2 }')"
+      da_php_mode_v3="$(echo "${C_DA_CB_PHP_VERSION}" | awk -F',' '{ print $3 }')"
+      da_php_mode_v4="$(echo "${C_DA_CB_PHP_VERSION}" | awk -F',' '{ print $4 }')"
+
+      count=1
+      for php_mode_v in ${da_php_mode_v1} ${da_php_mode_v2} ${da_php_mode_v3} ${da_php_mode_v4}; do
+        local php_version php_mode
+        php_version=$(echo "${php_mode_v}" | awk -F':' '{ print $1}')
+        php_mode=$(echo "${php_mode_v}" | awk -F':' '{ print $2}')
+
+        # Use default value of php_version if empty
+        if [ -z "${php_version}" ]; then
+          php_version="no"
+        fi
+
+        # Use default value of php_mode if empty
+        if [ -z "${php_mode}" ]; then
+          php_mode="php-fpm"
+        fi
+
+        #echo "PHP version is ${php_version}"
+        #echo "PHP mod is ${php_mode}"
+        echo "Changing php${count}_release to ${php_version} ..."
+        sed -i "s|^php${count}_release=.*|php${count}_release=${php_version}|" /usr/local/directadmin/custombuild/options.conf
+        echo ""
+        echo "Changing php${count}_mod to ${php_mode} ..."
+        sed -i "s|^php${count}_mod=.*|php${count}_mod=${php_mode}|" /usr/local/directadmin/custombuild/options.conf
+        echo ""
+        ((count++))
+      done
+      _echo "$(msg cyan)Changing modsecurity enabled option to ${C_DA_CB_INSTALL_MODSECURITY} ...$(msg end)" --name
+      sed -i "s|^modsecurity=.*|modsecurity=${C_DA_CB_INSTALL_MODSECURITY}|" /usr/local/directadmin/custombuild/options.conf
+      echo ""
+
+      _echo "$(msg cyan)Changing modsecurity ruleset option to ${C_DA_CB_MODSECURITY_RULESET} ...$(msg end)" --name
+      sed -i "s|^modsecurity_ruleset=.*|modsecurity_ruleset=${C_DA_CB_MODSECURITY_RULESET}|" /usr/local/directadmin/custombuild/options.conf
+      echo ""
+
+      _echo "$(msg cyan)Changing clamav enabled option to ${C_DA_CB_INSTALL_CLAMAV} ...$(msg end)" --name
+      sed -i "s|^clamav=.*|clamav=${C_DA_CB_INSTALL_CLAMAV}|" /usr/local/directadmin/custombuild/options.conf
+      echo ""
+
+      _echo "$(msg cyan)Creating new custombuild custom php_extensions.conf into /usr/local/directadmin/custombuild/php_extensions.conf ...$(msg end)" --name
+      {
+        echo "#PHP Extension Settings"
+        echo "bz2=no"
+        echo "gmp=no"
+        echo "htscanner=yes"
+        echo "# PHP 8.0 does not support imagick"
+        echo "imagick=no"
+        echo "imap=yes"
+        echo "ioncube=no"
+        echo "ldap=no"
+        echo "opcache=yes"
+        echo "phalcon=no"
+        echo "redis=yes"
+        echo "snuffleupagus=no"
+        echo "suhosin=no"
+        echo "xmlrpc=no"
+        echo "zend=no"
+      } >"/usr/local/directadmin/custombuild/php_extensions.conf"
+
+      #_echo "$(msg cyan)Copying the latest custombuild custom php_extensions.conf into /usr/local/directadmin/custombuild/php_extensions.conf ...$(msg end)" --name
+      #cp "${LATEST_OS_CODE_PATH}/usr/local/directadmin/custombuild/php_extensions.conf" /usr/local/directadmin/custombuild/php_extensions.conf
+      echo ""
       ###### Below are some fixes
       if [ "${C_DA_CB_CLAMAV_VERSION}" != "latest" ]; then
         _echo "$(msg cyan)Configuring clamav to use version ${C_DA_CB_CLAMAV_VERSION} before installation ...$(msg end)" --name
@@ -10728,24 +10874,28 @@ install_da_post() {
     # At this point, we haven't allowed da port 2222 to be connected (blocked by firewall)
     # Below, we just enable the new da port in firewall and set the port to open later using da binary
     #echo ""
-    _echo "$(msg cyan)Changing directadmin login page redirection port from default port 2222 to port ${LABEL_C_DA_PORT}$(msg end)" --name
-    {
-      echo "<?php"
-      echo "header(\"Location: http://\".\$_SERVER['HTTP_HOST'].\":${C_DA_PORT}\");"
-      echo "?>"
-    } >/var/www/html/redirect.php
-    echo ""
+    #_echo "$(msg cyan)Changing directadmin login page redirection port from default port 2222 to port ${LABEL_C_DA_PORT}$(msg end)" --name
+    #{
+    #  echo "<?php"
+    #  echo "header(\"Location: http://\".\$_SERVER['HTTP_HOST'].\":${C_DA_PORT}\");"
+    #  echo "?>"
+    #} >/var/www/html/redirect.php
+    #echo ""
 
     if [ "${DISTRO_ID}" == "centos" ]; then
-      _echo "$(msg cyan)Adding directadmin new port ${LABEL_C_DA_PORT}/tcp to firewalld ...$(msg end)" --name
-      if [[ "${C_HIDE_SENSITIVE_TEXT}" == "true" ]]; then
-        sudo firewall-cmd --quiet --permanent --zone=public --add-port="${C_DA_PORT}/tcp"
-      else
-        sudo firewall-cmd --permanent --zone=public --add-port="${C_DA_PORT}/tcp"
+      if command -v firewall-cmd &>/dev/null; then
+        _echo "$(msg cyan)Adding directadmin new port ${LABEL_C_DA_PORT}/tcp to firewalld ...$(msg end)" --name
+        if [[ "${C_HIDE_SENSITIVE_TEXT}" == "true" ]]; then
+          sudo firewall-cmd --quiet --permanent --zone=public --add-port="${C_DA_PORT}/tcp"
+        else
+          sudo firewall-cmd --permanent --zone=public --add-port="${C_DA_PORT}/tcp"
+        fi
       fi
     elif [ "${DISTRO_ID}" == "debian" ]; then
-      _echo "$(msg cyan)Adding directadmin new port ${LABEL_C_DA_PORT}/tcp to ufw ...$(msg end)" --name
-      sudo ufw allow "${C_DA_PORT}/tcp"
+      if command -v ufw &>/dev/null; then
+        _echo "$(msg cyan)Adding directadmin new port ${LABEL_C_DA_PORT}/tcp to ufw ...$(msg end)" --name
+        sudo ufw allow "${C_DA_PORT}/tcp"
+      fi
     fi
     echo ""
     # At this moment directadmin can be login using a new port ${LABEL_C_DA_PORT}"
@@ -10762,7 +10912,7 @@ install_da_post() {
   fi
 }
 
-secure_da_auth() {
+configure_da_auth() {
   # This function change the directadmin username and password from default to yours (based on config file)
   # It also has more options to secure DA installation. Example maybe this one we can create 2 step authentication
   local run_mode func_name
@@ -10813,6 +10963,14 @@ secure_da_auth() {
 
     _echo "$(msg cyan)Setting directadmin port to ${LABEL_C_DA_PORT} ...$(msg end)" --name
     ${da_bin} set port "${C_DA_PORT}" restart
+    echo ""
+
+    _echo "$(msg cyan)Changing directadmin login page redirection port from default port 2222 to port ${LABEL_C_DA_PORT}$(msg end)" --name
+    {
+      echo "<?php"
+      echo "header(\"Location: http://\".\$_SERVER['HTTP_HOST'].\":${C_DA_PORT}\");"
+      echo "?>"
+    } >/var/www/html/redirect.php
     echo ""
 
     _echo "$(msg cyan)Requesting directadmin to restart ...$(msg end)" --name
@@ -13832,7 +13990,7 @@ configure_da_fqhn_server_ssl() {
             cp -pf "${lego_cert_path}" ${cert}.combined
           fi
           date +%s >${cert}.creation_time
-          chown diradmin:mail ${key} ${cert} ${cert}.combined ${cacert} ${cert}.creation_time
+          chown diradmin:${C_DA_SECURE_ACCESS_GROUP} ${key} ${cert} ${cert}.combined ${cacert} ${cert}.creation_time
           # This file is the one that renew certificate, if this is deleted, renewal will be disable
           chmod 640 ${key} ${cert} ${cert}.combined ${cacert} ${cert}.creation_time
           echo "Certificate for ${C_BOX_HOSTNAME_FQHN} has been created successfully!"
@@ -17019,7 +17177,6 @@ configure_da_reseller_domain_ssl_pre() {
     da_reseller_ssl_sub_names="${!C_DA_RESELLER_SSL_SUBDOMAIN@}"
     # Get the total count for reseller ssl_sub_names
     da_reseller_ssl_sub_names_count=$(echo "${da_reseller_ssl_sub_names}" | wc -w)
-
     reseller_count=1
     echo "[${SCRIPT_NAME}]: Creating acme-challenge file through custombuild rewrite_confs ..."
     /usr/local/directadmin/custombuild/build rewrite_confs
@@ -17910,7 +18067,8 @@ configure_services() {
 }
 
 # This is used to get A+ rating for SSL and increase security
-# TODO Warning, the next DA version 1.62.9 (currently in alpha) will release this hsts header for specific domain via ui, check this for compatibility on next version
+# TODO Warning, the next DA version 1.63 will release this hsts header for specific domain via ui, check this for compatibility on next version
+# Warning this has issue with new version of DA if using nginx or nginx_apache
 # https://www.directadmin.com/features.php?id=2602
 configure_da_domain_security() {
   local run_mode func_name
@@ -17924,13 +18082,13 @@ configure_da_domain_security() {
   fi
   [[ "${SKIP_RUN}" == "true" ]] && return 0
   if [[ ! -f "${CONF_PATH}/${func_name}_executed" && "${FUNCTION_RUN}" == "true" ]]; then
-
     if [ "${C_DA_ENABLE_DOMAIN_SECURITY_HEADER}" == "true" ]; then
+      local da_bin da_cb_bin da_template_custom_path
+      da_bin="/usr/local/directadmin/directadmin"
+      da_cb_bin="/usr/local/directadmin/custombuild/build"
+      da_template_custom_path="/usr/local/directadmin/data/templates/custom"
       if [[ "${C_DA_CB_WEBSERVER_SOFTWARE}" == "nginx" || "${C_DA_CB_WEBSERVER_SOFTWARE}" == "nginx_apache" ]]; then
-        local da_bin da_cb_bin da_template_custom_path
-        da_bin="/usr/local/directadmin/directadmin"
-        da_cb_bin="/usr/local/directadmin/custombuild/build"
-        da_template_custom_path="/usr/local/directadmin/data/templates/custom"
+
         _echo -n "$(msg cyan)Writing hsts rule for ${C_DA_CB_WEBSERVER_SOFTWARE} into ${da_template_custom_path}/cust_nginx.CUSTOM.post ...$(msg end)" --name
         mkdir -p "${da_template_custom_path}"
         {
@@ -18223,7 +18381,7 @@ setup() {
         install_da_pre --run
         install_da --run
         install_da_post --run
-        secure_da_auth --run
+        configure_da_auth --run
         configure_bind --run
         install_da_csf --run
         configure_csf --run
@@ -18280,7 +18438,6 @@ setup() {
         configure_da_domain_security --run
         configure_da_custom_webs --skip # Fix this with new version
         configure_da_wpcli --run
-        exit 1
         # " -- maxicode ---"
         # Note 1: Get the latest security codes from maxicode (recommend to run as --run-force instead of --run so we always get the latest security update)
         update_latest_maxicode --run
@@ -18311,7 +18468,7 @@ setup() {
         install_da_pre --run
         install_da --run
         install_da_post --run
-        secure_da_auth --run
+        configure_da_auth --run
         configure_bind --run
         configure_csf --run
         # Add da ipv6 and linking with ipv4 and vice versa (this option has --init argument)
@@ -18723,10 +18880,13 @@ while [ "$#" -gt 0 ]; do
     # File to push from local file
 
     if [ "${C_DA_RESTORE_PREVIOUS_HOSTNAME_SSL}" == "true" ]; then
-      LOCAL_FILES_TO_PUSH="${SECURE_PATH}/gpg/gpg_private_key.gpg ${SCRIPT_PATH}/maxinet ${SCRIPT_PATH}/maxinet.conf ${SCRIPT_PATH}/readme.txt ${SECURE_PATH}/ssl/.lego/certificates/${C_BOX_HOSTNAME_FQHN}.crt ${SECURE_PATH}/ssl/.lego/certificates/${C_BOX_HOSTNAME_FQHN}.issuer.crt ${SECURE_PATH}/ssl/.lego/certificates/${C_BOX_HOSTNAME_FQHN}.key ${SECURE_PATH}/ssl/.lego/certificates/${C_BOX_HOSTNAME_FQHN}.json"
+      LOCAL_FILES_TO_PUSH="${SECURE_PATH}/gpg/gpg_private_key.gpg ${SCRIPT_PATH}/maxinet ${SCRIPT_PATH}/maxinet.conf \
+      ${SCRIPT_PATH}/readme.txt ${SECURE_PATH}/ssl/.lego/certificates/${C_BOX_HOSTNAME_FQHN}.crt ${SECURE_PATH}/ssl/.lego/certificates/${C_BOX_HOSTNAME_FQHN}.issuer.crt \
+      ${SECURE_PATH}/ssl/.lego/certificates/${C_BOX_HOSTNAME_FQHN}.key ${SECURE_PATH}/ssl/.lego/certificates/${C_BOX_HOSTNAME_FQHN}.json"
     else
       LOCAL_FILES_TO_PUSH="${SECURE_PATH}/gpg/gpg_private_key.gpg ${SCRIPT_PATH}/maxinet ${SCRIPT_PATH}/maxinet.conf ${SCRIPT_PATH}/readme.txt"
     fi
+
     REMOTE_LOCATION_TO_RECEIVE="~/"
     ssh_api transfer-files --server-port "${C_BOX_HOSTNAME_FQHN}:${C_SSH_PORT}" --group-user "root:${C_ROOT_USERNAME}" --local-files "${LOCAL_FILES_TO_PUSH}" --remote-path "${REMOTE_LOCATION_TO_RECEIVE}"
     exit 0
