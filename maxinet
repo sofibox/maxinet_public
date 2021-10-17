@@ -4,7 +4,7 @@
 
 _APP_SPECIFIC_NAME="Maxinet"
 # Note that some minor versions are not published
-_APP_VERSION="0.6.7"
+_APP_VERSION="0.6.8"
 _APP_STATUS="alpha"
 _APP_VERSION_STATUS="${_APP_VERSION}-${_APP_STATUS}"
 
@@ -390,7 +390,7 @@ _pause() {
 # This function will display a confirmation to continue (force continue; no exit function)
 _confirm() {
   # call with a prompt string or use a default
-  read -r -p "[${SCRIPT_NAME}]: ${1:-Continue? [y]} " response
+  read -r -p "[${SCRIPT_NAME}]: ${1:-Continue? [y] Exit? [CTRL+C]}} " response
   case "$response" in
   [yY][eE][sS] | [yY])
     return 0
@@ -1364,7 +1364,6 @@ ensure_fqhn_server_resolved() {
 # This function initialize or deploy server installation from scratch with few options
 # See <script_name> --init-server --help or look at manual() section under "init_server" for more information
 init_server() {
-
   local argnum options retval rebuild_iso rebuild_partition rebuild_config rebuild_all backup max_wait wait_count
   argnum="$#"
   # We should allow empty argument for creating server without rebuild or backup option
@@ -4061,8 +4060,8 @@ iso_api() {
         if [ "${debian_select_version}" == "${debian_latest_version}" ]; then
           _echo "$(msg green)The Latest version of Debian is up-to-date with the selected version of Debian: v${debian_select_version}! $(msg end)" --name
         else
-          _echo "$(msg yellow)Warning, the Latest version of Debian detected as ${debian_latest_version} but the selected version is ${debian_select_version}!$(msg end)" --name
-          _pause 10
+          _echo "$(msg yellow)Warning, the Latest version of Debian detected as ${debian_latest_version} but the selected version from config file is ${debian_select_version}!$(msg end)" --name
+          _confirm
         fi
       fi
 
@@ -8735,7 +8734,7 @@ setup_pre() {
       # Note 8: gcc is needed to compile program from source. (eg meson build need gcc to compile ipcalc c code)
       # Note 9: curl is needed on most system (for directadmin, we will use custombuild, so this will be removed before installation)
       # Note 10: wget is needed on most system
-      # Note 11: ipc6calc is used by directadmin API, maxiwall and other scripts (important to have)
+      # Note 11: ipvc6calc is used by directadmin API, maxiwall and other scripts (important to have)
       _echo "$(msg cyan)Installing pre-requisite components for ${DISTRO_ID^} OS ...$(msg end)" --name
       apt-get -y install git sudo nmap psmisc unzip zip dnsutils net-tools rsync dos2unix ncdu meson htop gcc curl wget ipv6calc
       echo ""
@@ -9812,8 +9811,8 @@ configure_net2() {
         echo "# ==============================================="
         echo "# GENERAL DEVICE CONFIGURATION "
         echo 'TYPE="Ethernet"'
-        echo "DEVICE=\"${C_NIC_INTERFACE_NAME}"\"
-        echo "NAME=\"${C_NIC_INTERFACE_NAME}"\"
+        echo "DEVICE=\"${C_NIC_INTERFACE_NAME}\""
+        echo "NAME=\"${C_NIC_INTERFACE_NAME}\""
         echo 'ONBOOT="yes"'
         echo 'BOOTPROTO="none"'
         echo 'PEERDNS="no"'
@@ -10897,6 +10896,23 @@ install_da_post() {
         sudo ufw allow "${C_DA_PORT}/tcp"
       fi
     fi
+
+    _echo "$(msg cyan)Changing directadmin login page redirection port from default port 2222 to port ${LABEL_C_DA_PORT}$(msg end)" --name
+    {
+      echo "<?php"
+      echo "header(\"Location: http://\".\$_SERVER['HTTP_HOST'].\":${C_DA_PORT}\");"
+      echo "?>"
+    } >/var/www/html/redirect.php
+    echo ""
+
+    _echo "$(msg cyan)Setting directadmin port to ${LABEL_C_DA_PORT} ...$(msg end)" --name
+    ${da_bin} set port "${C_DA_PORT}" restart
+    echo ""
+
+    _echo "$(msg cyan)Requesting directadmin to restart ...$(msg end)" --name
+    restart_da
+    echo ""
+
     echo ""
     # At this moment directadmin can be login using a new port ${LABEL_C_DA_PORT}"
     check_finish_reboot "${func_name}"
@@ -10911,10 +10927,9 @@ install_da_post() {
     end_execute_options "${run_mode}" "${func_name}"
   fi
 }
-
+# This will change da related authentication.
+# It also has more options to secure DA installation. Example maybe this one we can create 2 step authentication
 configure_da_auth() {
-  # This function change the directadmin username and password from default to yours (based on config file)
-  # It also has more options to secure DA installation. Example maybe this one we can create 2 step authentication
   local run_mode func_name
   run_mode="$1"
   extra_option="$2"
@@ -10946,36 +10961,7 @@ configure_da_auth() {
     # echo "${C_DA_OWNER_USERNAME1}:${C_DA_OWNER_USERPASS1}" | chpasswd
     #echo ""
 
-    # Create htpasswd for phpmyadmin URL: (only create user information but not enabled it)
-    _echo "$(msg cyan)Creating httpasswd for restricting phpMyAdmin URL route ... $(msg end)" --name
-    # Supply -c for first user, this will produce sensitive output with standard error, hide with 2>
-    htpasswd -b -c /etc/httpd/.htpasswd "${C_HTTPASSWD_PHPMYADMIN_USERNAME}" "${C_HTTPASSWD_PHPMYADMIN_PASS}" 2>/dev/null
-    echo ""
-    #only create user information but not enabled it
-    _echo "$(msg cyan)Creating httpasswd for restricting roundcube URL route ... $(msg end)" --name
-    # Don't supply -c for next user (if supply -c, it will replace the previous one), this will produce sensitive output with standard error, hide with 2>
-    htpasswd -b /etc/httpd/.htpasswd "${C_HTTPASSWD_ROUNDCUBE_USERNAME}" "${C_HTTPASSWD_ROUNDCUBE_PASS}" 2>/dev/null
-    echo ""
-    _echo "$(msg cyan)Correcting the permission of /etc/httpd/.htpasswd ... $(msg end)" --name
-    chown apache:apache /etc/httpd/.htpasswd
-    chmod +r /etc/httpd/.htpasswd
-    echo ""
-
-    _echo "$(msg cyan)Setting directadmin port to ${LABEL_C_DA_PORT} ...$(msg end)" --name
-    ${da_bin} set port "${C_DA_PORT}" restart
-    echo ""
-
-    _echo "$(msg cyan)Changing directadmin login page redirection port from default port 2222 to port ${LABEL_C_DA_PORT}$(msg end)" --name
-    {
-      echo "<?php"
-      echo "header(\"Location: http://\".\$_SERVER['HTTP_HOST'].\":${C_DA_PORT}\");"
-      echo "?>"
-    } >/var/www/html/redirect.php
-    echo ""
-
-    _echo "$(msg cyan)Requesting directadmin to restart ...$(msg end)" --name
-    restart_da
-    echo ""
+    # TODO this add custom page for login (using recaptcha) to increase security
     check_finish_reboot "${func_name}"
   else
     _echo "$(msg yellow)[Skipped by system]: $(msg magenta)${func_name}()$(msg end) $(msg yellow)with current option ${run_mode} has ran before $(msg end)" --name
@@ -11117,6 +11103,8 @@ configure_bind() {
         _echo "$(msg yellow)[Skipped]: The setting C_ENABLE_DNSSEC is not set to true. DNSSEC installation is skipped!$(msg end)" --name
       fi
     else
+      _echo "$(msg cyan)Removing bind DNS service (named) in directadmin ...$(msg end)" --name
+      echo ""
       # Guide: https://help.directadmin.com/item.php?id=25
       # Disable named or DNS service
       if [ "${C_SERVER_TYPE}" == "directadmin" ]; then
@@ -11136,7 +11124,6 @@ configure_bind() {
       else
         _echo -n "$(msg yellow)[Skipped]: Already halted DNS service (named) execution script in /etc/init.d/named ...$(msg end)" --name
       fi
-      echo ""
       #cp -f /etc/init.d/named /etc/init.d/named.original.backup
       #{
       #  echo "#!/bin/bash"
@@ -11170,8 +11157,7 @@ configure_bind() {
 }
 
 # This will configure both ipv4 and ipv6 (add ipv4 or ipv6) and link them together only based on the IP from config files
-# configure_da_ips --run-force --init
-# The option --init removes previous data and force this function configure_da_ips to start from scratch, useful if the ipv6 file is corrupted
+# configure_da_ips --run-force --init, the option --init removes previous data and force this function configure_da_ips to start from scratch, useful if the ipv6 file is corrupted
 configure_da_ips() {
   local run_mode extra_option func_name
   run_mode="$1"
@@ -11207,7 +11193,7 @@ configure_da_ips() {
     # This ipv4_da_file is not required at this moment but left for reference:
     #ipv4_da_file="/usr/local/directadmin/data/admin/ips/${c_da_ipv4}"
 
-    # Very important note. The reason we enable ipv6=1 is to enable ipv6 form to add Ipv6 in directadmin system
+    # Very important note. The reason we enable ipv6=1 is to enable ipv6 form to add Ipv6 in directadmin system (without this step API might have problem)
     _echo "$(msg cyan)Enabling ipv6 in directadmin.conf config before adding IPv6...$(msg end)" --name
     ${da_bin} set ipv6 1
     echo ""
@@ -11257,7 +11243,7 @@ configure_da_ips() {
 
     # IPV6 start here
     # ( deprecated ): If --init passed in extra_option, we force rebuild the IP (only IPv6 was modified so we only remove ipv6 file to start over)
-    # We do not need to have this option, we force rebuild IPv6
+    # We do not need to have this option, we force rebuild IPv6 by removing it first
     #if [ "${extra_option}" == "--init" ]; then
     _echo "$(msg cyan)Removing existing directadmin IPv6 IP files to rebuild IPv6 IP ...$(msg end)" --name
     rm -f ${da_ipv6_adds}
@@ -11424,6 +11410,9 @@ configure_da_ips() {
 }
 
 # Install CSF Firewall in DA way
+# Important note, CSF will auto add port 2222 if detect directadmin BUT if the port is changed before installation, it will not add custom port!
+# So at this point DA is not accesible using custom port
+# To add custom port for directadmin call configure_csf() function
 install_da_csf() {
   local run_mode func_name
   run_mode="$1"
@@ -11519,7 +11508,7 @@ install_da_csf() {
         touch /root/blocked_ips.txt
         touch /root/exempt_ips.txt
         echo ""
-        # This set using directadmin binary
+        # Set this using directadmin binary instead
         #_echo "$(msg cyan)Hiding directadmin bruteforce notification ...$(msg end)" --name
         #grep_count=$(grep -c hide_brute_force_notifications /usr/local/directadmin/conf/directadmin.conf)
         #if [ "${grep_count}" = "0" ]; then
@@ -11614,7 +11603,7 @@ install_da_csf() {
       fi
     fi
     # TIPS. CSF can be removed with this command:
-    #sh /etc/csf/uninstall.sh
+    # sh /etc/csf/uninstall.sh
     echo ""
     check_finish_reboot "${func_name}"
   else
@@ -11871,7 +11860,7 @@ install_general_csf() {
     end_execute_options "${run_mode}" "${func_name}"
   fi
 }
-# Install CSF Firewall
+# This will configure csf port and other csf related configs
 # Note if you use --run-force and want to reinstall CSF at this stage, please execute this command first:
 # sh /etc/csf/uninstall.sh (I don't include this command inside this function because CSF should not be reinstalled without permission)
 configure_csf() {
@@ -11948,6 +11937,7 @@ configure_csf() {
       #echo "[${SCRIPT_NAME}]: Setting CONNLIMIT and PORTFLOOD best setting ..."
       #sed -i 's/CONNLIMIT = ""/CONNLIMIT = "22;5,80;20,443;20"/g' /etc/csf/csf.conf
       #sed -i 's/PORTFLOOD = ""/PORTFLOOD = "22;tcp;5;300,80;tcp;20;5,443;tcp;20;5"/g' /etc/csf/csf.conf
+
       # Disable CSF testing mode
       _echo "$(msg cyan)Disabling CSF testing mode ...$(msg end)" --name
       sed -i 's/TESTING = "1"/TESTING = "0"/g' /etc/csf/csf.conf
@@ -11968,7 +11958,8 @@ configure_csf() {
       sed -i "s/SYSLOG_CHECK = .*/SYSLOG_CHECK = '\"${C_CSF_SYSLOG_CHECK}\"'/" /etc/csf/csf.conf
       echo ""
       _echo "$(msg cyan)Setting CSF PT_LOAD_ACTION script path ...$(msg end)" --name
-      # TODO improve this script
+      # TODO this script must be improved to detect server highload issue. I posted an answer to someone here why this is needed:
+      # https://forum.directadmin.com/threads/random-instances-of-systemd-user-running-for-24-hours.64353/#post-335092
       sed -i "s/^PT_LOAD_ACTION = .*/PT_LOAD_ACTION = \"\/usr\/local\/maxicode\/maxicsf\/csfload\"/" /etc/csf/csf.conf
       echo ""
       _echo "$(msg cyan)Setting CSF to send security alert to ${C_ADMIN_EMAIL} ...$(msg end)" --name
@@ -11986,11 +11977,12 @@ configure_csf() {
         fi
       fi
       echo ""
-      # Increase block limit from 200 to 2500 (specified in config)
+      # Increase block limit from 200 to C_CSF_DENY_IP_LIMIT (specified in config)
       _echo "$(msg cyan)Setting CSF DENY_IP_LIMIT to ${C_CSF_DENY_IP_LIMIT} ....$(msg end)" --name
       sed -i "s/DENY_IP_LIMIT = .*/DENY_IP_LIMIT = '\"${C_CSF_DENY_IP_LIMIT}\"'/" /etc/csf/csf.conf
       echo ""
-      # CSF Messenger: TODO haven't tested this messenger
+      # TODO test CSF messenger
+      # This is CSF Messenger setting:
       _echo "$(msg cyan)Enabling CSF Messenger ...$(msg end)" --name
       sed -i "s/MESSENGER = \"0\"/MESSENGER = \"1\"/" /etc/csf/csf.conf
       echo ""
@@ -12014,13 +12006,38 @@ configure_csf() {
         _echo "$(msg cyan)Setting PORTS_directadmin into ${LABEL_C_DA_PORT} ...$(msg end)" --name
         sed -i "s|^PORTS_directadmin=.*|PORTS_directadmin = \"${C_DA_PORT}\"|" /etc/csf/csf.conf
         echo ""
-        _echo "$(msg cyan)Setting up CSF firewall blacklist template taken from maxicode ...$(msg end)" --name
+
+        _echo "$(msg cyan)Writing new CSF firewall blacklist template ...$(msg end)" --name
         mkdir -p /usr/local/directadmin/data/templates/custom
-        cp "${LATEST_OS_CODE_PATH}/usr/local/directadmin/data/templates/custom/blacklisted_ip.html" "/usr/local/directadmin/data/templates/custom/blacklisted_ip.html"
+        {
+          echo "<!DOCTYPE html>"
+          echo "<html lang=\"en\">"
+          echo "<head>"
+          echo "    <title>Maxiwall Information</title>"
+          echo "    <meta charset=\"utf-8\">"
+          echo "    <meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">"
+          echo "</head>"
+          echo "<body>"
+          echo ""
+          echo "<div class=\"container\">"
+          echo "    <h1>Maxiwall Information</h1>"
+          echo "    <p>Warning: For security reason, your IP has been blacklisted by our firewall due to repeated authorization failures.</p>"
+          echo "    <h3> Solutions: </h3>"
+          echo "    <p>1) Normally this is a temporary block and our firewall will unblock your IP within few minutes or few hours</p>"
+          echo "    <p>2) If you think this is a mistake and need to have your IP whitelisted immediately, please email us at ${C_ADMIN_EMAIL}</p>"
+          echo "    <p>3) If you are using a dynamic IP (most people do), you could try is to restart your main ISP router to get a new IP address </p>"
+          echo "    <p>4) If you are using a static IP please, the step 3) might not be possible. Please contact us ${C_ADMIN_EMAIL} to unblock your IP with valid reason </p>"
+          echo "</div>"
+          echo ""
+          echo "</body>"
+          echo "</html>"
+        } >"/usr/local/directadmin/data/templates/custom/blacklisted_ip.html"
+        # _echo "$(msg cyan)Setting up CSF firewall blacklist template taken from maxicode ...$(msg end)" --name
+        # mkdir -p /usr/local/directadmin/data/templates/custom
+        # cp "${LATEST_OS_CODE_PATH}/usr/local/directadmin/data/templates/custom/blacklisted_ip.html" "/usr/local/directadmin/data/templates/custom/blacklisted_ip.html"
         chmod 644 "/usr/local/directadmin/data/templates/custom/blacklisted_ip.html"
         chown diradmin:diradmin "/usr/local/directadmin/data/templates/custom/blacklisted_ip.html"
         echo ""
-
       fi
 
       _echo "$(msg cyan)Testing CSF after changing configuration ...$(msg end)" --name
@@ -12292,20 +12309,6 @@ configure_da_sql() {
     fi
     echo ""
 
-    # Important, this will make the phpmyadmin connection using SSL, so at this point phpmyadmin is not accessible because SSL is needed
-    # Setup will install SSL in another function
-    # Configuring phpmyadmin htaccess
-    _echo "$(msg cyan)Creating https redirection .htaccess for mysql management (phpMyAdmin) ...$(msg end)" --name
-    touch /var/www/html/phpMyAdmin/.htaccess
-    {
-      echo "RewriteEngine On"
-      echo "RewriteCond %{HTTPS} !=on"
-      echo "RewriteRule ^/?(.*) https://%{SERVER_NAME}${C_PHPMYADMIN_LOGIN_ROUTE}\$1 [R=301,L]"
-    } >/var/www/html/phpMyAdmin/.htaccess
-    chmod 644 /var/www/html/phpMyAdmin/.htaccess
-    chown webapps:webapps /var/www/html/phpMyAdmin/.htaccess
-    echo ""
-
     _echo "$(msg cyan)Backing up original phpmyadmin config.inc.php at /var/www/html/phpMyAdmin as config.inc.php_original_${DATE_TIME_NOW}...$(msg end)" --name
     cp -p "/var/www/html/phpMyAdmin/config.inc.php" "/var/www/html/phpMyAdmin/config.inc.php_backup_original_${DATE_TIME_NOW}"
     echo ""
@@ -12405,6 +12408,63 @@ configure_da_sql() {
     #retval=$?
     #echo "${retval}"
 
+    echo ""
+    check_finish_reboot "${func_name}"
+  else
+    _echo "$(msg yellow)[Skipped by system]: $(msg magenta)${func_name}()$(msg end) $(msg yellow)with current option ${run_mode} has ran before $(msg end)" --name
+    _echo "$(msg yellow)=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=$(msg end)" --plain
+  fi
+
+  if [[ "${extra_option}" == "--silent-if-executed" ]]; then
+    end_execute_options "${run_mode}" "${func_name}" &>/dev/null
+  else
+    end_execute_options "${run_mode}" "${func_name}"
+  fi
+}
+
+# This will configure everything about sql security
+# Also configure https route for phpmyadmin here
+configure_da_sql_security() {
+  local run_mode func_name
+  run_mode="$1"
+  extra_option="$2"
+  func_name="${FUNCNAME[0]}"
+  if [[ "${extra_option}" == "--silent-if-executed" ]]; then
+    start_execute_options "${run_mode}" "${func_name}" &>/dev/null
+  else
+    start_execute_options "${run_mode}" "${func_name}"
+  fi
+  [[ "${SKIP_RUN}" == "true" ]] && return 0
+  if [[ ! -f "${CONF_PATH}/${func_name}_executed" && "${FUNCTION_RUN}" == "true" ]]; then
+    local httpd_alias_conf
+    httpd_alias_conf="/etc/httpd/conf/extra/httpd-alias.conf"
+    _echo "$(msg cyan)Configuring sql security ...$(msg end)" --name
+    echo ""
+    # Important, this will make the phpmyadmin connection using SSL, so at this point phpmyadmin might not accessible or has certificate error because SSL is needed
+    # Setup will install SSL in another function
+    # Configuring phpmyadmin htaccess
+    _echo "$(msg cyan)Creating https redirection .htaccess for mysql management (phpMyAdmin) ...$(msg end)" --name
+    touch /var/www/html/phpMyAdmin/.htaccess
+    {
+      echo "RewriteEngine On"
+      echo "RewriteCond %{HTTPS} !=on"
+      echo "RewriteRule ^/?(.*) https://%{SERVER_NAME}${C_PHPMYADMIN_LOGIN_ROUTE}\$1 [R=301,L]"
+    } >/var/www/html/phpMyAdmin/.htaccess
+    chmod 644 /var/www/html/phpMyAdmin/.htaccess
+    chown webapps:webapps /var/www/html/phpMyAdmin/.htaccess
+    echo ""
+    # This is just temporary, in order to test whether phpmyadmin URL is working (this will be rebuild by the function configure_server_security())
+    if [ "${C_PHPMYADMIN_SECURE_ROUTE}" == "true" ]; then
+      _echo "$(msg yellow)Warning, C_PHPMYADMIN_SECURE_ROUTE is set to true, so you will not be able to use custom route for phpmyadmin set in config file at this point$(msg end)" --name
+    else
+      _echo "$(msg cyan)Adding a temporary phpmyadmin custom URL route to ${LABEL_C_PHPMYADMIN_LOGIN_ROUTE} ...$(msg end)" --name
+      {
+        echo "# PHPMYADMIN custom URL (temporary):"
+        echo "Alias ${C_PHPMYADMIN_LOGIN_ROUTE} \"/var/www/html/phpMyAdmin/\""
+      } >>"${httpd_alias_conf}"
+    fi
+    echo ""
+    restart_da_web_server
     echo ""
     check_finish_reboot "${func_name}"
   else
@@ -12572,6 +12632,50 @@ configure_da_mail() {
   fi
 }
 
+# This will add another extra scurity for email config or settings
+# This also will configure custom route for mail app like roundcube
+configure_da_mail_security() {
+  local run_mode func_name
+  run_mode="$1"
+  extra_option="$2"
+  func_name="${FUNCNAME[0]}"
+  if [[ "${extra_option}" == "--silent-if-executed" ]]; then
+    start_execute_options "${run_mode}" "${func_name}" &>/dev/null
+  else
+    start_execute_options "${run_mode}" "${func_name}"
+  fi
+  [[ "${SKIP_RUN}" == "true" ]] && return 0
+  if [[ ! -f "${CONF_PATH}/${func_name}_executed" && "${FUNCTION_RUN}" == "true" ]]; then
+    local httpd_alias_conf
+    httpd_alias_conf="/etc/httpd/conf/extra/httpd-alias.conf"
+    _echo "$(msg cyan)Configuring mail security ...$(msg end)" --name
+    echo ""
+    # This is just temporary, in order to test whether roundcube custom URL is working (this will be rebuild by the function configure_server_security())
+    if [ "${C_ROUNDCUBE_SECURE_ROUTE}" == "true" ]; then
+      _echo "$(msg yellow)Warning, C_ROUNDCUBE_SECURE_ROUTE is set to true, so you will not be able to use custom route for roundcube set in config file at this point$(msg end)" --name
+    else
+      _echo "$(msg cyan)Adding a temporary roundcube custom URL route to ${LABEL_C_ROUNDCUBE_SECURE_ROUTE} ...$(msg end)" --name
+      {
+        echo "# ROUNDCBE custom URL (temporary):"
+        echo "Alias ${C_ROUNDCUBE_LOGIN_ROUTE} \"/var/www/html/roundcube/\""
+      } >>"${httpd_alias_conf}"
+    fi
+    echo ""
+    restart_da_web_server
+    echo ""
+    check_finish_reboot "${func_name}"
+  else
+    _echo "$(msg yellow)[Skipped by system]: $(msg magenta)${func_name}()$(msg end) $(msg yellow)with current option ${run_mode} has ran before $(msg end)" --name
+    _echo "$(msg yellow)=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=$(msg end)" --plain
+  fi
+
+  if [[ "${extra_option}" == "--silent-if-executed" ]]; then
+    end_execute_options "${run_mode}" "${func_name}" &>/dev/null
+  else
+    end_execute_options "${run_mode}" "${func_name}"
+  fi
+}
+
 configure_da_ftp() {
   local run_mode func_name
   run_mode="$1"
@@ -12613,8 +12717,9 @@ configure_da_ftp() {
   fi
 }
 
-# This function only for configuring nginx_apache (it makes URL phpmyadmin or roundcube secure)
-configure_nginx_apache() {
+# This function will configure server (nginx, apache, nginx_apache) for security
+# Example creating alias name for db, mail, setting up server for production and more
+configure_server_security() {
   local run_mode func_name
   run_mode="$1"
   extra_option="$2"
@@ -12630,10 +12735,12 @@ configure_nginx_apache() {
     httpd_alias_conf="/etc/httpd/conf/extra/httpd-alias.conf"
     httpd_include_conf="/etc/httpd/conf/extra/httpd-includes.conf"
     httpd_default_conf="/etc/httpd/conf/extra/httpd-default.conf"
+
+    check_path "${httpd_alias_conf}" "${httpd_include_conf}" "${httpd_default_conf}"
+
     _echo "$(msg cyan)Backing up original httpd-alias.conf at /etc/httpd/ as httpd-alias.conf_backup_original_${DATE_TIME_NOW} ...$(msg end)" --name
     cp -p "${httpd_alias_conf}" "${httpd_alias_conf}_backup_original_${DATE_TIME_NOW}"
     echo ""
-    cat /dev/null >"${httpd_alias_conf}"
     _echo "$(msg cyan)Writing httpd custom config for httpd-alias.conf in ${httpd_alias_conf} ...$(msg end)" --name
     {
       echo "# ==============================================="
@@ -12641,29 +12748,48 @@ configure_nginx_apache() {
       echo "# Author: ${C_ADMIN_NAME} | Email: ${C_ADMIN_EMAIL} | Web: ${C_BOX_DOMAIN}"
       echo "# ==============================================="
       echo "RewriteEngine On"
-      echo "Alias /config \"/var/www/html/redirect.php"\"
-      echo "Alias /.well-known/acme-challenge \"/var/www/html/.well-known/acme-challenge"\"
+      echo "Alias /config \"/var/www/html/redirect.php\""
+      echo "Alias /.well-known/acme-challenge \"/var/www/html/.well-known/acme-challenge\""
       echo ""
       # Here we can specify what URL should be blocked (with 404.html page)
-      echo "# BLOCKED URLs:"
-      echo "Alias /phpMyAdmin \"/var/www/html/server/error_docs/404.html"\"
-      echo "Alias /phpmyadmin \"/var/www/html/server/error_docs/404.html"\"
-      echo "Alias /pma \"/var/www/html/server/error_docs/404.html"\"
-      echo "Alias /squirrelmail \"/var/www/html/server/error_docs/404.html"\"
-      echo "Alias /webmail \"/var/www/html/server/error_docs/404.html"\"
-      echo "Alias /roundcube \"/var/www/html/server/error_docs/404.html"\"
+      echo "# BLOCKED common route for security:"
+      echo "Alias /phpMyAdmin \"/var/www/html/server/error_docs/404.html\""
+      echo "Alias /phpmyadmin \"/var/www/html/server/error_docs/404.html\""
+      echo "Alias /pma \"/var/www/html/server/error_docs/404.html\""
+      echo "Alias /squirrelmail \"/var/www/html/server/error_docs/404.html\""
+      echo "Alias /webmail \"/var/www/html/server/error_docs/404.html\""
+      echo "Alias /roundcube \"/var/www/html/server/error_docs/404.html\""
       echo ""
       echo "# CUSTOM URLs:"
       echo "# PHPMYADMIN custom URL:"
-      echo "Alias ${C_PHPMYADMIN_LOGIN_ROUTE} \"/var/www/html/phpMyAdmin/"\"
+      echo "Alias ${C_PHPMYADMIN_LOGIN_ROUTE} \"/var/www/html/phpMyAdmin/\""
       echo "# ROUNDCUBE custom URL:"
-      echo "Alias ${C_ROUNDCUBE_LOGIN_ROUTE} \"/var/www/html/roundcube/"\"
+      echo "Alias ${C_ROUNDCUBE_LOGIN_ROUTE} \"/var/www/html/roundcube/\""
       echo "# HTPASSWD secure directories:"
       echo ""
-    } >>"${httpd_alias_conf}"
+    } >"${httpd_alias_conf}"
     echo ""
 
     if [ "${C_SECURE_LOGIN_ROUTE}" == "true" ]; then
+      if command -v htpasswd &>/dev/null; then
+        # Create htpasswd for phpmyadmin URL: (only create user information but not enabled it)
+        _echo "$(msg cyan)Creating httpasswd for restricting phpMyAdmin URL route ... $(msg end)" --name
+        # Supply -c for first user, this will produce sensitive output with standard error, hide with 2>
+        htpasswd -b -c /etc/httpd/.htpasswd "${C_HTTPASSWD_PHPMYADMIN_USERNAME}" "${C_HTTPASSWD_PHPMYADMIN_PASS}" 2>/dev/null
+        echo ""
+        #only create user information but not enabled it
+        _echo "$(msg cyan)Creating httpasswd for restricting roundcube URL route ... $(msg end)" --name
+        # Don't supply -c for next user (if supply -c, it will replace the previous one), this will produce sensitive output with standard error, hide with 2>
+        htpasswd -b /etc/httpd/.htpasswd "${C_HTTPASSWD_ROUNDCUBE_USERNAME}" "${C_HTTPASSWD_ROUNDCUBE_PASS}" 2>/dev/null
+        echo ""
+        _echo "$(msg cyan)Correcting the permission of /etc/httpd/.htpasswd ... $(msg end)" --name
+        chown apache:apache /etc/httpd/.htpasswd
+        chmod +r /etc/httpd/.htpasswd
+        echo ""
+      else
+        _echo "$(msg red)Error, htpasswd binary does not exist! Make sure it exist and rerun this setup again$(msg end)" --name
+        _exit 147
+      fi
       _echo "$(msg cyan)Protecting phpMyAdmin and roundcube with htpasswd because C_SECURE_LOGIN_ROUTE is se to true ...$(msg end)" --name
       {
         echo "#Protect phpMyAdmin directory:"
@@ -12687,25 +12813,6 @@ configure_nginx_apache() {
 
     else
       _echo "$(msg cyan)[Skipped]: C_SECURE_LOGIN_ROUTE is not set. Custom URL routes are not protected$(msg end)" --name
-      {
-        echo "##Protect phpMyAdmin directory:"
-        echo "#<Directory \"/var/www/html/phpMyAdmin/\">"
-        echo "##AllowOverride AuthConfig"
-        echo "#AuthType Basic"
-        echo "#AuthName \"${C_BOX_HOSTNAME_FQHN}": DB-Auth\"
-        echo "#AuthUserFile /etc/httpd/.htpasswd"
-        echo "#Require user ${C_HTTPASSWD_PHPMYADMIN_USERNAME}"
-        echo "#</Directory>"
-        echo ""
-        echo "##Protect roundcube directory:"
-        echo "#<Directory \"/var/www/html/roundcube/\">"
-        echo "##AllowOverride AuthConfig"
-        echo "#AuthType Basic"
-        echo "#AuthName \"${C_BOX_HOSTNAME_FQHN}": Mail-Auth\"
-        echo "#AuthUserFile /etc/httpd/.htpasswd"
-        echo "#Require user ${C_HTTPASSWD_ROUNDCUBE_USERNAME}"
-        echo "#</Directory>"
-      } >>"${httpd_alias_conf}"
 
     fi
     echo ""
@@ -12729,6 +12836,8 @@ configure_nginx_apache() {
     #  echo "</location>"
     #} >>${httpd_include_conf}
     #echo ""
+
+    # This will set server for production
     _echo "$(msg cyan)Backing up original httpd-default.conf at ${httpd_default_conf} as ${httpd_default_conf}_backup_original_${DATE_TIME_NOW} ...$(msg end)" --name
     cp -p "${httpd_default_conf}" "${httpd_default_conf}_backup_original_${DATE_TIME_NOW}"
     echo ""
@@ -12737,6 +12846,7 @@ configure_nginx_apache() {
     sed -i 's|^ServerSignature .*|ServerSignature Off|' ${httpd_default_conf}
     echo ""
     # Restarting web server based on config file ( do not rewrite_confs because that command will replace everything to default )
+    # Warning, do not run rewrite_confs at this point until configure_da_custom_configs() is called.
     _echo "$(msg cyan)Requesting to restart web server ...$(msg end)" --name
     restart_da_web_server
     echo ""
@@ -12753,9 +12863,9 @@ configure_nginx_apache() {
   fi
 }
 
+# This function will create / copy all custom configs like roundcube, phpmyadmin, apache etc in DA custom folder
+# So when we update Directadmin, it won't replace these files.
 configure_da_custom_configs() {
-  # This function will create / copy all custom configs like roundcube, phpmyadmin, ap2 etc in DA custom folder
-  # So when we update Directadmin, it won't replace these files.
   local run_mode func_name
   run_mode="$1"
   extra_option="$2"
@@ -12770,20 +12880,23 @@ configure_da_custom_configs() {
     # This will build custom config for DA with secured settings
     local da_conf da_bin da_cb_bin da_cb_custom_conf_path httpd_alias_conf httpd_include_conf phpmyadmin_path roundcube_path
 
+    da_bin="/usr/local/directadmin/directadmin"
+    da_cb_bin="/usr/local/directadmin/custombuild/build"
+    da_conf="/usr/local/directadmin/conf/directadmin.conf"
     da_cb_custom_conf_path="/usr/local/directadmin/custombuild/custom"
     httpd_alias_conf="/etc/httpd/conf/extra/httpd-alias.conf"
     httpd_include_conf="/etc/httpd/conf/extra/httpd-includes.conf"
     httpd_default_conf="/etc/httpd/conf/extra/httpd-default.conf"
     phpmyadmin_path="/var/www/html/phpMyAdmin"
     roundcube_path="/var/www/html/roundcube"
-    da_bin="/usr/local/directadmin/directadmin"
-    da_cb_bin="/usr/local/directadmin/custombuild/build"
-    da_conf="/usr/local/directadmin/conf/directadmin.conf"
 
-    _echo "$(msg cyan)Checking if directadmin binary, custombuild and directadmin.conf are presents ...$(msg end)" --name
-    check_path "${da_bin}" "${da_cb_bin}" "${da_conf}"
+    mkdir -p "${da_cb_custom_conf_path}"
+
+    _echo "$(msg cyan)Checking required paths ...$(msg end)" --name
+    check_path "${da_bin}" "${da_cb_bin}" "${da_conf}" "${da_cb_custom_conf_path}" "${httpd_alias_conf}" "${httpd_include_conf}" "${httpd_default_conf}" "${phpmyadmin_path}" "${phpmyadmin_path}"
     echo ""
 
+    # For apache2 (ap2)
     # 1) create custom folder at /usr/local/directadmin/custombuild/custom/ap2/conf/extra
     _echo "$(msg cyan)Creating a custom config folder for apache/httpd (ap2) at ${da_cb_custom_conf_path}/ap2/conf/extra ...$(msg end)" --name
     mkdir -p "${da_cb_custom_conf_path}/ap2/conf/extra"
@@ -12890,17 +13003,65 @@ configure_web_apps() {
   fi
   [[ "${SKIP_RUN}" == "true" ]] && return 0
   if [[ ! -f "${CONF_PATH}/${func_name}_executed" && "${FUNCTION_RUN}" == "true" ]]; then
+    local c_ipv4add0_escaped
+    c_ipv4add0_escaped="${C_IPV4_ADD0//./\\.}"
+    _echo "$(msg cyan)Writing .htaccess rule at /var/www/html/.htaccess ...$(msg end)" --name
+    {
+      echo "DirectoryIndex index.php index.html"
+      echo "RewriteEngine On"
+      echo "DirectoryIndex index.php index.html"
+      echo ""
+      echo "# First condition if IP is given, redirect to hostname"
+      echo "RewriteCond %{HTTP_HOST} ^${c_ipv4add0_escaped}(:[0-9]+)?\$"
+      echo "RewriteRule ^(.*)$ https://${C_BOX_HOSTNAME_FQHN}/\$1 [L,R=301]"
+      echo ""
 
-    # TODO update and copy that webapps here (it should from maxinet)
+      echo "# Second condition, if https is off, redirect to"
+      echo "RewriteCond %{HTTPS} off"
+      echo "RewriteCond %{HTTP:X-Forwarded-Proto} !https"
+      echo "RewriteRule ^(.*)$ https://${C_BOX_HOSTNAME_FQHN}/\$1 [L,R=301]"
+    } >"/var/www/html/.htaccess"
+
+    chmod 644 /var/www/html/.htaccess
+    chown webapps:webapps /var/www/html/.htaccess
+
+    # TODO update and copy that webapps here (it should from storage) - below is just a temporary file as place holder
+
+    # 1) Replace index.html by calling index.php (index.html by default has root permission and root group)
+    _echo "$(msg cyan)Redirect index.html to index.php ...$(msg end)" --name
+    {
+      echo "<!DOCTYPE html>"
+      echo "<html lang=\"en\">"
+      echo "  <META HTTP-EQUIV=\"Refresh\""
+      echo "  CONTENT=\"0; URL=https://${C_BOX_HOSTNAME_FQHN}/index.php\">"
+      echo "</html>"
+    } >"/var/www/html/index.html"
+    echo ""
+
     # every custom webapps like /billing should be here
     _echo "$(msg cyan)Configuring server frontpage ...$(msg end)" --name
 
     cat /dev/null >/var/www/html/index.php
     {
       echo "<?php"
-      echo "MaXi32 - Arafat Ali - Rebuilding"
+      echo "echo \"MaXi32 - Arafat Ali - Rebuilding server ...\""
       echo "?>"
-    } >/var/www/html/index.php
+      echo "<!DOCTYPE html>"
+      echo "<html lang=\"en\">"
+      echo "<!--"
+      echo "Author: Arafat Ali"
+      echo "Email: arafat@maxibi.com"
+      echo "-->"
+      echo "<head>"
+      echo "  <meta charset=\"UTF-8\">"
+      echo "<meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0, minimum-scale=1.0, maximum-scale=1.0, user-scalable=no\">"
+      echo "<title>${C_BOX_HOSTNAME_FQHN^} Server - Sofibox Cloud Hosting</title>"
+      echo "</head>"
+      echo "<body>"
+      echo "</body>"
+      echo "</html>"
+    } \
+      >/var/www/html/index.php
 
     chmod 644 /var/www/html/index.php
     chown webapps:webapps /var/www/html/index.php
@@ -12950,7 +13111,7 @@ configure_da_settings() {
     da_api_admin set-da-server-settings --recommend-values
     # Need this before changing or adding directadmin username
     # Set the maximum length of directadmin username (default is 14) for higher than 14 make sure mariadb or mysql is latest version
-    # TODO: Set based on this guide https://www.directadmin.com/features.php?id=2294
+    # TODO: Set max_username_length based on this rule: https://www.directadmin.com/features.php?id=2294
     _echo "$(msg cyan)Setting directadmin max username to ${LABEL_C_DA_MAX_USERNAME_LENGTH} ...$(msg end)" --name
     ${da_bin} set max_username_length "${C_DA_MAX_USERNAME_LENGTH}"
     echo ""
@@ -13074,6 +13235,7 @@ configure_da_settings() {
     fi
 
     # This will enable hsts for hostname on login port only
+    # Important, this will not work until SSL certificate is requested by calling configure_da_host_server_ssl()
     if [[ "${C_DA_ENABLE_HOST_HSTS}" != "false" ]]; then
       ${da_bin} set hsts "${C_DA_ENABLE_HOST_HSTS}"
       # The document also recommend to enable force_hostname (this was done on top)
@@ -13122,15 +13284,17 @@ configure_da_cb_settings() {
     da_conf="/usr/local/directadmin/conf/directadmin.conf"
     da_cb_custom_path="/usr/local/directadmin/custombuild/custom/"
 
+    mkdir -p "${da_cb_custom_path}"
     _echo "$(msg cyan)Checking if directadmin binary, custombuild and directadmin.conf are presents ...$(msg end)" --name
-    check_path "${da_bin}" "${da_cb_bin}" "${da_conf}"
+    check_path "${da_bin}" "${da_cb_bin}" "${da_conf}" "${da_cb_custom_path}"
     echo ""
 
     if [ -n "${C_DA_PHP_DISABLE_DANGEROUS_FUNCTION}" ]; then
       local c_da_php_enable_dangerous_function
-      _echo "$(msg cyan)Disabling PHP dangerous function through custombuild...$(msg end)" --name
-      mkdir -p "${da_cb_custom_path}"
+      _echo "$(msg cyan)Removing previous file php_disable_functions ...$(msg end)" --name
       rm -f ${da_cb_custom_path}/php_disable_functions
+      echo ""
+      _echo "$(msg cyan)Disabling PHP dangerous function through custombuild ...$(msg end)" --name
       touch "${da_cb_custom_path}/php_disable_functions"
       c_da_php_enable_dangerous_function=$(printf ",%s" "${C_DA_PHP_DISABLE_DANGEROUS_FUNCTION[@]}")
       c_da_php_enable_dangerous_function=${c_da_php_enable_dangerous_function:1}
@@ -13366,8 +13530,9 @@ configure_da_dns_templates() {
     if [ "${da_current_version}" == "v.${dns_compatible_version}" ]; then
       :
     else
-      _echo "$(msg yellow)Warning, current DNS config is compatible with directadmin ${dns_compatible_version} but directadmin version is ${da_current_version}. Please check compatibility issue before proceeding$(msg end)" --name
-      _exit 147
+      _echo "$(msg yellow)Warning, current DNS config has been tested with directadmin ${dns_compatible_version} but directadmin version is ${da_current_version}$(msg end)" --name
+      # Whether to continue or not without changing the variable dns_compatible_version
+      _confirm
     fi
 
     touch "${da_template_custom}/dns_txt.conf"
@@ -13811,8 +13976,8 @@ configure_da_ssl_pre() {
   #+ cp -f /usr/local/directadmin/conf/cacert.pem /etc/httpd/conf/ssl.crt/server.crt
   #+ cp -f /usr/local/directadmin/conf/carootcert.pem /etc/httpd/conf/ssl.crt/server.ca
 
-  # Must run this functions (configure_da_fqhn_server_ssl) after running CSF because we need to make sure all appropriate ports are opened to request certs
-  # Warning do not overused configure_da_fqhn_server_ssl function because when requesting the same cert for the same domain 7 times for a week, you will get blocked.
+  # Must run this functions (configure_da_host_server_ssl) after running CSF because we need to make sure all appropriate ports are opened to request certs
+  # Warning do not overused configure_da_host_server_ssl function because when requesting the same cert for the same domain 7 times for a week, you will get blocked.
   # This will set the hosting to SSL:
   # It's best to call SSL after domain propagation few hours later.
 
@@ -13890,7 +14055,7 @@ configure_da_ssl_pre() {
   fi
 }
 
-configure_da_fqhn_server_ssl() {
+configure_da_host_server_ssl() {
   # Request SSL failed due to DAD (until server restart)
   # Interesting answer: https://serverfault.com/questions/602700/debian-ipv6-is-not-asssigned-to-interface
   # Nice reading: https://www.agwa.name/blog/post/beware_the_ipv6_dad_race_condition
@@ -15205,7 +15370,7 @@ configure_maxiwall() {
       echo "BOX_HOSTNAME_FQHN=\"${BOX_HOSTNAME_FQDN}\""
       echo ""
       echo "# GENERAL CONFIG:"
-      echo "ENABLE_LOG=\"true"\"
+      echo "ENABLE_LOG=\"true\""
       echo ""
       echo "# SURICATA setting"
       echo "SURICATA_ENABLE_SCRIPT_LOG=\"true\""
@@ -15260,10 +15425,10 @@ configure_maxiwall() {
       echo "# After N second, AIPDB IP report cache that has timestamp over this duration will be removed"
       echo "# 900 = 15 minutes"
       echo "AIPDB_IP_CACHE_REPORT_DURATION=\"900\""
-      echo "AIPDB_CHECK_URL=\"${C_MAXIWALL_AIPDB_CHECK_URL}"\"
-      echo "AIPDB_REPORT_URL=\"${C_MAXIWALL_AIPDB_REPORT_URL}"\"
+      echo "AIPDB_CHECK_URL=\"${C_MAXIWALL_AIPDB_CHECK_URL}\""
+      echo "AIPDB_REPORT_URL=\"${C_MAXIWALL_AIPDB_REPORT_URL}\""
       echo "# The main AIPDB key"
-      echo "AIPDB_API_KEY=\"${C_MAXIWALL_AIPDB_API_KEY}"\"
+      echo "AIPDB_API_KEY=\"${C_MAXIWALL_AIPDB_API_KEY}\""
       echo ""
       echo "LINODE_ENABLE_FIREWALL=\"true\""
       echo "LINODE_AIPDB_API_KEY=\"${C_LINODE_API}\""
@@ -18388,9 +18553,11 @@ setup() {
         # Add da ipv6 and linking with ipv4 and vice versa (this option has --init argument)
         configure_da_ips --run
         configure_da_sql --run
+        configure_da_sql_security --run
         configure_da_mail --run
+        configure_da_mail_security --run
         configure_da_ftp --run
-        configure_nginx_apache --run
+        configure_server_security --run
         configure_da_custom_configs --run
         configure_web_apps --run
         configure_da_settings --run
@@ -18403,8 +18570,7 @@ setup() {
         # " -- host --"
         configure_da_fqhn_server --run
         configure_da_ssl_pre --run
-        # If server is in hsts mode (for the domain), then it is a must to request certificate for this server.
-        configure_da_fqhn_server_ssl --run
+        configure_da_host_server_ssl --run
         # " -- owner --"
         configure_da_owner_accounts --run
         configure_da_owner_skins --run
@@ -18476,7 +18642,7 @@ setup() {
         configure_da_sql --run
         configure_da_mail --run
         configure_da_ftp --run
-        configure_nginx_apache --run
+        configure_server_security --run
         configure_da_custom_configs --run
         configure_web_apps --run
         configure_da_settings --run
@@ -18489,7 +18655,7 @@ setup() {
         # " -- host --"
         configure_da_fqhn_server --run
         configure_da_ssl_pre --run
-        configure_da_fqhn_server_ssl --run
+        configure_da_host_server_ssl --run
       fi
     elif [[ "${C_SERVER_TYPE}" == "general" ]]; then
       install_da_pre --run

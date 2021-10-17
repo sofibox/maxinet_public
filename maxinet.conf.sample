@@ -323,6 +323,8 @@ C_DA_LOGIN_METHOD="sign-as"
 # Start directadmin.conf options ( Directadmin version: 1.62.7 )  #
 #------------------------------------------------------------------
 
+# Example, for directadmin certification group
+C_DA_SECURE_ACCESS_GROUP=access
 # Ability to generate debug output from tokenizer when running DA in debug mode
 C_DA_TOKENIZER_DEBUG=1
 # Directadmin execution timeout in second
@@ -555,7 +557,10 @@ C_DA_RESELLER_DB_ACCOUNT1=( \
 )
 # Whether to enable or disable modsecurity for the subdomain
 C_DA_RESELLER_MODSEC1=("masternom.com:sales+OFF:login+ON")
-
+# Whether to enable domain hsts (provide value for max-age)
+C_DA_RESELLER_ENABLE_DOMAIN_HSTS1=true
+# Whether to restore SSL certificate from previous domain
+C_DA_RESELLER_RESTORE_PREVIOUS_DOMAIN_SSL1=true
 #------------------------------------------------------------
 # Create extra reseller here with ascending value starting from 2:
 # eg: C_DA_ADMIN_UNAME2
@@ -686,11 +691,15 @@ C_DA_ENABLE_DOMAIN_HSTS="global:31536000"
 C_ENABLE_BIND=false
 # When enable secure the custom directory with password
 C_SECURE_LOGIN_ROUTE=true
+# If set to true, it will not create temporary custom login for phpmyadmin
+C_PHPMYADMIN_SECURE_ROUTE="false"
 # Create phpmyadmin custom route here instead of using /pma, begin with /: eg /dbx123a.
 C_PHPMYADMIN_CUSTOM_NAME="MyDB"
 C_PHPMYADMIN_LOGIN_ROUTE="/dbprivate"
 C_HTTPASSWD_PHPMYADMIN_USERNAME="dbuser51"
 C_HTTPASSWD_PHPMYADMIN_PASS="PASSWORD"
+# If set to true, it will not create temporary custom login for roundcube
+C_ROUNDCUBE_SECURE_ROUTE="false"
 # Create roundcube custom route here instead of using /roundcube, begin with /: eg /mailx123
 C_ROUNDCUBE_CUSTOM_NAME="MyMail"
 C_ROUNDCUBE_LOGIN_ROUTE="/mailprivate"
