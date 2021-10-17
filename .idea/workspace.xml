@@ -10,8 +10,10 @@
     <select />
   </component>
   <component name="ChangeListManager">
-    <list default="true" id="113c828c-9a32-4b24-ab1e-978ce50c6320" name="Default Changelist" comment="New update">
+    <list default="true" id="113c828c-9a32-4b24-ab1e-978ce50c6320" name="Default Changelist" comment="New version update">
+      <change afterPath="$PROJECT_DIR$/files/mail_tester.JPG" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/readme.md" beforeDir="false" afterPath="$PROJECT_DIR$/readme.md" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -45,18 +47,18 @@
     <property name="RunOnceActivity.ShowReadmeOnStart" value="true" />
     <property name="WebServerToolWindowFactoryState" value="false" />
     <property name="aspect.path.notification.shown" value="true" />
-    <property name="last_opened_file_path" value="$PROJECT_DIR$/storage/os/debian/usr/local/maxicode/maxigpg" />
+    <property name="last_opened_file_path" value="$PROJECT_DIR$" />
     <property name="project.structure.last.edited" value="Project" />
     <property name="project.structure.proportion" value="0.0" />
     <property name="project.structure.side.proportion" value="0.0" />
   </component>
   <component name="RecentsManager">
     <key name="CopyFile.RECENT_KEYS">
+      <recent name="C:\Users\Maxibi\IdeaProjects\maxinet_public" />
       <recent name="C:\Users\Maxibi\IdeaProjects\maxinet_public\storage\os\debian\usr\local\maxicode\maxigpg" />
       <recent name="C:\Users\Maxibi\IdeaProjects\maxinet_public\storage\os\debian\usr\local\maxicode\maxiwall\code\etc" />
       <recent name="C:\Users\Maxibi\IdeaProjects\maxinet_public\storage\os\debian\usr\local\maxicode" />
       <recent name="C:\Users\Maxibi\IdeaProjects\maxinet_public\storage\os\debian\usr\local\directadmin" />
-      <recent name="C:\Users\Maxibi\IdeaProjects\maxinet_public\storage\os\debian\usr\local\directadmin\logo" />
     </key>
     <key name="MoveFile.RECENT_KEYS">
       <recent name="C:\Users\Maxibi\IdeaProjects\maxinet_public\storage\os\debian\usr\local\maxicode\maxida" />
@@ -236,41 +238,12 @@
       <workItem from="1632763775549" duration="1188000" />
       <workItem from="1632808320696" duration="132000" />
       <workItem from="1633877227044" duration="2121000" />
-    </task>
-    <task id="LOCAL-00093" summary="Added option --boot-server">
-      <created>1626968568238</created>
-      <option name="number" value="00093" />
-      <option name="presentableId" value="LOCAL-00093" />
-      <option name="project" value="LOCAL" />
-      <updated>1626968568238</updated>
-    </task>
-    <task id="LOCAL-00094" summary="Added new variable HIDE_SENSITIVE_TEXT to hide sensitive information on the terminal&#10;&#10;Added new option for ssh_api --silent-push to silently push script without any output or pseudo-terminal (TTY)&#10;&#10;Fixed ssh_api login&#10;Fixed root unable to login using certificate after running secure_box&#10;&#10;Added shortcut options push-ssh-script --run-ssh-script for pushing script into server via ssh.&#10;&#10;Added shortcut options --login-to-server --login to login into server via SSH&#10;&#10;Other changes">
-      <created>1626975503998</created>
-      <option name="number" value="00094" />
-      <option name="presentableId" value="LOCAL-00094" />
-      <option name="project" value="LOCAL" />
-      <updated>1626975503998</updated>
-    </task>
-    <task id="LOCAL-00095" summary="Added new feature to automatically unlock SSH even when the server is offline or server is LUKS encrypted. Just trigger the shortcut command:&#10;&#10;maxinet --ssh-login &lt;user&gt;&#10;&#10;eg: maxinet --ssh-login root&#10;&#10;If the server is offline, it will automatically turn it on. If the server is encrypted with LUKS password, it will automatically unlock, and then it will scan the available SSH port, if it is available, we will be logged in as &lt;user&gt;&#10;&#10;Removed deprecated old function ssh_login(), this one has been combined with improved version in ssh_api() function">
-      <created>1627050930474</created>
-      <option name="number" value="00095" />
-      <option name="presentableId" value="LOCAL-00095" />
-      <option name="project" value="LOCAL" />
-      <updated>1627050930474</updated>
-    </task>
-    <task id="LOCAL-00096" summary="New update and improvement">
-      <created>1627100855299</created>
-      <option name="number" value="00096" />
-      <option name="presentableId" value="LOCAL-00096" />
-      <option name="project" value="LOCAL" />
-      <updated>1627100855299</updated>
-    </task>
-    <task id="LOCAL-00097" summary="Update and improvement">
-      <created>1627106201277</created>
-      <option name="number" value="00097" />
-      <option name="presentableId" value="LOCAL-00097" />
-      <option name="project" value="LOCAL" />
-      <updated>1627106201277</updated>
+      <workItem from="1633879825717" duration="1294000" />
+      <workItem from="1634094067110" duration="740000" />
+      <workItem from="1634438375678" duration="480000" />
+      <workItem from="1634462901628" duration="844000" />
+      <workItem from="1634475098666" duration="22000" />
+      <workItem from="1634485845051" duration="726000" />
     </task>
     <task id="LOCAL-00098" summary="Added ability to download remote file installation log by triggering this simple command:&#10;&#10;maxinet --get-remote-log&#10;&#10;By default this log file is stored at &lt;script_path&gt;/log/">
       <created>1627107314324</created>
@@ -580,7 +553,42 @@
       <option name="project" value="LOCAL" />
       <updated>1633879344235</updated>
     </task>
-    <option name="localTasksCounter" value="142" />
+    <task id="LOCAL-00142" summary="Update readme">
+      <created>1633879946370</created>
+      <option name="number" value="00142" />
+      <option name="presentableId" value="LOCAL-00142" />
+      <option name="project" value="LOCAL" />
+      <updated>1633879946370</updated>
+    </task>
+    <task id="LOCAL-00143" summary="Update readme">
+      <created>1633880519631</created>
+      <option name="number" value="00143" />
+      <option name="presentableId" value="LOCAL-00143" />
+      <option name="project" value="LOCAL" />
+      <updated>1633880519631</updated>
+    </task>
+    <task id="LOCAL-00144" summary="New update and bug fixed">
+      <created>1634094547598</created>
+      <option name="number" value="00144" />
+      <option name="presentableId" value="LOCAL-00144" />
+      <option name="project" value="LOCAL" />
+      <updated>1634094547598</updated>
+    </task>
+    <task id="LOCAL-00145" summary="New update">
+      <created>1634438863001</created>
+      <option name="number" value="00145" />
+      <option name="presentableId" value="LOCAL-00145" />
+      <option name="project" value="LOCAL" />
+      <updated>1634438863002</updated>
+    </task>
+    <task id="LOCAL-00146" summary="New version update">
+      <created>1634463141385</created>
+      <option name="number" value="00146" />
+      <option name="presentableId" value="LOCAL-00146" />
+      <option name="project" value="LOCAL" />
+      <updated>1634463141385</updated>
+    </task>
+    <option name="localTasksCounter" value="147" />
     <servers />
   </component>
   <component name="TypeScriptGeneratedFilesManager">
@@ -599,9 +607,6 @@
     <option name="oldMeFiltersMigrated" value="true" />
   </component>
   <component name="VcsManagerConfiguration">
-    <MESSAGE value="Update information:&#10;&#10;Added function awksep(). This function is used to print all text as multiple row separated by symbol. Usage example:&#10;&#10;echo &quot;Test=19-&amp;Hello=2+&quot; | awksep '&amp;'&#10;&#10;Output:&#10;&#10;Test=19-&#10;Hello=2+&#10;&#10;You can even specify multiple separators like&#10;&#10;echo &quot;Test=19-&amp;Hello=2+&quot; | awksep '+/-'&#10;&#10;---------&#10;&#10;Fixed added sh command to execute sample placeholder script for initialization operating system .. line 3197&#10;&#10;---&#10;&#10;Fixed some output color&#10;&#10;---&#10;&#10;Increase linode_max_page from 2 to 3 to increase search paging (this might not impact performance drastically because once data found, the API search will automatically break / stop)&#10;&#10;---&#10;&#10;Added --rebuild option to linode API. It is used to force recreate a record. For example if we want to create a domain we would do this:&#10;&#10;linode_api_admin create-domain --domain server.com --domain-type master --domain-email test@server.com --domain-ttl 300 --rebuild&#10;&#10;This above command will create a linode domain server.com. If the domain already in linode DNS, it will skip creation and this will leave some default DNS records unchanged. When you put an extra --rebuild option, it will delete the domain and re-add. So you will start from scratch adding new DNS record for this domain&#10;&#10;Added alias argument of add-domain. So the create-domain and add-domain are the same … line 4536&#10;&#10;---&#10;&#10;Fixed missing --ttl_sec in linode API when scripting=true … linde 4619&#10;&#10;---&#10;&#10;Added new linode API, delete-domain (similar to remove-domain)&#10;&#10;&#10;-- &#10;&#10;Improved API from the previous one on deleting multiple DNS record … line 4875&#10;&#10;-- &#10;&#10;Added --special-type option for directadmin API. This is used to specify that the record type is special. Currently only 4 special types: dkim, dmarc, spf and dkim-policy&#10;&#10;--&#10;&#10;Improved directadmin debug output&#10;&#10;--&#10;&#10;New changes to directadmin authentication usage&#10;&#10;Now we don’t use the hard looping method. We use simple check obtained from directadmin user directories. Look at the example how powerful is this method:&#10;&#10;Let say the current user is admin that was just being created by admin. So normally, this user has the default authentication stored in /usr/local/directadmin/scripts/setup.txt&#10;&#10;Now, let's demonstrate how to enable DKIM for a domain:&#10;&#10;da_api_admin enable-domain-dkim --domain test.com&#10;&#10;Notice the above command did not have --sign-as parameter. Hence it will automatically search the default admin from config file that has username ${C_DA_OWNER_USERNAME1}. If this does not exist, it will try to find this user in setup.txt and use that to enable-domain-dkim. If still not found, the script will halt&#10;&#10;Now, lets take a look another way how to use sign-as:&#10;&#10;da_api_admin enable-domain-dkim --sign-as reseller1 --domain test.com&#10;&#10;Notice the above reseller1 is a reserved role (the other reserved roles are admin1, owner1 and user1). The api will first convert the role to username, in this case it will obtain the username from the first reseller ${C_DA_RESELLER_USERNAME1}. If not found, the script will halt&#10;&#10;Now, lets take a look another way how to use sign-as with username&#10;&#10; da_api_admin enable-domain-dkim --sign-as maxi32 --domain test.com&#10;&#10;The above command will use user maxi32 that is found from config file (this user can be reseller, owner, admin or normal user). If found it will use the default owner password to do sign-as. So the username would be admin|maxi32. This feature is introduced by directadmin to authenticate client without password.&#10;&#10;Now finally let's take a look that we can also use manual authentication for the API like this&#10;&#10; da_api_admin enable-domain-dkim --api-username maxi32 --api-password abc123 --domain test.com&#10;&#10;If the username and password don’t exist, it will halt the script ask to supply correct username and password before being used by API.&#10;&#10;&#10;--&#10;&#10;Added new directadmin API get-dns-special-record-type-value&#10;&#10;--&#10;&#10;Reduce restart da max_wait time, it is best to use 70 seconds because directadmin should execute taskq less than 60 seconds&#10;&#10;--&#10;&#10;Added a new method to obtain the default admin even its name has changed&#10;&#10;&#10;--&#10;&#10;Fixed readd C_DA_PORT in CSF (it was missing)&#10;&#10;--&#10;&#10;Enabled DNS custom template for directadmin latest version 1.62.5 and give notice or warning if directadmin has a new version (ask to inspect if it is compatible)&#10;&#10;--&#10;&#10;Fixed configure_da_admin_accounts(), the sign-as should be admin1 not owner1&#10;&#10;--&#10;&#10;Updated configure_da_reseller_accounts (now multiple reseller can be added automatically using config file. Sample template written in &lt;script_name&gt;.conf)." />
-    <MESSAGE value="Various update and improvement + Bug fixed" />
-    <MESSAGE value="Update information:&#10;&#10;Script is now fully compatible with latest debian version, &#10;&#10;You can change the version of Debian like this (if you know the version number and code name):&#10;&#10;C_DEBIAN_OS_SELECT_VERSION=&quot;11.0.0&quot;&#10;C_DEBIAN_OS_CODE_NAME=&quot;bullseye&quot;&#10;&#10;or if you don't care, you can set this variable to download latest version of Debian (will ignore the above 2 variables), for example if Debian 12 is released, it will download this one and you don't have to do anything. Just set this to true:&#10;&#10;USE_LATEST_ISO=true&#10;&#10;New variables:&#10;C_DEBIAN_OS_SELECT_VERSION=&quot;11.0.0&quot;&#10;C_DEBIAN_OS_CODE_NAME=&quot;bullseye&quot;" />
     <MESSAGE value="New: Update information (Fixed missing assignment): &#10; &#10;debian_release=&quot;stable&quot;&#10;&#10;Script is now fully compatible with latest debian version, &#10;&#10;You can change the version of Debian like this (if you know the version number and code name):&#10;&#10;C_DEBIAN_OS_SELECT_VERSION=&quot;11.0.0&quot;&#10;C_DEBIAN_OS_CODE_NAME=&quot;bullseye&quot;&#10;&#10;or if you don't care, you can set this variable to download latest version of Debian (will ignore the above 2 variables), for example if Debian 12 is released, it will download this one and you don't have to do anything. Just set this to true:&#10;&#10;USE_LATEST_ISO=true&#10;&#10;New variables:&#10;C_DEBIAN_OS_SELECT_VERSION=&quot;11.0.0&quot;&#10;C_DEBIAN_OS_CODE_NAME=&quot;bullseye&quot;" />
     <MESSAGE value="Fixed bug when using _echo() function with --plain option it did not hide output if verbosity level is turn off or has lower value&#10;&#10;Other updates and improvement&#10;&#10;Added new variable C_GOTIFY_PUSH_PRIORITY in config file, to set push notification level on phone&#10;&#10;# 0 (No notification) , 1-3 (Icon in notification bar)&#10;# 4-7 (Icon in notification bar + Sound), 8-10 (Icon in notification bar +  Sound + Vibration)&#10;# Using 10 is has the highest sound and vibration.&#10;&#10;Modify script_header() function to include info on date_time and execution environment&#10;&#10;Modify help() function to correct the syntax how to create server from scratch&#10;&#10;Separated short and long options in getopt variable_api()&#10;&#10;Created separated functions to rebuild server config called init_server_rebuild_config(); and to rebuild partition called init_server_rebuild_partition(). These functions can be executed by using other execution parameters such as --force-run. for example in init_server_rebuild_config(), when using --force-run parameter it will force the external DNS to rebuild config file.&#10;&#10;Separated long and short options in init_server() function, and change ARGNUM to lowercase to represent local variable&#10;&#10;In init_server() function, the reboot option has been moved to the line after rebuild config is done&#10;&#10;Add countdown time to wait for server installation before restart in init_server()&#10;&#10;Fixed bug in ssh_api public-keys did not copy because of wrong check&#10;&#10;Added new function check_file_path() and check_folder_path() to check existence of file and folder respectively&#10;&#10;Renamed C_DEBIAN_OS_CODE_NAME variable to generic name C_OS_CODE_NAME (we might have another OS support in the future not just debian)&#10;&#10;Added resolvconf installation in debian preseed file creation. This resolvconf will manage resolv.conf&#10;&#10;Fixed small error in debian preseed file when host was trying to bypass local setting LANG LC_ and show error. This setting is stored in /etc/ssh/sshd_config&#10;&#10;Removed this source /etc/network/interfaces.d/ from /etc/network/interfaces through debian preseed file. This line is not needed.&#10;&#10;Added missing dns-nameservers for IPv4 debian preseed file&#10;&#10;Fixed the nightmare bug in debian preseed file which prevented IPv6 from working properly. I discovered that in line 3343, I got a syntax error there where I did not declare gateway but address&#10;&#10;Fixed, nameserver for resolv.conf should be declared in here /target/etc/resolvconf/resolv.conf.d/base to prevent overwrite&#10;&#10;Added a new dropbox cli installation forked from @andreafabrizi/Dropbox-Uploader. I'm going to help him maintain this source code.&#10;&#10;Separated short and long options for getopt in dropbox_api() function&#10;&#10;Added share action for dropbox_api()&#10;&#10;Separated long and short options for getopt in iso_api()&#10;&#10;Changed variable iso_os to have value C_BOX_ISO_OS_NAME not type in iso_api()&#10;&#10;Fixed quote problem and hide iso download output in iso_api()&#10;&#10;Added extra checking whether iso file is bootable before upload to dropbox (only valid iso is uploaded)&#10;&#10;Separated short option from getopt in linode_api_admin()&#10;&#10;Added extra validation record to include wildcard character * inside is_valid() function that is used in linode_api_admin()&#10;&#10;&#10;There many other changes (lazy to write it down) ..." />
     <MESSAGE value="Add ipv4 and ipv6 validation in is_valid() function, check whether they are resolved with domain. Usage:&#10;&#10;is_valid ipv4_resolved &lt;IPv4&gt; &lt;DOMAIN&gt;, return 0 if true&#10;is_valid ipv6_resolved &lt;IPv6&gt; &lt;DOMAIN&gt;, return 0 if true&#10;&#10;Fixed IPv6 netmask regex did not accept /128 in is_valid() function. Previous regex only accepted maximum /64.&#10;&#10;Changed forked source code from arafatx/Dropbox_Uploader to sofibox/Dropbox_Uploader The original source belongs to andreafabrizi/Dropbox_Uploader (I'm going to maintain his code from sofibox/Dropbox repository and push for him from here).&#10;&#10;Added function ensure_host_domain_ip_resolved() to make sure IPv4 and IPv6 addresses are resolved with the hostname. This was on TODO list&#10;&#10;Fixed linode_api_admin MX record_value validation.&#10;&#10;Updated linode API to include CNAME record creation&#10;&#10;Added new option --scripting for da_api_admin() function to suppress error or logs, we only need final result.&#10;&#10;Added new API for da_api_admin() function to get dns-records by type for specific domain.&#10;&#10;Added new API for da_api_admin() function to reset-dns-records for specific domain&#10;&#10;Fixed DA port missing in directadmin.conf after installation. Added the DA port in secure_da_auth() function&#10;&#10;Added an extra option argument --init in configure_da_ips() function. The purpose of this option is to remove previous IPv6 configuration and linked information between IPv6 and IPv4. Technically, the --init option is used to re-create IPv6 server IP file in directadmin.&#10;&#10;Fixed IPv6 passed in configure_da_ips(). The IPv6 that must be passed should be in uncompressed from (directadmin requirement).&#10;&#10;Added new setting and check to enable DNS CAA record in directadmin. This DNS CAA record option need to have bind version 9.9.6 and above. The script has this validation and will automatically enabled this option if the requirement is met.&#10;&#10;Changed function configure_da_server_domains() to configure_da_host_domain(), this function is used to configure the main host server domain. In this function, the script will scan every records that the host server domain has and automatically add all of them in external DNS.&#10;&#10;Changed variable C_DA_CONFIG_VERSION to C_CONFIG_VERSION because C_DA_ is only for directadmin related variable.&#10;&#10;mariadb version is upgraded to 10.6" />
@@ -623,7 +628,10 @@
     <MESSAGE value="New update&#10;&#10;Added function get_ordinal(), to convert integer to ordinal type&#10;&#10;Added a new option --progress-style &lt;STRING&gt; in function _echo(), now it is possible to overwrite the config value for C_SPIN_PROGRESS. This option is used together with --start-spin&#10;&#10;Other update and improvement&#10;&#10;Add the ability to add new MX record that does not have subdomain in copy_local_dns_to_external_dns(), this root MX record is required by mail-tester.com to give 10/10 score in mail testing.&#10;&#10;Added maxinance and maxida push script installation via SSH. &#10;&#10;Added a new option --record-domain, --record-priority, --record-subdomain in directadmin API (da_api_admin)&#10;&#10;Renamed AUTO_SELECT_DA_API_PROTOCOL to C_DA_AUTO_SELECT_API_PROTOCOL to represent this variable coming from config file&#10;&#10;Added ncdu installation in function pre_setup()&#10;&#10;Removed bind configuration in configure_net(), put them in a new function configure_bind(). This function will configure everything about bind&#10;&#10;Added the ability for directadmin to use software custom version before installation (install_da_pre). For example, clamav can be downgraded into older version (in case of bug in the new version)&#10;&#10;Added ability to customize clamav version in config file&#10;&#10;Added ability to provide workaround or temporary for known issues that prevent directadmin from installing (this normally happen when new directadmin version or new software update is released). The option that can be used in config file is C_DA_ENABLE_PRE_INSTALL_TEMP_FIX=true/false. Only use this if directadmin has problem installing. Always set this false when there is no issue.&#10;&#10;Added a new memory availability that show during directadmin installation.&#10;&#10;Added a oneline output progress bar from log file. This will show a nice output in oneline what operation directadmin is doing when installing&#10;&#10;Increased directadmin log output error line from 10 to 20 when the installation halt.&#10;&#10;Added the ability to automatically restart directadmin installation when there is error (this also will display the count how many time the installation has executed in installation progress)&#10;&#10;Added automatic create an error log file based on date when directadmin installation has error. This error log can be used to audit. &#10;&#10;Added the ability to disable and enable bind function in server (not only for Directadmin), When enable, automatically secure the bind option with some config.&#10;&#10;&#10;Added a new option C_DA_TOKENIZER_DEBUG to enable tokenizer in directadmin debug mode&#10;&#10;Added a new function configure_maxinance(), this will install the maintenance script for server&#10;&#10;&#10;Renamed configure_wpcli() to configure_da_wpcli() because this wpcli will be configured only based on directadmin. wpcli is a wordpress command line interface.&#10;&#10;&#10;Updated configure_maxida() installation. This will install a binary name is dacli (Directadmin Command Line Interface). This is a very important cli feature for directadmin to manage directadmin from the backend. I have requested this feature here: https://feedback.directadmin.com/b/feature-requests/include-directadmin-cli-commands/&#10;&#10;Added the ability to enable or disable all domain security header globally (not HSTS), currently tested on nginx_apache, might work with standalone apache but have not tested on standalone nginx. The option that can be used is C_DA_ENABLE_DOMAIN_SECURITY_HEADER.&#10;&#10;Added the ability to enable hsts header for all domain globally using option C_DA_ENABLE_DOMAIN_HSTS (except the hostname as hostname has its own config from directadmin). The next planned feature will enable hsts based on domain. &#10;&#10;Added workaround for hsts preload as mentioned here: https://forum.directadmin.com/threads/problem-with-ssl-on-hostname-and-da-and-hsts-with-other-aplications-on-other-ports.64137/post-335495" />
     <MESSAGE value="Added suricata lua report" />
     <MESSAGE value="Added suricata lua report and CSF blocking template" />
+    <MESSAGE value="Update readme" />
+    <MESSAGE value="New update and bug fixed" />
     <MESSAGE value="New update" />
-    <option name="LAST_COMMIT_MESSAGE" value="New update" />
+    <MESSAGE value="New version update" />
+    <option name="LAST_COMMIT_MESSAGE" value="New version update" />
   </component>
 </project>

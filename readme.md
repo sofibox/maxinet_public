@@ -19,5 +19,14 @@ The feature is currently huge to list out.
 
 It might contain bugs for other distributions. This script is fully tested on Debian 10, Debian 11 and with Directadmin custom and auto installation. This script compatible with linode + directadmin
 
-Author: Arafat Ali | Email: arafat@sofibox.com | Personal Blog: arafatx.com
+mail-tester.com score:
 
+![mail-tester.com](files/mail_tester.JPG)
+
+
+ssllabs.com score:
+
+![mail-tester.com](files/ssllabs_test.JPG)
+
+
+Author: Arafat Ali | Email: arafat@sofibox.com | Personal Blog: arafatx.com

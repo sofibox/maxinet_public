@@ -10607,6 +10607,7 @@ install_da_pre() {
 # After executing this function, to enter into directadmin temporarily do the following:
 # Disable firewall
 # Clear cache browser, login using setup.txt
+# Note DA custom installation right now has duration of 01 H:21 M :26 S
 install_da() {
   # After da is installed, we still need to open the port for default firewall. To achieve this, we can run install_da_post() function
   local run_mode func_name
