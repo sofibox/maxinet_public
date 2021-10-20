@@ -1,14 +1,6 @@
 # Author: Arafat Ali | Email: webmaster@sofibox.com | Web: sofibox.com
 .gitignore
-.idea/.gitignore
-.idea/markdown-navigator-enh.xml
-.idea/markdown-navigator.xml
-.idea/maxibox.iml
-.idea/misc.xml
-.idea/modules.xml
-.idea/vcs.xml
-.idea/workspace.xml
-
+/.idea/*
 # Sentive directories
 /test/
 /backup/

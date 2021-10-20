@@ -4,7 +4,7 @@
 
 _APP_SPECIFIC_NAME="Maxinet"
 # Note that some minor versions are not published
-_APP_VERSION="0.6.8"
+_APP_VERSION="0.6.9"
 _APP_STATUS="alpha"
 _APP_VERSION_STATUS="${_APP_VERSION}-${_APP_STATUS}"
 
@@ -390,7 +390,7 @@ _pause() {
 # This function will display a confirmation to continue (force continue; no exit function)
 _confirm() {
   # call with a prompt string or use a default
-  read -r -p "[${SCRIPT_NAME}]: ${1:-Continue? [y] Exit? [CTRL+C]}} " response
+  read -r -p "[${SCRIPT_NAME}]: ${1:-Continue? [y] Exit? [CTRL+C]} " response
   case "$response" in
   [yY][eE][sS] | [yY])
     return 0
@@ -10305,7 +10305,8 @@ install_da_pre() {
     local da_latest_version da_sql_type da_sql_version da_php_mode_v1 da_php_mode_v2 da_php_mode_v3 da_php_mode_v4 count db_custom_version_txt
 
     db_custom_version_txt="/usr/local/directadmin/custombuild/custom_versions.txt"
-    da_latest_version=$(curl -s https://www.directadmin.com/version.php | grep -Eo "[0-9]+\.[0-9]+")
+    # da_latest_version=$(curl -s https://www.directadmin.com/version.php | grep -Eo "[0-9]+\.[0-9]+")
+    da_latest_version=$(dig +short -t txt current-version.directadmin.com | sed 's|.*v=\([0-9.]*\).*|\1|')
     mkdir -p "/usr/local/directadmin/custombuild"
     touch "${db_custom_version_txt}"
     _echo "$(msg cyan)The latest version of Directadmin is ${da_latest_version}$(msg end)" --name
@@ -10635,7 +10636,8 @@ install_da() {
     _echo "$(msg cyan)Setting execution permission for setup.sh ...$(msg end)" --name
     chmod 755 setup.sh
     echo ""
-    da_latest_version=$(curl -s https://www.directadmin.com/version.php | grep -Eo "[0-9]+\.[0-9]+")
+    # da_latest_version=$(curl -s https://www.directadmin.com/version.php | grep -Eo "[0-9]+\.[0-9]+")
+    da_latest_version=$(dig +short -t txt current-version.directadmin.com | sed 's|.*v=\([0-9.]*\).*|\1|')
     _echo "$(msg magenta)=======================================================================$(msg end)" --plain
     _echo "$(msg yellow)Setup will install Directadmin ${da_latest_version} within 30 seconds. $(msg end)" --name
     _echo "$(msg yellow)This would take a long time depending on the package selection or directadmin installation type, so please be patient$(msg end)" --name
@@ -12409,6 +12411,27 @@ configure_da_sql() {
     #retval=$?
     #echo "${retval}"
 
+    # Create mysql symlink here to home directory to solve system backup issue on mysql
+    # https://forum.directadmin.com/threads/system-backup-mysql-problem.57146/
+    echo ""
+    _echo "$(msg cyan)Fixing issue with sql system backup in directadmin ...$(msg end)" --name
+    if [[ "${DISTRO_ID}" == "debian" ]]; then
+      local mysql_path
+      mysql_path="/var/lib/mysql"
+      check_path "${mysql_path}"
+      echo ""
+      _echo "$(msg cyan)Removing previous symlink file ...$(msg end)" --name
+      # Don't use -r because this is just a file of symlink
+      rm -f /home/mysql
+      get_status_message "$?"
+      echo ""
+      _echo "$(msg cyan)Creating symlink from /var/lib/mysql to /home/mysql to resolve sql system backup issue ...$(msg end)" --name
+      ln -s /var/lib/mysql /home/mysql
+      get_status_message "$?"
+    else
+      echo "[Skipped]: Note check if this distribution ID ${DISTRO_ID} has mysql symlink to /home/mysql if it has issue with sql system backup?"
+      _confirm
+    fi
     echo ""
     check_finish_reboot "${func_name}"
   else
@@ -13122,7 +13145,6 @@ configure_da_settings() {
     # eg: userdomain.com:2222 . Sometimes this user does not have valid certificate, thus this will cause security issue.
     # so, it is better to redirect to one hostname with a valid certificate:
     # Also explained in here: https://www.directadmin.com/features.php?id=917
-
     # It is recommend to enable this option for security
     # Note before directadmin installation, this already set by hostname.sh script
     _echo "$(msg cyan)Enabling directadmin to force login with only hostname ${LABEL_C_BOX_HOSTNAME_FQHN} ...$(msg end)" --name
@@ -13515,7 +13537,7 @@ configure_da_dns_templates() {
     da_bin="/usr/local/directadmin/directadmin"
     da_cb_bin="/usr/local/directadmin/custombuild/build"
     da_conf="/usr/local/directadmin/conf/directadmin.conf"
-    dns_compatible_version="1.62.9"
+    dns_compatible_version="1.63.0"
 
     _echo "$(msg cyan)Checking if directadmin binary, custombuild and directadmin.conf are presents ...$(msg end)" --name
     check_path "${da_bin}" "${da_cb_bin}" "${da_conf}"
@@ -14020,11 +14042,11 @@ configure_da_ssl_pre() {
 
     # Disable ssl=0. This one fixed issue where you cannot request cert using ssl=1.
     # only enable ssl=1 after request certificate success. From my notes few years, I disabled this first before renew else it wont work.
-    _echo "$(msg cyan)Disabling ssl=0 in directadmin.conf config..."
+    _echo "$(msg cyan)Disabling ssl=0 in directadmin.conf config...$(msg end)" --name
     ${da_bin} set ssl 0
     echo ""
 
-    _echo "$(msg cyan)Enabling ECC_CERTIFICATE for highest SSL encryption key ..."
+    _echo "$(msg cyan)Enabling ECC_CERTIFICATE for highest SSL encryption key ...$(msg end)" --name
     ${da_bin} set ecc_certificates 1
     echo ""
 
@@ -14123,12 +14145,13 @@ configure_da_host_server_ssl() {
         echo -n "Copying ${SCRIPT_PATH}/${C_BOX_HOSTNAME_FQHN}.json into ${lego_cert_json_path} ... "
         cp "${SCRIPT_PATH}/${C_BOX_HOSTNAME_FQHN}.json" "${lego_cert_json_path}"
         get_status_message "$?"
-        _echo "$(msg cyan)Correcting permission of certificate ...$(msg end)" --name
+        _echo "$(msg cyan)Correcting permission of certificates ...$(msg end)" --name
         chmod 600 "${lego_cert_path}" "${lego_key_path}" "${lego_issuer_cert_path}" "${lego_cert_json_path}"
         get_status_message "$?"
-
-        _echo "$(msg cyan)Checking previous certificate for ${LABEL_C_BOX_HOSTNAME_FQHN} ...$(msg end)" --name
+        echo ""
+        _echo "$(msg cyan)Checking certificate path for ${LABEL_C_BOX_HOSTNAME_FQHN} ...$(msg end)" --name
         check_path "${lego_cert_path}" "${lego_key_path}" "${lego_issuer_cert_path}" "${lego_cert_json_path}"
+        echo ""
 
         key=$(${da_bin} c | grep ^cakey= | cut -d= -f2)
         cert=$(${da_bin} c | grep ^cacert= | cut -d= -f2)
@@ -19327,7 +19350,6 @@ ENDSSH
     shift
     package_name="$1"
     navigate_path "${HOME}"
-
     if [ "${package_name}" == "go" ]; then
       required "debian@@golang-go" "ubuntu@@golang-go"
     elif [ "${package_name}" == "dbxcli" ]; then
