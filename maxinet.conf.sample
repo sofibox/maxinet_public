@@ -252,6 +252,7 @@ C_DA_AUTO_SELECT_API_PROTOCOL=true
 # 2) ori = let DA decide what to install default things providing some details using auto
 # 3) interactive = ask question what to install (require input from user)
 # 4) auto = Automated everything by directadmin as default packages (include CSF installation)
+# 5) auto-custom= Install directadmin using automatic mode in 4) when complete customize based on config file
 # Note, this script was designed to use custom type.
 C_DA_INSTALL_TYPE="custom"
 
@@ -319,6 +320,11 @@ C_DA_AUTO_LINK_IP=true
 # direct-login = login directly using username and password (disadvantage: need to know directadmin client username and password)
 C_DA_LOGIN_METHOD="sign-as"
 
+# This is the directadmin backup password. Use to decrypt backup automatically
+C_DA_USER_BACKUP_PASSWORD="PASSWORD_HERE"
+
+# Global variable for restoration
+C_DA_GLOBAL_BACKUP_RESTORE=false
 #------------------------------------------------------------------
 # Start directadmin.conf options ( Directadmin version: 1.62.7 )  #
 #------------------------------------------------------------------
@@ -433,6 +439,9 @@ C_DA_SHOW_INFO_IN_HEADER=0
 # This will hide directadmin version in web title
 C_DA_SHOW_INFO_IN_TITLE=0
 
+# This will sync restore
+C_DA_TALLY_AFTER_RESTORE=2
+
 #---- End directadmin.conf settings ----
 #---------------------------------------
 
@@ -453,7 +462,7 @@ C_DA_CB_SQL_VERSION="mariadb-10.6"
 # Format <7.3:php-fpm,74:php-fpm,8.0:php-fpm>
 # php7.3:php-fpm means php version 7.3 with FPM mode
 # the first order is the first PHP version (also used by directadmin system). Max is 4, extra argument will be ignored
-C_DA_CB_PHP_VERSION="7.4:php-fpm,8.0:php-fpm"
+C_DA_CB_PHP_VERSION="8.0:php-fpm,7.4:php-fpm"
 # This for installing
 C_DA_CB_INSTALL_CLAMAV="yes"
 # Put "latest" to install the latest version
@@ -470,6 +479,11 @@ C_DA_CB_USERDIR_ACCESS="no"
 # Start Directadmin OWNER account(s) information #
 #-------------------------------------------------
 
+
+C_DA_OWNER_CREATOR1="root"
+C_DA_OWNER_ROLE1="admin"
+# This variable use to restore directadmin owner backup
+C_DA_OWNER_RESTORE_PROFILE_BACKUP1=true
 # C_DA_OWNER_NAME[N]:
 # This variable defined the directadmin owner full name. The owner full name is the initial admin installation created during directadmin installation
 # The last character of N from the variable C_DA_OWNER_NAMEN is the total number of user as owner. For example to define the second owner's full name the next variable will be: C_DA_OWNER_NAME2
@@ -502,7 +516,10 @@ C_DA_OWNER_SECURITY_QNA1=(\
 # Note 2: For security reason, only 1 admin should be created (even directadmin supports multiple admin creation).
 #         So, C_DA_ADMIN must always have index of 1
 # Note 3: In brief, you have 2 admin accounts from C_DA_OWNER and C_DA_ADMIN
-
+# Creator can be username or specify variable
+C_DA_ADMIN_CREATOR1="${C_DA_OWNER_USERNAME1}"
+C_DA_ADMIN_ROLE1="admin"
+C_DA_ADMIN_RESTORE_PROFILE_BACKUP1=true
 C_DA_ADMIN_NAME1="Box Admin"
 C_DA_ADMIN_USERNAME1="admin49"
 C_DA_ADMIN_USERPASS1="PASSWORD"
@@ -521,7 +538,9 @@ C_DA_ADMIN_SECURITY_QNA1=(\
 # Note 1: This is the directadmin main reseller account. You must create at least one reseller here with index 1
 # Note 2: You can create another multiple resellers by using the next index number 2 ... N. eg: C_DA_RESELLER_UNAME2
 # Note 3: You can have unlimited directadmin reseller accounts creation (based on directadmin license) using this variable.
-
+C_DA_RESELLER_CREATOR1="${C_DA_ADMIN_USERNAME1}"
+C_DA_RESELLER_ROLE1="reseller"
+C_DA_RESELLER_RESTORE_PROFILE_BACKUP1=true
 C_DA_RESELLER_NAME1="Masternom Corporation"
 C_DA_RESELLER_USERNAME1="maxi47"
 C_DA_RESELLER_USERPASS1="PASSWORD!@1"
@@ -577,8 +596,10 @@ C_DA_RESELLER_RESTORE_PREVIOUS_DOMAIN_SSL1=true
 # Note 2: You can create another multiple users by using the next index number 2 ... N. eg: C_DA_USER_UNAME2
 # Note 3: You can have unlimited directadmin user accounts creation (based on directadmin license) using this variable.
 
+C_DA_USER_CREATOR1="${C_DA_RESELLER_USERNAME1}"
+C_DA_USER_ROLE1="user"
 # This will restore user profile from backup
-C_DA_USER_RESTORE_PROFILE_BACKUP1=true # TODO
+C_DA_USER_RESTORE_PROFILE_BACKUP1=true
 # This will restore user web from backup
 C_DA_USER_RESTORE_WEB_BACKUP1=true # TODO
 # Create user full name / company name
@@ -639,6 +660,9 @@ C_DA_USER_CUSTOM_WEB_CONFIG1=("maxibi.com:wordpress:5.7") #TODO
 # Create extra user here with assending value starting from 2:
 # eg: C_DA_USER_USERNAME2
 
+# User 2 variables:
+#C_DA_USER_CREATOR2=
+#C_DA_USER_ROLE2=
 #C_DA_USER_RESTORE_PROFILE_BACKUP2=
 #C_DA_USER_RESTORE_WEB_BACKUP2=
 #C_DA_USER_NAME2=
