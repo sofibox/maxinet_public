@@ -198,6 +198,8 @@ C_GRUB_PASS="123abc!!123"
 # This option is left here for technical reason
 C_ROOT_USERNAME="root"
 
+C_ROOT_USERGROUP="root"
+
 # C_INITIAL_ROOT_PASSWORD:
 # This variable is used to specify the root password temporarily during operating system installation
 # The password should not be used for deployment or login purpose
@@ -323,8 +325,16 @@ C_DA_LOGIN_METHOD="sign-as"
 # This is the directadmin backup password. Use to decrypt backup automatically
 C_DA_USER_BACKUP_PASSWORD="PASSWORD_HERE"
 
-# Global variable for restoration
-C_DA_GLOBAL_BACKUP_RESTORE=false
+# Global variable for disabling all user backup restoration
+C_DA_DISABLE_USER_BACKUP_RESTORE=false
+
+# By default Directadmin enable this AUTO SSL feature (to disable put to false)
+# Note auto SSL only work with user domain not hostname (this config should be disable by default)
+C_DA_DISABLE_DOMAIN_AUTO_SSL=false
+
+# This will only work if C_DA_DISABLE_DOMAIN_AUTO_SSL=false
+C_DA_DISABLE_USER_DOMAIN_SSL_RESTORE=false
+
 #------------------------------------------------------------------
 # Start directadmin.conf options ( Directadmin version: 1.62.7 )  #
 #------------------------------------------------------------------
@@ -442,6 +452,9 @@ C_DA_SHOW_INFO_IN_TITLE=0
 # This will sync restore
 C_DA_TALLY_AFTER_RESTORE=2
 
+# This setting is for AUTO SSL (This is commented because C_DA_DISABLE_DOMAIN_AUTO_SSL will determine the value for this)
+# C_DA_ADMIN_SSL_CHECK_RETRIES=1
+
 #---- End directadmin.conf settings ----
 #---------------------------------------
 
@@ -479,11 +492,10 @@ C_DA_CB_USERDIR_ACCESS="no"
 # Start Directadmin OWNER account(s) information #
 #-------------------------------------------------
 
-
 C_DA_OWNER_CREATOR1="root"
 C_DA_OWNER_ROLE1="admin"
 # This variable use to restore directadmin owner backup
-C_DA_OWNER_RESTORE_PROFILE_BACKUP1=true
+C_DA_OWNER_RESTORE_USER_BACKUP1=true
 # C_DA_OWNER_NAME[N]:
 # This variable defined the directadmin owner full name. The owner full name is the initial admin installation created during directadmin installation
 # The last character of N from the variable C_DA_OWNER_NAMEN is the total number of user as owner. For example to define the second owner's full name the next variable will be: C_DA_OWNER_NAME2
@@ -515,11 +527,11 @@ C_DA_OWNER_SECURITY_QNA1=(\
 # Note 1: For security reason, admin should not have domain or web interfaces (no domain = no email)
 # Note 2: For security reason, only 1 admin should be created (even directadmin supports multiple admin creation).
 #         So, C_DA_ADMIN must always have index of 1
-# Note 3: In brief, you have 2 admin accounts from C_DA_OWNER and C_DA_ADMIN
+# Note 3: So you actually have 2 admin accounts from C_DA_OWNER and C_DA_ADMIN
 # Creator can be username or specify variable
 C_DA_ADMIN_CREATOR1="${C_DA_OWNER_USERNAME1}"
 C_DA_ADMIN_ROLE1="admin"
-C_DA_ADMIN_RESTORE_PROFILE_BACKUP1=true
+C_DA_ADMIN_RESTORE_USER_BACKUP1=true
 C_DA_ADMIN_NAME1="Box Admin"
 C_DA_ADMIN_USERNAME1="admin49"
 C_DA_ADMIN_USERPASS1="PASSWORD"
@@ -540,7 +552,9 @@ C_DA_ADMIN_SECURITY_QNA1=(\
 # Note 3: You can have unlimited directadmin reseller accounts creation (based on directadmin license) using this variable.
 C_DA_RESELLER_CREATOR1="${C_DA_ADMIN_USERNAME1}"
 C_DA_RESELLER_ROLE1="reseller"
-C_DA_RESELLER_RESTORE_PROFILE_BACKUP1=true
+C_DA_RESELLER_RESTORE_USER_BACKUP1=true
+# This will check first if SSL is OK (from backup), then no need to restore SSL (also this is run when auto SSL is disable)
+C_DA_RESELLER_RESTORE_USER_DOMAIN_SSL1=true
 C_DA_RESELLER_NAME1="Masternom Corporation"
 C_DA_RESELLER_USERNAME1="maxi47"
 C_DA_RESELLER_USERPASS1="PASSWORD!@1"
@@ -598,10 +612,9 @@ C_DA_RESELLER_RESTORE_PREVIOUS_DOMAIN_SSL1=true
 
 C_DA_USER_CREATOR1="${C_DA_RESELLER_USERNAME1}"
 C_DA_USER_ROLE1="user"
-# This will restore user profile from backup
-C_DA_USER_RESTORE_PROFILE_BACKUP1=true
-# This will restore user web from backup
-C_DA_USER_RESTORE_WEB_BACKUP1=true # TODO
+# This will restore user profile from backup (this will auto restore SSL if exist)
+C_DA_USER_RESTORE_USER_BACKUP1=true
+C_DA_USER_RESTORE_USER_DOMAIN_SSL1=true
 # Create user full name / company name
 C_DA_USER_NAME1="Maxibi ICT Solutions"
 # Create the main username (minimum 2 character, script will check this condition including the maximum username)
@@ -663,8 +676,8 @@ C_DA_USER_CUSTOM_WEB_CONFIG1=("maxibi.com:wordpress:5.7") #TODO
 # User 2 variables:
 #C_DA_USER_CREATOR2=
 #C_DA_USER_ROLE2=
-#C_DA_USER_RESTORE_PROFILE_BACKUP2=
-#C_DA_USER_RESTORE_WEB_BACKUP2=
+#C_DA_USER_RESTORE_USER_BACKUP2=
+#C_DA_USER_RESTORE_USER_DOMAIN_SSL2=
 #C_DA_USER_NAME2=
 #C_DA_USER_USERNAME2=
 #C_DA_USER_USERPASS2=

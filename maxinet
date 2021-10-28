@@ -4,7 +4,7 @@
 
 _APP_SPECIFIC_NAME="Maxinet"
 # Note that some minor versions are not published
-_APP_VERSION="0.7.0"
+_APP_VERSION="0.7.2"
 _APP_STATUS="alpha"
 _APP_VERSION_STATUS="${_APP_VERSION}-${_APP_STATUS}"
 
@@ -103,7 +103,7 @@ get_listening_port() {
 
 generate_unused_port() {
   local port
-  read lowerport upperport </proc/sys/net/ipv4/ip_local_port_range
+  read -r lowerport upperport </proc/sys/net/ipv4/ip_local_port_range
   while :; do
     port="$(shuf -i ${lowerport}-${upperport} -n 1)"
     ss -lpn | grep -q ":${port} " || break
@@ -714,7 +714,7 @@ is_valid() {
     if [ -z "${domain}" ]; then
       domain="${C_BOX_HOSTNAME_FQHN}"
     fi
-    ipv4_propagated=$(dig ${domain} A +short)
+    ipv4_propagated=$(dig "${domain}" A +short)
     if [ "${ipv4_propagated}" = "${ipv4}" ]; then
       return 0
     else
@@ -764,7 +764,7 @@ is_valid() {
       #echo "URL: ${url}"
       #echo "FINAL_HOSTNAME: ${final_hostname}"
       #echo "PORT: ${port}"
-      status=$(curl --cert-status -v https://${final_hostname} 2>&1 | awk 'BEGIN { cert=0 } /^\* Server certificate:/ { cert=1 } /^\*/ { if (cert) print }' | grep "*  SSL certificate verify ok.")
+      status=$(curl --cert-status -v "https://${final_hostname}" 2>&1 | awk 'BEGIN { cert=0 } /^\* Server certificate:/ { cert=1 } /^\*/ { if (cert) print }' | grep "\*  SSL certificate verify ok.")
       #status=$(timeout 3 openssl s_client -connect "${final_hostname}:${port}" </dev/null 2>/dev/null | grep 'Verify return code: 0 (ok)')
       if [ -n "${status}" ]; then
         #echo "Site ${final_hostname} with port ${port} is valid https"
@@ -945,22 +945,22 @@ init_server_rebuild_config() {
   fi
   [[ "${SKIP_RUN}" == "true" ]] && return 0
   if [[ ! -f "${CONF_PATH}/${func_name}_executed" && "${FUNCTION_RUN}" == "true" ]]; then
-    #_echo "=== Delete specific config .... ====" --plain --name
+    #_echo "Delete specific config ...." --plain --name
     # Delete existing Boot_Config profile
     #linode_api_admin "delete-config" --linode-label "${C_BOX_HOSTNAME_FQHN}" --linode-config-label "${C_LINODE_BOOT_CONFIG_LABEL}"
     # Delete existing OS_Config profile
     #linode_api_admin "delete-config" --linode-label "${C_BOX_HOSTNAME_FQHN}" --linode-config-label "${C_LINODE_OS_CONFIG_LABEL}"
 
-    _echo "=== Delete all configs .... ====" --plain --name
+    _echo " Delete all configs ...." --plain --name
     linode_api_admin "delete-configs" --linode-label "${C_BOX_HOSTNAME_FQHN}"
 
-    _echo "=== Creating linode config Boot_Config ====" --plain --name
+    _echo "Creating linode config Boot_Config ..." --plain --name
     linode_api_admin "create-config" --linode-label "${C_BOX_HOSTNAME_FQHN}" \
       --linode-config-label "${C_LINODE_BOOT_CONFIG_LABEL}" --linode-config-comments "The installer boot configuration" \
       --linode-config-kernel "linode/direct-disk" --linode-config-rootdev "/dev/sdb" \
       --label-devsda "disk:${C_LINODE_OS_DISK_LABEL}" --label-devsdb "disk:${C_LINODE_BOOT_DISK_LABEL}"
-
-    _echo "=== Creating linode config OS_Config ====" --plain --name
+    echo ""
+    _echo "Creating linode config OS_Config ..." --plain --name
     linode_api_admin "create-config" --linode-label "${C_BOX_HOSTNAME_FQHN}" \
       --linode-config-label "${C_LINODE_OS_CONFIG_LABEL}" --linode-config-comments "The operating boot configuration" \
       --linode-config-kernel "linode/direct-disk" --linode-config-rootdev "/dev/sda" \
@@ -969,7 +969,7 @@ init_server_rebuild_config() {
     echo ""
     check_finish_reboot "${func_name}"
   else
-    _echo "$(msg yellow)[Skipped by system]: $(msg magenta)${func_name}()$(msg end) $(msg yellow)with current option ${run_mode} has ran before $(msg end)" --name
+    _echo "$(msg yellow)[Skipped by system]: $(msg magenta)${func_name}$(msg end) $(msg yellow)with current option ${run_mode} has ran before $(msg end)" --name
     _echo "$(msg yellow)=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=$(msg end)" --plain
   fi
 
@@ -1018,7 +1018,7 @@ init_server_rebuild_partition() {
     echo ""
     check_finish_reboot "${func_name}"
   else
-    _echo "$(msg yellow)[Skipped by system]: $(msg magenta)${func_name}()$(msg end) $(msg yellow)with current option ${run_mode} has ran before $(msg end)" --name
+    _echo "$(msg yellow)[Skipped by system]: $(msg magenta)${func_name}$(msg end) $(msg yellow)with current option ${run_mode} has ran before $(msg end)" --name
     _echo "$(msg yellow)=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=$(msg end)" --plain
   fi
 
@@ -1072,12 +1072,13 @@ ensure_linode_label_ipv4_valid() {
   echo -n "Checking if linode label is matched with the host domain name ${C_LINODE_LABEL} ... "
   while :; do
     # linode_api_admin get-linode-ipv4 --scripting
-    readarray -t linode_current_ipv4s <<<$(linode_api_admin get-linode-ipv4 --scripting)
+    readarray -t linode_current_ipv4s <<<"$(linode_api_admin get-linode-ipv4 --scripting)"
     match_label=false
     match_ip=false
     count_ip=0
     while [[ ${count_ip} -lt $(echo "${!C_IPV4_ADD@}" | wc -w) ]]; do
-      typeset -n "c_ipv4_add=C_IPV4_ADD${count_ip}"
+      local c_ipv4_add
+      typeset -n c_ipv4_add="C_IPV4_ADD${count_ip}"
       for linode_current_ipv4 in "${linode_current_ipv4s[@]}"; do
         if [[ "${linode_current_ipv4}" == "${c_ipv4_add}" ]]; then
           match_ip=true
@@ -1115,7 +1116,7 @@ ensure_linode_label_ipv4_valid() {
 }
 
 ensure_linode_rdns_resolved() {
-  echo -n "Checking if IPv4 reverse DNS value matched with the host domain name ${LABEL_C_BOX_HOSTNAME_FQHN} for IP ${LABEL_C_IPV4_ADD0} ... "
+  echo -n "Checking if linode IPv4 reverse DNS value matched with the host domain name ${LABEL_C_BOX_HOSTNAME_FQHN} for IP ${LABEL_C_IPV4_ADD0} ... "
   while :; do
     local current_ipv4_reverse_dns
     current_ipv4_reverse_dns=$(linode_api_admin ip-address-view --ip-address ${C_IPV4_ADD0} --get-value rdns --scripting)
@@ -1125,14 +1126,14 @@ ensure_linode_rdns_resolved() {
     else
       _echo "$(msg red) [FAILED]$(msg end)" --plain
       echo ""
-      _echo "$(msg cyan)The current IPv4 reverse DNS value is ${current_ipv4_reverse_dns} ...$(msg end)" --name
-      _echo "$(msg cyan)Updating reverse dns for IPv4 ${LABEL_C_IPV4_ADD0} to ${LABEL_C_BOX_HOSTNAME_FQHN} ...$(msg end)" --name
+      _echo "$(msg cyan)The current linode IPv4 reverse DNS value is ${current_ipv4_reverse_dns} ...$(msg end)" --name
+      _echo "$(msg cyan)Updating reverse dns for linode IPv4 ${LABEL_C_IPV4_ADD0} to ${LABEL_C_BOX_HOSTNAME_FQHN} ...$(msg end)" --name
       linode_api_admin update-reverse-dns --ip-address "${C_IPV4_ADD0}" --domain "${C_BOX_HOSTNAME_FQHN}"
       echo ""
-      echo -n "Rechecking if IPv4 reverse DNS value matched with the host domain name ${LABEL_C_BOX_HOSTNAME_FQHN} for IP ${LABEL_C_IPV4_ADD0} ... "
+      echo -n "Rechecking if linode IPv4 reverse DNS value matched with the host domain name ${LABEL_C_BOX_HOSTNAME_FQHN} for IP ${LABEL_C_IPV4_ADD0} ... "
     fi
   done
-  echo -n "Checking if IPv6 reverse DNS value matched with the host domain name ${LABEL_C_BOX_HOSTNAME_FQHN} for IP ${LABEL_C_IPV6_ADD0} ... "
+  echo -n "Checking if linode IPv6 reverse DNS value matched with the host domain name ${LABEL_C_BOX_HOSTNAME_FQHN} for IP ${LABEL_C_IPV6_ADD0} ... "
   while :; do
     local current_ipv6_reverse_dns
     current_ipv6_reverse_dns=$(linode_api_admin ip-address-view --ip-address ${C_IPV6_ADD0} --get-value rdns --scripting)
@@ -1142,11 +1143,11 @@ ensure_linode_rdns_resolved() {
     else
       _echo "$(msg red) [FAILED]$(msg end)" --plain
       echo ""
-      _echo "$(msg cyan)The current IPv6 reverse DNS value is ${current_ipv6_reverse_dns} ...$(msg end)" --name
-      _echo "$(msg cyan)Updating reverse dns for IPv6 ${LABEL_C_IPV6_ADD0} to ${LABEL_C_BOX_HOSTNAME_FQHN} ...$(msg end)" --name
+      _echo "$(msg cyan)The current linode IPv6 reverse DNS value is ${current_ipv6_reverse_dns} ...$(msg end)" --name
+      _echo "$(msg cyan)Updating reverse dns for linode IPv6 ${LABEL_C_IPV6_ADD0} to ${LABEL_C_BOX_HOSTNAME_FQHN} ...$(msg end)" --name
       linode_api_admin update-reverse-dns --ip-address "${C_IPV6_ADD0}" --domain "${C_BOX_HOSTNAME_FQHN}"
       echo ""
-      echo -n "Checking if IPv6 reverse DNS value matched with the host domain name ${LABEL_C_BOX_HOSTNAME_FQHN} for IP ${LABEL_C_IPV6_ADD0} ... "
+      echo -n "Rechecking if linode IPv6 reverse DNS value matched with the host domain name ${LABEL_C_BOX_HOSTNAME_FQHN} for IP ${LABEL_C_IPV6_ADD0} ... "
     fi
   done
 }
@@ -1156,7 +1157,7 @@ ensure_domain_server_resolved() {
   failed_check_count=0
   count_check_duration=30
 
-  echo -n "Checking ${LABEL_C_BOX_DOMAIN} A record resolves with IPv4 ${LABEL_C_IPV4_ADD0} ... "
+  echo -n "Checking domain ${LABEL_C_BOX_DOMAIN} A record resolves with IPv4 ${LABEL_C_IPV4_ADD0} ... "
   while :; do
     if is_valid ipv4_resolved "${C_IPV4_ADD0}" "${C_BOX_DOMAIN}"; then
       _echo "$(msg green) [OK]$(msg end)" --plain
@@ -1211,7 +1212,7 @@ ensure_domain_server_resolved() {
 
   failed_check_count=0
   count_check_duration=30
-  echo -n "Checking ${LABEL_C_BOX_DOMAIN} AAAA record resolves with IPv4 ${LABEL_C_IPV6_ADD0} ... "
+  echo -n "Checking domain ${LABEL_C_BOX_DOMAIN} AAAA record resolves with IPv6 ${LABEL_C_IPV6_ADD0} ... "
   while :; do
     if is_valid ipv6_resolved "${C_IPV6_ADD0}" "${C_BOX_DOMAIN}"; then
       _echo "$(msg green) [OK]$(msg end)" --plain
@@ -1245,9 +1246,9 @@ ensure_domain_server_resolved() {
       check_duration="${count_check_duration}"
       while :; do
         ((check_duration--))
-        _echo "[${failed_check_count}]: Re-checking ${LABEL_C_BOX_DOMAIN} AAAA record resolves with IPv6 ${LABEL_C_IPV6_ADD0} within ${check_duration} seconds ... " --name --start-spin
+        _echo "[${failed_check_count}]: Re-checking domain ${LABEL_C_BOX_DOMAIN} AAAA record resolves with IPv6 ${LABEL_C_IPV6_ADD0} within ${check_duration} seconds ... " --name --start-spin
         if [ "${check_duration}" -le 0 ]; then
-          # echo -n "Re-checking ${LABEL_C_BOX_DOMAIN} AAAA record resolves with IPv4 ${LABEL_C_IPV6_ADD0} in 120 seconds ... "
+          # echo -n "Re-checking ${LABEL_C_BOX_DOMAIN} AAAA record resolves with IPv6 ${LABEL_C_IPV6_ADD0} in 120 seconds ... "
           break
         fi
         sleep 1
@@ -1261,7 +1262,7 @@ ensure_fqhn_server_resolved() {
 
   failed_check_count=0
   count_check_duration=30
-  echo -n "Checking ${LABEL_C_BOX_HOSTNAME_FQHN} A record resolves with IPv4 ${LABEL_C_IPV4_ADD0} ... "
+  echo -n "Checking hostname ${LABEL_C_BOX_HOSTNAME_FQHN} A record resolves with IPv4 ${LABEL_C_IPV4_ADD0} ... "
   while :; do
     if is_valid ipv4_resolved "${C_IPV4_ADD0}" "${C_BOX_HOSTNAME_FQHN}"; then
       _echo "$(msg green) [OK]$(msg end)" --plain
@@ -1305,7 +1306,7 @@ ensure_fqhn_server_resolved() {
       check_duration="${count_check_duration}"
       while :; do
         ((check_duration--))
-        _echo "[${failed_check_count}]: Re-checking ${LABEL_C_BOX_HOSTNAME_FQHN} A record resolves with IPv4 ${LABEL_C_IPV4_ADD0} within ${check_duration} seconds ... " --name --start-spin
+        _echo "[${failed_check_count}]: Re-checking hostname ${LABEL_C_BOX_HOSTNAME_FQHN} A record resolves with IPv4 ${LABEL_C_IPV4_ADD0} within ${check_duration} seconds ... " --name --start-spin
         if [ "${check_duration}" -le 0 ]; then
           # echo -n "Re-checking ${LABEL_C_BOX_HOSTNAME_FQHN} A record resolves with IPv4 ${LABEL_C_IPV4_ADD0} in 120 seconds ... "
           break
@@ -1317,7 +1318,7 @@ ensure_fqhn_server_resolved() {
 
   failed_check_count=0
   count_check_duration=30
-  echo -n "Checking ${LABEL_C_BOX_HOSTNAME_FQHN} AAAA record resolves with IPv4 ${LABEL_C_IPV6_ADD0} ... "
+  echo -n "Checking hostname ${LABEL_C_BOX_HOSTNAME_FQHN} AAAA record resolves with IPv6 ${LABEL_C_IPV6_ADD0} ... "
   while :; do
     if is_valid ipv6_resolved "${C_IPV6_ADD0}" "${C_BOX_HOSTNAME_FQHN}"; then
       _echo "$(msg green) [OK]$(msg end)" --plain
@@ -1350,7 +1351,7 @@ ensure_fqhn_server_resolved() {
       check_duration="${count_check_duration}"
       while :; do
         ((check_duration--))
-        _echo "[${failed_check_count}]: Re-checking ${LABEL_C_BOX_HOSTNAME_FQHN} AAAA record resolves with IPv6 ${LABEL_C_IPV6_ADD0} within ${check_duration} seconds ... " --name --start-spin
+        _echo "[${failed_check_count}]: Re-checking hostname ${LABEL_C_BOX_HOSTNAME_FQHN} AAAA record resolves with IPv6 ${LABEL_C_IPV6_ADD0} within ${check_duration} seconds ... " --name --start-spin
         if [ "${check_duration}" -le 0 ]; then
           break
         fi
@@ -1604,17 +1605,33 @@ init_server() {
       done
     fi
 
-    _echo "$(msg cyan)Copying maxinet, maxinet.conf gpg_private_key.gpg and readme.txt into remote server ... $(msg end)" --name
-    local file_to_transfer hostname_certificate_to_transfer
-    file_to_transfer="${SECURE_PATH}/gpg/gpg_private_key.gpg ${SCRIPT_PATH}/maxinet ${SCRIPT_PATH}/maxinet.conf ${SCRIPT_PATH}/readme.txt"
+    # TODO testing this!!! previous test it did not create backup file
+    _echo "$(msg cyan)Copying all setup files into server ... $(msg end)" --name
+    local file_to_transfer remote_path_to_receive
 
-    if [[ "${C_DA_RESTORE_PREVIOUS_HOSTNAME_SSL}" == "true" ]]; then
-      hostname_certificate_to_transfer="${SECURE_PATH}/ssl/.lego/certificates/${C_BOX_HOSTNAME_FQHN}.crt ${SECURE_PATH}/ssl/.lego/certificates/${C_BOX_HOSTNAME_FQHN}.issuer.crt \
-      ${SECURE_PATH}/ssl/.lego/certificates/${C_BOX_HOSTNAME_FQHN}.key ${SECURE_PATH}/ssl/.lego/certificates/${C_BOX_HOSTNAME_FQHN}.json"
-      file_to_transfer="${file_to_transfer} ${hostname_certificate_to_transfer}"
-    fi
+    # Main script to update
+    file_to_transfer="${SCRIPT_PATH}/maxinet ${SCRIPT_PATH}/maxinet.conf ${SCRIPT_PATH}/readme.txt"
+    remote_path_to_receive="${HOME}/"
+    ssh_api transfer-files --server-port "${C_BOX_HOSTNAME_FQHN}:${C_SSH_PORT}" --group-user "${C_ROOT_USERGROUP}:${C_ROOT_USERNAME}" --local-files "${file_to_transfer}" --remote-path "${remote_path_to_receive}"
+    echo ""
+    # GPG private key to update
+    file_to_transfer="${SECURE_PATH}/gpg/gpg_private_key.gpg"
+    remote_path_to_receive="${HOME}/gpg/"
+    ssh_api mkdir --server-port ${C_BOX_HOSTNAME_FQHN}:${C_SSH_PORT} --group-user ${C_ROOT_USERGROUP}:${C_ROOT_USERNAME} --remote-path "${remote_path_to_receive}"
+    ssh_api transfer-files --server-port "${C_BOX_HOSTNAME_FQHN}:${C_SSH_PORT}" --group-user "${C_ROOT_USERGROUP}:${C_ROOT_USERNAME}" --local-files "${file_to_transfer}" --remote-path "${remote_path_to_receive}"
+    echo ""
+    # SSL cert to update
+    file_to_transfer="${SECURE_PATH}/ssl/.lego/certificates/*"
+    remote_path_to_receive="${HOME}/ssl/"
+    ssh_api mkdir --server-port ${C_BOX_HOSTNAME_FQHN}:${C_SSH_PORT} --group-user ${C_ROOT_USERGROUP}:${C_ROOT_USERNAME} --remote-path "${remote_path_to_receive}"
+    ssh_api transfer-files --server-port "${C_BOX_HOSTNAME_FQHN}:${C_SSH_PORT}" --group-user "${C_ROOT_USERGROUP}:${C_ROOT_USERNAME}" --local-files "${file_to_transfer}" --remote-path "${remote_path_to_receive}"
+    echo ""
+    # Backup file to update
+    file_to_transfer="${SECURE_PATH}/backup/admin_backups/*"
+    remote_path_to_receive="${HOME}/admin_backups/"
+    ssh_api mkdir --server-port ${C_BOX_HOSTNAME_FQHN}:${C_SSH_PORT} --group-user ${C_ROOT_USERGROUP}:${C_ROOT_USERNAME} --remote-path "${remote_path_to_receive}"
+    ssh_api transfer-files --server-port "${C_BOX_HOSTNAME_FQHN}:${C_SSH_PORT}" --group-user "${C_ROOT_USERGROUP}:${C_ROOT_USERNAME}" --local-files "${file_to_transfer}" --remote-path "${remote_path_to_receive}"
 
-    ssh_api transfer-files --server-port "${C_BOX_HOSTNAME_FQHN}:${C_SSH_PORT}" --group-user "root:${C_ROOT_USERNAME}" --local-files "${file_to_transfer}" --remote-path ~/
     sleep 2
 
     if [ "${C_PRE_AUTORUN_SETUP}" == "false" ]; then
@@ -2373,6 +2390,45 @@ ssh_api() {
   elif [[ "${action}" == "clear-known-hosts" || "${action}" == "clear-known-host" ]]; then
     _echo "$(msg cyan)Resetting known_hosts and copying all public key .id_rsa from ${key_path}/ to /root/.ssh/* ...$(msg end)" --name
     echo >/root/.ssh/known_hosts
+
+  # ssh_api mkdir --server-port sun.sofibox.com:893 --group-user root:root --remote-path "~/dir_name"
+  elif [[ "${action}" == "mkdir" || "${action}" == "create-dir" || "${action}" == "create-folder" ]]; then
+    local private_key_name private_key_file retval
+
+    if [[ -z "${group}" ]]; then
+      _echo "$(msg red)Error, the option --group is required to have value$(msg end)" --name
+      _exit 147
+    elif [[ -z "${user}" ]]; then
+      _echo "$(msg red)Error, the option --user is required to have value$(msg end)" --name
+      _exit 147
+    elif [[ -z "${server}" ]]; then
+      _echo "$(msg red)Error, the option --server is required to have value$(msg end)" --name
+      _exit 147
+    elif [[ -z "${port}" ]]; then
+      _echo "$(msg red)Error, the option --port is required to have value$(msg end)" --name
+      _exit 147
+    fi
+
+    if [ -z "${rsa_key}" ]; then
+      private_key_name="${group}_${user}_${server}.id_rsa"
+      private_key_file="/root/.ssh/${private_key_name}"
+      rsa_key="${private_key_file}"
+    fi
+
+    if [ ! -f "${rsa_key}" ]; then
+      _echo "$(msg red)Error, invalid public RSA key file at ${rsa_key}. Please make sure the file exist$(msg end)" --name --verbose 3
+      _exit 147
+    fi
+
+    ssh -o "StrictHostKeyChecking no" -i "${rsa_key}" -p "${port}" "${user}@${server}" "mkdir -p ${remote_path}"
+    retval=$?
+
+    if [ "${retval}" -ne 0 ]; then
+      _echo "$(msg red)Error, directory creation failed$(msg end)" --name
+      _exit 147
+    fi
+
+    echo "Remote directory creation status is ${retval}"
   else
     _echo "$(msg red)Error, unknown action ${action} argument specified when calling ssh_api function!$(msg end)" --name --verbose 3
     return 147
@@ -2631,7 +2687,7 @@ validate_config() {
 
   local this_da_user_uname this_da_user_password this_da_user_name this_da_user_system_email \
     this_da_user_package_name this_da_user_domains this_da_user_wildcard_domains this_da_user_subdomains \
-    this_c_da_user_ip_type this_da_user_enable_domain_ssl this_da_user_ssl_subdomains this_da_user_mail_accounts \
+    this_da_user_enable_domain_ssl this_da_user_ssl_subdomains this_da_user_mail_accounts \
     this_da_user_security_qna this_da_user_db_accounts
 
   count_user=1
@@ -3784,7 +3840,7 @@ create_file() {
         # To install other package using late_command
         # new line separated by \
         echo "d-i preseed/late_command string \\"
-        echo "in-target apt-get -y install htop wget git dropbear-initramfs resolvconf; \\"
+        echo "in-target apt-get -y install rsync htop wget git dropbear-initramfs resolvconf; \\"
         # For modifying fstab
 
         # Allow root login
@@ -3864,10 +3920,8 @@ create_file() {
 # Use --scripting option to suppress message (useful for scripting)
 dropbox_api() {
 
-  local action options retval argnum scripting source destination filename dbx_cli file_direct_link
+  local action options retval argnum scripting source destination filename file_direct_link
   action="$1"
-  # For remote use this (remote dont use yet)
-  #dbx_cli="${LATEST_OS_CODE_PATH}/usr/local/maxicode/maxicloud/dropbox/dbx"
   # For local use this
   # TODO remember to configure dbxcli to have chunk at least 150 dynamically because large ISO file with less chunk size will make upload slower
   if ! command -v dbxcli &>/dev/null; then
@@ -4520,7 +4574,7 @@ iso_api() {
 
     required "apt:genisoimage" "apt:wget" "apt:pwgen" "apt:whois" "apt:xorriso" "apt:debconf" "apt:isolinux" "apt:syslinux-utils" "apt:squashfs-tools" "apt:putty-tools"
 
-    dbx_cli="${SCRIPT_PATH}/storage/os/debian/usr/local/maxicode/maxicloud/dropbox/dbx"
+    # dbx_cli="${SCRIPT_PATH}/storage/os/debian/usr/local/maxicode/maxicloud/dropbox/dbx"
     if [[ "${C_HOST_MAX_PROCESSOR}" -lt 2 ]]; then
       _echo 'red' "Warning, this process will run slower when using compression tool because C_HOST_MAX_PROCESSOR is set less than 2"
       echo ""
@@ -4816,9 +4870,9 @@ copy_local_dns_to_external_dns() {
     if [ -n "${aaaa_records}" ]; then
       _echo "$(msg cyan)Adding all AAAA records in linode ...$(msg end)" --name
       # For record name
-      readarray -t record <<<$(echo "${aaaa_records}" | jq -r ".name")
+      readarray -t record <<<"$(echo "${aaaa_records}" | jq -r ".name")"
       # For record value
-      readarray -t record2 <<<$(echo "${aaaa_records}" | jq -r ".value")
+      readarray -t record2 <<<"$(echo "${aaaa_records}" | jq -r ".value")"
 
       _echo "" --plain --verbose 7
       _echo "record name:" --plain --verbose 7
@@ -4853,9 +4907,9 @@ copy_local_dns_to_external_dns() {
     if [ -n "${cname_records}" ]; then
       _echo "$(msg cyan)Adding all CNAME records in linode ...$(msg end)" --name
       # For record name
-      readarray -t record <<<$(echo "${cname_records}" | jq -r ".name")
+      readarray -t record <<<"$(echo "${cname_records}" | jq -r ".name")"
       # For record value
-      readarray -t record2 <<<$(echo "${cname_records}" | jq -r ".value")
+      readarray -t record2 <<<"$(echo "${cname_records}" | jq -r ".value")"
 
       _echo "" --plain --verbose 7
       _echo "record name:" --plain --verbose 7
@@ -8462,7 +8516,7 @@ da_api_admin() {
     # It is alright, because we are using initial setup, ticket should not have anything important at this point.
   elif [ "${action}" == "restore-user-backup" ]; then
     # da_api_admin "create-reseller-account" "user1" "user1@maxibi.com" "x1231aax" "maxibi.com" "USER_UNLIMITED"
-    local cmd_api data method da_api_exec has_success max_wait_restore
+    local cmd_api data method da_api_exec has_success has_error max_wait_restore
     cmd_api="CMD_API_ADMIN_BACKUP"
     # data="username=${username}&email=${email}&passwd=${password}&passwd2=${password}&domain=${domain}&package=${package_name}&notify=yes&ip=${ip_address}&action=create&add=yes"
     data="where=local&when=now&ftp_ip=&ftp_username=&ftp_password=&ftp_path=%2F&ftp_port=21&ftp_secure=no&local_path=${backup_path}&ip_choice=file&ip=${backup_ip}&action=restore&create_user_home_override=&encryption_password=${backup_password}&select0=${backup_file_name}"
@@ -8501,10 +8555,20 @@ da_api_admin() {
         ((max_wait_restore++))
         da_api_exec=$(curl --silent --request "${method}" --user "${da_api_username}":"${da_api_password}" --data "${data}" "${ssl_protocol}://${C_BOX_HOSTNAME_FQHN}:${port}/${cmd_api}")
         has_success=$(echo "${da_api_exec}" | urldecode | awksep '&' | grep -w "subject=Your User files have been restored")
+        has_error=$(echo "${da_api_exec}" | urldecode | awksep '&' | grep -w "subject=An error occurred during the restore")
+
         if [ -n "${has_success}" ]; then
           _echo "$(msg green)OK, file ${backup_file_name} has been successfully restored based on the directadmin ticket's subject$(msg end)" --name --stop-spin
           break
         fi
+
+        if [ -n "${has_error}" ]; then
+          _echo "$(msg red)Error, could not restore the backup file ${backup_file_name}$(msg end)" --name --stop-spin
+          _echo "$(msg red)${da_api_exec}$(msg end)" --plain | urldecode | awksep '&'
+          _exit 147
+          break
+        fi
+
         if [ "${max_wait_restore}" -gt 120 ]; then
           _echo "$(msg red)Error, it took a very long period to obtain the restoration success message (restoration might be failed). Please inspect error below:$(msg end)" --name
           _echo "$(msg red)${da_api_exec}$(msg end)" --plain | urldecode | awksep '&'
@@ -8538,7 +8602,7 @@ check_finish_reboot() {
     echo ""
   else
     _echo "$(msg green)=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=$(msg end)" --plain
-    _echo "$(msg green)[OK]: $(msg magenta)${func_name}()$(msg end) $(msg green)has been executed$(msg end)" --name
+    _echo "$(msg green)[OK]: $(msg magenta)${func_name}$(msg end) $(msg green)has been executed$(msg end)" --name
     if command -v gotify &>/dev/null; then
       # Send alert to push notification if gotify is installed (we dont use color here) because color will not display in terminal
       _echo "[OK]: ${func_name}() has been executed" --name --push-notification-silent
@@ -8686,12 +8750,12 @@ start_execute_options() {
   if [[ "${FUNCTION_RUN}" == "true" && "${SKIP_RUN}" == "false" ]]; then
     exec_time start "${func_name}"
     if [ ! -f "${executed_function}" ]; then
-      _echo "$(msg green)Executing $(msg magenta)${func_name}()$(msg end) $(msg cyan)with option ${option} ...$(msg end)" --name
+      _echo "$(msg green)Executing $(msg magenta)${func_name}$(msg end) $(msg cyan)with option ${option} ...$(msg end)" --name
       _echo "$(msg green)=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=$(msg end)" --plain
       echo ""
     fi
   elif [[ "${SKIP_RUN}" == "true" ]]; then
-    _echo "$(msg yellow)[Skipped by user]: $(msg magenta)${func_name}()$(msg end) $(msg yellow)has skip option: ${option} ...$(msg end)" --name
+    _echo "$(msg yellow)[Skipped by user]: $(msg magenta)${func_name}$(msg end) $(msg yellow)has skip option: ${option} ...$(msg end)" --name
     _echo "$(msg red)=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=$(msg end)" --plain
     echo ""
   fi
@@ -8705,7 +8769,7 @@ end_execute_options() {
   func_name="$2"
   if [[ "$(echo "${run_mode}" | awk -F'-' '{ print $NF}')" == "exit" ]]; then
     echo ""
-    _echo "$(msg red)[Terminated]: $(msg magenta)${func_name}() $(msg red)has exit option: ${run_mode} ...$(msg end)" --name
+    _echo "$(msg red)[Terminated]: $(msg magenta)${func_name} $(msg red)has exit option: ${run_mode} ...$(msg end)" --name
     exit 0
   fi
   exec_time total "${func_name}"
@@ -8961,7 +9025,7 @@ upgrade_os() {
     echo ""
     check_finish_reboot "${func_name}"
   else
-    _echo "$(msg yellow)[Skipped by system]: $(msg magenta)${func_name}()$(msg end) $(msg yellow)with current option ${run_mode} has ran before $(msg end)" --name
+    _echo "$(msg yellow)[Skipped by system]: $(msg magenta)${func_name}$(msg end) $(msg yellow)with current option ${run_mode} has ran before $(msg end)" --name
     _echo "$(msg yellow)=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=$(msg end)" --plain
   fi
 
@@ -9191,7 +9255,7 @@ configure_gotify() {
     echo ""
     check_finish_reboot "${func_name}"
   else
-    _echo "$(msg yellow)[Skipped by system]: $(msg magenta)${func_name}()$(msg end) $(msg yellow)with current option ${run_mode} has ran before $(msg end)" --name
+    _echo "$(msg yellow)[Skipped by system]: $(msg magenta)${func_name}$(msg end) $(msg yellow)with current option ${run_mode} has ran before $(msg end)" --name
     _echo "$(msg yellow)=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=$(msg end)" --plain
 
   fi
@@ -9241,7 +9305,7 @@ configure_yq() {
     echo ""
     check_finish_reboot "${func_name}"
   else
-    _echo "$(msg yellow)[Skipped by system]: $(msg magenta)${func_name}()$(msg end) $(msg yellow)with current option ${run_mode} has ran before $(msg end)" --name
+    _echo "$(msg yellow)[Skipped by system]: $(msg magenta)${func_name}$(msg end) $(msg yellow)with current option ${run_mode} has ran before $(msg end)" --name
     _echo "$(msg yellow)=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=$(msg end)" --plain
 
   fi
@@ -9311,7 +9375,7 @@ get_latest_code() {
 
     check_finish_reboot "${func_name}"
   else
-    _echo "$(msg yellow)[Skipped by system]: $(msg magenta)${func_name}()$(msg end) $(msg yellow)with current option ${run_mode} has ran before $(msg end)" --name
+    _echo "$(msg yellow)[Skipped by system]: $(msg magenta)${func_name}$(msg end) $(msg yellow)with current option ${run_mode} has ran before $(msg end)" --name
     _echo "$(msg yellow)=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=$(msg end)" --plain
   fi
 
@@ -9361,7 +9425,7 @@ update_latest_maxicode() {
     echo ""
     check_finish_reboot "${func_name}"
   else
-    _echo "$(msg yellow)[Skipped by system]: $(msg magenta)${func_name}()$(msg end) $(msg yellow)with current option ${run_mode} has ran before $(msg end)" --name
+    _echo "$(msg yellow)[Skipped by system]: $(msg magenta)${func_name}$(msg end) $(msg yellow)with current option ${run_mode} has ran before $(msg end)" --name
     _echo "$(msg yellow)=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=$(msg end)" --plain
   fi
 
@@ -9598,11 +9662,14 @@ secure_os() {
     # This works with debian, ubuntu and centos
     systemctl reload sshd
     echo ""
+    _echo "$(msg cyan)Removing public key ${user_rsa_public_key} ...$(msg end)" --name
+    rm -f "${user_rsa_public_key}"
+    echo ""
     _echo "$(msg green)[OK]: The host ${LABEL_C_BOX_HOSTNAME_FQHN} is now secured with basic security hardening protection$(msg end)" --name
     echo ""
     check_finish_reboot "${func_name}"
   else
-    _echo "$(msg yellow)[Skipped by system]: $(msg magenta)${func_name}()$(msg end) $(msg yellow)with current option ${run_mode} has ran before $(msg end)" --name
+    _echo "$(msg yellow)[Skipped by system]: $(msg magenta)${func_name}$(msg end) $(msg yellow)with current option ${run_mode} has ran before $(msg end)" --name
     _echo "$(msg yellow)=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=$(msg end)" --plain
   fi
 
@@ -9658,7 +9725,7 @@ configure_grub() {
     echo ""
     check_finish_reboot "${func_name}"
   else
-    _echo "$(msg yellow)[Skipped by system]: $(msg magenta)${func_name}()$(msg end) $(msg yellow)with current option ${run_mode} has ran before $(msg end)" --name
+    _echo "$(msg yellow)[Skipped by system]: $(msg magenta)${func_name}$(msg end) $(msg yellow)with current option ${run_mode} has ran before $(msg end)" --name
     _echo "$(msg yellow)=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=$(msg end)" --plain
   fi
 
@@ -9848,7 +9915,7 @@ configure_net() {
     echo ""
     check_finish_reboot "${func_name}"
   else
-    _echo "$(msg yellow)[Skipped by system]: $(msg magenta)${func_name}()$(msg end) $(msg yellow)with current option ${run_mode} has ran before $(msg end)" --name
+    _echo "$(msg yellow)[Skipped by system]: $(msg magenta)${func_name}$(msg end) $(msg yellow)with current option ${run_mode} has ran before $(msg end)" --name
     _echo "$(msg yellow)=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=$(msg end)" --plain
   fi
 
@@ -10045,7 +10112,7 @@ configure_net2() {
     echo ""
     check_finish_reboot "${func_name}"
   else
-    _echo "$(msg yellow)[Skipped by system]: $(msg magenta)${func_name}()$(msg end) $(msg yellow)with current option ${run_mode} has ran before $(msg end)" --name
+    _echo "$(msg yellow)[Skipped by system]: $(msg magenta)${func_name}$(msg end) $(msg yellow)with current option ${run_mode} has ran before $(msg end)" --name
     _echo "$(msg yellow)=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=$(msg end)" --plain
   fi
 
@@ -10143,7 +10210,7 @@ configure_fstab() {
     echo ""
     check_finish_reboot "${func_name}"
   else
-    _echo "$(msg yellow)[Skipped by system]: $(msg magenta)${func_name}()$(msg end) $(msg yellow)with current option ${run_mode} has ran before $(msg end)" --name
+    _echo "$(msg yellow)[Skipped by system]: $(msg magenta)${func_name}$(msg end) $(msg yellow)with current option ${run_mode} has ran before $(msg end)" --name
     _echo "$(msg yellow)=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=$(msg end)" --plain
   fi
 
@@ -10179,7 +10246,7 @@ configure_kernel_swap() {
     echo ""
     check_finish_reboot "${func_name}"
   else
-    _echo "$(msg yellow)[Skipped by system]: $(msg magenta)${func_name}()$(msg end) $(msg yellow)with current option ${run_mode} has ran before $(msg end)" --name
+    _echo "$(msg yellow)[Skipped by system]: $(msg magenta)${func_name}$(msg end) $(msg yellow)with current option ${run_mode} has ran before $(msg end)" --name
     _echo "$(msg yellow)=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=$(msg end)" --plain
   fi
 
@@ -10219,7 +10286,7 @@ configure_kernel_filesystem() {
     echo ""
     check_finish_reboot "${func_name}"
   else
-    _echo "$(msg yellow)[Skipped by system]: $(msg magenta)${func_name}()$(msg end) $(msg yellow)with current option ${run_mode} has ran before $(msg end)" --name
+    _echo "$(msg yellow)[Skipped by system]: $(msg magenta)${func_name}$(msg end) $(msg yellow)with current option ${run_mode} has ran before $(msg end)" --name
     _echo "$(msg yellow)=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=$(msg end)" --plain
   fi
 
@@ -10293,7 +10360,7 @@ configure_kernel_ips() {
     echo ""
     check_finish_reboot "${func_name}"
   else
-    _echo "$(msg yellow)[Skipped by system]: $(msg magenta)${func_name}()$(msg end) $(msg yellow)with current option ${run_mode} has ran before $(msg end)" --name
+    _echo "$(msg yellow)[Skipped by system]: $(msg magenta)${func_name}$(msg end) $(msg yellow)with current option ${run_mode} has ran before $(msg end)" --name
     _echo "$(msg yellow)=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=$(msg end)" --plain
   fi
 
@@ -10667,7 +10734,7 @@ install_da_pre() {
     echo ""
     check_finish_reboot "${func_name}"
   else
-    _echo "$(msg yellow)[Skipped by system]: $(msg magenta)${func_name}()$(msg end) $(msg yellow)with current option ${run_mode} has ran before $(msg end)" --name
+    _echo "$(msg yellow)[Skipped by system]: $(msg magenta)${func_name}$(msg end) $(msg yellow)with current option ${run_mode} has ran before $(msg end)" --name
     _echo "$(msg yellow)=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=$(msg end)" --plain
   fi
 
@@ -10832,7 +10899,7 @@ install_da() {
     echo ""
     check_finish_reboot "${func_name}"
   else
-    _echo "$(msg yellow)[Skipped by system]: $(msg magenta)${func_name}()$(msg end) $(msg yellow)with current option ${run_mode} has ran before $(msg end)" --name
+    _echo "$(msg yellow)[Skipped by system]: $(msg magenta)${func_name}$(msg end) $(msg yellow)with current option ${run_mode} has ran before $(msg end)" --name
     _echo "$(msg yellow)=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=$(msg end)" --plain
   fi
 
@@ -10993,7 +11060,7 @@ install_da_post() {
     # At this moment directadmin can be login using a new port ${LABEL_C_DA_PORT}"
     check_finish_reboot "${func_name}"
   else
-    _echo "$(msg yellow)[Skipped by system]: $(msg magenta)${func_name}()$(msg end) $(msg yellow)with current option ${run_mode} has ran before $(msg end)" --name
+    _echo "$(msg yellow)[Skipped by system]: $(msg magenta)${func_name}$(msg end) $(msg yellow)with current option ${run_mode} has ran before $(msg end)" --name
     _echo "$(msg yellow)=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=$(msg end)" --plain
   fi
 
@@ -11040,7 +11107,7 @@ configure_da_auth() {
     # TODO this add custom page for login (using recaptcha) to increase security
     check_finish_reboot "${func_name}"
   else
-    _echo "$(msg yellow)[Skipped by system]: $(msg magenta)${func_name}()$(msg end) $(msg yellow)with current option ${run_mode} has ran before $(msg end)" --name
+    _echo "$(msg yellow)[Skipped by system]: $(msg magenta)${func_name}$(msg end) $(msg yellow)with current option ${run_mode} has ran before $(msg end)" --name
     _echo "$(msg yellow)=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=$(msg end)" --plain
   fi
 
@@ -11221,7 +11288,7 @@ configure_bind() {
     echo ""
     check_finish_reboot "${func_name}"
   else
-    _echo "$(msg yellow)[Skipped by system]: $(msg magenta)${func_name}()$(msg end) $(msg yellow)with current option ${run_mode} has ran before $(msg end)" --name
+    _echo "$(msg yellow)[Skipped by system]: $(msg magenta)${func_name}$(msg end) $(msg yellow)with current option ${run_mode} has ran before $(msg end)" --name
     _echo "$(msg yellow)=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=$(msg end)" --plain
   fi
 
@@ -11474,7 +11541,7 @@ configure_da_ips() {
     echo ""
     check_finish_reboot "${func_name}"
   else
-    _echo "$(msg yellow)[Skipped by system]: $(msg magenta)${func_name}()$(msg end) $(msg yellow)with current option ${run_mode} has ran before $(msg end)" --name
+    _echo "$(msg yellow)[Skipped by system]: $(msg magenta)${func_name}$(msg end) $(msg yellow)with current option ${run_mode} has ran before $(msg end)" --name
     _echo "$(msg yellow)=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=$(msg end)" --plain
   fi
 
@@ -11683,7 +11750,7 @@ install_da_csf() {
     echo ""
     check_finish_reboot "${func_name}"
   else
-    _echo "$(msg yellow)[Skipped by system]: $(msg magenta)${func_name}()$(msg end) $(msg yellow)with current option ${run_mode} has ran before $(msg end)" --name
+    _echo "$(msg yellow)[Skipped by system]: $(msg magenta)${func_name}$(msg end) $(msg yellow)with current option ${run_mode} has ran before $(msg end)" --name
     _echo "$(msg yellow)=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=$(msg end)" --plain
   fi
 
@@ -11926,7 +11993,7 @@ install_general_csf() {
     echo ""
     check_finish_reboot "${func_name}"
   else
-    _echo "$(msg yellow)[Skipped by system]: $(msg magenta)${func_name}()$(msg end) $(msg yellow)with current option ${run_mode} has ran before $(msg end)" --name
+    _echo "$(msg yellow)[Skipped by system]: $(msg magenta)${func_name}$(msg end) $(msg yellow)with current option ${run_mode} has ran before $(msg end)" --name
     _echo "$(msg yellow)=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=$(msg end)" --plain
   fi
 
@@ -12181,7 +12248,7 @@ configure_csf() {
     echo ""
     check_finish_reboot "${func_name}"
   else
-    _echo "$(msg yellow)[Skipped by system]: $(msg magenta)${func_name}()$(msg end) $(msg yellow)with current option ${run_mode} has ran before $(msg end)" --name
+    _echo "$(msg yellow)[Skipped by system]: $(msg magenta)${func_name}$(msg end) $(msg yellow)with current option ${run_mode} has ran before $(msg end)" --name
     _echo "$(msg yellow)=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=$(msg end)" --plain
   fi
 
@@ -12475,7 +12542,7 @@ configure_da_sql() {
     echo ""
     check_finish_reboot "${func_name}"
   else
-    _echo "$(msg yellow)[Skipped by system]: $(msg magenta)${func_name}()$(msg end) $(msg yellow)with current option ${run_mode} has ran before $(msg end)" --name
+    _echo "$(msg yellow)[Skipped by system]: $(msg magenta)${func_name}$(msg end) $(msg yellow)with current option ${run_mode} has ran before $(msg end)" --name
     _echo "$(msg yellow)=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=$(msg end)" --plain
   fi
 
@@ -12532,7 +12599,7 @@ configure_da_sql_security() {
     echo ""
     check_finish_reboot "${func_name}"
   else
-    _echo "$(msg yellow)[Skipped by system]: $(msg magenta)${func_name}()$(msg end) $(msg yellow)with current option ${run_mode} has ran before $(msg end)" --name
+    _echo "$(msg yellow)[Skipped by system]: $(msg magenta)${func_name}$(msg end) $(msg yellow)with current option ${run_mode} has ran before $(msg end)" --name
     _echo "$(msg yellow)=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=$(msg end)" --plain
   fi
 
@@ -12685,7 +12752,7 @@ configure_da_mail() {
     echo ""
     check_finish_reboot "${func_name}"
   else
-    _echo "$(msg yellow)[Skipped by system]: $(msg magenta)${func_name}()$(msg end) $(msg yellow)with current option ${run_mode} has ran before $(msg end)" --name
+    _echo "$(msg yellow)[Skipped by system]: $(msg magenta)${func_name}$(msg end) $(msg yellow)with current option ${run_mode} has ran before $(msg end)" --name
     _echo "$(msg yellow)=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=$(msg end)" --plain
   fi
 
@@ -12729,7 +12796,7 @@ configure_da_mail_security() {
     echo ""
     check_finish_reboot "${func_name}"
   else
-    _echo "$(msg yellow)[Skipped by system]: $(msg magenta)${func_name}()$(msg end) $(msg yellow)with current option ${run_mode} has ran before $(msg end)" --name
+    _echo "$(msg yellow)[Skipped by system]: $(msg magenta)${func_name}$(msg end) $(msg yellow)with current option ${run_mode} has ran before $(msg end)" --name
     _echo "$(msg yellow)=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=$(msg end)" --plain
   fi
 
@@ -12770,7 +12837,7 @@ configure_da_ftp() {
     echo ""
     check_finish_reboot "${func_name}"
   else
-    _echo "$(msg yellow)[Skipped by system]: $(msg magenta)${func_name}()$(msg end) $(msg yellow)with current option ${run_mode} has ran before $(msg end)" --name
+    _echo "$(msg yellow)[Skipped by system]: $(msg magenta)${func_name}$(msg end) $(msg yellow)with current option ${run_mode} has ran before $(msg end)" --name
     _echo "$(msg yellow)=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=$(msg end)" --plain
   fi
 
@@ -12916,7 +12983,7 @@ configure_server_security() {
     echo ""
     check_finish_reboot "${func_name}"
   else
-    _echo "$(msg yellow)[Skipped by system]: $(msg magenta)${func_name}()$(msg end) $(msg yellow)with current option ${run_mode} has ran before $(msg end)" --name
+    _echo "$(msg yellow)[Skipped by system]: $(msg magenta)${func_name}$(msg end) $(msg yellow)with current option ${run_mode} has ran before $(msg end)" --name
     _echo "$(msg yellow)=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=$(msg end)" --plain
   fi
 
@@ -13043,7 +13110,7 @@ configure_da_custom_configs() {
     echo ""
     check_finish_reboot "${func_name}"
   else
-    _echo "$(msg yellow)[Skipped by system]: $(msg magenta)${func_name}()$(msg end) $(msg yellow)with current option ${run_mode} has ran before $(msg end)" --name
+    _echo "$(msg yellow)[Skipped by system]: $(msg magenta)${func_name}$(msg end) $(msg yellow)with current option ${run_mode} has ran before $(msg end)" --name
     _echo "$(msg yellow)=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=$(msg end)" --plain
   fi
 
@@ -13133,7 +13200,7 @@ configure_web_apps() {
     echo ""
     check_finish_reboot "${func_name}"
   else
-    _echo "$(msg yellow)[Skipped by system]: $(msg magenta)${func_name}()$(msg end) $(msg yellow)with current option ${run_mode} has ran before $(msg end)" --name
+    _echo "$(msg yellow)[Skipped by system]: $(msg magenta)${func_name}$(msg end) $(msg yellow)with current option ${run_mode} has ran before $(msg end)" --name
     _echo "$(msg yellow)=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=$(msg end)" --plain
   fi
 
@@ -13288,7 +13355,7 @@ configure_da_settings() {
     # Set webmail link
     ${da_bin} set webmail_link "${C_DA_WEBMAIL_LINK}"
     # Based on this: https://directadmin.com/features.php?id=1932
-    bind_current_version=$(echo "$(named -v)" | awk '{ print $2 }' | grep -oP [0-9]+\.[0-9]+\.[0-9]+)
+    bind_current_version=$(named -v | awk '{ print $2 }' | grep -oP '[0-9]+\.[0-9]+\.[0-9]+')
     dns_caa_bind_required_version="9.9.6"
 
     if is_valid version_required "${dns_caa_bind_required_version}" "${bind_current_version}"; then
@@ -13300,7 +13367,7 @@ configure_da_settings() {
     fi
 
     # This will enable hsts for hostname on login port only
-    # Important, this will not work until SSL certificate is requested by calling configure_da_host_server_ssl()
+    # Important, this will not work until SSL certificate is requested by calling configure_da_host_domain_ssl()
     if [[ "${C_DA_ENABLE_HOST_HSTS}" != "false" ]]; then
       ${da_bin} set hsts "${C_DA_ENABLE_HOST_HSTS}"
       # The document also recommend to enable force_hostname (this was done on top)
@@ -13315,6 +13382,14 @@ configure_da_settings() {
     # This will sync restore
     ${da_bin} set tally_after_restore "${C_DA_TALLY_AFTER_RESTORE}"
     echo ""
+
+    # Whether to enable AUTO SSL or disable
+    if [ "${C_DA_DISABLE_DOMAIN_AUTO_SSL}" == "true" ]; then
+      ${da_bin} set admin_ssl_check_retries 0
+    else
+      ${da_bin} set admin_ssl_check_retries 1
+    fi
+    echo ""
     # A lot of setting have been changed, now we need to restart directadmin
     _echo "$(msg cyan)Requesting directadmin to restart ...$(msg end)" --name
     restart_da
@@ -13322,7 +13397,7 @@ configure_da_settings() {
     echo ""
     check_finish_reboot "${func_name}"
   else
-    _echo "$(msg yellow)[Skipped by system]: $(msg magenta)${func_name}()$(msg end) $(msg yellow)with current option ${run_mode} has ran before $(msg end)" --name
+    _echo "$(msg yellow)[Skipped by system]: $(msg magenta)${func_name}$(msg end) $(msg yellow)with current option ${run_mode} has ran before $(msg end)" --name
     _echo "$(msg yellow)=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=$(msg end)" --plain
   fi
 
@@ -13390,7 +13465,7 @@ configure_da_cb_settings() {
     echo ""
     check_finish_reboot "${func_name}"
   else
-    _echo "$(msg yellow)[Skipped by system]: $(msg magenta)${func_name}()$(msg end) $(msg yellow)with current option ${run_mode} has ran before $(msg end)" --name
+    _echo "$(msg yellow)[Skipped by system]: $(msg magenta)${func_name}$(msg end) $(msg yellow)with current option ${run_mode} has ran before $(msg end)" --name
     _echo "$(msg yellow)=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=$(msg end)" --plain
   fi
 
@@ -13446,7 +13521,7 @@ configure_da_redis() {
     echo ""
     check_finish_reboot "${func_name}"
   else
-    _echo "$(msg yellow)[Skipped by system]: $(msg magenta)${func_name}()$(msg end) $(msg yellow)with current option ${run_mode} has ran before $(msg end)" --name
+    _echo "$(msg yellow)[Skipped by system]: $(msg magenta)${func_name}$(msg end) $(msg yellow)with current option ${run_mode} has ran before $(msg end)" --name
     _echo "$(msg yellow)=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=$(msg end)" --plain
   fi
 
@@ -13512,7 +13587,7 @@ configure_da_memcached() {
     echo ""
     check_finish_reboot "${func_name}"
   else
-    _echo "$(msg yellow)[Skipped by system]: $(msg magenta)${func_name}()$(msg end) $(msg yellow)with current option ${run_mode} has ran before $(msg end)" --name
+    _echo "$(msg yellow)[Skipped by system]: $(msg magenta)${func_name}$(msg end) $(msg yellow)with current option ${run_mode} has ran before $(msg end)" --name
     _echo "$(msg yellow)=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=$(msg end)" --plain
   fi
 
@@ -13557,7 +13632,7 @@ configure_da_geoip() {
     echo ""
     check_finish_reboot "${func_name}"
   else
-    _echo "$(msg yellow)[Skipped by system]: $(msg magenta)${func_name}()$(msg end) $(msg yellow)with current option ${run_mode} has ran before $(msg end)" --name
+    _echo "$(msg yellow)[Skipped by system]: $(msg magenta)${func_name}$(msg end) $(msg yellow)with current option ${run_mode} has ran before $(msg end)" --name
     _echo "$(msg yellow)=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=$(msg end)" --plain
   fi
 
@@ -13635,7 +13710,7 @@ configure_da_dns_templates() {
     echo ""
     check_finish_reboot "${func_name}"
   else
-    _echo "$(msg yellow)[Skipped by system]: $(msg magenta)${func_name}()$(msg end) $(msg yellow)with current option ${run_mode} has ran before $(msg end)" --name
+    _echo "$(msg yellow)[Skipped by system]: $(msg magenta)${func_name}$(msg end) $(msg yellow)with current option ${run_mode} has ran before $(msg end)" --name
     _echo "$(msg yellow)=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=$(msg end)" --plain
   fi
 
@@ -13697,7 +13772,7 @@ configure_da_fqhn_server() {
     # So when we call copy_local_dns_to_external_dns, it create this hostname and it is only useful for creating DNS record start from scratch (or rebuild dns record for test.domain.com).
     check_finish_reboot "${func_name}"
   else
-    _echo "$(msg yellow)[Skipped by system]: $(msg magenta)${func_name}()$(msg end) $(msg yellow)with current option ${run_mode} has ran before $(msg end)" --name
+    _echo "$(msg yellow)[Skipped by system]: $(msg magenta)${func_name}$(msg end) $(msg yellow)with current option ${run_mode} has ran before $(msg end)" --name
     _echo "$(msg yellow)=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=$(msg end)" --plain
   fi
 
@@ -13733,7 +13808,7 @@ configure_da_owner_accounts() {
     echo ""
 
     # There is only 1 owner, so use this:
-    if [[ "${C_DA_OWNER_RESTORE_PROFILE_BACKUP1}" == "true" && "${C_DA_GLOBAL_BACKUP_RESTORE}" == "true" ]]; then
+    if [[ "${C_DA_OWNER_RESTORE_USER_BACKUP1}" == "true" && "${C_DA_DISABLE_USER_BACKUP_RESTORE}" == "false" ]]; then
       local da_scripts_path da_bin da_cb_bin da_conf retval da_owner_creator da_owner_username \
         backup_source_location da_owner_backup_location
 
@@ -13759,7 +13834,7 @@ configure_da_owner_accounts() {
       echo "da_owner_username: ${da_owner_username}"
       echo ""
       if [ "${current_da_owner_username}" != "${da_owner_username}" ]; then
-        echo "Warning, current directadmin owner username is not equal to owner username in config file"
+        echo "Warning, current directadmin owner username is not equal to owner username in config file. Renaming owner to ${LABEL_C_DA_OWNER_USERNAME1} ..."
         ${da_scripts_path}/change_username.sh "$(get_current_da_owner_username)" "${C_DA_OWNER_USERNAME1}"
       else
         echo "OK, current directadmin owner username is equal owner username in config file"
@@ -13827,11 +13902,14 @@ configure_da_owner_accounts() {
       da_api_admin modify-user --where-username-is "$(get_current_da_owner_username)" --name "${C_DA_OWNER_NAME1}"
       echo ""
 
+      # Running additional command for owner if no backup is restored
+      configure_da_owner_skins --run
+      configure_da_owner_security --run
     fi
 
     check_finish_reboot "${func_name}"
   else
-    _echo "$(msg yellow)[Skipped by system]: $(msg magenta)${func_name}()$(msg end) $(msg yellow)with current option ${run_mode} has ran before $(msg end)" --name
+    _echo "$(msg yellow)[Skipped by system]: $(msg magenta)${func_name}$(msg end) $(msg yellow)with current option ${run_mode} has ran before $(msg end)" --name
     _echo "$(msg yellow)=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=$(msg end)" --plain
   fi
 
@@ -13877,7 +13955,7 @@ configure_da_admin_accounts() {
     echo "da_owner_creator: ${da_owner_creator}"
     echo "da_owner_username: ${da_owner_username}"
 
-    if [[ "${C_DA_ADMIN_RESTORE_PROFILE_BACKUP1}" == "true" && "${C_DA_GLOBAL_BACKUP_RESTORE}" == "true" ]]; then
+    if [[ "${C_DA_ADMIN_RESTORE_USER_BACKUP1}" == "true" && "${C_DA_DISABLE_USER_BACKUP_RESTORE}" == "false" ]]; then
       local backup_source_location da_owner_backup_location
       echo "${SCRIPT_PATH}/admin_backups/${da_admin_role}.${da_admin_creator}.${da_admin_username}.tar.gz"
 
@@ -13934,11 +14012,15 @@ configure_da_admin_accounts() {
       echo ""
       _echo "$(msg cyan)Creating a new  unlimited package with recommend values for resellers with the following name: ${C_DA_RESELLER_PACKAGE_NAME1} ...$(msg end)" --name
       da_api_admin create-reseller-package --sign-as admin1 --package-name "${C_DA_RESELLER_PACKAGE_NAME1}" --recommend-values
+
+      # Run additional step if not restore from backup
+      configure_da_admin_skins --run
+      configure_da_admin_security --run
     fi
     echo ""
     check_finish_reboot "${func_name}"
   else
-    _echo "$(msg yellow)[Skipped by system]: $(msg magenta)${func_name}()$(msg end) $(msg yellow)with current option ${run_mode} has ran before $(msg end)" --name
+    _echo "$(msg yellow)[Skipped by system]: $(msg magenta)${func_name}$(msg end) $(msg yellow)with current option ${run_mode} has ran before $(msg end)" --name
     _echo "$(msg yellow)=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=$(msg end)" --plain
   fi
 
@@ -13970,7 +14052,7 @@ configure_da_reseller_accounts() {
   [[ "${SKIP_RUN}" == "true" ]] && return 0
   if [[ ! -f "${CONF_PATH}/${func_name}_executed" && "${FUNCTION_RUN}" == "true" ]]; then
     local da_reseller_packages_list count_reseller1 \
-      da_reseller_creator da_reseller_role da_reseller_restore_profile_backup da_reseller_uname da_reseller_password da_reseller_name da_reseller_system_email \
+      da_reseller_creator da_reseller_role da_reseller_restore_user_backup da_reseller_uname da_reseller_password da_reseller_name da_reseller_system_email \
       da_reseller_mail_users da_reseller_mail_passwords da_reseller_domains da_reseller_ip_type da_reseller_package_name da_reseller_enable_domain_ssl grep_count
 
     # This file contains list of packages for admin and reseller (use this file for checking existing package)
@@ -13986,7 +14068,7 @@ configure_da_reseller_accounts() {
       _echo "$(msg cyan)Getting all required variables from config file ...$(msg end)" --name --verbose 7
       typeset -n da_reseller_creator="C_DA_RESELLER_CREATOR${count_reseller1}"
       typeset -n da_reseller_role="C_DA_RESELLER_ROLE${count_reseller1}"
-      typeset -n da_reseller_restore_profile_backup="C_DA_RESELLER_RESTORE_PROFILE_BACKUP${count_reseller1}"
+      typeset -n da_reseller_restore_user_backup="C_DA_RESELLER_RESTORE_USER_BACKUP${count_reseller1}"
       typeset -n da_reseller_uname="C_DA_RESELLER_USERNAME${count_reseller1}"
       typeset -n da_reseller_password="C_DA_RESELLER_USERPASS${count_reseller1}"
       typeset -n da_reseller_name="C_DA_RESELLER_NAME${count_reseller1}"
@@ -14020,7 +14102,7 @@ configure_da_reseller_accounts() {
       _echo "Reseller count ${count_reseller1}/$(echo "${!C_DA_RESELLER_USERNAME@}" | wc -w)" --name
       _echo "da_reseller_creator: ${da_reseller_creator}" --name --verbose 7
       _echo "da_reseller_role: ${da_reseller_role}" --name --verbose 7
-      _echo "da_reseller_restore_profile_backup: ${da_reseller_restore_profile_backup}" --name --verbose 7
+      _echo "da_reseller_restore_user_backup: ${da_reseller_restore_user_backup}" --name --verbose 7
       _echo "da_reseller_uname: ${da_reseller_uname}" --name --verbose 7
       _echo "da_reseller_password: ${da_reseller_password}" --name --verbose 7
       _echo "da_reseller_name: ${da_reseller_name}" --name --verbose 7
@@ -14039,7 +14121,7 @@ configure_da_reseller_accounts() {
       _echo "$(msg magenta)=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=$(msg end)" --name
       _echo "$(msg newline)" --plain --verbose 7
 
-      if [[ "${da_reseller_restore_profile_backup}" == "true" && "${C_DA_GLOBAL_BACKUP_RESTORE}" == "true" ]]; then
+      if [[ "${da_reseller_restore_user_backup}" == "true" && "${C_DA_DISABLE_USER_BACKUP_RESTORE}" == "false" ]]; then
         local backup_source_location da_owner_backup_location
         echo "${SCRIPT_PATH}/admin_backups/${da_reseller_role}.${da_reseller_creator}.${da_reseller_uname}.tar.gz"
 
@@ -14142,17 +14224,30 @@ configure_da_reseller_accounts() {
       echo ""
     done
     echo ""
-    # Now we create user unlimited package. A reseller account is needed to create user package (da_api_admin will check this condition)
-    # Note here we user package name from C_DA_USER_PACKAGE_NAME1 (user1) because it's the first package for for first user
-    # We use reseller account to create user package:
-    if [ "${da_reseller_restore_profile_backup}" == "true" ]; then
+
+    if [[ "${da_reseller_restore_user_backup}" == "true" && "${C_DA_DISABLE_USER_BACKUP_RESTORE}" == "false" ]]; then
+      :
+    else
+      # Now we create user unlimited package. A reseller account is needed to create user package (da_api_admin will check this condition)
+      # Note here we user package name from C_DA_USER_PACKAGE_NAME1 (user1) because it's the first package for for first user
+      # We use reseller account to create user package:
       _echo "$(msg cyan)Creating user unlimited package with the following name: ${C_DA_USER_PACKAGE_NAME1} ...$(msg end)" --name
       da_api_admin create-user-package --sign-as "${C_DA_RESELLER_USERNAME1}" --package-name "${C_DA_USER_PACKAGE_NAME1}" --recommend-values
       echo ""
+      # Run additional step as we did not restore backup (this would be new setting for this reseller):
+      configure_da_reseller_skins --run
+      configure_da_reseller_security --run
+      configure_da_reseller_root_domains --skip #(this is deprecated, already done in configure_da_reseller_accounts)
+      configure_da_reseller_subdomains --run
+      configure_da_reseller_wildcard_domains --skip #(Skipped: Do not use wildcard for security purpose)
+      configure_da_reseller_email_accounts --run
+      configure_da_reseller_databases --run
+      #configure_da_reseller_domain_ssl_pre --skip # Deprecated and not needed (new directadmin version has this)
+      #configure_da_reseller_domain_ssl --skip # Directadmin has autoSSL but I need this incase autoSSL is slow or invalid (mostly for restoring backup from .lego)
     fi
     check_finish_reboot "${func_name}"
   else
-    _echo "$(msg yellow)[Skipped by system]: $(msg magenta)${func_name}()$(msg end) $(msg yellow)with current option ${run_mode} has ran before $(msg end)" --name
+    _echo "$(msg yellow)[Skipped by system]: $(msg magenta)${func_name}$(msg end) $(msg yellow)with current option ${run_mode} has ran before $(msg end)" --name
     _echo "$(msg yellow)=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=$(msg end)" --plain
   fi
 
@@ -14231,7 +14326,7 @@ configure_da_reseller_root_domains() {
     echo ""
     check_finish_reboot "${func_name}"
   else
-    _echo "$(msg yellow)[Skipped by system]: $(msg magenta)${func_name}()$(msg end) $(msg yellow)with current option ${run_mode} has ran before $(msg end)" --name
+    _echo "$(msg yellow)[Skipped by system]: $(msg magenta)${func_name}$(msg end) $(msg yellow)with current option ${run_mode} has ran before $(msg end)" --name
     _echo "$(msg yellow)=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=$(msg end)" --plain
   fi
 
@@ -14251,8 +14346,8 @@ configure_da_ssl_pre() {
   #+ cp -f /usr/local/directadmin/conf/cacert.pem /etc/httpd/conf/ssl.crt/server.crt
   #+ cp -f /usr/local/directadmin/conf/carootcert.pem /etc/httpd/conf/ssl.crt/server.ca
 
-  # Must run this functions (configure_da_host_server_ssl) after running CSF because we need to make sure all appropriate ports are opened to request certs
-  # Warning do not overused configure_da_host_server_ssl function because when requesting the same cert for the same domain 7 times for a week, you will get blocked.
+  # Must run this functions (configure_da_host_domain_ssl) after running CSF because we need to make sure all appropriate ports are opened to request certs
+  # Warning do not overused configure_da_host_domain_ssl function because when requesting the same cert for the same domain 7 times for a week, you will get blocked.
   # This will set the hosting to SSL:
   # It's best to call SSL after domain propagation few hours later.
 
@@ -14319,7 +14414,7 @@ configure_da_ssl_pre() {
     echo ""
     check_finish_reboot "${func_name}"
   else
-    _echo "$(msg yellow)[Skipped by system]: $(msg magenta)${func_name}()$(msg end) $(msg yellow)with current option ${run_mode} has ran before $(msg end)" --name
+    _echo "$(msg yellow)[Skipped by system]: $(msg magenta)${func_name}$(msg end) $(msg yellow)with current option ${run_mode} has ran before $(msg end)" --name
     _echo "$(msg yellow)=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=$(msg end)" --plain
   fi
 
@@ -14329,9 +14424,328 @@ configure_da_ssl_pre() {
     end_execute_options "${run_mode}" "${func_name}"
   fi
 }
+letsencrypt_challenge_check() {
+  local domain curl_bin
+  domain="$1"
 
-configure_da_host_server_ssl() {
-  # Request SSL failed due to DAD (until server restart)
+  curl_bin=$(which curl)
+  if [ -z "${curl_bin}" ]; then
+    _echo "$(msg red)Error, curl binary is needed!$(msg end)" --name
+    _exit 147
+  fi
+
+  if [ ! -d ${WELLKNOWN_PATH} ]; then
+    mkdir -p ${WELLKNOWN_PATH}
+  fi
+  touch ${well_known_path}/letsencrypt_${TIMESTAMP}
+  #Checking if http://www.domain.com/.well-known/acme-challenge/letsencrypt_${TIMESTAMP} is available
+  if ! ${curl_bin} -k -I -L -X GET http://${domain}/.well-known/acme-challenge/letsencrypt_${TIMESTAMP} 2>/dev/null | grep -m1 -q 'HTTP.*200'; then
+    echo 1
+  else
+    echo 0
+  fi
+  rm -f ${WELLKNOWN_PATH}/letsencrypt_${TIMESTAMP}
+}
+
+# This will configure all user domain SSL (including owner,admin,reseller, just to be sure that the user domain is created first
+configure_da_user_domain_ssl() {
+  local run_mode func_name
+  run_mode="$1"
+  extra_option="$2"
+  func_name="${FUNCNAME[0]}"
+  if [[ "${extra_option}" == "--silent-if-executed" ]]; then
+    start_execute_options "${run_mode}" "${func_name}" &>/dev/null
+  else
+    start_execute_options "${run_mode}" "${func_name}"
+  fi
+  [[ "${SKIP_RUN}" == "true" ]] && return 0
+  if [[ ! -f "${CONF_PATH}/${func_name}_executed" && "${FUNCTION_RUN}" == "true" ]]; then
+
+    local da_bin da_cb_bin dataskq da_conf task_queue da_script_path lego_data_path
+
+    da_bin="/usr/local/directadmin/directadmin"
+    da_cb_bin="/usr/local/directadmin/custombuild/build"
+    dataskq="/usr/local/directadmin/dataskq"
+    da_conf="/usr/local/directadmin/conf/directadmin.conf"
+    da_conf_path="/usr/local/directadmin/conf"
+    da_script_path="/usr/local/directadmin/scripts"
+    # This file does not exist by default
+    task_queue="/usr/local/directadmin/data/task.queue.cb"
+
+    _echo "$(msg cyan)Checking directadmin required files ...$(msg end)" --name
+    check_path "${da_bin}" "${da_cb_bin}" "${dataskq}" "${da_conf}" "${da_script_path}" "${da_conf_path}"
+    echo ""
+
+    _echo "$(msg cyan)Configuring Directadmin SSL for user domain certificate ...$(msg end)" --name
+
+    # Only do this if AUTO SSL is not enable
+    if [ "${C_DA_DISABLE_DOMAIN_AUTO_SSL}" == "true" ]; then
+      # This script is based on the original DA script http://files.directadmin.com/services/all/letsencrypt/autoletsencrypt.sh
+      # and the improvement was specifically made to solve this issue which is not documented:
+      # https://forum.directadmin.com/threads/restore-ssl-certificate-for-user-domain-from-usr-local-directadmin-data-lego-folder.64842/
+      local lego_data_path has_letsencrypt_set letsencrypt_list_selected
+
+      lego_data_path="/usr/local/directadmin/data/.lego"
+      mkdir -p "${lego_data_path}/certificates"
+
+      # SSL location:
+      key=$(${da_bin} c | grep ^cakey= | cut -d= -f2)
+      cert=$(${da_bin} c | grep ^cacert= | cut -d= -f2)
+      cacert=$(${da_bin} c | grep ^carootcert= | cut -d= -f2)
+
+      set_da_cacert=false
+      if [ "${cacert}" = "" ] || [ "${cert}" = "${da_conf_path}/carootcert.pem" ]; then
+        cert="${da_conf_path}/cacert.pem"
+        cacert="${da_conf_path}/carootcert.pem"
+        set_da_cacert=true
+      fi
+
+      # This is the well known path for letsencrypt SSL server verification
+      has_letsencrypt_set=$(${da_bin} c | grep -m1 '^letsencrypt=1$')
+
+      if [ -z "${has_letsencrypt_set}" ]; then
+        _echo "$(msg red)Error, let's encrypt hasn't been enabled on the system!$(msg end)" --name
+        _exit 147
+      else
+        letsencrypt_list_selected="$(${da_bin} c | grep '^letsencrypt_list_selected=' | cut -d= -f2 | tr ':' ' ')"
+      fi
+      local da_reseller_usernames_count reseller_count
+      da_reseller_usernames_count=$(echo "${!C_DA_RESELLER_USERNAME@}" | wc -w)
+      reseller_count=1
+      while [[ ${reseller_count} -le ${da_reseller_usernames_count} ]]; do
+        echo ""
+        echo "===== RESELLER USER: ${reseller_count} ========="
+        typeset -n da_reseller_username="C_DA_RESELLER_USERNAME${reseller_count}"
+        typeset -n da_reseller_restore_domain_ssl="C_DA_RESELLER_RESTORE_USER_DOMAIN_SSL${reseller_count}"
+        echo "da_reseller_username: ${da_reseller_username}"
+        echo "da_reseller_restore_domain_ssl: ${da_reseller_restore_domain_ssl}"
+
+        if [ "${da_reseller_restore_domain_ssl}" == "true" ]; then
+          all_domains=""
+          for root_domain in $(cat /usr/local/directadmin/data/users/${da_reseller_username}/domains.list); do
+            # For domain first:======================
+            echo "root_domain: ${root_domain}"
+            all_domains="${root_domain}"
+            # For its subdomain: ====================
+            for sub_domain in $(cat /usr/local/directadmin/data/users/${da_reseller_username}/domains/${root_domain}.subdomains); do
+              all_domains="${all_domains} ${sub_domain}.${root_domain}"
+            done
+          done
+
+          all_domains=("${all_domains}")
+          echo "all_domains: ${all_domains[*]}"
+          # This 3 files must be pushed from SSH into ${lego_data_path} then check them if they exist
+          for da_domain in "${all_domains[@]}"; do
+            lego_cert_path="${lego_data_path}/certificates/${da_domain}.crt"
+            lego_key_path="${lego_data_path}/certificates/${da_domain}.key"
+            lego_issuer_cert_path=$(echo "${lego_cert_path}" | sed 's/\.crt/.issuer.crt/')
+            lego_cert_json_path="${lego_data_path}/certificates/${da_domain}.json"
+
+            check_path "${SSL_PATH}/${da_domain}.crt" "${SSL_PATH}/${da_domain}.key" "${SSL_PATH}/${da_domain}.issuer.crt" "${SSL_PATH}/${da_domain}.json"
+
+            echo -n "Copying ${SSL_PATH}/${da_domain}.crt into ${lego_cert_path} ... "
+            cp "${SSL_PATH}/${da_domain}.crt" "${lego_cert_path}"
+            get_status_message "$?"
+            echo -n "Copying ${SSL_PATH}/${da_domain}.key into ${lego_key_path} ... "
+            cp "${SSL_PATH}/${da_domain}.key" "${lego_key_path}"
+            get_status_message "$?"
+            echo -n "Copying ${SSL_PATH}/${da_domain}.issuer.key into ${lego_issuer_cert_path} ... "
+            cp "${SSL_PATH}/${da_domain}.issuer.crt" "${lego_issuer_cert_path}"
+            get_status_message "$?"
+            echo -n "Copying ${SSL_PATH}/${da_domain}.json into ${lego_cert_json_path} ... "
+            cp "${SSL_PATH}/${da_domain}.json" "${lego_cert_json_path}"
+            get_status_message "$?"
+            _echo "$(msg cyan)Correcting permission of certificates ...$(msg end)" --name
+            chmod 600 "${lego_cert_path}" "${lego_key_path}" "${lego_issuer_cert_path}" "${lego_cert_json_path}"
+            get_status_message "$?"
+            echo ""
+            _echo "$(msg cyan)Checking certificate path for ${da_domain} ...$(msg end)" --name
+            check_path "${lego_cert_path}" "${lego_key_path}" "${lego_issuer_cert_path}" "${lego_cert_json_path}"
+            echo ""
+
+            if [ -s "${lego_cert_path}" ] && [ -s "${lego_key_path}" ]; then
+              if [ $(grep -c "BEGIN CERTIFICATE" "${lego_cert_path}") -eq 1 ]; then
+                cp -pf "${lego_cert_path}" ${cert}
+              else
+                openssl x509 -in "${lego_cert_path}" -out ${cert}
+                get_status_message "$?"
+              fi
+              cp -pf "${lego_key_path}" ${key}
+              if [ -s "${lego_issuer_cert_path}" ]; then
+                cp -pfv "${lego_issuer_cert_path}" ${cacert}
+                cat ${cert} ${cacert} >${cert}.combined
+              else
+                cp -pfv "${lego_cert_path}" ${cert}.combined
+              fi
+              date +%s >${cert}.creation_time
+              chown diradmin:${C_DA_SECURE_ACCESS_GROUP} ${key} ${cert} ${cert}.combined ${cacert} ${cert}.creation_time
+              # This file is the one that renew certificate, if this is deleted, renewal will be disable
+              chmod 640 ${key} ${cert} ${cert}.combined ${cacert} ${cert}.creation_time
+              echo "Certificate for ${da_domain} has been created successfully!"
+            else
+              echo "New key/certificate is empty. Exiting..."
+              exit 1
+            fi
+
+            echo "DirectAdmin certificate for ${da_domain} has been setup."
+
+            if [ -e /usr/local/directadmin/data/users/${da_user}/domains/${da_domain}.cert ]; then
+              REWRITE=false
+              if ! grep -m1 -q '^ssl=ON' /usr/local/directadmin/data/users/${da_user}/domains/${da_domain}.conf; then
+                perl -pi -e 's|^ssl\=.*|ssl=ON|g' /usr/local/directadmin/data/users/${da_user}/domains/${da_domain}.conf
+                REWRITE=true
+              fi
+              if ! grep -m1 -q '^ssl=ON' /usr/local/directadmin/data/users/${da_user}/domains/${da_domain}.conf; then
+                echo 'ssl=ON' >>/usr/local/directadmin/data/users/${da_user}/domains/${da_domain}.conf
+              fi
+              if ! grep -m1 -q '^SSLCACertificateFile=' /usr/local/directadmin/data/users/${da_user}/domains/${da_domain}.conf && ! grep -m1 -q '^SSLCertificateFile=' /usr/local/directadmin/data/users/${da_user}/domains/${da_domain}.conf && ! grep -m1 -q '^SSLCertificateKeyFile=' /usr/local/directadmin/data/users/${da_user}/domains/${da_domain}.conf; then
+                perl -pi -e "s|^UseCanonicalName=|SSLCACertificateFile=/usr/local/directadmin/data/users/${da_user}/domains/${da_domain}.cacert\nSSLCertificateFile=/usr/local/directadmin/data/users/${da_user}/domains/${da_domain}.cert\nSSLCertificateKeyFile=/usr/local/directadmin/data/users/${da_user}/domains/${da_domain}.key\nUseCanonicalName=|g" /usr/local/directadmin/data/users/${da_user}/domains/${da_domain}.conf
+                REWRITE=true
+              fi
+
+              if ${REWRITE}; then
+                echo "action=rewrite&value=httpd&user=${da_user}" >>/usr/local/directadmin/data/task.queue
+                echo "action=rewrite&value=mail_sni&domain=${da_domain}" >>/usr/local/directadmin/data/task.queue
+              fi
+            fi
+          done
+
+        fi
+
+        echo "=========================================="
+        ((reseller_count++))
+      done
+
+      # For user
+      local user_count da_user_usernames_count
+
+      da_user_usernames_count=$(echo "${!C_DA_USER_USERNAME@}" | wc -w)
+      user_count=1
+      while [[ ${user_count} -le ${da_user_usernames_count} ]]; do
+
+        echo ""
+        echo "===== USER USER: ${user_count} ========="
+        typeset -n da_user_username="C_DA_USER_USERNAME${user_count}"
+        typeset -n da_user_restore_domain_ssl="C_DA_USER_RESTORE_USER_DOMAIN_SSL${user_count}"
+        echo "da_user_username: ${da_user_username}"
+        echo "da_user_restore_domain_ssl: ${da_user_restore_domain_ssl}"
+
+        if [ "${da_user_restore_domain_ssl}" == "true" ]; then
+          all_domains=""
+          for root_domain in $(cat /usr/local/directadmin/data/users/${da_user_username}/domains.list); do
+            # For domain first:======================
+            echo "root_domain: ${root_domain}"
+            all_domains="${root_domain}"
+            # For its subdomain: ====================
+            for sub_domain in $(cat /usr/local/directadmin/data/users/${da_user_username}/domains/${root_domain}.subdomains); do
+              all_domains="${all_domains} ${sub_domain}.${root_domain}"
+            done
+          done
+
+          all_domains=(${all_domains})
+          echo "all_domains: ${all_domains[*]}"
+          # This 3 files must be pushed from SSH into ${lego_data_path} then check them if they exist
+          for da_domain in "${all_domains[@]}"; do
+            lego_cert_path="${lego_data_path}/certificates/${da_domain}.crt"
+            lego_key_path="${lego_data_path}/certificates/${da_domain}.key"
+            lego_issuer_cert_path=$(echo "${lego_cert_path}" | sed 's/\.crt/.issuer.crt/')
+            lego_cert_json_path="${lego_data_path}/certificates/${da_domain}.json"
+
+            check_path "${SSL_PATH}/${da_domain}.crt" "${SSL_PATH}/${da_domain}.key" "${SSL_PATH}/${da_domain}.issuer.crt" "${SSL_PATH}/${da_domain}.json"
+
+            echo -n "Copying ${SSL_PATH}/${da_domain}.crt into ${lego_cert_path} ... "
+            cp "${SSL_PATH}/${da_domain}.crt" "${lego_cert_path}"
+            get_status_message "$?"
+            echo -n "Copying ${SSL_PATH}/${da_domain}.key into ${lego_key_path} ... "
+            cp "${SSL_PATH}/${da_domain}.key" "${lego_key_path}"
+            get_status_message "$?"
+            echo -n "Copying ${SSL_PATH}/${da_domain}.issuer.key into ${lego_issuer_cert_path} ... "
+            cp "${SSL_PATH}/${da_domain}.issuer.crt" "${lego_issuer_cert_path}"
+            get_status_message "$?"
+            echo -n "Copying ${SSL_PATH}/${da_domain}.json into ${lego_cert_json_path} ... "
+            cp "${SSL_PATH}/${da_domain}.json" "${lego_cert_json_path}"
+            get_status_message "$?"
+            _echo "$(msg cyan)Correcting permission of certificates ...$(msg end)" --name
+            chmod 600 "${lego_cert_path}" "${lego_key_path}" "${lego_issuer_cert_path}" "${lego_cert_json_path}"
+            get_status_message "$?"
+            echo ""
+            _echo "$(msg cyan)Checking certificate path for ${da_domain} ...$(msg end)" --name
+            check_path "${lego_cert_path}" "${lego_key_path}" "${lego_issuer_cert_path}" "${lego_cert_json_path}"
+            echo ""
+
+            if [ -s "${lego_cert_path}" ] && [ -s "${lego_key_path}" ]; then
+              if [ $(grep -c "BEGIN CERTIFICATE" "${lego_cert_path}") -eq 1 ]; then
+                cp -pf "${lego_cert_path}" ${cert}
+              else
+                openssl x509 -in "${lego_cert_path}" -out ${cert}
+                get_status_message "$?"
+              fi
+              cp -pf "${lego_key_path}" ${key}
+              if [ -s "${lego_issuer_cert_path}" ]; then
+                cp -pfv "${lego_issuer_cert_path}" ${cacert}
+                cat ${cert} ${cacert} >${cert}.combined
+              else
+                cp -pfv "${lego_cert_path}" ${cert}.combined
+              fi
+              date +%s >${cert}.creation_time
+              chown diradmin:${C_DA_SECURE_ACCESS_GROUP} ${key} ${cert} ${cert}.combined ${cacert} ${cert}.creation_time
+              # This file is the one that renew certificate, if this is deleted, renewal will be disable
+              chmod 640 ${key} ${cert} ${cert}.combined ${cacert} ${cert}.creation_time
+              echo "Certificate for ${da_domain} has been created successfully!"
+            else
+              echo "New key/certificate is empty. Exiting..."
+              exit 1
+            fi
+
+            echo "DirectAdmin certificate for ${da_domain} has been setup."
+
+            if [ -e /usr/local/directadmin/data/users/${da_user}/domains/${da_domain}.cert ]; then
+              REWRITE=false
+              if ! grep -m1 -q '^ssl=ON' /usr/local/directadmin/data/users/${da_user}/domains/${da_domain}.conf; then
+                perl -pi -e 's|^ssl\=.*|ssl=ON|g' /usr/local/directadmin/data/users/${da_user}/domains/${da_domain}.conf
+                REWRITE=true
+              fi
+              if ! grep -m1 -q '^ssl=ON' /usr/local/directadmin/data/users/${da_user}/domains/${da_domain}.conf; then
+                echo 'ssl=ON' >>/usr/local/directadmin/data/users/${da_user}/domains/${da_domain}.conf
+              fi
+              if ! grep -m1 -q '^SSLCACertificateFile=' /usr/local/directadmin/data/users/${da_user}/domains/${da_domain}.conf && ! grep -m1 -q '^SSLCertificateFile=' /usr/local/directadmin/data/users/${da_user}/domains/${da_domain}.conf && ! grep -m1 -q '^SSLCertificateKeyFile=' /usr/local/directadmin/data/users/${da_user}/domains/${da_domain}.conf; then
+                perl -pi -e "s|^UseCanonicalName=|SSLCACertificateFile=/usr/local/directadmin/data/users/${da_user}/domains/${da_domain}.cacert\nSSLCertificateFile=/usr/local/directadmin/data/users/${da_user}/domains/${da_domain}.cert\nSSLCertificateKeyFile=/usr/local/directadmin/data/users/${da_user}/domains/${da_domain}.key\nUseCanonicalName=|g" /usr/local/directadmin/data/users/${da_user}/domains/${da_domain}.conf
+                REWRITE=true
+              fi
+
+              if ${REWRITE}; then
+                echo "action=rewrite&value=httpd&user=${da_user}" >>/usr/local/directadmin/data/task.queue
+                echo "action=rewrite&value=mail_sni&domain=${da_domain}" >>/usr/local/directadmin/data/task.queue
+              fi
+            fi
+          done
+
+        fi
+
+        echo "=========================================="
+        ((user_count++))
+      done
+
+    else
+
+      echo "Skip"
+    fi
+
+    echo ""
+    check_finish_reboot "${func_name}"
+  else
+    _echo "$(msg yellow)[Skipped by system]: $(msg magenta)${func_name}$(msg end) $(msg yellow)with current option ${run_mode} has ran before $(msg end)" --name
+    _echo "$(msg yellow)=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=$(msg end)" --plain
+  fi
+
+  if [[ "${extra_option}" == "--silent-if-executed" ]]; then
+    end_execute_options "${run_mode}" "${func_name}" &>/dev/null
+  else
+    end_execute_options "${run_mode}" "${func_name}"
+  fi
+}
+configure_da_host_domain_ssl() {
+  # OLD NOTES:
   # Interesting answer: https://serverfault.com/questions/602700/debian-ipv6-is-not-asssigned-to-interface
   # Nice reading: https://www.agwa.name/blog/post/beware_the_ipv6_dad_race_condition
   # https://serverfault.com/questions/421460/nginx-failed-to-start-cannot-assign-requested-address
@@ -14389,17 +14803,19 @@ configure_da_host_server_ssl() {
         lego_issuer_cert_path=$(echo "${lego_cert_path}" | sed 's/\.crt/.issuer.crt/')
         lego_cert_json_path="${lego_data_path}/certificates/${C_BOX_HOSTNAME_FQHN}.json"
 
-        echo -n "Copying ${SCRIPT_PATH}/${C_BOX_HOSTNAME_FQHN}.crt into ${lego_cert_path} ... "
-        cp "${SCRIPT_PATH}/${C_BOX_HOSTNAME_FQHN}.crt" "${lego_cert_path}"
+        check_path "${SSL_PATH}/${C_BOX_HOSTNAME_FQHN}.crt" "${SSL_PATH}/${C_BOX_HOSTNAME_FQHN}.key" "${SSL_PATH}/${C_BOX_HOSTNAME_FQHN}.issuer.crt" "${SSL_PATH}/${C_BOX_HOSTNAME_FQHN}.json"
+
+        echo -n "Copying ${SSL_PATH}/${C_BOX_HOSTNAME_FQHN}.crt into ${lego_cert_path} ... "
+        cp "${SSL_PATH}/${C_BOX_HOSTNAME_FQHN}.crt" "${lego_cert_path}"
         get_status_message "$?"
-        echo -n "Copying ${SCRIPT_PATH}/${C_BOX_HOSTNAME_FQHN}.key into ${lego_key_path} ... "
-        cp "${SCRIPT_PATH}/${C_BOX_HOSTNAME_FQHN}.key" "${lego_key_path}"
+        echo -n "Copying ${SSL_PATH}/${C_BOX_HOSTNAME_FQHN}.key into ${lego_key_path} ... "
+        cp "${SSL_PATH}/${C_BOX_HOSTNAME_FQHN}.key" "${lego_key_path}"
         get_status_message "$?"
-        echo -n "Copying ${SCRIPT_PATH}/${C_BOX_HOSTNAME_FQHN}.issuer.key into ${lego_issuer_cert_path} ... "
-        cp "${SCRIPT_PATH}/${C_BOX_HOSTNAME_FQHN}.issuer.crt" "${lego_issuer_cert_path}"
+        echo -n "Copying ${SSL_PATH}/${C_BOX_HOSTNAME_FQHN}.issuer.key into ${lego_issuer_cert_path} ... "
+        cp "${SSL_PATH}/${C_BOX_HOSTNAME_FQHN}.issuer.crt" "${lego_issuer_cert_path}"
         get_status_message "$?"
-        echo -n "Copying ${SCRIPT_PATH}/${C_BOX_HOSTNAME_FQHN}.json into ${lego_cert_json_path} ... "
-        cp "${SCRIPT_PATH}/${C_BOX_HOSTNAME_FQHN}.json" "${lego_cert_json_path}"
+        echo -n "Copying ${SSL_PATH}/${C_BOX_HOSTNAME_FQHN}.json into ${lego_cert_json_path} ... "
+        cp "${SSL_PATH}/${C_BOX_HOSTNAME_FQHN}.json" "${lego_cert_json_path}"
         get_status_message "$?"
         _echo "$(msg cyan)Correcting permission of certificates ...$(msg end)" --name
         chmod 600 "${lego_cert_path}" "${lego_key_path}" "${lego_issuer_cert_path}" "${lego_cert_json_path}"
@@ -14670,7 +15086,7 @@ configure_da_host_server_ssl() {
     echo ""
     check_finish_reboot "${func_name}"
   else
-    _echo "$(msg yellow)[Skipped by system]: $(msg magenta)${func_name}()$(msg end) $(msg yellow)with current option ${run_mode} has ran before $(msg end)" --name
+    _echo "$(msg yellow)[Skipped by system]: $(msg magenta)${func_name}$(msg end) $(msg yellow)with current option ${run_mode} has ran before $(msg end)" --name
     _echo "$(msg yellow)=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=$(msg end)" --plain
   fi
 
@@ -14709,7 +15125,7 @@ add_da_ip() {
     echo ""
     check_finish_reboot "${func_name}"
   else
-    _echo "$(msg yellow)[Skipped by system]: $(msg magenta)${func_name}()$(msg end) $(msg yellow)with current option ${run_mode} has ran before $(msg end)" --name
+    _echo "$(msg yellow)[Skipped by system]: $(msg magenta)${func_name}$(msg end) $(msg yellow)with current option ${run_mode} has ran before $(msg end)" --name
     _echo "$(msg yellow)=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=$(msg end)" --plain
   fi
 
@@ -14743,7 +15159,7 @@ configure_maxibox() {
     echo ""
     check_finish_reboot "${func_name}"
   else
-    _echo "$(msg yellow)[Skipped by system]: $(msg magenta)${func_name}()$(msg end) $(msg yellow)with current option ${run_mode} has ran before $(msg end)" --name
+    _echo "$(msg yellow)[Skipped by system]: $(msg magenta)${func_name}$(msg end) $(msg yellow)with current option ${run_mode} has ran before $(msg end)" --name
     _echo "$(msg yellow)=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=$(msg end)" --plain
   fi
 
@@ -14777,7 +15193,7 @@ configure_maxicode_pre() {
     echo ""
     check_finish_reboot "${func_name}"
   else
-    _echo "$(msg yellow)[Skipped by system]: $(msg magenta)${func_name}()$(msg end) $(msg yellow)with current option ${run_mode} has ran before $(msg end)" --name
+    _echo "$(msg yellow)[Skipped by system]: $(msg magenta)${func_name}$(msg end) $(msg yellow)with current option ${run_mode} has ran before $(msg end)" --name
     _echo "$(msg yellow)=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=$(msg end)" --plain
   fi
 
@@ -14848,7 +15264,7 @@ configure_maxicode() {
     echo ""
     check_finish_reboot "${func_name}"
   else
-    _echo "$(msg yellow)[Skipped by system]: $(msg magenta)${func_name}()$(msg end) $(msg yellow)with current option ${run_mode} has ran before $(msg end)" --name
+    _echo "$(msg yellow)[Skipped by system]: $(msg magenta)${func_name}$(msg end) $(msg yellow)with current option ${run_mode} has ran before $(msg end)" --name
     _echo "$(msg yellow)=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=$(msg end)" --plain
   fi
 
@@ -14889,7 +15305,7 @@ configure_maxiperm() {
     echo ""
     check_finish_reboot "${func_name}"
   else
-    _echo "$(msg yellow)[Skipped by system]: $(msg magenta)${func_name}()$(msg end) $(msg yellow)with current option ${run_mode} has ran before $(msg end)" --name
+    _echo "$(msg yellow)[Skipped by system]: $(msg magenta)${func_name}$(msg end) $(msg yellow)with current option ${run_mode} has ran before $(msg end)" --name
     _echo "$(msg yellow)=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=$(msg end)" --plain
   fi
 
@@ -14947,7 +15363,7 @@ configure_maxinis() {
     echo ""
     check_finish_reboot "${func_name}"
   else
-    _echo "$(msg yellow)[Skipped by system]: $(msg magenta)${func_name}()$(msg end) $(msg yellow)with current option ${run_mode} has ran before $(msg end)" --name
+    _echo "$(msg yellow)[Skipped by system]: $(msg magenta)${func_name}$(msg end) $(msg yellow)with current option ${run_mode} has ran before $(msg end)" --name
     _echo "$(msg yellow)=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=$(msg end)" --plain
   fi
 
@@ -15064,14 +15480,14 @@ configure_maxigpg() {
       local gpg_priv_key gpg_priv_key_encrypted retval
 
       # This file must be encrypted (coming from maxicode)
-      gpg_priv_key_encrypted="${SCRIPT_PATH}/gpg_private_key.gpg"
+      gpg_priv_key_encrypted="${SCRIPT_PATH}/gpg/gpg_private_key.gpg"
 
       if [ ! -f "${gpg_priv_key_encrypted}" ]; then
         _echo "$(msg cyan)Error, the GPG private key does not exist in ${gpg_priv_key_encrypted}. Make sure it exists before continue$(msg end)" --name
         _exit 147
       fi
       # This is the path for unencrypted key
-      gpg_priv_key="${SCRIPT_PATH}/gpg_private_key"
+      gpg_priv_key="${SCRIPT_PATH}/gpg/gpg_private_key"
       _echo "$(msg cyan)Removing existing unencrypted private key ${gpg_priv_key} ...$(msg end)" --name
       rm -f "${gpg_priv_key}"
       echo ""
@@ -15293,7 +15709,7 @@ configure_maxigpg() {
     echo ""
     check_finish_reboot "${func_name}"
   else
-    _echo "$(msg yellow)[Skipped by system]: $(msg magenta)${func_name}()$(msg end) $(msg yellow)with current option ${run_mode} has ran before $(msg end)" --name
+    _echo "$(msg yellow)[Skipped by system]: $(msg magenta)${func_name}$(msg end) $(msg yellow)with current option ${run_mode} has ran before $(msg end)" --name
     _echo "$(msg yellow)=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=$(msg end)" --plain
   fi
 
@@ -15334,7 +15750,7 @@ configure_maxinance() {
     echo ""
     check_finish_reboot "${func_name}"
   else
-    _echo "$(msg yellow)[Skipped by system]: $(msg magenta)${func_name}()$(msg end) $(msg yellow)with current option ${run_mode} has ran before $(msg end)" --name
+    _echo "$(msg yellow)[Skipped by system]: $(msg magenta)${func_name}$(msg end) $(msg yellow)with current option ${run_mode} has ran before $(msg end)" --name
     _echo "$(msg yellow)=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=$(msg end)" --plain
   fi
 
@@ -15394,7 +15810,7 @@ configure_maxiaide() {
     echo ""
     check_finish_reboot "${func_name}"
   else
-    _echo "$(msg yellow)[Skipped by system]: $(msg magenta)${func_name}()$(msg end) $(msg yellow)with current option ${run_mode} has ran before $(msg end)" --name
+    _echo "$(msg yellow)[Skipped by system]: $(msg magenta)${func_name}$(msg end) $(msg yellow)with current option ${run_mode} has ran before $(msg end)" --name
     _echo "$(msg yellow)=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=$(msg end)" --plain
   fi
 
@@ -15423,7 +15839,7 @@ configure_da_wpcli() {
     echo ""
     check_finish_reboot "${func_name}"
   else
-    _echo "$(msg yellow)[Skipped by system]: $(msg magenta)${func_name}()$(msg end) $(msg yellow)with current option ${run_mode} has ran before $(msg end)" --name
+    _echo "$(msg yellow)[Skipped by system]: $(msg magenta)${func_name}$(msg end) $(msg yellow)with current option ${run_mode} has ran before $(msg end)" --name
     _echo "$(msg yellow)=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=$(msg end)" --plain
   fi
 
@@ -15465,7 +15881,7 @@ configure_maxicli() {
     echo ""
     check_finish_reboot "${func_name}"
   else
-    _echo "$(msg yellow)[Skipped by system]: $(msg magenta)${func_name}()$(msg end) $(msg yellow)with current option ${run_mode} has ran before $(msg end)" --name
+    _echo "$(msg yellow)[Skipped by system]: $(msg magenta)${func_name}$(msg end) $(msg yellow)with current option ${run_mode} has ran before $(msg end)" --name
     _echo "$(msg yellow)=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=$(msg end)" --plain
   fi
 
@@ -15517,7 +15933,7 @@ configure_maxida() {
     echo ""
     check_finish_reboot "${func_name}"
   else
-    _echo "$(msg yellow)[Skipped by system]: $(msg magenta)${func_name}()$(msg end) $(msg yellow)with current option ${run_mode} has ran before $(msg end)" --name
+    _echo "$(msg yellow)[Skipped by system]: $(msg magenta)${func_name}$(msg end) $(msg yellow)with current option ${run_mode} has ran before $(msg end)" --name
     _echo "$(msg yellow)=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=$(msg end)" --plain
   fi
 
@@ -15566,7 +15982,7 @@ configure_maxicron() {
     echo ""
     check_finish_reboot "${func_name}"
   else
-    _echo "$(msg yellow)[Skipped by system]: $(msg magenta)${func_name}()$(msg end) $(msg yellow)with current option ${run_mode} has ran before $(msg end)" --name
+    _echo "$(msg yellow)[Skipped by system]: $(msg magenta)${func_name}$(msg end) $(msg yellow)with current option ${run_mode} has ran before $(msg end)" --name
     _echo "$(msg yellow)=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=$(msg end)" --plain
   fi
 
@@ -15610,7 +16026,7 @@ configure_maxirbl() {
     echo ""
     check_finish_reboot "${func_name}"
   else
-    _echo "$(msg yellow)[Skipped by system]: $(msg magenta)${func_name}()$(msg end) $(msg yellow)with current option ${run_mode} has ran before $(msg end)" --name
+    _echo "$(msg yellow)[Skipped by system]: $(msg magenta)${func_name}$(msg end) $(msg yellow)with current option ${run_mode} has ran before $(msg end)" --name
     _echo "$(msg yellow)=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=$(msg end)" --plain
   fi
 
@@ -16033,7 +16449,7 @@ configure_maxiwall() {
     echo ""
     check_finish_reboot "${func_name}"
   else
-    _echo "$(msg yellow)[Skipped by system]: $(msg magenta)${func_name}()$(msg end) $(msg yellow)with current option ${run_mode} has ran before $(msg end)" --name
+    _echo "$(msg yellow)[Skipped by system]: $(msg magenta)${func_name}$(msg end) $(msg yellow)with current option ${run_mode} has ran before $(msg end)" --name
     _echo "$(msg yellow)=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=$(msg end)" --plain
   fi
 
@@ -16084,7 +16500,7 @@ configure_maxicloud() {
     echo ""
     check_finish_reboot "${func_name}"
   else
-    _echo "$(msg yellow)[Skipped by system]: $(msg magenta)${func_name}()$(msg end) $(msg yellow)with current option ${run_mode} has ran before $(msg end)" --name
+    _echo "$(msg yellow)[Skipped by system]: $(msg magenta)${func_name}$(msg end) $(msg yellow)with current option ${run_mode} has ran before $(msg end)" --name
     _echo "$(msg yellow)=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=$(msg end)" --plain
   fi
 
@@ -16148,7 +16564,7 @@ configure_maxipass() {
     echo ""
     check_finish_reboot "${func_name}"
   else
-    _echo "$(msg yellow)[Skipped by system]: $(msg magenta)${func_name}()$(msg end) $(msg yellow)with current option ${run_mode} has ran before $(msg end)" --name
+    _echo "$(msg yellow)[Skipped by system]: $(msg magenta)${func_name}$(msg end) $(msg yellow)with current option ${run_mode} has ran before $(msg end)" --name
     _echo "$(msg yellow)=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=$(msg end)" --plain
   fi
 
@@ -16209,7 +16625,7 @@ configure_maxidb() {
     echo ""
     check_finish_reboot "${func_name}"
   else
-    _echo "$(msg yellow)[Skipped by system]: $(msg magenta)${func_name}()$(msg end) $(msg yellow)with current option ${run_mode} has ran before $(msg end)" --name
+    _echo "$(msg yellow)[Skipped by system]: $(msg magenta)${func_name}$(msg end) $(msg yellow)with current option ${run_mode} has ran before $(msg end)" --name
     _echo "$(msg yellow)=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=$(msg end)" --plain
   fi
 
@@ -16236,7 +16652,7 @@ configure_maxify() {
     echo ""
     check_finish_reboot "${func_name}"
   else
-    _echo "$(msg yellow)[Skipped by system]: $(msg magenta)${func_name}()$(msg end) $(msg yellow)with current option ${run_mode} has ran before $(msg end)" --name
+    _echo "$(msg yellow)[Skipped by system]: $(msg magenta)${func_name}$(msg end) $(msg yellow)with current option ${run_mode} has ran before $(msg end)" --name
     _echo "$(msg yellow)=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=$(msg end)" --plain
   fi
 
@@ -16264,7 +16680,7 @@ configure_logs() {
     echo ""
     check_finish_reboot "${func_name}"
   else
-    _echo "$(msg yellow)[Skipped by system]: $(msg magenta)${func_name}()$(msg end) $(msg yellow)with current option ${run_mode} has ran before $(msg end)" --name
+    _echo "$(msg yellow)[Skipped by system]: $(msg magenta)${func_name}$(msg end) $(msg yellow)with current option ${run_mode} has ran before $(msg end)" --name
     _echo "$(msg yellow)=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=$(msg end)" --plain
   fi
 
@@ -16358,7 +16774,7 @@ configure_da_owner_skins() {
     echo ""
     check_finish_reboot "${func_name}"
   else
-    _echo "$(msg yellow)[Skipped by system]: $(msg magenta)${func_name}()$(msg end) $(msg yellow)with current option ${run_mode} has ran before $(msg end)" --name
+    _echo "$(msg yellow)[Skipped by system]: $(msg magenta)${func_name}$(msg end) $(msg yellow)with current option ${run_mode} has ran before $(msg end)" --name
     _echo "$(msg yellow)=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=$(msg end)" --plain
   fi
 
@@ -16432,7 +16848,7 @@ configure_da_owner_security() {
     echo ""
     check_finish_reboot "${func_name}"
   else
-    _echo "$(msg yellow)[Skipped by system]: $(msg magenta)${func_name}()$(msg end) $(msg yellow)with current option ${run_mode} has ran before $(msg end)" --name
+    _echo "$(msg yellow)[Skipped by system]: $(msg magenta)${func_name}$(msg end) $(msg yellow)with current option ${run_mode} has ran before $(msg end)" --name
     _echo "$(msg yellow)=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=$(msg end)" --plain
   fi
 
@@ -16524,7 +16940,7 @@ configure_da_admin_skins() {
     echo ""
     check_finish_reboot "${func_name}"
   else
-    _echo "$(msg yellow)[Skipped by system]: $(msg magenta)${func_name}()$(msg end) $(msg yellow)with current option ${run_mode} has ran before $(msg end)" --name
+    _echo "$(msg yellow)[Skipped by system]: $(msg magenta)${func_name}$(msg end) $(msg yellow)with current option ${run_mode} has ran before $(msg end)" --name
     _echo "$(msg yellow)=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=$(msg end)" --plain
   fi
 
@@ -16615,7 +17031,7 @@ configure_da_reseller_skins() {
     echo ""
     check_finish_reboot "${func_name}"
   else
-    _echo "$(msg yellow)[Skipped by system]: $(msg magenta)${func_name}()$(msg end) $(msg yellow)with current option ${run_mode} has ran before $(msg end)" --name
+    _echo "$(msg yellow)[Skipped by system]: $(msg magenta)${func_name}$(msg end) $(msg yellow)with current option ${run_mode} has ran before $(msg end)" --name
     _echo "$(msg yellow)=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=$(msg end)" --plain
   fi
 
@@ -16645,7 +17061,7 @@ configure_da_admin_admin_settings() {
     echo ""
     check_finish_reboot "${func_name}"
   else
-    _echo "$(msg yellow)[Skipped by system]: $(msg magenta)${func_name}()$(msg end) $(msg yellow)with current option ${run_mode} has ran before $(msg end)" --name
+    _echo "$(msg yellow)[Skipped by system]: $(msg magenta)${func_name}$(msg end) $(msg yellow)with current option ${run_mode} has ran before $(msg end)" --name
     _echo "$(msg yellow)=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=$(msg end)" --plain
   fi
 
@@ -16729,7 +17145,7 @@ configure_da_reseller_wildcard_domains() {
     echo ""
     check_finish_reboot "${func_name}"
   else
-    _echo "$(msg yellow)[Skipped by system]: $(msg magenta)${func_name}()$(msg end) $(msg yellow)with current option ${run_mode} has ran before $(msg end)" --name
+    _echo "$(msg yellow)[Skipped by system]: $(msg magenta)${func_name}$(msg end) $(msg yellow)with current option ${run_mode} has ran before $(msg end)" --name
     _echo "$(msg yellow)=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=$(msg end)" --plain
   fi
 
@@ -16829,7 +17245,7 @@ configure_da_reseller_subdomains() {
     echo ""
     check_finish_reboot "${func_name}"
   else
-    _echo "$(msg yellow)[Skipped by system]: $(msg magenta)${func_name}()$(msg end) $(msg yellow)with current option ${run_mode} has ran before $(msg end)" --name
+    _echo "$(msg yellow)[Skipped by system]: $(msg magenta)${func_name}$(msg end) $(msg yellow)with current option ${run_mode} has ran before $(msg end)" --name
     _echo "$(msg yellow)=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=$(msg end)" --plain
   fi
 
@@ -16867,7 +17283,7 @@ configure_da_reseller_email_accounts() {
       _echo "Reseller email details:" --name --verbose 7
       _echo "Reseller count ${reseller_count} out of ${da_reseller_usernames_count}" --name --verbose 7
       _echo "da_reseller_username: ${da_reseller_username}" --name --verbose 7
-      _echo "da_reseller_mail_accounts: ${da_reseller_mail_accounts[@]}" --name --verbose 7
+      _echo "da_reseller_mail_accounts: ${da_reseller_mail_accounts[*]}" --name --verbose 7
       _echo "da_reseller_mail_accounts_count: ${da_reseller_mail_accounts_count}" --name --verbose 7
 
       if [ "${da_reseller_mail_accounts_count}" -eq 0 ]; then
@@ -16902,7 +17318,7 @@ configure_da_reseller_email_accounts() {
     echo ""
     check_finish_reboot "${func_name}"
   else
-    _echo "$(msg yellow)[Skipped by system]: $(msg magenta)${func_name}()$(msg end) $(msg yellow)with current option ${run_mode} has ran before $(msg end)" --name
+    _echo "$(msg yellow)[Skipped by system]: $(msg magenta)${func_name}$(msg end) $(msg yellow)with current option ${run_mode} has ran before $(msg end)" --name
     _echo "$(msg yellow)=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=$(msg end)" --plain
   fi
 
@@ -16944,8 +17360,8 @@ configure_da_reseller_emails() {
       _echo "Reseller email details:" --name --verbose 7
       _echo "Reseller count ${reseller_count} out of ${da_reseller_usernames_count}" --name --verbose 7
       _echo "da_reseller_username: ${da_reseller_username}" --name --verbose 7
-      _echo "da_reseller_mail_users: ${da_reseller_mail_users[@]}" --name --verbose 7
-      _echo "da_reseller_mail_passwords: ${da_reseller_mail_passwords[@]}" --name --verbose 7
+      _echo "da_reseller_mail_users: ${da_reseller_mail_users[*]}" --name --verbose 7
+      _echo "da_reseller_mail_passwords: ${da_reseller_mail_passwords[*]}" --name --verbose 7
       _echo "da_reseller_mail_users_count: ${da_reseller_mail_users_count}" --name --verbose 7
       _echo "$(msg newline)" --plain --verbose 7
       mail_count=1
@@ -16974,7 +17390,7 @@ configure_da_reseller_emails() {
     echo ""
     check_finish_reboot "${func_name}"
   else
-    _echo "$(msg yellow)[Skipped by system]: $(msg magenta)${func_name}()$(msg end) $(msg yellow)with current option ${run_mode} has ran before $(msg end)" --name
+    _echo "$(msg yellow)[Skipped by system]: $(msg magenta)${func_name}$(msg end) $(msg yellow)with current option ${run_mode} has ran before $(msg end)" --name
     _echo "$(msg yellow)=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=$(msg end)" --plain
   fi
 
@@ -17057,7 +17473,7 @@ configure_da_reseller_databases() {
     echo ""
     check_finish_reboot "${func_name}"
   else
-    _echo "$(msg yellow)[Skipped by system]: $(msg magenta)${func_name}()$(msg end) $(msg yellow)with current option ${run_mode} has ran before $(msg end)" --name
+    _echo "$(msg yellow)[Skipped by system]: $(msg magenta)${func_name}$(msg end) $(msg yellow)with current option ${run_mode} has ran before $(msg end)" --name
     _echo "$(msg yellow)=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=$(msg end)" --plain
   fi
 
@@ -17083,8 +17499,8 @@ configure_da_user_accounts() {
   if [[ ! -f "${CONF_PATH}/${func_name}_executed" && "${FUNCTION_RUN}" == "true" ]]; then
 
     local da_user_packages_list count_user1 \
-      da_user_creator da_user_role da_user_restore_profile_backup da_user_uname da_user_password da_user_name da_user_system_email \
-      da_user_mail_users da_user_mail_passwords da_user_domains da_user_ip_type da_user_package_name da_user_enable_domain_ssl grep_count
+      da_user_creator da_user_role da_user_restore_user_backup da_user_uname da_user_password da_user_name da_user_system_email \
+      da_user_mail_users da_user_mail_passwords da_user_domains da_user_ip_type da_user_package_name da_user_enable_domain_ssl
 
     # This file contains list of user packages (use this file for checking existing package)
     da_user_packages_list="/usr/local/directadmin/data/users/${C_DA_RESELLER_USERNAME1}/packages.list"
@@ -17099,7 +17515,7 @@ configure_da_user_accounts() {
       _echo "$(msg cyan)Getting all required variables from config file ...$(msg end)" --name --verbose 7
       typeset -n da_user_creator="C_DA_USER_CREATOR${count_user1}"
       typeset -n da_user_role="C_DA_USER_ROLE${count_user1}"
-      typeset -n da_user_restore_profile_backup="C_DA_USER_RESTORE_PROFILE_BACKUP${count_user1}"
+      typeset -n da_user_restore_user_backup="C_DA_USER_RESTORE_USER_BACKUP${count_user1}"
       typeset -n da_user_uname="C_DA_USER_USERNAME${count_user1}"
       typeset -n da_user_password="C_DA_USER_USERPASS${count_user1}"
       typeset -n da_user_name="C_DA_USER_NAME${count_user1}"
@@ -17110,16 +17526,6 @@ configure_da_user_accounts() {
       typeset -n da_user_package_name="C_DA_USER_PACKAGE_NAME${count_user1}"
       typeset -n da_user_enable_domain_ssl="C_DA_USER_ENABLE_DOMAIN_SSL${count_user1}"
 
-      # TODO this information is sensitive, hide later
-      _echo "$(msg cyan)Checking if user package name ${da_user_package_name} was created by previous admin before ...$(msg end)" --name
-      grep_count=$(grep -ic "${da_user_package_name}" "${da_user_packages_list}")
-      if [ "${grep_count}" -gt 0 ]; then
-        _echo "$(msg green)OK, user package name ${da_user_package_name} found$(msg end)" --name
-        echo ""
-      else
-        _echo "$(msg yellow)Warning, ${da_user_package_name} does not exist in ${da_user_packages_list}. Please inspect why!$(msg end)" --name
-        _exit 147
-      fi
       # Get the total domain count for this user
       da_user_domain_count="${#da_user_domains[@]}"
       # The first domain in array is used to create account (default domain for that user)
@@ -17132,7 +17538,7 @@ configure_da_user_accounts() {
       _echo "User count ${count_user1}/$(echo "${!C_DA_USER_USERNAME@}" | wc -w)" --name
       _echo "da_user_creator: ${da_user_creator}" --name --verbose 7
       _echo "da_user_role: ${da_user_role}" --name --verbose 7
-      _echo "da_user_restore_profile_backup: ${da_user_restore_profile_backup}" --name --verbose 7
+      _echo "da_user_restore_user_backup: ${da_user_restore_user_backup}" --name --verbose 7
       _echo "da_user_uname: ${da_user_uname}" --name --verbose 7
       _echo "da_user_password: ${da_user_password}" --name --verbose 7
       _echo "da_user_name: ${da_user_name}" --name --verbose 7
@@ -17150,7 +17556,7 @@ configure_da_user_accounts() {
       _echo "$(msg magenta)=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=$(msg end)" --name
       _echo "$(msg newline)" --plain --verbose 7
 
-      if [[ "${da_user_restore_profile_backup}" == "true" && "${C_DA_GLOBAL_BACKUP_RESTORE}" == "true" ]]; then
+      if [[ "${da_user_restore_user_backup}" == "true" && "${C_DA_DISABLE_USER_BACKUP_RESTORE}" == "false" ]]; then
         local backup_source_location da_owner_backup_location
         echo "${SCRIPT_PATH}/admin_backups/${da_user_role}.${da_user_creator}.${da_user_uname}.tar.gz"
 
@@ -17198,6 +17604,18 @@ configure_da_user_accounts() {
           done
         fi
       else
+        local grep_count
+
+        # TODO this information is sensitive, hide later
+        _echo "$(msg cyan)Checking if user package name ${da_user_package_name} was created by previous admin before ...$(msg end)" --name
+        grep_count=$(grep -ic "${da_user_package_name}" "${da_user_packages_list}")
+        if [ "${grep_count}" -gt 0 ]; then
+          _echo "$(msg green)OK, user package name ${da_user_package_name} found$(msg end)" --name
+          echo ""
+        else
+          _echo "$(msg yellow)Warning, ${da_user_package_name} does not exist in ${da_user_packages_list}. Please inspect why!$(msg end)" --name
+          _exit 147
+        fi
         # Note 1: To create a user, we need to use an reseller account:
         _echo "$(msg cyan)Creating a new user account ${da_user_uname} ${count_user1} out of $(echo "${!C_DA_USER_USERNAME@}" | wc -w) user(s) ... $(msg end)" --name
         # da_api_admin create-user-account --username abc --email abc@dsa.com --password 12321aa --domain maxibi.com --package_name USER_UNLIMITED --ip-address "${C_IPV4_ADD0}"
@@ -17255,9 +17673,24 @@ configure_da_user_accounts() {
       echo ""
     done
     echo ""
+
+    if [[ "${da_reseller_restore_user_backup}" == "true" && "${C_DA_DISABLE_USER_BACKUP_RESTORE}" == "false" ]]; then
+      :
+    else
+      # Run additional step because we don't restore from backup for this user
+      configure_da_user_security --run
+      configure_da_user_root_domains --skip #(this is deprecated, already done in configure_da_user_accounts)
+      configure_da_user_subdomains --run
+      configure_da_user_wildcard_domains --skip #(Skipped: Do not use wildcard for security purpose)
+      configure_da_user_email_accounts --run
+      configure_da_user_databases --run
+      #configure_da_user_domain_ssl_pre --skip # Deprecated (new directadmin version has this)
+      #configure_da_user_domain_ssl --skip     # Directadmin has autoSSL but I need this incase autoSSL is slow or invalid (mostly for restoring backup from .lego)
+    fi
+
     check_finish_reboot "${func_name}"
   else
-    _echo "$(msg yellow)[Skipped by system]: $(msg magenta)${func_name}()$(msg end) $(msg yellow)with current option ${run_mode} has ran before $(msg end)" --name
+    _echo "$(msg yellow)[Skipped by system]: $(msg magenta)${func_name}$(msg end) $(msg yellow)with current option ${run_mode} has ran before $(msg end)" --name
     _echo "$(msg yellow)=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=$(msg end)" --plain
   fi
 
@@ -17365,7 +17798,7 @@ configure_da_user_root_domains() {
     echo ""
     check_finish_reboot "${func_name}"
   else
-    _echo "$(msg yellow)[Skipped by system]: $(msg magenta)${func_name}()$(msg end) $(msg yellow)with current option ${run_mode} has ran before $(msg end)" --name
+    _echo "$(msg yellow)[Skipped by system]: $(msg magenta)${func_name}$(msg end) $(msg yellow)with current option ${run_mode} has ran before $(msg end)" --name
     _echo "$(msg yellow)=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=$(msg end)" --plain
   fi
 
@@ -17472,7 +17905,7 @@ configure_da_user_wildcard_domains() {
     echo ""
     check_finish_reboot "${func_name}"
   else
-    _echo "$(msg yellow)[Skipped by system]: $(msg magenta)${func_name}()$(msg end) $(msg yellow)with current option ${run_mode} has ran before $(msg end)" --name
+    _echo "$(msg yellow)[Skipped by system]: $(msg magenta)${func_name}$(msg end) $(msg yellow)with current option ${run_mode} has ran before $(msg end)" --name
     _echo "$(msg yellow)=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=$(msg end)" --plain
   fi
 
@@ -17570,7 +18003,7 @@ configure_da_user_subdomains() {
     echo ""
     check_finish_reboot "${func_name}"
   else
-    _echo "$(msg yellow)[Skipped by system]: $(msg magenta)${func_name}()$(msg end) $(msg yellow)with current option ${run_mode} has ran before $(msg end)" --name
+    _echo "$(msg yellow)[Skipped by system]: $(msg magenta)${func_name}$(msg end) $(msg yellow)with current option ${run_mode} has ran before $(msg end)" --name
     _echo "$(msg yellow)=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=$(msg end)" --plain
   fi
 
@@ -17647,7 +18080,7 @@ configure_da_user_email_accounts() {
     echo ""
     check_finish_reboot "${func_name}"
   else
-    _echo "$(msg yellow)[Skipped by system]: $(msg magenta)${func_name}()$(msg end) $(msg yellow)with current option ${run_mode} has ran before $(msg end)" --name
+    _echo "$(msg yellow)[Skipped by system]: $(msg magenta)${func_name}$(msg end) $(msg yellow)with current option ${run_mode} has ran before $(msg end)" --name
     _echo "$(msg yellow)=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=$(msg end)" --plain
   fi
 
@@ -17689,8 +18122,8 @@ configure_da_user_emails() {
       _echo "User email details:" --name --verbose 7
       _echo "User count ${user_count} out of ${da_user_usernames_count}" --name --verbose 7
       _echo "da_user_username: ${da_user_username}" --name --verbose 7
-      _echo "da_user_mail_users: ${da_user_mail_users[@]}" --name --verbose 7
-      _echo "da_user_mail_passwords: ${da_user_mail_passwords[@]}" --name --verbose 7
+      _echo "da_user_mail_users: ${da_user_mail_users[*]}" --name --verbose 7
+      _echo "da_user_mail_passwords: ${da_user_mail_passwords[*]}" --name --verbose 7
       _echo "da_user_mail_users_count: ${da_user_mail_users_count}" --name --verbose 7
       _echo "$(msg newline)" --plain --verbose 7
       mail_count=1
@@ -17719,7 +18152,7 @@ configure_da_user_emails() {
     echo ""
     check_finish_reboot "${func_name}"
   else
-    _echo "$(msg yellow)[Skipped by system]: $(msg magenta)${func_name}()$(msg end) $(msg yellow)with current option ${run_mode} has ran before $(msg end)" --name
+    _echo "$(msg yellow)[Skipped by system]: $(msg magenta)${func_name}$(msg end) $(msg yellow)with current option ${run_mode} has ran before $(msg end)" --name
     _echo "$(msg yellow)=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=$(msg end)" --plain
   fi
 
@@ -17729,7 +18162,7 @@ configure_da_user_emails() {
     end_execute_options "${run_mode}" "${func_name}"
   fi
 }
-
+# Note this is deprecated function (everything will be stored in configure_da_user_domain_ssl)
 configure_da_reseller_domain_ssl_pre() {
   local run_mode func_name
   run_mode="$1"
@@ -17742,6 +18175,11 @@ configure_da_reseller_domain_ssl_pre() {
   fi
   [[ "${SKIP_RUN}" == "true" ]] && return 0
   if [[ ! -f "${CONF_PATH}/${func_name}_executed" && "${FUNCTION_RUN}" == "true" ]]; then
+
+    echo "Make condition to restore certificate from lego (user decide or if da backup is not restore or global backup is not set)"
+
+    exit
+
     local reseller_count da_reseller_ssl_sub_names da_reseller_ssl_sub_names_count count_n count_o
     local this_da_reseller_uname this_da_reseller_userpass this_da_reseller_enable_domain_ssl \
       this_da_reseller_ssl_subdomains retval le_select_query
@@ -17820,7 +18258,7 @@ configure_da_reseller_domain_ssl_pre() {
     echo ""
     check_finish_reboot "${func_name}"
   else
-    _echo "$(msg yellow)[Skipped by system]: $(msg magenta)${func_name}()$(msg end) $(msg yellow)with current option ${run_mode} has ran before $(msg end)" --name
+    _echo "$(msg yellow)[Skipped by system]: $(msg magenta)${func_name}$(msg end) $(msg yellow)with current option ${run_mode} has ran before $(msg end)" --name
     _echo "$(msg yellow)=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=$(msg end)" --plain
   fi
 
@@ -17831,6 +18269,7 @@ configure_da_reseller_domain_ssl_pre() {
   fi
 }
 
+# Note this is deprecated function (everything will be stored in configure_da_user_domain_ssl)
 configure_da_user_domain_ssl_pre() {
   local run_mode func_name
   run_mode="$1"
@@ -17908,7 +18347,7 @@ configure_da_user_domain_ssl_pre() {
     echo ""
     check_finish_reboot "${func_name}"
   else
-    _echo "$(msg yellow)[Skipped by system]: $(msg magenta)${func_name}()$(msg end) $(msg yellow)with current option ${run_mode} has ran before $(msg end)" --name
+    _echo "$(msg yellow)[Skipped by system]: $(msg magenta)${func_name}$(msg end) $(msg yellow)with current option ${run_mode} has ran before $(msg end)" --name
     _echo "$(msg yellow)=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=$(msg end)" --plain
   fi
 
@@ -17919,7 +18358,7 @@ configure_da_user_domain_ssl_pre() {
   fi
 }
 
-# This will also take care the subdomain
+# Note this is deprecated function (everything will be stored in configure_da_user_domain_ssl)
 configure_da_reseller_domain_ssl() {
   local run_mode func_name
   run_mode="$1"
@@ -18019,7 +18458,7 @@ configure_da_reseller_domain_ssl() {
     echo ""
     check_finish_reboot "${func_name}"
   else
-    _echo "$(msg yellow)[Skipped by system]: $(msg magenta)${func_name}()$(msg end) $(msg yellow)with current option ${run_mode} has ran before $(msg end)" --name
+    _echo "$(msg yellow)[Skipped by system]: $(msg magenta)${func_name}$(msg end) $(msg yellow)with current option ${run_mode} has ran before $(msg end)" --name
     _echo "$(msg yellow)=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=$(msg end)" --plain
   fi
 
@@ -18029,7 +18468,7 @@ configure_da_reseller_domain_ssl() {
     end_execute_options "${run_mode}" "${func_name}"
   fi
 }
-configure_da_user_domain_ssl() {
+configure_da_user_domain_ssl_deprecated() {
   # Here we configure SSL for specific domains we want based on the config variable: C_DA_USER_ENABLE_DOMAIN_SSL{?}
   # Where Domain can have 1 or more
   local run_mode func_name
@@ -18132,7 +18571,7 @@ configure_da_user_domain_ssl() {
     echo ""
     check_finish_reboot "${func_name}"
   else
-    _echo "$(msg yellow)[Skipped by system]: $(msg magenta)${func_name}()$(msg end) $(msg yellow)with current option ${run_mode} has ran before $(msg end)" --name
+    _echo "$(msg yellow)[Skipped by system]: $(msg magenta)${func_name}$(msg end) $(msg yellow)with current option ${run_mode} has ran before $(msg end)" --name
     _echo "$(msg yellow)=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=$(msg end)" --plain
   fi
 
@@ -18206,7 +18645,7 @@ configure_da_admin_security() {
     echo ""
     check_finish_reboot "${func_name}"
   else
-    _echo "$(msg yellow)[Skipped by system]: $(msg magenta)${func_name}()$(msg end) $(msg yellow)with current option ${run_mode} has ran before $(msg end)" --name
+    _echo "$(msg yellow)[Skipped by system]: $(msg magenta)${func_name}$(msg end) $(msg yellow)with current option ${run_mode} has ran before $(msg end)" --name
     _echo "$(msg yellow)=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=$(msg end)" --plain
   fi
 
@@ -18280,7 +18719,7 @@ configure_da_reseller_security() {
     echo ""
     check_finish_reboot "${func_name}"
   else
-    _echo "$(msg yellow)[Skipped by system]: $(msg magenta)${func_name}()$(msg end) $(msg yellow)with current option ${run_mode} has ran before $(msg end)" --name
+    _echo "$(msg yellow)[Skipped by system]: $(msg magenta)${func_name}$(msg end) $(msg yellow)with current option ${run_mode} has ran before $(msg end)" --name
     _echo "$(msg yellow)=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=$(msg end)" --plain
   fi
 
@@ -18356,7 +18795,7 @@ configure_da_user_security() {
     echo ""
     check_finish_reboot "${func_name}"
   else
-    _echo "$(msg yellow)[Skipped by system]: $(msg magenta)${func_name}()$(msg end) $(msg yellow)with current option ${run_mode} has ran before $(msg end)" --name
+    _echo "$(msg yellow)[Skipped by system]: $(msg magenta)${func_name}$(msg end) $(msg yellow)with current option ${run_mode} has ran before $(msg end)" --name
     _echo "$(msg yellow)=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=$(msg end)" --plain
   fi
 
@@ -18443,7 +18882,7 @@ configure_da_user_databases() {
     echo ""
     check_finish_reboot "${func_name}"
   else
-    _echo "$(msg yellow)[Skipped by system]: $(msg magenta)${func_name}()$(msg end) $(msg yellow)with current option ${run_mode} has ran before $(msg end)" --name
+    _echo "$(msg yellow)[Skipped by system]: $(msg magenta)${func_name}$(msg end) $(msg yellow)with current option ${run_mode} has ran before $(msg end)" --name
     _echo "$(msg yellow)=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=$(msg end)" --plain
   fi
 
@@ -18483,7 +18922,7 @@ configure_da_custom_webs() {
     echo ""
     check_finish_reboot "${func_name}"
   else
-    _echo "$(msg yellow)[Skipped by system]: $(msg magenta)${func_name}()$(msg end) $(msg yellow)with current option ${run_mode} has ran before $(msg end)" --name
+    _echo "$(msg yellow)[Skipped by system]: $(msg magenta)${func_name}$(msg end) $(msg yellow)with current option ${run_mode} has ran before $(msg end)" --name
     _echo "$(msg yellow)=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=$(msg end)" --plain
   fi
 
@@ -18529,44 +18968,7 @@ harden_with_lynis() {
     echo ""
     check_finish_reboot "${func_name}"
   else
-    _echo "$(msg yellow)[Skipped by system]: $(msg magenta)${func_name}()$(msg end) $(msg yellow)with current option ${run_mode} has ran before $(msg end)" --name
-    _echo "$(msg yellow)=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=$(msg end)" --plain
-  fi
-
-  if [[ "${extra_option}" == "--silent-if-executed" ]]; then
-    end_execute_options "${run_mode}" "${func_name}" &>/dev/null
-  else
-    end_execute_options "${run_mode}" "${func_name}"
-  fi
-}
-
-configure_cronjobs() {
-  local run_mode func_name
-  run_mode="$1"
-  extra_option="$2"
-  func_name="${FUNCNAME[0]}"
-  if [[ "${extra_option}" == "--silent-if-executed" ]]; then
-    start_execute_options "${run_mode}" "${func_name}" &>/dev/null
-  else
-    start_execute_options "${run_mode}" "${func_name}"
-  fi
-  [[ "${SKIP_RUN}" == "true" ]] && return 0
-  if [[ ! -f "${CONF_PATH}/${func_name}_executed" && "${FUNCTION_RUN}" == "true" ]]; then
-    # Stopping some services to reduce memory usage like clamav:
-    maxicron --stop-some-services
-    # TODO add this:
-
-    # 23 */12 * * * /usr/local/subcode/centmin/csfcf.sh csf >/dev/null 2>&1
-    # Add the above command in crontab so it will run on startup
-    {
-      echo "# Stop some high memory processes 180 seconds (3 minutes) after reboot"
-      echo "@reboot sleep 180 && maxicron --stop-some-services"
-    } >>/etc/crontab
-
-    echo ""
-    check_finish_reboot "${func_name}"
-  else
-    _echo "$(msg yellow)[Skipped by system]: $(msg magenta)${func_name}()$(msg end) $(msg yellow)with current option ${run_mode} has ran before $(msg end)" --name
+    _echo "$(msg yellow)[Skipped by system]: $(msg magenta)${func_name}$(msg end) $(msg yellow)with current option ${run_mode} has ran before $(msg end)" --name
     _echo "$(msg yellow)=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=$(msg end)" --plain
   fi
 
@@ -18771,7 +19173,7 @@ microphone=(), camera=(), magnetometer=(), gyroscope=(), payment=(), fullscreen=
       while :; do
         ((test_count++))
         _echo "$(msg cyan)Testing header message for domain ${LABEL_C_DA_USER_DOMAIN1}...$(msg end)" --name
-        curl -s -D- https://${C_DA_USER_DOMAIN1[0]} | grep -i Strict
+        curl -s -D- "https://${C_DA_USER_DOMAIN1[0]}" | grep -i Strict
         retval=$?
         if [ "${retval}" -eq 0 ]; then
           echo "Success"
@@ -18781,7 +19183,7 @@ microphone=(), camera=(), magnetometer=(), gyroscope=(), payment=(), fullscreen=
         fi
         echo ""
         _echo "$(msg cyan)Testing another header message for domain ${LABEL_C_DA_RESELLER_DOMAIN1}...$(msg end)" --name
-        curl -s -D- https://${C_DA_RESELLER_DOMAIN1[0]} | grep -i Strict
+        curl -s -D- "https://${C_DA_RESELLER_DOMAIN1[0]}" | grep -i Strict
         retval=$?
         if [ "${retval}" -eq 0 ]; then
           echo "Success"
@@ -18803,7 +19205,7 @@ microphone=(), camera=(), magnetometer=(), gyroscope=(), payment=(), fullscreen=
     echo ""
     check_finish_reboot "${func_name}"
   else
-    _echo "$(msg yellow)[Skipped by system]: $(msg magenta)${func_name}()$(msg end) $(msg yellow)with current option ${run_mode} has ran before $(msg end)" --name
+    _echo "$(msg yellow)[Skipped by system]: $(msg magenta)${func_name}$(msg end) $(msg yellow)with current option ${run_mode} has ran before $(msg end)" --name
     _echo "$(msg yellow)=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=$(msg end)" --plain
   fi
 
@@ -18844,7 +19246,7 @@ setup_post() {
     echo ""
     check_finish_reboot "${func_name}"
   else
-    _echo "$(msg yellow)[Skipped by system]: $(msg magenta)${func_name}()$(msg end) $(msg yellow)with current option ${run_mode} has ran before $(msg end)" --name
+    _echo "$(msg yellow)[Skipped by system]: $(msg magenta)${func_name}$(msg end) $(msg yellow)with current option ${run_mode} has ran before $(msg end)" --name
     _echo "$(msg yellow)=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=$(msg end)" --plain
   fi
 
@@ -18979,7 +19381,7 @@ setup() {
     configure_kernel_ips --run
     if [[ "${C_SERVER_TYPE}" == "directadmin" ]]; then
       if [[ "${C_DA_INSTALL_TYPE}" == "custom" ]]; then
-        install_da_pre --run
+        install_da_pre --run-exit
         install_da --run
         install_da_post --run
         configure_da_auth --run
@@ -19006,44 +19408,24 @@ setup() {
         # " -- host --"
         configure_da_fqhn_server --run
         configure_da_ssl_pre --run
-        configure_da_host_server_ssl --run
+        configure_da_host_domain_ssl --run
         # " -- owner --"
         configure_da_owner_accounts --run
-        configure_da_owner_skins --run
-        configure_da_owner_security --run
         # " -- admin --"
         configure_da_admin_accounts --run
-        configure_da_admin_skins --run
-        configure_da_admin_security --run
         # " -- reseller --"
         configure_da_reseller_accounts --run
-        configure_da_reseller_skins --run
-        configure_da_reseller_security --run
-        configure_da_reseller_root_domains --skip #(this is deprecated, already done in configure_da_reseller_accounts)
-        configure_da_reseller_subdomains --run
-        configure_da_reseller_wildcard_domains --skip #(Skipped: Do not use wildcard for security purpose)
-        configure_da_reseller_email_accounts --run
-        configure_da_reseller_databases --run
-        configure_da_reseller_domain_ssl_pre --skip # Deprecated and not needed (new directadmin version has this)
-        configure_da_reseller_domain_ssl --skip     # Directadmin has autoSSL but I need this incase autoSSL is slow
         # " -- user ---"
         configure_da_user_accounts --run
-        configure_da_user_security --run
-        configure_da_user_root_domains --skip #(this is deprecated, already done in configure_da_user_accounts)
-        configure_da_user_subdomains --run
-        configure_da_user_wildcard_domains --skip #(Skipped: Do not use wildcard for security purpose)
-        configure_da_user_email_accounts --run
-        configure_da_user_databases --run
-        configure_da_user_domain_ssl_pre --skip # Deprecated (new directadmin version has this)
-        configure_da_user_domain_ssl --skip     # Directadmin has autoSSL but I need this incase autoSSL is slow
         # " -- others ---"
+        configure_da_user_domain_ssl --run
         configure_da_domain_security --run
         configure_da_custom_webs --skip # (Not really useful at the moment)
         configure_da_wpcli --run        # (this one just install wpcli, no need to configure template)
         # " -- maxicode ---"
         # Note 1: Get the latest security codes from maxicode (recommend to run as --run-force instead of --run so we always get the latest security update)
         update_latest_maxicode --run
-        configure_maxicode_pre --skip
+        configure_maxicode_pre --skip # TODO improve this script
         configure_maxicode --run
         configure_maxigpg --run
         configure_maxiaide --run
@@ -19053,14 +19435,13 @@ setup() {
         configure_maxibox --run    # TODO improve this script (haven't implemented)
         configure_maxinis --run    # TODO improve this script (it contains bug)
         configure_maxirbl --run
-        configure_maxiwall --run
+        configure_maxiwall --skip # TODO maxiwall contain bug in reporting rule (fix it later)
         configure_maxicli --run
         configure_maxicloud --run
         configure_maxipass --run
         configure_maxidb --run
-        configure_maxify --skip   # (skipped deprecated)
-        configure_logs --skip     #-- skip temporarily
-        configure_cronjobs --skip # Not useful anymore (already put in configure_maxicron)
+        configure_maxify --skip # (skipped deprecated)
+        configure_logs --skip   #-- skip temporarily
         configure_maxicron --run
         # Still need to add more based on lynis suggestion
         harden_with_lynis --run
@@ -19092,7 +19473,7 @@ setup() {
         # " -- host --"
         configure_da_fqhn_server --run
         configure_da_ssl_pre --run
-        configure_da_host_server_ssl --run
+        configure_da_host_domain_ssl --run
       fi
     elif [[ "${C_SERVER_TYPE}" == "general" ]]; then
       install_da_pre --run
@@ -19186,6 +19567,15 @@ if [ -z "${DATE_BIN}" ]; then
   exit 147
 fi
 
+# Unix timestamp (non-UTC)
+TIMESTAMP=$(${DATE_BIN} +%s)
+
+# Unix timestamp (UTC)
+TIMESTAMP_UTC=$(${DATE_BIN} -u +%s)
+
+# SSL certificate well-known path (letsencrypt)
+WELLKNOWN_PATH="/var/www/html/.well-known/acme-challenge"
+
 # Define each directory's location to be created
 LOG_PATH="${SCRIPT_PATH}/log"
 CONF_PATH="${SCRIPT_PATH}/conf"
@@ -19196,6 +19586,7 @@ DOWNLOAD_PATH="${SCRIPT_PATH}/download"
 SECURE_PATH="${SCRIPT_PATH}/secure"
 STORAGE_PATH="${SCRIPT_PATH}/storage"
 TEMP_PATH="${SCRIPT_PATH}/temp"
+SSL_PATH="${SCRIPT_PATH}/ssl"
 INST_TEMP_DIR="${TEMP_PATH}/src"
 
 # Create all important directories if they are not exist
@@ -19208,6 +19599,7 @@ mkdir -p "${DOWNLOAD_PATH}"
 mkdir -p "${SECURE_PATH}"
 mkdir -p "${STORAGE_PATH}"
 mkdir -p "${TEMP_PATH}"
+mkdir -p "${SSL_PATH}"
 mkdir -p "${INST_TEMP_DIR}"
 
 # A global variable that holds the number of progress spin occurrences
@@ -19487,18 +19879,34 @@ while [ "$#" -gt 0 ]; do
     ensure_domain_server_resolved
     ensure_fqhn_server_resolved
     shift
-    # File to push from local file
 
-    if [ "${C_DA_RESTORE_PREVIOUS_HOSTNAME_SSL}" == "true" ]; then
-      LOCAL_FILES_TO_PUSH="${SECURE_PATH}/gpg/gpg_private_key.gpg ${SCRIPT_PATH}/maxinet ${SCRIPT_PATH}/maxinet.conf \
-      ${SCRIPT_PATH}/readme.txt ${SECURE_PATH}/ssl/.lego/certificates/${C_BOX_HOSTNAME_FQHN}.crt ${SECURE_PATH}/ssl/.lego/certificates/${C_BOX_HOSTNAME_FQHN}.issuer.crt \
-      ${SECURE_PATH}/ssl/.lego/certificates/${C_BOX_HOSTNAME_FQHN}.key ${SECURE_PATH}/ssl/.lego/certificates/${C_BOX_HOSTNAME_FQHN}.json"
-    else
-      LOCAL_FILES_TO_PUSH="${SECURE_PATH}/gpg/gpg_private_key.gpg ${SCRIPT_PATH}/maxinet ${SCRIPT_PATH}/maxinet.conf ${SCRIPT_PATH}/readme.txt"
-    fi
+    # Main script to update
+    FILE_TO_TRANSFER="${SCRIPT_PATH}/maxinet ${SCRIPT_PATH}/maxinet.conf ${SCRIPT_PATH}/readme.txt"
+    REMOTE_PATH_TO_RECEIVE="${HOME}/"
+    ssh_api transfer-files --server-port "${C_BOX_HOSTNAME_FQHN}:${C_SSH_PORT}" --group-user "${C_ROOT_USERGROUP}:${C_ROOT_USERNAME}" --local-files "${FILE_TO_TRANSFER}" --remote-path "${REMOTE_PATH_TO_RECEIVE}"
 
-    REMOTE_LOCATION_TO_RECEIVE="~/"
-    ssh_api transfer-files --server-port "${C_BOX_HOSTNAME_FQHN}:${C_SSH_PORT}" --group-user "root:${C_ROOT_USERNAME}" --local-files "${LOCAL_FILES_TO_PUSH}" --remote-path "${REMOTE_LOCATION_TO_RECEIVE}"
+    # GPG private key to update
+    FILE_TO_TRANSFER="${SECURE_PATH}/gpg/gpg_private_key.gpg"
+
+    REMOTE_PATH_TO_RECEIVE="${HOME}/gpg/"
+    ssh_api mkdir --server-port ${C_BOX_HOSTNAME_FQHN}:${C_SSH_PORT} --group-user ${C_ROOT_USERGROUP}:${C_ROOT_USERNAME} --remote-path "${REMOTE_PATH_TO_RECEIVE}"
+    ssh_api transfer-files --server-port "${C_BOX_HOSTNAME_FQHN}:${C_SSH_PORT}" --group-user "${C_ROOT_USERGROUP}:${C_ROOT_USERNAME}" --local-files "${FILE_TO_TRANSFER}" --remote-path "${REMOTE_PATH_TO_RECEIVE}"
+    echo ""
+
+    # SSL cert to update
+    FILE_TO_TRANSFER="${SECURE_PATH}/ssl/.lego/certificates/*"
+    REMOTE_PATH_TO_RECEIVE="${HOME}/ssl/"
+    ssh_api mkdir --server-port ${C_BOX_HOSTNAME_FQHN}:${C_SSH_PORT} --group-user ${C_ROOT_USERGROUP}:${C_ROOT_USERNAME} --remote-path "${REMOTE_PATH_TO_RECEIVE}"
+
+    ssh_api transfer-files --server-port "${C_BOX_HOSTNAME_FQHN}:${C_SSH_PORT}" --group-user "${C_ROOT_USERGROUP}:${C_ROOT_USERNAME}" --local-files "${FILE_TO_TRANSFER}" --remote-path "${REMOTE_PATH_TO_RECEIVE}"
+
+    # Backup file to update
+    FILE_TO_TRANSFER="${SECURE_PATH}/backup/admin_backups/*"
+    REMOTE_PATH_TO_RECEIVE="${HOME}/admin_backups/"
+    ssh_api mkdir --server-port ${C_BOX_HOSTNAME_FQHN}:${C_SSH_PORT} --group-user ${C_ROOT_USERGROUP}:${C_ROOT_USERNAME} --remote-path "${REMOTE_PATH_TO_RECEIVE}"
+
+    ssh_api transfer-files --server-port "${C_BOX_HOSTNAME_FQHN}:${C_SSH_PORT}" --group-user "${C_ROOT_USERGROUP}:${C_ROOT_USERNAME}" --local-files "${FILE_TO_TRANSFER}" --remote-path "${REMOTE_PATH_TO_RECEIVE}"
+
     exit 0
     break
     ;;
@@ -19506,16 +19914,16 @@ while [ "$#" -gt 0 ]; do
   srt | ssl-request-test | request-ssl-test)
     # Beta test
     validate_config
-    configure_da_reseller_domain_ssl_pre "--run-force"
-    configure_da_user_domain_ssl_pre "--run-force"
+    #configure_da_reseller_domain_ssl_pre "--run-force"
+    #configure_da_user_domain_ssl_pre "--run-force"
     exit 0
     break
     ;;
   # This will request certificate
   sr | ssl-request | request-ssl)
     validate_config
-    configure_da_reseller_domain_ssl "--run-force"
-    configure_da_user_domain_ssl "--run-force"
+    #configure_da_reseller_domain_ssl "--run-force"
+    #configure_da_user_domain_ssl "--run-force"
     exit 0
     break
     ;;
@@ -19584,11 +19992,11 @@ ENDSSH
     shift
     #eg: ~/maxinet.log
     remote_files_path="$1"
-    echo "Downloading file(s) ${remote_files_path} into ${DOWNLOAD_PATH}/..."
+    echo "Downloading file(s) from ${remote_files_path} into ${DOWNLOAD_PATH}/ ..."
     ssh_api file-download --server-port "${C_BOX_HOSTNAME_FQHN}:${C_SSH_PORT}" --group-user root:root --remote-path "${remote_files_path}" --local-path "${DOWNLOAD_PATH}/"
     retval=$?
     if [ "${retval}" -eq 0 ]; then
-      _echo "$(msg green)Success, file ${remote_files_path} downloaded into ${DOWNLOAD_PATH}/${remote_files_path}$(msg end)" --name
+      _echo "$(msg green)Success, file ${remote_files_path} downloaded into ${DOWNLOAD_PATH}/$(basename -- "${remote_files_path}")$(msg end)" --name
     else
       _echo "$(msg red)Error, something is wrong when trying to download remote file$(msg end)" --name
     fi
@@ -19687,7 +20095,7 @@ ENDSSH
     cat tmpfile >/etc/virtual/domainowners
     echo ""
     echo "Removing domain from /etc/virtual/${domain} ..."
-    rm -rf /etc/virtual/${domain}
+    rm -rf "/etc/virtual/${domain}"
     echo ""
     exit 0
     break
