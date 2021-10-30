@@ -4,7 +4,7 @@
 
 _APP_SPECIFIC_NAME="Maxinet"
 # Note that some minor versions are not published
-_APP_VERSION="0.7.3"
+_APP_VERSION="0.7.4"
 _APP_STATUS="alpha"
 _APP_VERSION_STATUS="${_APP_VERSION}-${_APP_STATUS}"
 
@@ -10826,7 +10826,7 @@ install_da() {
     fi
 
     if [ -n "${my_pid}" ]; then
-      _echo "$(msg cyan)Installing directadmin ${da_latest_version} [ PID ID: ${my_pid} ] for the $(get_ordinal ${INSTALL_COUNT}) time(s) ... $(msg end)" --name
+      _echo "$(msg cyan)Installing directadmin ${da_latest_version} [ PID: ${my_pid} ] for the $(get_ordinal ${INSTALL_COUNT}) time(s) ... $(msg end)" --name
       echo ""
       while ps | grep -q " $my_pid "; do
         local progress_text memory_usage_percentage
@@ -13829,26 +13829,31 @@ configure_da_owner_accounts() {
     echo "da_owner_username: ${da_owner_username}"
     echo "da_owner_password: ${da_owner_password}"
     echo ""
+
+    if [ "${current_da_owner_username}" != "${da_owner_username}" ]; then
+      _echo "$(msg yellow)Warning, current directadmin owner username is not equal to owner username in config file. Renaming owner to ${LABEL_C_DA_OWNER_USERNAME1} ...$(msg end)" --name
+      ${da_scripts_path}/change_username.sh "$(get_current_da_owner_username)" "${C_DA_OWNER_USERNAME1}"
+      get_status_message "$?"
+    else
+      _echo "$(msg green)OK, the current directadmin owner username $(get_current_da_owner_username) is equal to the owner username in config file$(msg end)" --name
+    fi
+    echo ""
+
+    # By default, directadmin installation uses a short password which is not secured. Change it here
+    _echo "$(msg cyan)Changing the first directadmin owner ($(get_current_da_owner_username))'s password via stdin ...$(msg end)" --name
+
+    # Warning this method of changing password alone has bug if do backup: https://forum.directadmin.com/threads/reproducible-bug-admin-backup-restoration-will-not-use-previous-password-changed-via-terminal.64868/
+    # Still use this method but do extra change password below to fix the password backup or restore bug
+    echo "$(get_current_da_owner_username)":"${C_DA_OWNER_USERPASS1}" | chpasswd
+    get_status_message "$?"
+    echo ""
+
+    # Must do this extra change password
+    _echo "$(msg cyan)Changing the first directadmin owner ($(get_current_da_owner_username))'s password via API ...$(msg end)" --name
+    da_api_admin change-user-password --username $(get_current_da_owner_username) --password ${da_owner_password}
+    echo ""
     # There is only 1 owner, so use this:
     if [[ "${C_DA_OWNER_RESTORE_USER_BACKUP1}" == "true" && "${C_DA_DISABLE_USER_BACKUP_RESTORE}" == "false" ]]; then
-
-      if [ "${current_da_owner_username}" != "${da_owner_username}" ]; then
-        _echo "$(msg yellow)Warning, current directadmin owner username is not equal to owner username in config file. Renaming owner to ${LABEL_C_DA_OWNER_USERNAME1} ...$(msg end)" --name
-        ${da_scripts_path}/change_username.sh "$(get_current_da_owner_username)" "${C_DA_OWNER_USERNAME1}"
-        get_status_message "$?"
-      else
-        _echo "$(msg green)OK, the current directadmin owner username $(get_current_da_owner_username) is equal to the owner username in config file$(msg end)" --name
-      fi
-      echo ""
-
-      # By default, directadmin installation uses a short password which is not secured. Change it here
-      _echo "$(msg cyan)Changing the first directadmin owner ($(get_current_da_owner_username))'s password ...$(msg end)" --name
-
-      # Warning this method has bug: https://forum.directadmin.com/threads/reproducible-bug-admin-backup-restoration-will-not-use-previous-password-changed-via-terminal.64868/
-      #echo "$(get_current_da_owner_username)":"${C_DA_OWNER_USERPASS1}" | chpasswd
-      #echo ""
-
-      da_api_admin change-user-password --username $(get_current_da_owner_username) --password ${da_owner_password}
 
       # 2) Then check if the backup file exist for this owner (refer to config username) - must be pushed from scp to root folder admin_backups/*
       # The role is admin (left name) and the creator is root (middle name)
@@ -13964,16 +13969,6 @@ configure_da_owner_accounts() {
         _echo "$(msg yellow)[Skipped]: The user ${da_owner_username} does not have any domain record$(msg end)" --name
       fi
     else
-      # This will change Directadmin admin account username:
-      _echo "$(msg cyan)Changing the first directadmin owner username from $(get_current_da_owner_username) username to ${LABEL_C_DA_OWNER_USERNAME1} ...$(msg end)" --name
-      ${da_scripts_path}/change_username.sh "$(get_current_da_owner_username)" "${C_DA_OWNER_USERNAME1}"
-      echo ""
-      # By default, directadmin installation uses a short password which is not secured. Change it here
-      _echo "$(msg cyan)Changing the first directadmin owner ($(get_current_da_owner_username))'s password ...$(msg end)" --name
-      #echo "$(get_current_da_owner_username)":"${C_DA_OWNER_USERPASS1}" | chpasswd
-      da_api_admin change-user-password --username $(get_current_da_owner_username) --password ${da_owner_password}
-      echo ""
-
       _echo "$(msg cyan)Renaming owner account name to ${LABEL_C_DA_OWNER_NAME1} ...$(msg end)" --name
       # No need to sign as owner1 we dont know if owner1 has changed ts username
       da_api_admin modify-user --where-username-is "$(get_current_da_owner_username)" --name "${C_DA_OWNER_NAME1}"
@@ -19313,8 +19308,6 @@ configure_services() {
 
 # This is used to get A+ rating for SSL and increase security
 # TODO Warning, the next DA version 1.63 will release this hsts header for specific domain via ui, check this for compatibility on next version
-# Warning this has issue with new version of DA if using nginx or nginx_apache
-# https://www.directadmin.com/features.php?id=2602
 configure_da_domain_security() {
   local run_mode func_name
   run_mode="$1"

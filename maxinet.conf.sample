@@ -295,12 +295,6 @@ C_DA_INSTALL_GEOIP=true
 # This variable is used to enable server/host domain SSL. Leave this this option enabled for security
 C_ENABLE_DA_HOST_SSL=true
 
-# This will restore the SSL certificate for hostname without requesting new
-# If C_DA_RESTORE_PREVIOUS_HOSTNAME_SSL is set to false, this setting has no effect
-# There is a popular known issue on the month of october 2021 that all certificate became invalid in letsencrypt
-# If that is the case, do not set this to true to fix those errors first, once the backup cert is placed properly then this can be set to true
-C_DA_RESTORE_PREVIOUS_HOSTNAME_SSL=true
-
 # C_DA_AUTO_ADD_IPV46_ENTRY:
 # This is a feature to add automatically ipv6 or ipv4 config file in directadmin.
 # When this option is enabled (true), we do not need to manually add IPv6 through directadmin GUI.
@@ -311,14 +305,14 @@ C_DA_AUTO_ADD_IPV46_ENTRY=true
 
 # C_DA_AUTO_LINK_IP:
 # This variable is used to enable IPv4 and IPv6 linking automatically during installation.
-# Note that if you disable this option, thhe script will try to open directadmin port for you to link IPv6 and IPv4 manually through web interface
+# Note that if you disable this option, the script will try to open directadmin port for you to link IPv6 and IPv4 manually through web interface
 # So, you are required an input to press enter
 C_DA_AUTO_LINK_IP=true
 
 # C_DA_LOGIN_METHOD:
 # This variable is used as login style method in directadmin. This login method is mentioned in the directadmin API documentation
 # Possible values are:
-# sign-as = This will use da login method with piping: "admin|client". Using this sign-as method, this will log as the client from admin by just by reffering the username (benefit: no need to know the client passwords)
+# sign-as = This will use da login method with piping: "admin|client". Using this sign-as method, this will log as the client from admin by just by referring the username (benefit: no need to know the client passwords)
 # direct-login = login directly using username and password (disadvantage: need to know directadmin client username and password)
 C_DA_LOGIN_METHOD="sign-as"
 
@@ -329,8 +323,14 @@ C_DA_USER_BACKUP_PASSWORD="PASSWORD_HERE"
 C_DA_DISABLE_USER_BACKUP_RESTORE=true
 
 # By default Directadmin enable this AUTO SSL feature (to disable put to false)
-# Note auto SSL only work with user domain not hostname (this config should be disable by default)
+# Note auto SSL only work with user domain not hostname (this config should be false by default unless have reason to stop auto SSL)
 C_DA_DISABLE_DOMAIN_AUTO_SSL=false
+
+# This will restore the SSL certificate for hostname without requesting new
+# If C_DA_RESTORE_PREVIOUS_HOSTNAME_SSL is set to false, this setting has no effect
+# There is a popular known issue on the month of october 2021 that all certificate became invalid in letsencrypt
+# If that is the case, do not set this to true to fix those errors first, once the backup cert is placed properly then this can be set to true
+C_DA_RESTORE_PREVIOUS_HOSTNAME_SSL=false
 
 # This will only work if C_DA_DISABLE_DOMAIN_AUTO_SSL=true (script will check this)
 # This will use manual method to restore SSL certificate, if it failed it will use old method to restore certificate (requesting manually)
