@@ -63,7 +63,7 @@ C_HIDE_SENSITIVE_TEXT=false
 # Using 6 is the the default log level (this will ignore level 7 (debug) logging, so any debugging display will be hidden)
 # Some of their possible values are: ([0]="emerg" [1]="alert" [2]="crit" [3]="err" [4]="warning" [5]="notice" [6]="info" [7]="debug" [8]="expert")
 # Warning, verbose level 7 and more might contain sensitive information.
-C_LOG_VERBOSITY_LEVEL="7"
+C_LOG_VERBOSITY_LEVEL="6"
 
 # C_AUTO_DESTROY_CONFIG:
 # This variable is used to destroy this main config file after it has finished installation at the end of the script.
@@ -326,17 +326,18 @@ C_DA_LOGIN_METHOD="sign-as"
 C_DA_USER_BACKUP_PASSWORD="PASSWORD_HERE"
 
 # Global variable for disabling all user backup restoration
-C_DA_DISABLE_USER_BACKUP_RESTORE=false
+C_DA_DISABLE_USER_BACKUP_RESTORE=true
 
 # By default Directadmin enable this AUTO SSL feature (to disable put to false)
 # Note auto SSL only work with user domain not hostname (this config should be disable by default)
 C_DA_DISABLE_DOMAIN_AUTO_SSL=false
 
-# This will only work if C_DA_DISABLE_DOMAIN_AUTO_SSL=false
-C_DA_DISABLE_USER_DOMAIN_SSL_RESTORE=false
+# This will only work if C_DA_DISABLE_DOMAIN_AUTO_SSL=true (script will check this)
+# This will use manual method to restore SSL certificate, if it failed it will use old method to restore certificate (requesting manually)
+C_DA_ENABLE_USER_DOMAIN_SSL_RESTORE=false
 
 #------------------------------------------------------------------
-# Start directadmin.conf options ( Directadmin version: 1.62.7 )  #
+# Start directadmin.conf options ( Directadmin version: 1.63.0 )  #
 #------------------------------------------------------------------
 
 # Example, for directadmin certification group
@@ -413,8 +414,8 @@ C_DA_BRUTE_FORCE_SCAN_APACHE_LOGS=2
 C_DA_BRUTE_DOS_COUNT=100
 C_DA_CHECK_PARTITIONS=2
 C_DA_PARTITION_USAGE_THRESHOLD=95
-# 1 = tar.gz, 0 = .tar, 2 = .zstd
-C_DA_BACKUP_GZIP=1
+# 1 = tar.gz, 0 = .tar, 2 = .zstd (default is zstd)
+C_DA_BACKUP_GZIP=2
 C_DA_DEMODOCSROOT="./data/skins/evolution"
 C_DA_LOST_PASSWORD=0
 C_DA_RBL_ENABLED=1

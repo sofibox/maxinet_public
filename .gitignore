@@ -1,6 +1,15 @@
 # Author: Arafat Ali | Email: webmaster@sofibox.com | Web: sofibox.com
 .gitignore
-/.idea/*
+/.idea/.gitignore
+/.idea/markdown-navigator-enh.xml
+/.idea/markdown-navigator.xml
+/.idea/maxibox.iml
+/.idea/misc.xml
+/.idea/modules.xml
+/.idea/vcs.xml
+/.vs/
+/.vscode/
+
 # Sentive directories
 /test/
 /backup/
@@ -49,6 +58,7 @@ maxisetup.conf
 /storage/os/**/usr/local/maxicode/maxicbuild/maxicbuild.conf
 /storage/os/**/usr/local/maxicode/maxiclam/maxiclam.conf
 /storage/os/**/usr/local/maxicode/maxicloud/maxicloud.conf
+/storage/os/**/usr/local/maxicode/maxicloud/dropbox/dbx.conf
 /storage/os/**/usr/local/maxicode/maxicsf/maxicsf.conf
 /storage/os/**/usr/local/maxicode/maxidet/maxidet.conf
 /storage/os/**/usr/local/maxicode/maxidnf/maxidnf.conf

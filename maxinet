@@ -4,7 +4,7 @@
 
 _APP_SPECIFIC_NAME="Maxinet"
 # Note that some minor versions are not published
-_APP_VERSION="0.7.2"
+_APP_VERSION="0.7.3"
 _APP_STATUS="alpha"
 _APP_VERSION_STATUS="${_APP_VERSION}-${_APP_STATUS}"
 
@@ -1937,7 +1937,7 @@ ssh_api() {
 
     # New method using rsync (this method required the remote has rsync installed)
     # Important, I must use --chown=root:root to make sure that remote uploaded files have root permission by default (for security)
-    rsync -og --chown=root:root -Pav -e "ssh -q -o 'StrictHostKeyChecking no' -i '${rsa_key}' -p '${port}'" ${local_files} "${user}@${server}:${remote_path}"
+    rsync -og --chown=root:root -Pav --delete -e "ssh -q -o 'StrictHostKeyChecking no' -i '${rsa_key}' -p '${port}'" ${local_files} "${user}@${server}:${remote_path}"
     retval=$?
 
     if [ "${retval}" -ne 0 ]; then
@@ -7993,7 +7993,6 @@ da_api_admin() {
       _echo "$(msg green)OK, API with action ${action} executed with the following status: $(msg end)" --name
       _echo "$(msg green)${da_api_exec}$(msg end)" --plain | urldecode | awksep '&'
     fi
-
   # da_api_admin create-reseller-account --sign-as admin1 --username reseller2 --email reseller2@test.com --password abc1231aa --domain test.com --package-name "RESELLER_UNLIMITED" --ip-type "shared"
   elif [ "${action}" == "create-reseller-account" ]; then
     local cmd_api data method retval da_api_exec has_success
@@ -8515,10 +8514,8 @@ da_api_admin() {
     # Note this API will delete list of tickets, because I need to read message from ticket about restore-user-backup properly
     # It is alright, because we are using initial setup, ticket should not have anything important at this point.
   elif [ "${action}" == "restore-user-backup" ]; then
-    # da_api_admin "create-reseller-account" "user1" "user1@maxibi.com" "x1231aax" "maxibi.com" "USER_UNLIMITED"
     local cmd_api data method da_api_exec has_success has_error max_wait_restore
     cmd_api="CMD_API_ADMIN_BACKUP"
-    # data="username=${username}&email=${email}&passwd=${password}&passwd2=${password}&domain=${domain}&package=${package_name}&notify=yes&ip=${ip_address}&action=create&add=yes"
     data="where=local&when=now&ftp_ip=&ftp_username=&ftp_password=&ftp_path=%2F&ftp_port=21&ftp_secure=no&local_path=${backup_path}&ip_choice=file&ip=${backup_ip}&action=restore&create_user_home_override=&encryption_password=${backup_password}&select0=${backup_file_name}"
     method="POST"
     da_api_exec=$(curl --silent --request "${method}" --user "${da_api_username}":"${da_api_password}" --data "${data}" "${ssl_protocol}://${C_BOX_HOSTNAME_FQHN}:${port}/${cmd_api}")
@@ -8547,34 +8544,47 @@ da_api_admin() {
       rm -rf /usr/local/directadmin/data/tickets/*
       get_status_message "$?"
       echo ""
-
       max_wait_restore=0
       while :; do
         sleep 1
         _echo "$(msg cyan)Detecting user backup restoration status based on the directadmin ticket's subject ...$(msg end)" --name --start-spin
         ((max_wait_restore++))
-        da_api_exec=$(curl --silent --request "${method}" --user "${da_api_username}":"${da_api_password}" --data "${data}" "${ssl_protocol}://${C_BOX_HOSTNAME_FQHN}:${port}/${cmd_api}")
+        # Only owner will handle the restoration, so the API use authentication from owner
+        # Just make sure the backup has the same authentication in config file to get correct status
+        da_api_exec=$(curl --silent --request "${method}" --user "${C_DA_OWNER_USERNAME1}":"${C_DA_OWNER_USERPASS1}" --data "${data}" "${ssl_protocol}://${C_BOX_HOSTNAME_FQHN}:${port}/${cmd_api}")
         has_success=$(echo "${da_api_exec}" | urldecode | awksep '&' | grep -w "subject=Your User files have been restored")
         has_error=$(echo "${da_api_exec}" | urldecode | awksep '&' | grep -w "subject=An error occurred during the restore")
 
         if [ -n "${has_success}" ]; then
           _echo "$(msg green)OK, file ${backup_file_name} has been successfully restored based on the directadmin ticket's subject$(msg end)" --name --stop-spin
           break
-        fi
-
-        if [ -n "${has_error}" ]; then
+        elif [ -n "${has_error}" ]; then
           _echo "$(msg red)Error, could not restore the backup file ${backup_file_name}$(msg end)" --name --stop-spin
           _echo "$(msg red)${da_api_exec}$(msg end)" --plain | urldecode | awksep '&'
           _exit 147
           break
-        fi
-
-        if [ "${max_wait_restore}" -gt 120 ]; then
+        elif [ "${max_wait_restore}" -gt 120 ]; then
           _echo "$(msg red)Error, it took a very long period to obtain the restoration success message (restoration might be failed). Please inspect error below:$(msg end)" --name
           _echo "$(msg red)${da_api_exec}$(msg end)" --plain | urldecode | awksep '&'
           _exit 147
         fi
       done
+    fi
+  # da_api_admin change-user-password --username user1 --password 123
+  elif [ "${action}" == "change-user-password" ]; then
+    local cmd_api data method retval da_api_exec has_success
+    cmd_api="CMD_API_USER_PASSWD"
+    data="username=${username}&passwd=${password}&passwd2=${password}&action=create&referer=CMD_API_USER_PASSWD"
+    method="POST"
+    da_api_exec=$(curl --silent --request "${method}" --user "${da_api_username}":"${da_api_password}" --data "${data}" "${ssl_protocol}://${C_BOX_HOSTNAME_FQHN}:${port}/${cmd_api}")
+    has_success=$(echo "${da_api_exec}" | grep -w '^error=0')
+    if [ -z "${has_success}" ]; then
+      _echo "$(msg red)Error, API with action ${action} executed with the following error: $(msg end)" --name
+      _echo "$(msg red)${da_api_exec}$(msg end)" --plain | urldecode | awksep '&'
+    #_exit 147
+    else
+      _echo "$(msg green)OK, API with action ${action} executed with the following status: $(msg end)" --name
+      _echo "$(msg green)${da_api_exec}$(msg end)" --plain | urldecode | awksep '&'
     fi
   else
     _echo "$(msg red)The Directadmin API action ${action} does not exist!$(msg end)" --name
@@ -13796,7 +13806,7 @@ configure_da_owner_accounts() {
   fi
   [[ "${SKIP_RUN}" == "true" ]] && return 0
   if [[ ! -f "${CONF_PATH}/${func_name}_executed" && "${FUNCTION_RUN}" == "true" ]]; then
-    local da_scripts_path da_bin da_cb_bin da_conf retval
+    local da_scripts_path da_bin da_cb_bin da_conf retval current_da_owner_username da_owner_role da_owner_creator da_owner_username da_owner_password
 
     da_scripts_path="/usr/local/directadmin/scripts"
     da_bin="/usr/local/directadmin/directadmin"
@@ -13804,88 +13814,154 @@ configure_da_owner_accounts() {
     da_conf="/usr/local/directadmin/conf/directadmin.conf"
 
     _echo "$(msg cyan)Checking if required files are presents ...$(msg end)" --name
-    check_path "${da_bin}" "${da_cb_bin}" "${da_conf}" "${da_scripts_path}/change_username.sh"
+    check_path "${da_bin}" "${da_cb_bin}" "${da_conf}" "${da_scripts_path}/change_username.sh" "${da_scripts_path}/decrypt_file.sh"
     echo ""
 
+    # This will make sure that the admin root creator has the correct username (refer to config username). If different rename it
+    current_da_owner_username=$(get_current_da_owner_username)
+    da_owner_role="${C_DA_OWNER_ROLE1}"
+    da_owner_creator="${C_DA_OWNER_CREATOR1}"
+    da_owner_username="${C_DA_OWNER_USERNAME1}"
+    da_owner_password="${C_DA_OWNER_USERPASS1}"
+    echo "current_da_owner_username: ${current_da_owner_username}"
+    echo "da_owner_role: ${da_owner_role}"
+    echo "da_owner_creator: ${da_owner_creator}"
+    echo "da_owner_username: ${da_owner_username}"
+    echo "da_owner_password: ${da_owner_password}"
+    echo ""
     # There is only 1 owner, so use this:
     if [[ "${C_DA_OWNER_RESTORE_USER_BACKUP1}" == "true" && "${C_DA_DISABLE_USER_BACKUP_RESTORE}" == "false" ]]; then
-      local da_scripts_path da_bin da_cb_bin da_conf retval da_owner_creator da_owner_username \
-        backup_source_location da_owner_backup_location
 
-      da_scripts_path="/usr/local/directadmin/scripts"
-      da_bin="/usr/local/directadmin/directadmin"
-      da_cb_bin="/usr/local/directadmin/custombuild/build"
-      da_conf="/usr/local/directadmin/conf/directadmin.conf"
-
-      _echo "$(msg cyan)Checking if required files are presents ...$(msg end)" --name
-      check_path "${da_bin}" "${da_cb_bin}" "${da_conf}" "${da_scripts_path}/change_username.sh"
-      echo ""
-
-      # 1) First make sure that the admin root creator has the correct username (refer to config username). If different rename it
-      current_da_owner_username=$(get_current_da_owner_username)
-      echo "current_da_owner_username: ${current_da_owner_username}"
-      ###
-      echo ""
-      da_owner_role="${C_DA_OWNER_ROLE1}"
-      da_owner_creator="${C_DA_OWNER_CREATOR1}"
-      da_owner_username="${C_DA_OWNER_USERNAME1}"
-      echo "da_owner_role: ${da_owner_role}"
-      echo "da_owner_creator: ${da_owner_creator}"
-      echo "da_owner_username: ${da_owner_username}"
-      echo ""
       if [ "${current_da_owner_username}" != "${da_owner_username}" ]; then
-        echo "Warning, current directadmin owner username is not equal to owner username in config file. Renaming owner to ${LABEL_C_DA_OWNER_USERNAME1} ..."
+        _echo "$(msg yellow)Warning, current directadmin owner username is not equal to owner username in config file. Renaming owner to ${LABEL_C_DA_OWNER_USERNAME1} ...$(msg end)" --name
         ${da_scripts_path}/change_username.sh "$(get_current_da_owner_username)" "${C_DA_OWNER_USERNAME1}"
+        get_status_message "$?"
       else
-        echo "OK, current directadmin owner username is equal owner username in config file"
+        _echo "$(msg green)OK, the current directadmin owner username $(get_current_da_owner_username) is equal to the owner username in config file$(msg end)" --name
       fi
+      echo ""
+
+      # By default, directadmin installation uses a short password which is not secured. Change it here
+      _echo "$(msg cyan)Changing the first directadmin owner ($(get_current_da_owner_username))'s password ...$(msg end)" --name
+
+      # Warning this method has bug: https://forum.directadmin.com/threads/reproducible-bug-admin-backup-restoration-will-not-use-previous-password-changed-via-terminal.64868/
+      #echo "$(get_current_da_owner_username)":"${C_DA_OWNER_USERPASS1}" | chpasswd
+      #echo ""
+
+      da_api_admin change-user-password --username $(get_current_da_owner_username) --password ${da_owner_password}
 
       # 2) Then check if the backup file exist for this owner (refer to config username) - must be pushed from scp to root folder admin_backups/*
       # The role is admin (left name) and the creator is root (middle name)
-      # ) If exist let say the backup file name is admin.root.xxxx.tar.gz,
-
-      if [[ -f "${SCRIPT_PATH}/admin_backups/${da_owner_role}.${da_owner_creator}.${da_owner_username}.tar.gz" ]]; then
+      # If exist let say the backup file name is admin.root.xxxx.tar.gz,
+      local backup_source_location backup_source_location_encrypted da_owner_backup_location
+      if [[ -f "${SCRIPT_PATH}/admin_backups/${da_owner_role}.${da_owner_creator}.${da_owner_username}.tar" ]]; then
+        backup_source_location="${SCRIPT_PATH}/admin_backups/${da_owner_role}.${da_owner_creator}.${da_owner_username}.tar"
+      elif [[ -f "${SCRIPT_PATH}/admin_backups/${da_owner_role}.${da_owner_creator}.${da_owner_username}.tar.enc" ]]; then
+        # This is the case if backup is encrypted
+        backup_source_location="${SCRIPT_PATH}/admin_backups/${da_owner_role}.${da_owner_creator}.${da_owner_username}.tar"
+        backup_source_location_encrypted="${SCRIPT_PATH}/admin_backups/${da_owner_role}.${da_owner_creator}.${da_owner_username}.tar.enc"
+        _echo "$(msg cyan)Decrypting backup file ${backup_source_location_encrypted} ...$(msg end)" --name
+        echo "${C_DA_USER_BACKUP_PASSWORD}" >"${SECURE_PATH}/backup_file"
+        ${da_scripts_path}/decrypt_file.sh "${backup_source_location_encrypted}" "${backup_source_location}" "${SECURE_PATH}/backup_file"
+        get_status_message "$?"
+        echo ""
+        _echo "$(msg cyan)Removing backup password file ${SECURE_PATH}/backup_file ...$(msg end)" --name
+        rm -f "${SECURE_PATH}/backup_file"
+        get_status_message "$?"
+        echo ""
+      elif [[ -f "${SCRIPT_PATH}/admin_backups/${da_owner_role}.${da_owner_creator}.${da_owner_username}.tar.gz" ]]; then
+        # This is the case if backup is not encrypted (and file type is .tar.gz)
         backup_source_location="${SCRIPT_PATH}/admin_backups/${da_owner_role}.${da_owner_creator}.${da_owner_username}.tar.gz"
       elif [[ -f "${SCRIPT_PATH}/admin_backups/${da_owner_role}.${da_owner_creator}.${da_owner_username}.tar.gz.enc" ]]; then
-        backup_source_location="${SCRIPT_PATH}/admin_backups/${da_owner_role}.${da_owner_creator}.${da_owner_username}.tar.gz.enc"
+        # This is the case if backup is encrypted
+        backup_source_location="${SCRIPT_PATH}/admin_backups/${da_owner_role}.${da_owner_creator}.${da_owner_username}.tar.gz"
+        backup_source_location_encrypted="${SCRIPT_PATH}/admin_backups/${da_owner_role}.${da_owner_creator}.${da_owner_username}.tar.gz.enc"
+        # Note when I use API with supplying decryption password (even the password is decoded), it will not work (this might be bug in DA):
+        # Decryption of /home/....tar.gz.enc has failed: Either dest_file, encrypted_file, or encryption_password variables are missing or empty.
+        # Alternatively I will use the decryption script to decrypt the file manually in Directadmin
+        _echo "$(msg cyan)Decrypting backup file ${backup_source_location_encrypted} ...$(msg end)" --name
+        echo "${C_DA_USER_BACKUP_PASSWORD}" >"${SECURE_PATH}/backup_file"
+        ${da_scripts_path}/decrypt_file.sh "${backup_source_location_encrypted}" "${backup_source_location}" "${SECURE_PATH}/backup_file"
+        get_status_message "$?"
+        echo ""
+        _echo "$(msg cyan)Removing backup password file ${SECURE_PATH}/backup_file ...$(msg end)" --name
+        rm -f "${SECURE_PATH}/backup_file"
+        get_status_message "$?"
+        echo ""
+      elif [[ -f "${SCRIPT_PATH}/admin_backups/${da_owner_role}.${da_owner_creator}.${da_owner_username}.tar.zst" ]]; then
+        # This is the case if backup is not encrypted (and file type is .tar.zst)
+        backup_source_location="${SCRIPT_PATH}/admin_backups/${da_owner_role}.${da_owner_creator}.${da_owner_username}.tar.zst"
+      elif [[ -f "${SCRIPT_PATH}/admin_backups/${da_owner_role}.${da_owner_creator}.${da_owner_username}.tar.zst.enc" ]]; then
+        # This is the case if backup is encrypted
+        backup_source_location="${SCRIPT_PATH}/admin_backups/${da_owner_role}.${da_owner_creator}.${da_owner_username}.tar.zst"
+        backup_source_location_encrypted="${SCRIPT_PATH}/admin_backups/${da_owner_role}.${da_owner_creator}.${da_owner_username}.tar.zst.enc"
+        _echo "$(msg cyan)Decrypting backup file ${backup_source_location_encrypted} ...$(msg end)" --name
+        echo "${C_DA_USER_BACKUP_PASSWORD}" >"${SECURE_PATH}/backup_file"
+        ${da_scripts_path}/decrypt_file.sh "${backup_source_location_encrypted}" "${backup_source_location}" "${SECURE_PATH}/backup_file"
+        get_status_message "$?"
+        echo ""
+        _echo "$(msg cyan)Removing backup password file ${SECURE_PATH}/backup_file ...$(msg end)" --name
+        rm -f "${SECURE_PATH}/backup_file"
+        get_status_message "$?"
+        echo ""
       else
-        echo "Backup file not exist for this owner. Make sure the backup file is exist. If you don't care, put disable restore from this user in config file "
+        echo "Backup file does not exist for this user ${da_owner_username}. If you want to ignore this backup, disable this user backup restoration from config file "
         _exit 147
       fi
-      echo "Backup source location: ${backup_source_location}"
+
+      if [ -f "${backup_source_location}" ]; then
+        _echo "$(msg green)OK, backup source location exist: ${backup_source_location}$(msg end)" --name
+      else
+        _echo "$(msg red)Error, no backup file exist in ${backup_source_location}$(msg end)" --name
+        _exit 147
+      fi
+
       echo ""
+
+      # This is the owner main backup location
       da_owner_backup_location=/home/$(get_current_da_owner_username)/admin_backups/$(basename -- ${backup_source_location})
 
-      echo "Copying backup from ${backup_source_location} to ${da_owner_backup_location}..."
+      _echo "$(msg cyan)Copying backup file from ${backup_source_location} into ${da_owner_backup_location}...$(msg end)" --name
       cp -fp "${backup_source_location}" "${da_owner_backup_location}"
       get_status_message "$?"
-      if [ ! -f "${da_owner_backup_location}" ]; then
-        echo "User backup path ${da_owner_backup_location} not found!"
+
+      if [ -f "${da_owner_backup_location}" ]; then
+        _echo "$(msg green)OK, the user backup file was copied in owner backup location at ${da_owner_backup_location}$(msg end)" --name
+      else
+        _echo "$(msg red)Error, the user backup file does not exist in owner backup location at ${da_owner_backup_location} after performed a copy operation$(msg end)" --name
         _exit 147
       fi
       echo ""
-      echo "Changing file owner ..."
+      _echo "$(msg cyan)Changing file owner permission for ${da_owner_backup_location} ...$(msg end)" --name
       chown -v "$(get_current_da_owner_username):$(get_current_da_owner_username)" "${da_owner_backup_location}"
       get_status_message "$?"
       echo ""
-      echo "Changing file permission ..."
+      _echo "$(msg cyan)Changing file permission for ${da_owner_backup_location} ...$(msg end)" --name
       chmod -v 640 "${da_owner_backup_location}"
       get_status_message "$?"
       echo ""
 
+      # Note, this also required to have the matching password from the backup file with the config file in order to check correct restore status (if not match, it will return error but restore works normally)
+      # To fix this issue, login into terminal and change the owner password with command:
+      # passwd owner_username
+      # or i will do automatic change in API
       da_api_admin restore-user-backup --backup-ip "${C_IPV4_ADD0}" --backup-path "$(dirname ${da_owner_backup_location})" --backup-file-name "$(basename -- ${da_owner_backup_location})" --backup-password ${C_DA_USER_BACKUP_PASSWORD}
-
+      echo ""
       _echo "$(msg cyan) Getting list of all domains created ...$(msg end)" --name
       readarray -t da_domains <<<"$(grep -w "${da_owner_username}" "/etc/virtual/domainowners" | cut -d ":" -f 1)"
-      echo "Domains list for ${da_owner_username}:"
-      echo "${da_domains[*]}"
       echo ""
+
       if [ -n "${da_domains}" ]; then
+        echo "Domains list for ${da_owner_username}:"
+        echo "${da_domains[*]}"
+        echo ""
         for da_domain in "${da_domains[@]}"; do
           _echo "$(msg cyan) Writing all DNS record for domain ${da_domain} to external DNS ...$(msg end)" --name
           copy_local_dns_to_external_dns "${da_domain}"
           echo ""
         done
+      else
+        _echo "$(msg yellow)[Skipped]: The user ${da_owner_username} does not have any domain record$(msg end)" --name
       fi
     else
       # This will change Directadmin admin account username:
@@ -13894,7 +13970,8 @@ configure_da_owner_accounts() {
       echo ""
       # By default, directadmin installation uses a short password which is not secured. Change it here
       _echo "$(msg cyan)Changing the first directadmin owner ($(get_current_da_owner_username))'s password ...$(msg end)" --name
-      echo "$(get_current_da_owner_username)":"${C_DA_OWNER_USERPASS1}" | chpasswd
+      #echo "$(get_current_da_owner_username)":"${C_DA_OWNER_USERPASS1}" | chpasswd
+      da_api_admin change-user-password --username $(get_current_da_owner_username) --password ${da_owner_password}
       echo ""
 
       _echo "$(msg cyan)Renaming owner account name to ${LABEL_C_DA_OWNER_NAME1} ...$(msg end)" --name
@@ -13939,67 +14016,130 @@ configure_da_admin_accounts() {
   fi
   [[ "${SKIP_RUN}" == "true" ]] && return 0
   if [[ ! -f "${CONF_PATH}/${func_name}_executed" && "${FUNCTION_RUN}" == "true" ]]; then
-    local da_bin da_cb_bin da_conf
+    local da_scripts_path da_bin da_cb_bin da_conf retval
+
+    da_scripts_path="/usr/local/directadmin/scripts"
     da_bin="/usr/local/directadmin/directadmin"
     da_cb_bin="/usr/local/directadmin/custombuild/build"
     da_conf="/usr/local/directadmin/conf/directadmin.conf"
     _echo "$(msg cyan)Checking if required files are presents ...$(msg end)" --name
-    check_path "${da_bin}" "${da_cb_bin}" "${da_conf}"
+    check_path "${da_bin}" "${da_cb_bin}" "${da_conf}" "${da_scripts_path}/decrypt_file.sh"
     echo ""
 
-    echo ""
     da_admin_role="${C_DA_ADMIN_ROLE1}"
     da_admin_creator="${C_DA_ADMIN_CREATOR1}"
     da_admin_username="${C_DA_ADMIN_USERNAME1}"
+
     echo "da_admin_role: ${da_admin_role}"
-    echo "da_owner_creator: ${da_owner_creator}"
-    echo "da_owner_username: ${da_owner_username}"
+    echo "da_admin_creator: ${da_admin_creator}"
+    echo "da_admin_username: ${da_admin_username}"
+    echo ""
 
     if [[ "${C_DA_ADMIN_RESTORE_USER_BACKUP1}" == "true" && "${C_DA_DISABLE_USER_BACKUP_RESTORE}" == "false" ]]; then
-      local backup_source_location da_owner_backup_location
-      echo "${SCRIPT_PATH}/admin_backups/${da_admin_role}.${da_admin_creator}.${da_admin_username}.tar.gz"
-
-      if [[ -f "${SCRIPT_PATH}/admin_backups/${da_admin_role}.${da_admin_creator}.${da_admin_username}.tar.gz" ]]; then
+      local backup_source_location backup_source_location_encrypted da_owner_backup_location
+      if [[ -f "${SCRIPT_PATH}/admin_backups/${da_admin_role}.${da_admin_creator}.${da_admin_username}.tar" ]]; then
+        backup_source_location="${SCRIPT_PATH}/admin_backups/${da_admin_role}.${da_admin_creator}.${da_admin_username}.tar"
+      elif [[ -f "${SCRIPT_PATH}/admin_backups/${da_admin_role}.${da_admin_creator}.${da_admin_username}.tar.enc" ]]; then
+        # This is the case if backup is encrypted
+        backup_source_location="${SCRIPT_PATH}/admin_backups/${da_admin_role}.${da_admin_creator}.${da_admin_username}.tar"
+        backup_source_location_encrypted="${SCRIPT_PATH}/admin_backups/${da_admin_role}.${da_admin_creator}.${da_admin_username}.tar.enc"
+        _echo "$(msg cyan)Decrypting backup file ${backup_source_location_encrypted} ...$(msg end)" --name
+        echo "${C_DA_USER_BACKUP_PASSWORD}" >"${SECURE_PATH}/backup_file"
+        ${da_scripts_path}/decrypt_file.sh "${backup_source_location_encrypted}" "${backup_source_location}" "${SECURE_PATH}/backup_file"
+        get_status_message "$?"
+        echo ""
+        _echo "$(msg cyan)Removing backup password file ${SECURE_PATH}/backup_file ...$(msg end)" --name
+        rm -f "${SECURE_PATH}/backup_file"
+        get_status_message "$?"
+        echo ""
+      elif [[ -f "${SCRIPT_PATH}/admin_backups/${da_admin_role}.${da_admin_creator}.${da_admin_username}.tar.gz" ]]; then
+        # This is the case if backup is not encrypted (and file type is .tar.gz)
         backup_source_location="${SCRIPT_PATH}/admin_backups/${da_admin_role}.${da_admin_creator}.${da_admin_username}.tar.gz"
       elif [[ -f "${SCRIPT_PATH}/admin_backups/${da_admin_role}.${da_admin_creator}.${da_admin_username}.tar.gz.enc" ]]; then
-        backup_source_location="${SCRIPT_PATH}/admin_backups/${da_admin_role}.${da_admin_creator}.${da_admin_username}.tar.gz.enc"
+        # This is the case if backup is encrypted
+        backup_source_location="${SCRIPT_PATH}/admin_backups/${da_admin_role}.${da_admin_creator}.${da_admin_username}.tar.gz"
+        backup_source_location_encrypted="${SCRIPT_PATH}/admin_backups/${da_admin_role}.${da_admin_creator}.${da_admin_username}.tar.gz.enc"
+        # Note when I use API with supplying decryption password (even the password is decoded), it will not work (this might be bug in DA):
+        # Decryption of /home/....tar.gz.enc has failed: Either dest_file, encrypted_file, or encryption_password variables are missing or empty.
+        # Alternatively I will use the decryption script to decrypt the file manually in Directadmin
+        _echo "$(msg cyan)Decrypting backup file ${backup_source_location_encrypted} ...$(msg end)" --name
+        echo "${C_DA_USER_BACKUP_PASSWORD}" >"${SECURE_PATH}/backup_file"
+        ${da_scripts_path}/decrypt_file.sh "${backup_source_location_encrypted}" "${backup_source_location}" "${SECURE_PATH}/backup_file"
+        get_status_message "$?"
+        echo ""
+        _echo "$(msg cyan)Removing backup password file ${SECURE_PATH}/backup_file ...$(msg end)" --name
+        rm -f "${SECURE_PATH}/backup_file"
+        get_status_message "$?"
+        echo ""
+      elif [[ -f "${SCRIPT_PATH}/admin_backups/${da_admin_role}.${da_admin_creator}.${da_admin_username}.tar.zst" ]]; then
+        # This is the case if backup is not encrypted (and file type is .tar.zst)
+        backup_source_location="${SCRIPT_PATH}/admin_backups/${da_admin_role}.${da_admin_creator}.${da_admin_username}.tar.zst"
+      elif [[ -f "${SCRIPT_PATH}/admin_backups/${da_admin_role}.${da_admin_creator}.${da_admin_username}.tar.zst.enc" ]]; then
+        # This is the case if backup is encrypted
+        backup_source_location="${SCRIPT_PATH}/admin_backups/${da_admin_role}.${da_admin_creator}.${da_admin_username}.tar.zst"
+        backup_source_location_encrypted="${SCRIPT_PATH}/admin_backups/${da_admin_role}.${da_admin_creator}.${da_admin_username}.tar.zst.enc"
+        _echo "$(msg cyan)Decrypting backup file ${backup_source_location_encrypted} ...$(msg end)" --name
+        echo "${C_DA_USER_BACKUP_PASSWORD}" >"${SECURE_PATH}/backup_file"
+        ${da_scripts_path}/decrypt_file.sh "${backup_source_location_encrypted}" "${backup_source_location}" "${SECURE_PATH}/backup_file"
+        get_status_message "$?"
+        echo ""
+        _echo "$(msg cyan)Removing backup password file ${SECURE_PATH}/backup_file ...$(msg end)" --name
+        rm -f "${SECURE_PATH}/backup_file"
+        get_status_message "$?"
+        echo ""
       else
-        echo "Backup file ${backup_source_location} does not exist for this user ${da_admin_username}. If you want to ignore this backup, disable this user backup restoration from config file "
+        echo "Backup file does not exist for this user ${da_admin_username}. If you want to ignore this backup, disable this user backup restoration from config file "
         _exit 147
       fi
 
-      _echo "Backup source location: ${backup_source_location}" --name --verbose 7
-      _echo "$(msg newline)" --plain --verbose 7
+      if [ -f "${backup_source_location}" ]; then
+        _echo "$(msg green)OK, backup source location exist: ${backup_source_location}$(msg end)" --name
+      else
+        _echo "$(msg red)Error, no backup file exist in ${backup_source_location}$(msg end)" --name
+        _exit 147
+      fi
+
+      echo ""
 
       da_owner_backup_location=/home/$(get_current_da_owner_username)/admin_backups/$(basename -- ${backup_source_location})
+
       _echo "$(msg cyan)Copying backup from ${backup_source_location} to ${da_owner_backup_location}... $(msg end)" --name
       cp -fp "${backup_source_location}" "${da_owner_backup_location}"
       get_status_message "$?"
-      if [ ! -f "${da_owner_backup_location}" ]; then
-        _echo "$(msg red)Error, The backup path ${da_owner_backup_location} not found after performed a copy! $(msg end)" --name
+
+      if [ -f "${da_owner_backup_location}" ]; then
+        _echo "$(msg green)OK, the user backup file was copied in owner backup location at ${da_owner_backup_location}$(msg end)" --name
+      else
+        _echo "$(msg red)Error, the user backup file does not exist in owner backup location at ${da_owner_backup_location} after performed a copy operation$(msg end)" --name
         _exit 147
       fi
       echo ""
       _echo "$(msg cyan)Changing file owner permission for ${da_owner_backup_location} ...$(msg end)" --name
-      chown "$(get_current_da_owner_username):$(get_current_da_owner_username)" "${da_owner_backup_location}"
+      chown -v "$(get_current_da_owner_username):$(get_current_da_owner_username)" "${da_owner_backup_location}"
       get_status_message "$?"
       echo ""
       _echo "$(msg cyan)Changing file permission for ${da_owner_backup_location} ...$(msg end)" --name
-      chmod 640 "${da_owner_backup_location}"
+      chmod -v 640 "${da_owner_backup_location}"
       get_status_message "$?"
       echo ""
+
       da_api_admin restore-user-backup --backup-ip "${C_IPV4_ADD0}" --backup-path "$(dirname ${da_owner_backup_location})" --backup-file-name "$(basename -- ${da_owner_backup_location})" --backup-password ${C_DA_USER_BACKUP_PASSWORD}
+      echo ""
       _echo "$(msg cyan) Getting list of all domains created ...$(msg end)" --name
       readarray -t da_domains <<<"$(grep -w "${da_admin_username}" "/etc/virtual/domainowners" | cut -d ":" -f 1)"
-      echo "Domains list for ${da_admin_username}:"
-      echo "${da_domains[*]}"
       echo ""
+
       if [ -n "${da_domains}" ]; then
+        echo "Domains list for ${da_owner_username}:"
+        echo "${da_domains[*]}"
+        echo ""
         for da_domain in "${da_domains[@]}"; do
           _echo "$(msg cyan) Writing all DNS record for domain ${da_domain} to external DNS ...$(msg end)" --name
           copy_local_dns_to_external_dns "${da_domain}"
           echo ""
         done
+      else
+        _echo "$(msg yellow)[Skipped]: The user ${da_owner_username} does not have any domain record$(msg end)" --name
       fi
     else
       _echo "$(msg cyan) Creating the first new directadmin admin account ${LABEL_C_ADMIN_USERNAME1} ...$(msg end)" --name
@@ -14013,7 +14153,7 @@ configure_da_admin_accounts() {
       _echo "$(msg cyan)Creating a new  unlimited package with recommend values for resellers with the following name: ${C_DA_RESELLER_PACKAGE_NAME1} ...$(msg end)" --name
       da_api_admin create-reseller-package --sign-as admin1 --package-name "${C_DA_RESELLER_PACKAGE_NAME1}" --recommend-values
 
-      # Run additional step if not restore from backup
+      # Running additional command for admin if no backup is restored
       configure_da_admin_skins --run
       configure_da_admin_security --run
     fi
@@ -14053,8 +14193,16 @@ configure_da_reseller_accounts() {
   if [[ ! -f "${CONF_PATH}/${func_name}_executed" && "${FUNCTION_RUN}" == "true" ]]; then
     local da_reseller_packages_list count_reseller1 \
       da_reseller_creator da_reseller_role da_reseller_restore_user_backup da_reseller_uname da_reseller_password da_reseller_name da_reseller_system_email \
-      da_reseller_mail_users da_reseller_mail_passwords da_reseller_domains da_reseller_ip_type da_reseller_package_name da_reseller_enable_domain_ssl grep_count
+      da_reseller_mail_users da_reseller_mail_passwords da_reseller_domains da_reseller_ip_type da_reseller_package_name da_reseller_enable_domain_ssl grep_count \
+      da_scripts_path da_bin da_cb_bin da_conf retval
 
+    da_scripts_path="/usr/local/directadmin/scripts"
+    da_bin="/usr/local/directadmin/directadmin"
+    da_cb_bin="/usr/local/directadmin/custombuild/build"
+    da_conf="/usr/local/directadmin/conf/directadmin.conf"
+    _echo "$(msg cyan)Checking if required files are presents ...$(msg end)" --name
+    check_path "${da_bin}" "${da_cb_bin}" "${da_conf}" "${da_scripts_path}/decrypt_file.sh"
+    echo ""
     # This file contains list of packages for admin and reseller (use this file for checking existing package)
     da_reseller_packages_list="/usr/local/directadmin/data/admin/packages.list"
     # We can restart directadmin to clear pending Directadmin cron
@@ -14080,8 +14228,7 @@ configure_da_reseller_accounts() {
       typeset -n da_reseller_package_name="C_DA_RESELLER_PACKAGE_NAME${count_reseller1}"
       typeset -n da_reseller_enable_domain_ssl="C_DA_RESELLER_ENABLE_DOMAIN_SSL${count_reseller1}"
 
-      # TODO this information is sensitive, hide later
-      _echo "$(msg cyan)Checking if reseller package name ${da_reseller_package_name} was created by previous admin before ...$(msg end)" --name
+      _echo "$(msg cyan)Checking if reseller package name ${da_reseller_package_name} was created by previous creator before ...$(msg end)" --name
       grep_count=$(grep -ic "${da_reseller_package_name}" "${da_reseller_packages_list}")
       if [ "${grep_count}" -gt 0 ]; then
         _echo "$(msg green)OK, reseller package name ${da_reseller_package_name} found$(msg end)" --name
@@ -14122,27 +14269,80 @@ configure_da_reseller_accounts() {
       _echo "$(msg newline)" --plain --verbose 7
 
       if [[ "${da_reseller_restore_user_backup}" == "true" && "${C_DA_DISABLE_USER_BACKUP_RESTORE}" == "false" ]]; then
-        local backup_source_location da_owner_backup_location
-        echo "${SCRIPT_PATH}/admin_backups/${da_reseller_role}.${da_reseller_creator}.${da_reseller_uname}.tar.gz"
-
-        if [[ -f "${SCRIPT_PATH}/admin_backups/${da_reseller_role}.${da_reseller_creator}.${da_reseller_uname}.tar.gz" ]]; then
+        local backup_source_location backup_source_location_encrypted da_owner_backup_location
+        if [[ -f "${SCRIPT_PATH}/admin_backups/${da_reseller_role}.${da_reseller_creator}.${da_reseller_uname}.tar" ]]; then
+          backup_source_location="${SCRIPT_PATH}/admin_backups/${da_reseller_role}.${da_reseller_creator}.${da_reseller_uname}.tar"
+        elif [[ -f "${SCRIPT_PATH}/admin_backups/${da_reseller_role}.${da_reseller_creator}.${da_reseller_uname}.tar.enc" ]]; then
+          # This is the case if backup is encrypted
+          backup_source_location="${SCRIPT_PATH}/admin_backups/${da_reseller_role}.${da_reseller_creator}.${da_reseller_uname}.tar"
+          backup_source_location_encrypted="${SCRIPT_PATH}/admin_backups/${da_reseller_role}.${da_reseller_creator}.${da_reseller_uname}.tar.enc"
+          _echo "$(msg cyan)Decrypting backup file ${backup_source_location_encrypted} ...$(msg end)" --name
+          echo "${C_DA_USER_BACKUP_PASSWORD}" >"${SECURE_PATH}/backup_file"
+          ${da_scripts_path}/decrypt_file.sh "${backup_source_location_encrypted}" "${backup_source_location}" "${SECURE_PATH}/backup_file"
+          get_status_message "$?"
+          echo ""
+          _echo "$(msg cyan)Removing backup password file ${SECURE_PATH}/backup_file ...$(msg end)" --name
+          rm -f "${SECURE_PATH}/backup_file"
+          get_status_message "$?"
+          echo ""
+        elif [[ -f "${SCRIPT_PATH}/admin_backups/${da_reseller_role}.${da_reseller_creator}.${da_reseller_uname}.tar.gz" ]]; then
+          # This is the case if backup is not encrypted (and file type is .tar.gz)
           backup_source_location="${SCRIPT_PATH}/admin_backups/${da_reseller_role}.${da_reseller_creator}.${da_reseller_uname}.tar.gz"
         elif [[ -f "${SCRIPT_PATH}/admin_backups/${da_reseller_role}.${da_reseller_creator}.${da_reseller_uname}.tar.gz.enc" ]]; then
-          backup_source_location="${SCRIPT_PATH}/admin_backups/${da_reseller_role}.${da_reseller_creator}.${da_reseller_uname}.tar.gz.enc"
+          # This is the case if backup is encrypted
+          backup_source_location="${SCRIPT_PATH}/admin_backups/${da_reseller_role}.${da_reseller_creator}.${da_reseller_uname}.tar.gz"
+          backup_source_location_encrypted="${SCRIPT_PATH}/admin_backups/${da_reseller_role}.${da_reseller_creator}.${da_reseller_uname}.tar.gz.enc"
+          # Note when I use API with supplying decryption password (even the password is decoded), it will not work (this might be bug in DA):
+          # Decryption of /home/....tar.gz.enc has failed: Either dest_file, encrypted_file, or encryption_password variables are missing or empty.
+          # Alternatively I will use the decryption script to decrypt the file manually in Directadmin
+          _echo "$(msg cyan)Decrypting backup file ${backup_source_location_encrypted} ...$(msg end)" --name
+          echo "${C_DA_USER_BACKUP_PASSWORD}" >"${SECURE_PATH}/backup_file"
+          ${da_scripts_path}/decrypt_file.sh "${backup_source_location_encrypted}" "${backup_source_location}" "${SECURE_PATH}/backup_file"
+          get_status_message "$?"
+          echo ""
+          _echo "$(msg cyan)Removing backup password file ${SECURE_PATH}/backup_file ...$(msg end)" --name
+          rm -f "${SECURE_PATH}/backup_file"
+          get_status_message "$?"
+          echo ""
+        elif [[ -f "${SCRIPT_PATH}/admin_backups/${da_reseller_role}.${da_reseller_creator}.${da_reseller_uname}.tar.zst" ]]; then
+          # This is the case if backup is not encrypted (and file type is .tar.zst)
+          backup_source_location="${SCRIPT_PATH}/admin_backups/${da_reseller_role}.${da_reseller_creator}.${da_reseller_uname}.tar.zst"
+        elif [[ -f "${SCRIPT_PATH}/admin_backups/${da_reseller_role}.${da_reseller_creator}.${da_reseller_uname}.tar.zst.enc" ]]; then
+          # This is the case if backup is encrypted
+          backup_source_location="${SCRIPT_PATH}/admin_backups/${da_reseller_role}.${da_reseller_creator}.${da_reseller_uname}.tar.zst"
+          backup_source_location_encrypted="${SCRIPT_PATH}/admin_backups/${da_reseller_role}.${da_reseller_creator}.${da_reseller_uname}.tar.zst.enc"
+          _echo "$(msg cyan)Decrypting backup file ${backup_source_location_encrypted} ...$(msg end)" --name
+          echo "${C_DA_USER_BACKUP_PASSWORD}" >"${SECURE_PATH}/backup_file"
+          ${da_scripts_path}/decrypt_file.sh "${backup_source_location_encrypted}" "${backup_source_location}" "${SECURE_PATH}/backup_file"
+          get_status_message "$?"
+          echo ""
+          _echo "$(msg cyan)Removing backup password file ${SECURE_PATH}/backup_file ...$(msg end)" --name
+          rm -f "${SECURE_PATH}/backup_file"
+          get_status_message "$?"
+          echo ""
         else
-          echo "Backup file ${backup_source_location} does not exist for this user ${da_reseller_uname}. If you want to ignore this backup, disable this user backup restoration from config file "
-          _exit 147
+          echo "Backup file does not exist for this user ${da_reseller_uname}. If you want to ignore this backup, disable this user backup restoration from config file "
+          _confirm
         fi
 
-        _echo "Backup source location: ${backup_source_location}" --name --verbose 7
-        _echo "$(msg newline)" --plain --verbose 7
+        if [ -f "${backup_source_location}" ]; then
+          _echo "$(msg green)OK, backup source location exist: ${backup_source_location}$(msg end)" --name
+        else
+          _echo "$(msg red)Error, no backup file exist in ${backup_source_location}$(msg end)" --name
+          _exit 147
+        fi
+        echo ""
 
         da_owner_backup_location=/home/$(get_current_da_owner_username)/admin_backups/$(basename -- ${backup_source_location})
+
         _echo "$(msg cyan)Copying backup from ${backup_source_location} to ${da_owner_backup_location}... $(msg end)" --name
         cp -fp "${backup_source_location}" "${da_owner_backup_location}"
         get_status_message "$?"
-        if [ ! -f "${da_owner_backup_location}" ]; then
-          _echo "$(msg red)Error, The backup path ${da_owner_backup_location} not found after performed a copy! $(msg end)" --name
+
+        if [ -f "${da_owner_backup_location}" ]; then
+          _echo "$(msg green)OK, the user backup file was copied in owner backup location at ${da_owner_backup_location}$(msg end)" --name
+        else
+          _echo "$(msg red)Error, the user backup file does not exist in owner backup location at ${da_owner_backup_location} after performed a copy operation$(msg end)" --name
           _exit 147
         fi
         echo ""
@@ -14155,18 +14355,21 @@ configure_da_reseller_accounts() {
         get_status_message "$?"
         echo ""
         da_api_admin restore-user-backup --backup-ip "${C_IPV4_ADD0}" --backup-path "$(dirname ${da_owner_backup_location})" --backup-file-name "$(basename -- ${da_owner_backup_location})" --backup-password ${C_DA_USER_BACKUP_PASSWORD}
-
+        echo ""
         _echo "$(msg cyan) Getting list of all domains created ...$(msg end)" --name
         readarray -t da_domains <<<"$(grep -w "${da_reseller_uname}" "/etc/virtual/domainowners" | cut -d ":" -f 1)"
-        echo "Domains list for ${da_reseller_uname}:"
-        echo "${da_domains[*]}"
         echo ""
         if [ -n "${da_domains}" ]; then
+          echo "Domains list for ${da_reseller_uname}:"
+          echo "${da_domains[*]}"
+          echo ""
           for da_domain in "${da_domains[@]}"; do
             _echo "$(msg cyan) Writing all DNS record for domain ${da_domain} to external DNS ...$(msg end)" --name
             copy_local_dns_to_external_dns "${da_domain}"
             echo ""
           done
+        else
+          _echo "$(msg yellow)[Skipped]: The user ${da_owner_username} does not have any domain record$(msg end)" --name
         fi
       else
         # Note 1: To create a reseller, we need to use an admin account:
@@ -14447,7 +14650,8 @@ letsencrypt_challenge_check() {
   rm -f ${WELLKNOWN_PATH}/letsencrypt_${TIMESTAMP}
 }
 
-# This will configure all user domain SSL (including owner,admin,reseller, just to be sure that the user domain is created first
+# This will configure all user domain SSL (including owner,admin,reseller, just to be sure that the user domain is created first)
+# Note this is working but I consider this as beta feature at this point
 configure_da_user_domain_ssl() {
   local run_mode func_name
   run_mode="$1"
@@ -14479,256 +14683,261 @@ configure_da_user_domain_ssl() {
     _echo "$(msg cyan)Configuring Directadmin SSL for user domain certificate ...$(msg end)" --name
 
     # Only do this if AUTO SSL is not enable
-    if [ "${C_DA_DISABLE_DOMAIN_AUTO_SSL}" == "true" ]; then
-      # This script is based on the original DA script http://files.directadmin.com/services/all/letsencrypt/autoletsencrypt.sh
-      # and the improvement was specifically made to solve this issue which is not documented:
-      # https://forum.directadmin.com/threads/restore-ssl-certificate-for-user-domain-from-usr-local-directadmin-data-lego-folder.64842/
-      local lego_data_path has_letsencrypt_set letsencrypt_list_selected
 
-      lego_data_path="/usr/local/directadmin/data/.lego"
-      mkdir -p "${lego_data_path}/certificates"
+    # This script is based on the original DA script http://files.directadmin.com/services/all/letsencrypt/autoletsencrypt.sh
+    # and the improvement was specifically made to solve this issue which is not documented:
+    # https://forum.directadmin.com/threads/restore-ssl-certificate-for-user-domain-from-usr-local-directadmin-data-lego-folder.64842/
+    local lego_data_path has_letsencrypt_set letsencrypt_list_selected
 
-      # SSL location:
-      key=$(${da_bin} c | grep ^cakey= | cut -d= -f2)
-      cert=$(${da_bin} c | grep ^cacert= | cut -d= -f2)
-      cacert=$(${da_bin} c | grep ^carootcert= | cut -d= -f2)
+    lego_data_path="/usr/local/directadmin/data/.lego"
+    mkdir -p "${lego_data_path}/certificates"
 
-      set_da_cacert=false
-      if [ "${cacert}" = "" ] || [ "${cert}" = "${da_conf_path}/carootcert.pem" ]; then
-        cert="${da_conf_path}/cacert.pem"
-        cacert="${da_conf_path}/carootcert.pem"
-        set_da_cacert=true
-      fi
+    # SSL location:
+    key=$(${da_bin} c | grep ^cakey= | cut -d= -f2)
+    cert=$(${da_bin} c | grep ^cacert= | cut -d= -f2)
+    cacert=$(${da_bin} c | grep ^carootcert= | cut -d= -f2)
 
-      # This is the well known path for letsencrypt SSL server verification
-      has_letsencrypt_set=$(${da_bin} c | grep -m1 '^letsencrypt=1$')
+    set_da_cacert=false
+    if [ "${cacert}" = "" ] || [ "${cert}" = "${da_conf_path}/carootcert.pem" ]; then
+      cert="${da_conf_path}/cacert.pem"
+      cacert="${da_conf_path}/carootcert.pem"
+      set_da_cacert=true
+    fi
 
-      if [ -z "${has_letsencrypt_set}" ]; then
-        _echo "$(msg red)Error, let's encrypt hasn't been enabled on the system!$(msg end)" --name
-        _exit 147
-      else
-        letsencrypt_list_selected="$(${da_bin} c | grep '^letsencrypt_list_selected=' | cut -d= -f2 | tr ':' ' ')"
-      fi
-      local da_reseller_usernames_count reseller_count
-      da_reseller_usernames_count=$(echo "${!C_DA_RESELLER_USERNAME@}" | wc -w)
-      reseller_count=1
-      while [[ ${reseller_count} -le ${da_reseller_usernames_count} ]]; do
-        echo ""
-        echo "===== RESELLER USER: ${reseller_count} ========="
-        typeset -n da_reseller_username="C_DA_RESELLER_USERNAME${reseller_count}"
-        typeset -n da_reseller_restore_domain_ssl="C_DA_RESELLER_RESTORE_USER_DOMAIN_SSL${reseller_count}"
-        echo "da_reseller_username: ${da_reseller_username}"
-        echo "da_reseller_restore_domain_ssl: ${da_reseller_restore_domain_ssl}"
+    # This is the well known path for letsencrypt SSL server verification
+    has_letsencrypt_set=$(${da_bin} c | grep -m1 '^letsencrypt=1$')
 
-        if [ "${da_reseller_restore_domain_ssl}" == "true" ]; then
-          all_domains=""
-          for root_domain in $(cat /usr/local/directadmin/data/users/${da_reseller_username}/domains.list); do
-            # For domain first:======================
-            echo "root_domain: ${root_domain}"
-            all_domains="${root_domain}"
-            # For its subdomain: ====================
-            for sub_domain in $(cat /usr/local/directadmin/data/users/${da_reseller_username}/domains/${root_domain}.subdomains); do
-              all_domains="${all_domains} ${sub_domain}.${root_domain}"
-            done
-          done
-
-          all_domains=("${all_domains}")
-          echo "all_domains: ${all_domains[*]}"
-          # This 3 files must be pushed from SSH into ${lego_data_path} then check them if they exist
-          for da_domain in "${all_domains[@]}"; do
-            lego_cert_path="${lego_data_path}/certificates/${da_domain}.crt"
-            lego_key_path="${lego_data_path}/certificates/${da_domain}.key"
-            lego_issuer_cert_path=$(echo "${lego_cert_path}" | sed 's/\.crt/.issuer.crt/')
-            lego_cert_json_path="${lego_data_path}/certificates/${da_domain}.json"
-
-            check_path "${SSL_PATH}/${da_domain}.crt" "${SSL_PATH}/${da_domain}.key" "${SSL_PATH}/${da_domain}.issuer.crt" "${SSL_PATH}/${da_domain}.json"
-
-            echo -n "Copying ${SSL_PATH}/${da_domain}.crt into ${lego_cert_path} ... "
-            cp "${SSL_PATH}/${da_domain}.crt" "${lego_cert_path}"
-            get_status_message "$?"
-            echo -n "Copying ${SSL_PATH}/${da_domain}.key into ${lego_key_path} ... "
-            cp "${SSL_PATH}/${da_domain}.key" "${lego_key_path}"
-            get_status_message "$?"
-            echo -n "Copying ${SSL_PATH}/${da_domain}.issuer.key into ${lego_issuer_cert_path} ... "
-            cp "${SSL_PATH}/${da_domain}.issuer.crt" "${lego_issuer_cert_path}"
-            get_status_message "$?"
-            echo -n "Copying ${SSL_PATH}/${da_domain}.json into ${lego_cert_json_path} ... "
-            cp "${SSL_PATH}/${da_domain}.json" "${lego_cert_json_path}"
-            get_status_message "$?"
-            _echo "$(msg cyan)Correcting permission of certificates ...$(msg end)" --name
-            chmod 600 "${lego_cert_path}" "${lego_key_path}" "${lego_issuer_cert_path}" "${lego_cert_json_path}"
-            get_status_message "$?"
-            echo ""
-            _echo "$(msg cyan)Checking certificate path for ${da_domain} ...$(msg end)" --name
-            check_path "${lego_cert_path}" "${lego_key_path}" "${lego_issuer_cert_path}" "${lego_cert_json_path}"
-            echo ""
-
-            if [ -s "${lego_cert_path}" ] && [ -s "${lego_key_path}" ]; then
-              if [ $(grep -c "BEGIN CERTIFICATE" "${lego_cert_path}") -eq 1 ]; then
-                cp -pf "${lego_cert_path}" ${cert}
-              else
-                openssl x509 -in "${lego_cert_path}" -out ${cert}
-                get_status_message "$?"
-              fi
-              cp -pf "${lego_key_path}" ${key}
-              if [ -s "${lego_issuer_cert_path}" ]; then
-                cp -pfv "${lego_issuer_cert_path}" ${cacert}
-                cat ${cert} ${cacert} >${cert}.combined
-              else
-                cp -pfv "${lego_cert_path}" ${cert}.combined
-              fi
-              date +%s >${cert}.creation_time
-              chown diradmin:${C_DA_SECURE_ACCESS_GROUP} ${key} ${cert} ${cert}.combined ${cacert} ${cert}.creation_time
-              # This file is the one that renew certificate, if this is deleted, renewal will be disable
-              chmod 640 ${key} ${cert} ${cert}.combined ${cacert} ${cert}.creation_time
-              echo "Certificate for ${da_domain} has been created successfully!"
-            else
-              echo "New key/certificate is empty. Exiting..."
-              exit 1
-            fi
-
-            echo "DirectAdmin certificate for ${da_domain} has been setup."
-
-            if [ -e /usr/local/directadmin/data/users/${da_user}/domains/${da_domain}.cert ]; then
-              REWRITE=false
-              if ! grep -m1 -q '^ssl=ON' /usr/local/directadmin/data/users/${da_user}/domains/${da_domain}.conf; then
-                perl -pi -e 's|^ssl\=.*|ssl=ON|g' /usr/local/directadmin/data/users/${da_user}/domains/${da_domain}.conf
-                REWRITE=true
-              fi
-              if ! grep -m1 -q '^ssl=ON' /usr/local/directadmin/data/users/${da_user}/domains/${da_domain}.conf; then
-                echo 'ssl=ON' >>/usr/local/directadmin/data/users/${da_user}/domains/${da_domain}.conf
-              fi
-              if ! grep -m1 -q '^SSLCACertificateFile=' /usr/local/directadmin/data/users/${da_user}/domains/${da_domain}.conf && ! grep -m1 -q '^SSLCertificateFile=' /usr/local/directadmin/data/users/${da_user}/domains/${da_domain}.conf && ! grep -m1 -q '^SSLCertificateKeyFile=' /usr/local/directadmin/data/users/${da_user}/domains/${da_domain}.conf; then
-                perl -pi -e "s|^UseCanonicalName=|SSLCACertificateFile=/usr/local/directadmin/data/users/${da_user}/domains/${da_domain}.cacert\nSSLCertificateFile=/usr/local/directadmin/data/users/${da_user}/domains/${da_domain}.cert\nSSLCertificateKeyFile=/usr/local/directadmin/data/users/${da_user}/domains/${da_domain}.key\nUseCanonicalName=|g" /usr/local/directadmin/data/users/${da_user}/domains/${da_domain}.conf
-                REWRITE=true
-              fi
-
-              if ${REWRITE}; then
-                echo "action=rewrite&value=httpd&user=${da_user}" >>/usr/local/directadmin/data/task.queue
-                echo "action=rewrite&value=mail_sni&domain=${da_domain}" >>/usr/local/directadmin/data/task.queue
-              fi
-            fi
-          done
-
-        fi
-
-        echo "=========================================="
-        ((reseller_count++))
-      done
-
-      # For user
-      local user_count da_user_usernames_count
-
-      da_user_usernames_count=$(echo "${!C_DA_USER_USERNAME@}" | wc -w)
-      user_count=1
-      while [[ ${user_count} -le ${da_user_usernames_count} ]]; do
-
-        echo ""
-        echo "===== USER USER: ${user_count} ========="
-        typeset -n da_user_username="C_DA_USER_USERNAME${user_count}"
-        typeset -n da_user_restore_domain_ssl="C_DA_USER_RESTORE_USER_DOMAIN_SSL${user_count}"
-        echo "da_user_username: ${da_user_username}"
-        echo "da_user_restore_domain_ssl: ${da_user_restore_domain_ssl}"
-
-        if [ "${da_user_restore_domain_ssl}" == "true" ]; then
-          all_domains=""
-          for root_domain in $(cat /usr/local/directadmin/data/users/${da_user_username}/domains.list); do
-            # For domain first:======================
-            echo "root_domain: ${root_domain}"
-            all_domains="${root_domain}"
-            # For its subdomain: ====================
-            for sub_domain in $(cat /usr/local/directadmin/data/users/${da_user_username}/domains/${root_domain}.subdomains); do
-              all_domains="${all_domains} ${sub_domain}.${root_domain}"
-            done
-          done
-
-          all_domains=(${all_domains})
-          echo "all_domains: ${all_domains[*]}"
-          # This 3 files must be pushed from SSH into ${lego_data_path} then check them if they exist
-          for da_domain in "${all_domains[@]}"; do
-            lego_cert_path="${lego_data_path}/certificates/${da_domain}.crt"
-            lego_key_path="${lego_data_path}/certificates/${da_domain}.key"
-            lego_issuer_cert_path=$(echo "${lego_cert_path}" | sed 's/\.crt/.issuer.crt/')
-            lego_cert_json_path="${lego_data_path}/certificates/${da_domain}.json"
-
-            check_path "${SSL_PATH}/${da_domain}.crt" "${SSL_PATH}/${da_domain}.key" "${SSL_PATH}/${da_domain}.issuer.crt" "${SSL_PATH}/${da_domain}.json"
-
-            echo -n "Copying ${SSL_PATH}/${da_domain}.crt into ${lego_cert_path} ... "
-            cp "${SSL_PATH}/${da_domain}.crt" "${lego_cert_path}"
-            get_status_message "$?"
-            echo -n "Copying ${SSL_PATH}/${da_domain}.key into ${lego_key_path} ... "
-            cp "${SSL_PATH}/${da_domain}.key" "${lego_key_path}"
-            get_status_message "$?"
-            echo -n "Copying ${SSL_PATH}/${da_domain}.issuer.key into ${lego_issuer_cert_path} ... "
-            cp "${SSL_PATH}/${da_domain}.issuer.crt" "${lego_issuer_cert_path}"
-            get_status_message "$?"
-            echo -n "Copying ${SSL_PATH}/${da_domain}.json into ${lego_cert_json_path} ... "
-            cp "${SSL_PATH}/${da_domain}.json" "${lego_cert_json_path}"
-            get_status_message "$?"
-            _echo "$(msg cyan)Correcting permission of certificates ...$(msg end)" --name
-            chmod 600 "${lego_cert_path}" "${lego_key_path}" "${lego_issuer_cert_path}" "${lego_cert_json_path}"
-            get_status_message "$?"
-            echo ""
-            _echo "$(msg cyan)Checking certificate path for ${da_domain} ...$(msg end)" --name
-            check_path "${lego_cert_path}" "${lego_key_path}" "${lego_issuer_cert_path}" "${lego_cert_json_path}"
-            echo ""
-
-            if [ -s "${lego_cert_path}" ] && [ -s "${lego_key_path}" ]; then
-              if [ $(grep -c "BEGIN CERTIFICATE" "${lego_cert_path}") -eq 1 ]; then
-                cp -pf "${lego_cert_path}" ${cert}
-              else
-                openssl x509 -in "${lego_cert_path}" -out ${cert}
-                get_status_message "$?"
-              fi
-              cp -pf "${lego_key_path}" ${key}
-              if [ -s "${lego_issuer_cert_path}" ]; then
-                cp -pfv "${lego_issuer_cert_path}" ${cacert}
-                cat ${cert} ${cacert} >${cert}.combined
-              else
-                cp -pfv "${lego_cert_path}" ${cert}.combined
-              fi
-              date +%s >${cert}.creation_time
-              chown diradmin:${C_DA_SECURE_ACCESS_GROUP} ${key} ${cert} ${cert}.combined ${cacert} ${cert}.creation_time
-              # This file is the one that renew certificate, if this is deleted, renewal will be disable
-              chmod 640 ${key} ${cert} ${cert}.combined ${cacert} ${cert}.creation_time
-              echo "Certificate for ${da_domain} has been created successfully!"
-            else
-              echo "New key/certificate is empty. Exiting..."
-              exit 1
-            fi
-
-            echo "DirectAdmin certificate for ${da_domain} has been setup."
-
-            if [ -e /usr/local/directadmin/data/users/${da_user}/domains/${da_domain}.cert ]; then
-              REWRITE=false
-              if ! grep -m1 -q '^ssl=ON' /usr/local/directadmin/data/users/${da_user}/domains/${da_domain}.conf; then
-                perl -pi -e 's|^ssl\=.*|ssl=ON|g' /usr/local/directadmin/data/users/${da_user}/domains/${da_domain}.conf
-                REWRITE=true
-              fi
-              if ! grep -m1 -q '^ssl=ON' /usr/local/directadmin/data/users/${da_user}/domains/${da_domain}.conf; then
-                echo 'ssl=ON' >>/usr/local/directadmin/data/users/${da_user}/domains/${da_domain}.conf
-              fi
-              if ! grep -m1 -q '^SSLCACertificateFile=' /usr/local/directadmin/data/users/${da_user}/domains/${da_domain}.conf && ! grep -m1 -q '^SSLCertificateFile=' /usr/local/directadmin/data/users/${da_user}/domains/${da_domain}.conf && ! grep -m1 -q '^SSLCertificateKeyFile=' /usr/local/directadmin/data/users/${da_user}/domains/${da_domain}.conf; then
-                perl -pi -e "s|^UseCanonicalName=|SSLCACertificateFile=/usr/local/directadmin/data/users/${da_user}/domains/${da_domain}.cacert\nSSLCertificateFile=/usr/local/directadmin/data/users/${da_user}/domains/${da_domain}.cert\nSSLCertificateKeyFile=/usr/local/directadmin/data/users/${da_user}/domains/${da_domain}.key\nUseCanonicalName=|g" /usr/local/directadmin/data/users/${da_user}/domains/${da_domain}.conf
-                REWRITE=true
-              fi
-
-              if ${REWRITE}; then
-                echo "action=rewrite&value=httpd&user=${da_user}" >>/usr/local/directadmin/data/task.queue
-                echo "action=rewrite&value=mail_sni&domain=${da_domain}" >>/usr/local/directadmin/data/task.queue
-              fi
-            fi
-          done
-
-        fi
-
-        echo "=========================================="
-        ((user_count++))
-      done
-
+    if [ -z "${has_letsencrypt_set}" ]; then
+      _echo "$(msg red)Error, let's encrypt hasn't been enabled on the system!$(msg end)" --name
+      _exit 147
     else
+      letsencrypt_list_selected="$(${da_bin} c | grep '^letsencrypt_list_selected=' | cut -d= -f2 | tr ':' ' ')"
+    fi
 
-      echo "Skip"
+    if [ "${C_DA_DISABLE_DOMAIN_AUTO_SSL}" == "true" ]; then
+      if [ "${C_DA_ENABLE_USER_DOMAIN_SSL_RESTORE}" == "true" ]; then
+        local da_reseller_usernames_count reseller_count
+        da_reseller_usernames_count=$(echo "${!C_DA_RESELLER_USERNAME@}" | wc -w)
+        reseller_count=1
+        while [[ ${reseller_count} -le ${da_reseller_usernames_count} ]]; do
+          echo ""
+          echo "===== RESELLER USER: ${reseller_count} ========="
+          typeset -n da_reseller_username="C_DA_RESELLER_USERNAME${reseller_count}"
+          typeset -n da_reseller_restore_domain_ssl="C_DA_RESELLER_RESTORE_USER_DOMAIN_SSL${reseller_count}"
+          echo "da_reseller_username: ${da_reseller_username}"
+          echo "da_reseller_restore_domain_ssl: ${da_reseller_restore_domain_ssl}"
+
+          if [ "${da_reseller_restore_domain_ssl}" == "true" ]; then
+            all_domains=""
+            for root_domain in $(cat /usr/local/directadmin/data/users/${da_reseller_username}/domains.list); do
+              # For domain first:======================
+              echo "root_domain: ${root_domain}"
+              all_domains="${root_domain}"
+              # For its subdomain: ====================
+              for sub_domain in $(cat /usr/local/directadmin/data/users/${da_reseller_username}/domains/${root_domain}.subdomains); do
+                all_domains="${all_domains} ${sub_domain}.${root_domain}"
+              done
+            done
+
+            all_domains=("${all_domains}")
+            echo "all_domains: ${all_domains[*]}"
+            # This 3 files must be pushed from SSH into ${lego_data_path} then check them if they exist
+            for da_domain in "${all_domains[@]}"; do
+              lego_cert_path="${lego_data_path}/certificates/${da_domain}.crt"
+              lego_key_path="${lego_data_path}/certificates/${da_domain}.key"
+              lego_issuer_cert_path=$(echo "${lego_cert_path}" | sed 's/\.crt/.issuer.crt/')
+              lego_cert_json_path="${lego_data_path}/certificates/${da_domain}.json"
+
+              check_path "${SSL_PATH}/${da_domain}.crt" "${SSL_PATH}/${da_domain}.key" "${SSL_PATH}/${da_domain}.issuer.crt" "${SSL_PATH}/${da_domain}.json"
+
+              echo -n "Copying ${SSL_PATH}/${da_domain}.crt into ${lego_cert_path} ... "
+              cp "${SSL_PATH}/${da_domain}.crt" "${lego_cert_path}"
+              get_status_message "$?"
+              echo -n "Copying ${SSL_PATH}/${da_domain}.key into ${lego_key_path} ... "
+              cp "${SSL_PATH}/${da_domain}.key" "${lego_key_path}"
+              get_status_message "$?"
+              echo -n "Copying ${SSL_PATH}/${da_domain}.issuer.key into ${lego_issuer_cert_path} ... "
+              cp "${SSL_PATH}/${da_domain}.issuer.crt" "${lego_issuer_cert_path}"
+              get_status_message "$?"
+              echo -n "Copying ${SSL_PATH}/${da_domain}.json into ${lego_cert_json_path} ... "
+              cp "${SSL_PATH}/${da_domain}.json" "${lego_cert_json_path}"
+              get_status_message "$?"
+              _echo "$(msg cyan)Correcting permission of certificates ...$(msg end)" --name
+              chmod 600 "${lego_cert_path}" "${lego_key_path}" "${lego_issuer_cert_path}" "${lego_cert_json_path}"
+              get_status_message "$?"
+              echo ""
+              _echo "$(msg cyan)Checking certificate path for ${da_domain} ...$(msg end)" --name
+              check_path "${lego_cert_path}" "${lego_key_path}" "${lego_issuer_cert_path}" "${lego_cert_json_path}"
+              echo ""
+
+              if [ -s "${lego_cert_path}" ] && [ -s "${lego_key_path}" ]; then
+                if [ $(grep -c "BEGIN CERTIFICATE" "${lego_cert_path}") -eq 1 ]; then
+                  cp -pf "${lego_cert_path}" ${cert}
+                else
+                  openssl x509 -in "${lego_cert_path}" -out ${cert}
+                  get_status_message "$?"
+                fi
+                cp -pf "${lego_key_path}" ${key}
+                if [ -s "${lego_issuer_cert_path}" ]; then
+                  cp -pfv "${lego_issuer_cert_path}" ${cacert}
+                  cat ${cert} ${cacert} >${cert}.combined
+                else
+                  cp -pfv "${lego_cert_path}" ${cert}.combined
+                fi
+                date +%s >${cert}.creation_time
+                chown diradmin:${C_DA_SECURE_ACCESS_GROUP} ${key} ${cert} ${cert}.combined ${cacert} ${cert}.creation_time
+                # This file is the one that renew certificate, if this is deleted, renewal will be disable
+                chmod 640 ${key} ${cert} ${cert}.combined ${cacert} ${cert}.creation_time
+                echo "Certificate for ${da_domain} has been created successfully!"
+              else
+                echo "New key/certificate is empty. Exiting..."
+                exit 1
+              fi
+
+              echo "DirectAdmin certificate for ${da_domain} has been setup."
+
+              if [ -e /usr/local/directadmin/data/users/${da_user}/domains/${da_domain}.cert ]; then
+                REWRITE=false
+                if ! grep -m1 -q '^ssl=ON' /usr/local/directadmin/data/users/${da_user}/domains/${da_domain}.conf; then
+                  perl -pi -e 's|^ssl\=.*|ssl=ON|g' /usr/local/directadmin/data/users/${da_user}/domains/${da_domain}.conf
+                  REWRITE=true
+                fi
+                if ! grep -m1 -q '^ssl=ON' /usr/local/directadmin/data/users/${da_user}/domains/${da_domain}.conf; then
+                  echo 'ssl=ON' >>/usr/local/directadmin/data/users/${da_user}/domains/${da_domain}.conf
+                fi
+                if ! grep -m1 -q '^SSLCACertificateFile=' /usr/local/directadmin/data/users/${da_user}/domains/${da_domain}.conf && ! grep -m1 -q '^SSLCertificateFile=' /usr/local/directadmin/data/users/${da_user}/domains/${da_domain}.conf && ! grep -m1 -q '^SSLCertificateKeyFile=' /usr/local/directadmin/data/users/${da_user}/domains/${da_domain}.conf; then
+                  perl -pi -e "s|^UseCanonicalName=|SSLCACertificateFile=/usr/local/directadmin/data/users/${da_user}/domains/${da_domain}.cacert\nSSLCertificateFile=/usr/local/directadmin/data/users/${da_user}/domains/${da_domain}.cert\nSSLCertificateKeyFile=/usr/local/directadmin/data/users/${da_user}/domains/${da_domain}.key\nUseCanonicalName=|g" /usr/local/directadmin/data/users/${da_user}/domains/${da_domain}.conf
+                  REWRITE=true
+                fi
+
+                if ${REWRITE}; then
+                  echo "action=rewrite&value=httpd&user=${da_user}" >>/usr/local/directadmin/data/task.queue
+                  echo "action=rewrite&value=mail_sni&domain=${da_domain}" >>/usr/local/directadmin/data/task.queue
+                fi
+              fi
+            done
+
+          fi
+
+          echo "=========================================="
+          ((reseller_count++))
+        done
+
+        # For user SSL
+        local user_count da_user_usernames_count
+
+        da_user_usernames_count=$(echo "${!C_DA_USER_USERNAME@}" | wc -w)
+        user_count=1
+        while [[ ${user_count} -le ${da_user_usernames_count} ]]; do
+
+          echo ""
+          echo "===== USER USER: ${user_count} ========="
+          typeset -n da_user_username="C_DA_USER_USERNAME${user_count}"
+          typeset -n da_user_restore_domain_ssl="C_DA_USER_RESTORE_USER_DOMAIN_SSL${user_count}"
+          echo "da_user_username: ${da_user_username}"
+          echo "da_user_restore_domain_ssl: ${da_user_restore_domain_ssl}"
+
+          if [ "${da_user_restore_domain_ssl}" == "true" ]; then
+            all_domains=""
+            for root_domain in $(cat /usr/local/directadmin/data/users/${da_user_username}/domains.list); do
+              # For domain first:======================
+              echo "root_domain: ${root_domain}"
+              all_domains="${root_domain}"
+              # For its subdomain: ====================
+              for sub_domain in $(cat /usr/local/directadmin/data/users/${da_user_username}/domains/${root_domain}.subdomains); do
+                all_domains="${all_domains} ${sub_domain}.${root_domain}"
+              done
+            done
+
+            all_domains=(${all_domains})
+            echo "all_domains: ${all_domains[*]}"
+            # This 3 files must be pushed from SSH into ${lego_data_path} then check them if they exist
+            for da_domain in "${all_domains[@]}"; do
+              lego_cert_path="${lego_data_path}/certificates/${da_domain}.crt"
+              lego_key_path="${lego_data_path}/certificates/${da_domain}.key"
+              lego_issuer_cert_path=$(echo "${lego_cert_path}" | sed 's/\.crt/.issuer.crt/')
+              lego_cert_json_path="${lego_data_path}/certificates/${da_domain}.json"
+
+              check_path "${SSL_PATH}/${da_domain}.crt" "${SSL_PATH}/${da_domain}.key" "${SSL_PATH}/${da_domain}.issuer.crt" "${SSL_PATH}/${da_domain}.json"
+
+              echo -n "Copying ${SSL_PATH}/${da_domain}.crt into ${lego_cert_path} ... "
+              cp "${SSL_PATH}/${da_domain}.crt" "${lego_cert_path}"
+              get_status_message "$?"
+              echo -n "Copying ${SSL_PATH}/${da_domain}.key into ${lego_key_path} ... "
+              cp "${SSL_PATH}/${da_domain}.key" "${lego_key_path}"
+              get_status_message "$?"
+              echo -n "Copying ${SSL_PATH}/${da_domain}.issuer.key into ${lego_issuer_cert_path} ... "
+              cp "${SSL_PATH}/${da_domain}.issuer.crt" "${lego_issuer_cert_path}"
+              get_status_message "$?"
+              echo -n "Copying ${SSL_PATH}/${da_domain}.json into ${lego_cert_json_path} ... "
+              cp "${SSL_PATH}/${da_domain}.json" "${lego_cert_json_path}"
+              get_status_message "$?"
+              _echo "$(msg cyan)Correcting permission of certificates ...$(msg end)" --name
+              chmod 600 "${lego_cert_path}" "${lego_key_path}" "${lego_issuer_cert_path}" "${lego_cert_json_path}"
+              get_status_message "$?"
+              echo ""
+              _echo "$(msg cyan)Checking certificate path for ${da_domain} ...$(msg end)" --name
+              check_path "${lego_cert_path}" "${lego_key_path}" "${lego_issuer_cert_path}" "${lego_cert_json_path}"
+              echo ""
+
+              if [ -s "${lego_cert_path}" ] && [ -s "${lego_key_path}" ]; then
+                if [ $(grep -c "BEGIN CERTIFICATE" "${lego_cert_path}") -eq 1 ]; then
+                  cp -pf "${lego_cert_path}" ${cert}
+                else
+                  openssl x509 -in "${lego_cert_path}" -out ${cert}
+                  get_status_message "$?"
+                fi
+                cp -pf "${lego_key_path}" ${key}
+                if [ -s "${lego_issuer_cert_path}" ]; then
+                  cp -pfv "${lego_issuer_cert_path}" ${cacert}
+                  cat ${cert} ${cacert} >${cert}.combined
+                else
+                  cp -pfv "${lego_cert_path}" ${cert}.combined
+                fi
+                date +%s >${cert}.creation_time
+                chown diradmin:${C_DA_SECURE_ACCESS_GROUP} ${key} ${cert} ${cert}.combined ${cacert} ${cert}.creation_time
+                # This file is the one that renew certificate, if this is deleted, renewal will be disable
+                chmod 640 ${key} ${cert} ${cert}.combined ${cacert} ${cert}.creation_time
+                echo "Certificate for ${da_domain} has been created successfully!"
+              else
+                echo "New key/certificate is empty. Exiting..."
+                exit 1
+              fi
+
+              echo "DirectAdmin certificate for ${da_domain} has been setup."
+
+              if [ -e /usr/local/directadmin/data/users/${da_user}/domains/${da_domain}.cert ]; then
+                REWRITE=false
+                if ! grep -m1 -q '^ssl=ON' /usr/local/directadmin/data/users/${da_user}/domains/${da_domain}.conf; then
+                  perl -pi -e 's|^ssl\=.*|ssl=ON|g' /usr/local/directadmin/data/users/${da_user}/domains/${da_domain}.conf
+                  REWRITE=true
+                fi
+                if ! grep -m1 -q '^ssl=ON' /usr/local/directadmin/data/users/${da_user}/domains/${da_domain}.conf; then
+                  echo 'ssl=ON' >>/usr/local/directadmin/data/users/${da_user}/domains/${da_domain}.conf
+                fi
+                if ! grep -m1 -q '^SSLCACertificateFile=' /usr/local/directadmin/data/users/${da_user}/domains/${da_domain}.conf && ! grep -m1 -q '^SSLCertificateFile=' /usr/local/directadmin/data/users/${da_user}/domains/${da_domain}.conf && ! grep -m1 -q '^SSLCertificateKeyFile=' /usr/local/directadmin/data/users/${da_user}/domains/${da_domain}.conf; then
+                  perl -pi -e "s|^UseCanonicalName=|SSLCACertificateFile=/usr/local/directadmin/data/users/${da_user}/domains/${da_domain}.cacert\nSSLCertificateFile=/usr/local/directadmin/data/users/${da_user}/domains/${da_domain}.cert\nSSLCertificateKeyFile=/usr/local/directadmin/data/users/${da_user}/domains/${da_domain}.key\nUseCanonicalName=|g" /usr/local/directadmin/data/users/${da_user}/domains/${da_domain}.conf
+                  REWRITE=true
+                fi
+
+                if ${REWRITE}; then
+                  echo "action=rewrite&value=httpd&user=${da_user}" >>/usr/local/directadmin/data/task.queue
+                  echo "action=rewrite&value=mail_sni&domain=${da_domain}" >>/usr/local/directadmin/data/task.queue
+                fi
+              fi
+            done
+          fi
+          echo "=========================================="
+          ((user_count++))
+        done
+
+      else
+        # TODO
+        echo "SSL restore disable.. manually request here"
+      fi
+    else
+      # TODO improve this message
+      echo "Skip auto SSL is enable. Should not restore this."
     fi
 
     echo ""
@@ -17500,7 +17709,16 @@ configure_da_user_accounts() {
 
     local da_user_packages_list count_user1 \
       da_user_creator da_user_role da_user_restore_user_backup da_user_uname da_user_password da_user_name da_user_system_email \
-      da_user_mail_users da_user_mail_passwords da_user_domains da_user_ip_type da_user_package_name da_user_enable_domain_ssl
+      da_user_mail_users da_user_mail_passwords da_user_domains da_user_ip_type da_user_package_name da_user_enable_domain_ssl \
+      da_scripts_path da_bin da_cb_bin da_conf retval grep_count
+
+    da_scripts_path="/usr/local/directadmin/scripts"
+    da_bin="/usr/local/directadmin/directadmin"
+    da_cb_bin="/usr/local/directadmin/custombuild/build"
+    da_conf="/usr/local/directadmin/conf/directadmin.conf"
+    _echo "$(msg cyan)Checking if required files are presents ...$(msg end)" --name
+    check_path "${da_bin}" "${da_cb_bin}" "${da_conf}" "${da_scripts_path}/decrypt_file.sh"
+    echo ""
 
     # This file contains list of user packages (use this file for checking existing package)
     da_user_packages_list="/usr/local/directadmin/data/users/${C_DA_RESELLER_USERNAME1}/packages.list"
@@ -17525,6 +17743,16 @@ configure_da_user_accounts() {
       typeset -n da_user_domains="C_DA_USER_DOMAIN${count_user1}"
       typeset -n da_user_package_name="C_DA_USER_PACKAGE_NAME${count_user1}"
       typeset -n da_user_enable_domain_ssl="C_DA_USER_ENABLE_DOMAIN_SSL${count_user1}"
+
+      _echo "$(msg cyan)Checking if user package name ${da_user_package_name} was created by previous admin before ...$(msg end)" --name
+      grep_count=$(grep -ic "${da_user_package_name}" "${da_user_packages_list}")
+      if [ "${grep_count}" -gt 0 ]; then
+        _echo "$(msg green)OK, user package name ${da_user_package_name} found$(msg end)" --name
+        echo ""
+      else
+        _echo "$(msg yellow)Warning, ${da_user_package_name} does not exist in ${da_user_packages_list}. Please inspect why!$(msg end)" --name
+        _exit 147
+      fi
 
       # Get the total domain count for this user
       da_user_domain_count="${#da_user_domains[@]}"
@@ -17557,27 +17785,78 @@ configure_da_user_accounts() {
       _echo "$(msg newline)" --plain --verbose 7
 
       if [[ "${da_user_restore_user_backup}" == "true" && "${C_DA_DISABLE_USER_BACKUP_RESTORE}" == "false" ]]; then
-        local backup_source_location da_owner_backup_location
-        echo "${SCRIPT_PATH}/admin_backups/${da_user_role}.${da_user_creator}.${da_user_uname}.tar.gz"
-
-        if [[ -f "${SCRIPT_PATH}/admin_backups/${da_user_role}.${da_user_creator}.${da_user_uname}.tar.gz" ]]; then
+        local backup_source_location backup_source_location_encrypted da_owner_backup_location
+        if [[ -f "${SCRIPT_PATH}/admin_backups/${da_user_role}.${da_user_creator}.${da_user_uname}.tar" ]]; then
+          backup_source_location="${SCRIPT_PATH}/admin_backups/${da_user_role}.${da_user_creator}.${da_user_uname}.tar"
+        elif [[ -f "${SCRIPT_PATH}/admin_backups/${da_user_role}.${da_user_creator}.${da_user_uname}.tar.enc" ]]; then
+          # This is the case if backup is encrypted
+          backup_source_location="${SCRIPT_PATH}/admin_backups/${da_user_role}.${da_user_creator}.${da_user_uname}.tar"
+          backup_source_location_encrypted="${SCRIPT_PATH}/admin_backups/${da_user_role}.${da_user_creator}.${da_user_uname}.tar.enc"
+          _echo "$(msg cyan)Decrypting backup file ${backup_source_location_encrypted} ...$(msg end)" --name
+          echo "${C_DA_USER_BACKUP_PASSWORD}" >"${SECURE_PATH}/backup_file"
+          ${da_scripts_path}/decrypt_file.sh "${backup_source_location_encrypted}" "${backup_source_location}" "${SECURE_PATH}/backup_file"
+          get_status_message "$?"
+          echo ""
+          _echo "$(msg cyan)Removing backup password file ${SECURE_PATH}/backup_file ...$(msg end)" --name
+          rm -f "${SECURE_PATH}/backup_file"
+          get_status_message "$?"
+          echo ""
+        elif [[ -f "${SCRIPT_PATH}/admin_backups/${da_user_role}.${da_user_creator}.${da_user_uname}.tar.gz" ]]; then
+          # This is the case if backup is not encrypted (and file type is .tar.gz)
           backup_source_location="${SCRIPT_PATH}/admin_backups/${da_user_role}.${da_user_creator}.${da_user_uname}.tar.gz"
         elif [[ -f "${SCRIPT_PATH}/admin_backups/${da_user_role}.${da_user_creator}.${da_user_uname}.tar.gz.enc" ]]; then
-          backup_source_location="${SCRIPT_PATH}/admin_backups/${da_user_role}.${da_user_creator}.${da_user_uname}.tar.gz.enc"
+          # This is the case if backup is encrypted
+          backup_source_location="${SCRIPT_PATH}/admin_backups/${da_user_role}.${da_user_creator}.${da_user_uname}.tar.gz"
+          backup_source_location_encrypted="${SCRIPT_PATH}/admin_backups/${da_user_role}.${da_user_creator}.${da_user_uname}.tar.gz.enc"
+          # Note when I use API with supplying decryption password (even the password is decoded), it will not work (this might be bug in DA):
+          # Decryption of /home/....tar.gz.enc has failed: Either dest_file, encrypted_file, or encryption_password variables are missing or empty.
+          # Alternatively I will use the decryption script to decrypt the file manually in Directadmin
+          _echo "$(msg cyan)Decrypting backup file ${backup_source_location_encrypted} ...$(msg end)" --name
+          echo "${C_DA_USER_BACKUP_PASSWORD}" >"${SECURE_PATH}/backup_file"
+          ${da_scripts_path}/decrypt_file.sh "${backup_source_location_encrypted}" "${backup_source_location}" "${SECURE_PATH}/backup_file"
+          get_status_message "$?"
+          echo ""
+          _echo "$(msg cyan)Removing backup password file ${SECURE_PATH}/backup_file ...$(msg end)" --name
+          rm -f "${SECURE_PATH}/backup_file"
+          get_status_message "$?"
+          echo ""
+        elif [[ -f "${SCRIPT_PATH}/admin_backups/${da_user_role}.${da_user_creator}.${da_user_uname}.tar.zst" ]]; then
+          # This is the case if backup is not encrypted (and file type is .tar.zst)
+          backup_source_location="${SCRIPT_PATH}/admin_backups/${da_user_role}.${da_user_creator}.${da_user_uname}.tar.zst"
+        elif [[ -f "${SCRIPT_PATH}/admin_backups/${da_user_role}.${da_user_creator}.${da_user_uname}.tar.zst.enc" ]]; then
+          # This is the case if backup is encrypted
+          backup_source_location="${SCRIPT_PATH}/admin_backups/${da_user_role}.${da_user_creator}.${da_user_uname}.tar.zst"
+          backup_source_location_encrypted="${SCRIPT_PATH}/admin_backups/${da_user_role}.${da_user_creator}.${da_user_uname}.tar.zst.enc"
+          _echo "$(msg cyan)Decrypting backup file ${backup_source_location_encrypted} ...$(msg end)" --name
+          echo "${C_DA_USER_BACKUP_PASSWORD}" >"${SECURE_PATH}/backup_file"
+          ${da_scripts_path}/decrypt_file.sh "${backup_source_location_encrypted}" "${backup_source_location}" "${SECURE_PATH}/backup_file"
+          get_status_message "$?"
+          echo ""
+          _echo "$(msg cyan)Removing backup password file ${SECURE_PATH}/backup_file ...$(msg end)" --name
+          rm -f "${SECURE_PATH}/backup_file"
+          get_status_message "$?"
+          echo ""
         else
-          echo "Backup file ${backup_source_location} does not exist for this user ${da_user_uname}. If you want to ignore this backup, disable this user backup restoration from config file "
-          _exit 147
+          echo "Backup file does not exist for this user ${da_user_uname}. If you want to ignore this backup, disable this user backup restoration from config file "
+          _confirm
         fi
 
-        _echo "Backup source location: ${backup_source_location}" --name --verbose 7
-        _echo "$(msg newline)" --plain --verbose 7
+        if [ -f "${backup_source_location}" ]; then
+          _echo "$(msg green)OK, backup source location exist: ${backup_source_location}$(msg end)" --name
+        else
+          _echo "$(msg red)Error, no backup file exist in ${backup_source_location}$(msg end)" --name
+          _exit 147
+        fi
+        echo ""
 
         da_owner_backup_location=/home/$(get_current_da_owner_username)/admin_backups/$(basename -- ${backup_source_location})
         _echo "$(msg cyan)Copying backup from ${backup_source_location} to ${da_owner_backup_location}... $(msg end)" --name
         cp -fp "${backup_source_location}" "${da_owner_backup_location}"
         get_status_message "$?"
-        if [ ! -f "${da_owner_backup_location}" ]; then
-          _echo "$(msg red)Error, The backup path ${da_owner_backup_location} not found after performed a copy! $(msg end)" --name
+        if [ -f "${da_owner_backup_location}" ]; then
+          _echo "$(msg green)OK, the user backup file was copied in owner backup location at ${da_owner_backup_location}$(msg end)" --name
+        else
+          _echo "$(msg red)Error, the user backup file does not exist in owner backup location at ${da_owner_backup_location} after performed a copy operation$(msg end)" --name
           _exit 147
         fi
         echo ""
@@ -17590,32 +17869,23 @@ configure_da_user_accounts() {
         get_status_message "$?"
         echo ""
         da_api_admin restore-user-backup --backup-ip "${C_IPV4_ADD0}" --backup-path "$(dirname ${da_owner_backup_location})" --backup-file-name "$(basename -- ${da_owner_backup_location})" --backup-password ${C_DA_USER_BACKUP_PASSWORD}
-
+        echo ""
         _echo "$(msg cyan) Getting list of all domains created ...$(msg end)" --name
         readarray -t da_domains <<<"$(grep -w "${da_user_uname}" "/etc/virtual/domainowners" | cut -d ":" -f 1)"
-        echo "Domains list for ${da_user_uname}:"
-        echo "${da_domains[*]}"
         echo ""
         if [ -n "${da_domains}" ]; then
+          echo "Domains list for ${da_user_uname}:"
+          echo "${da_domains[*]}"
+          echo ""
           for da_domain in "${da_domains[@]}"; do
             _echo "$(msg cyan) Writing all DNS record for domain ${da_domain} to external DNS ...$(msg end)" --name
             copy_local_dns_to_external_dns "${da_domain}"
             echo ""
           done
+        else
+          _echo "$(msg yellow)[Skipped]: The user ${da_owner_username} does not have any domain record$(msg end)" --name
         fi
       else
-        local grep_count
-
-        # TODO this information is sensitive, hide later
-        _echo "$(msg cyan)Checking if user package name ${da_user_package_name} was created by previous admin before ...$(msg end)" --name
-        grep_count=$(grep -ic "${da_user_package_name}" "${da_user_packages_list}")
-        if [ "${grep_count}" -gt 0 ]; then
-          _echo "$(msg green)OK, user package name ${da_user_package_name} found$(msg end)" --name
-          echo ""
-        else
-          _echo "$(msg yellow)Warning, ${da_user_package_name} does not exist in ${da_user_packages_list}. Please inspect why!$(msg end)" --name
-          _exit 147
-        fi
         # Note 1: To create a user, we need to use an reseller account:
         _echo "$(msg cyan)Creating a new user account ${da_user_uname} ${count_user1} out of $(echo "${!C_DA_USER_USERNAME@}" | wc -w) user(s) ... $(msg end)" --name
         # da_api_admin create-user-account --username abc --email abc@dsa.com --password 12321aa --domain maxibi.com --package_name USER_UNLIMITED --ip-address "${C_IPV4_ADD0}"
@@ -17642,6 +17912,7 @@ configure_da_user_accounts() {
         _echo "$(msg cyan)Creating Mail MX record for ${da_user_domain_first} without subdomain ...$(msg end)" --name
         da_api_admin create-dns-record --sign-as "${da_user_uname}" --domain "${da_user_domain_first}" --record-type MX --record-domain "${da_user_domain_first}." --record-priority "10" --record-subdomain "${da_reseller_domain_first}." --record-ttl 30 --affect-pointers yes
         echo ""
+
         copy_local_dns_to_external_dns "${da_user_domain_first}"
 
         # This will be executed if user has more than 1 domains. We add the extra domains here and skipped the default domain:
@@ -19381,7 +19652,7 @@ setup() {
     configure_kernel_ips --run
     if [[ "${C_SERVER_TYPE}" == "directadmin" ]]; then
       if [[ "${C_DA_INSTALL_TYPE}" == "custom" ]]; then
-        install_da_pre --run-exit
+        install_da_pre --run
         install_da --run
         install_da_post --run
         configure_da_auth --run
