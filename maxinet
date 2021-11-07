@@ -4,7 +4,7 @@
 
 _APP_SPECIFIC_NAME="Maxinet"
 # Note that some minor versions are not published
-_APP_VERSION="0.7.4"
+_APP_VERSION="0.7.5"
 _APP_STATUS="alpha"
 _APP_VERSION_STATUS="${_APP_VERSION}-${_APP_STATUS}"
 
@@ -1627,7 +1627,7 @@ init_server() {
     ssh_api transfer-files --server-port "${C_BOX_HOSTNAME_FQHN}:${C_SSH_PORT}" --group-user "${C_ROOT_USERGROUP}:${C_ROOT_USERNAME}" --local-files "${file_to_transfer}" --remote-path "${remote_path_to_receive}"
     echo ""
     # Backup file to update
-    file_to_transfer="${SECURE_PATH}/backup/admin_backups/*"
+    file_to_transfer="${SECURE_PATH}/backup/admin_backups/current_backups/*"
     remote_path_to_receive="${HOME}/admin_backups/"
     ssh_api mkdir --server-port ${C_BOX_HOSTNAME_FQHN}:${C_SSH_PORT} --group-user ${C_ROOT_USERGROUP}:${C_ROOT_USERNAME} --remote-path "${remote_path_to_receive}"
     ssh_api transfer-files --server-port "${C_BOX_HOSTNAME_FQHN}:${C_SSH_PORT}" --group-user "${C_ROOT_USERGROUP}:${C_ROOT_USERNAME}" --local-files "${file_to_transfer}" --remote-path "${remote_path_to_receive}"
@@ -7301,17 +7301,19 @@ maxicode_admin() {
         --local-files "${code_path}/code/search_field.awk" --remote-path /usr/local/maxicode/maxiwall/code/
       # For all .lua report
       ssh_api transfer-files --server-port "${C_BOX_HOSTNAME_FQHN}:${C_SSH_PORT}" --group-user "root:${C_ROOT_USERNAME}" \
-        --local-files "${code_path}/code/etc/suricata/lua-output/maxiwall.lua ${code_path}/code/etc/suricata/lua-output/maxiwall-http.lua" --remote-path /etc/suricata/lua-output/
+        --local-files "${code_path}/code/etc/suricata/lua-output/maxiwall.lua ${code_path}/code/etc/suricata/lua-output/maxiwall-http.lua" --remote-path /usr/local/maxicode/maxiwall/code/etc/suricata/lua-output/
       # For suricata.yaml and suricata-test.yaml
       ssh_api transfer-files --server-port "${C_BOX_HOSTNAME_FQHN}:${C_SSH_PORT}" --group-user "root:${C_ROOT_USERNAME}" \
-        --local-files "${code_path}/code/etc/suricata/suricata.yaml ${code_path}/code/etc/suricata/suricata-test.yaml" --remote-path /etc/suricata/
+        --local-files "${code_path}/code/etc/suricata/suricata.yaml ${code_path}/code/etc/suricata/suricata-test.yaml" --remote-path /usr/local/maxicode/maxiwall/code/etc/suricata/
+      # For custom rules (enable.conf, disable.conf and drop.conf)
+      ssh_api transfer-files --server-port "${C_BOX_HOSTNAME_FQHN}:${C_SSH_PORT}" --group-user "root:${C_ROOT_USERNAME}" \
+        --local-files "${code_path}/code/etc/suricata/enable.conf ${code_path}/code/etc/suricata/disable.conf ${code_path}/code/etc/suricata/drop.conf" --remote-path /usr/local/maxicode/maxiwall/code/etc/suricata/
       # For custom rules (maxiwall.rules and maxiwall-test.rules)
       ssh_api transfer-files --server-port "${C_BOX_HOSTNAME_FQHN}:${C_SSH_PORT}" --group-user "root:${C_ROOT_USERNAME}" \
-        --local-files "${code_path}/code/etc/suricata/rules/maxiwall.rules ${code_path}/code/etc/suricata/rules/maxiwall-test.rules" --remote-path /etc/suricata/rules/
+        --local-files "${code_path}/code/etc/suricata/rules/maxiwall.rules ${code_path}/code/etc/suricata/rules/maxiwall-test.rules" --remote-path /usr/local/maxicode/maxiwall/code/etc/suricata/rules/
       # For blcheck_service_file.lst (the custom blcheck blocklist file)
       ssh_api transfer-files --server-port "${C_BOX_HOSTNAME_FQHN}:${C_SSH_PORT}" --group-user "root:${C_ROOT_USERNAME}" \
         --local-files "${code_path}/conf/blcheck_service_file.lst ${code_path}/conf/maxiwall_alert_log.lst" --remote-path /usr/local/maxicode/maxiwall/conf/
-
     else
 
       _echo "$(msg red)Error, unknown or invalid app_name ${app_name}$(msg end)" --name
@@ -7337,6 +7339,7 @@ da_api_admin() {
     db_domain db_name db_user db_password db_existing_user \
     ssl_provider ssl_root_domain ssl_subdomains_query \
     backup_ip backup_path backup_file_name backup_password \
+    php_version \
     api_username api_password \
     scripting
   action="$1"
@@ -7348,7 +7351,7 @@ da_api_admin() {
   long_opts="help,sign-as:,username:,password:,ip-address:,netmask:,email:,name:,nameserver1:,nameserver2:,where-username-is:,text-output:,package-name:, \
   mail-domain:, mail-user:, mail-password:, mail-quota:, mail-limit:, db-domain:, db-name:, db-user:, db-password:, db-existing-user:,\
   recommend-values,domain:,subdomain:,ip-type:, record-type:, record-name:, record-value:, record-domain:, record-priority:, record-subdomain:, record-ttl:, affect-pointers:, special-type:, skin-name:, \
-  backup-ip:,backup-path:,backup-file-name:,backup-password:,logo-mode:,logo-file:,question:,answer:,api-username:,api-password:,scripting"
+  backup-ip:,backup-path:,backup-file-name:,backup-password:,php-version:,logo-mode:,logo-file:,question:,answer:,api-username:,api-password:,scripting"
   options=$(getopt -o "${short_opts}" --long "${long_opts}" -n "${FUNCNAME[0]}@${action} in ${SCRIPT_NAME}" -- "$@")
   retval=$?
   if [ ${retval} != 0 ]; then
@@ -7407,7 +7410,7 @@ da_api_admin() {
   backup_path=""      # /root/backup_admin/
   backup_file_name="" # backup.tar.gz
   backup_password=""  # abc123
-
+  php_version=""
   while true; do
     case "$1" in
     -h | --help)
@@ -7615,6 +7618,10 @@ da_api_admin() {
       ;;
     --backup-password)
       backup_password="$2"
+      shift 2
+      ;;
+    --php-version)
+      php_version="$2"
       shift 2
       ;;
     --)
@@ -7997,7 +8004,7 @@ da_api_admin() {
   elif [ "${action}" == "create-reseller-account" ]; then
     local cmd_api data method retval da_api_exec has_success
     cmd_api="CMD_API_ACCOUNT_RESELLER" # CMD_ACCOUNT_RESELLER is not working
-    data="username=${username}&email=${email}&passwd=${password}&passwd2=${password}&domain=${domain}&package=${package_name}&notify=yes&ip=${ip_type}&action=create&add=yes"
+    data="username=${username}&email=${email}&passwd=${password}&passwd2=${password}&domain=${domain}&package=${package_name}&notify=no&ip=${ip_type}&action=create&add=yes"
     method="POST"
     da_api_exec=$(curl --silent --request "${method}" --user "${da_api_username}":"${da_api_password}" --data "${data}" "${ssl_protocol}://${C_BOX_HOSTNAME_FQHN}:${port}/${cmd_api}")
     has_success=$(echo "${da_api_exec}" | grep -w '^error=0')
@@ -8458,7 +8465,7 @@ da_api_admin() {
     # da_api_admin "create-reseller-account" "user1" "user1@maxibi.com" "x1231aax" "maxibi.com" "USER_UNLIMITED"
     local cmd_api data method da_api_exec has_success
     cmd_api="CMD_API_ACCOUNT_USER"
-    data="username=${username}&email=${email}&passwd=${password}&passwd2=${password}&domain=${domain}&package=${package_name}&notify=yes&ip=${ip_address}&action=create&add=yes"
+    data="username=${username}&email=${email}&passwd=${password}&passwd2=${password}&domain=${domain}&package=${package_name}&notify=no&ip=${ip_address}&action=create&add=yes"
     method="POST"
     da_api_exec=$(curl --silent --request "${method}" --user "${da_api_username}":"${da_api_password}" --data "${data}" "${ssl_protocol}://${C_BOX_HOSTNAME_FQHN}:${port}/${cmd_api}")
     has_success=$(echo "${da_api_exec}" | grep -w '^error=0')
@@ -8586,6 +8593,32 @@ da_api_admin() {
       _echo "$(msg green)OK, API with action ${action} executed with the following status: $(msg end)" --name
       _echo "$(msg green)${da_api_exec}$(msg end)" --plain | urldecode | awksep '&'
     fi
+
+  elif [ "${action}" == "change-php-version" ]; then
+    local cmd_api data method retval da_api_exec has_success
+    cmd_api="CMD_API_DOMAIN"
+    php_compatible_select_number=$(cat /usr/local/directadmin/custombuild/options.conf | grep "php[0-4]_release=${php_version}" | cut -c4)
+    if [ -z "${php_compatible_select_number}" ]; then
+      :
+      # No need to display this error, the API also has its own error checking for this
+      # _echo "$(msg red)Error, the supplied PHP version does not exist in directadmin system$(msg end)" --name
+    else
+      _echo "$(msg green)OK, the supplied PHP version found and has selector number of ${php_compatible_select_number}$(msg end)" --name
+    fi
+    data="php1_select=${php_compatible_select_number}&domain=${domain}&action=php_selector&save=yes&json=yes"
+    method="POST"
+    da_api_exec=$(curl --silent --request "${method}" --user "${da_api_username}":"${da_api_password}" --data "${data}" "${ssl_protocol}://${C_BOX_HOSTNAME_FQHN}:${port}/${cmd_api}")
+    has_success=$(echo "${da_api_exec}" | grep -w "\"success\":")
+    if [ -z "${has_success}" ]; then
+      _echo "$(msg red)Error, API with action ${action} executed with the following error: $(msg end)" --name
+      _echo "$(msg red)${da_api_exec}$(msg end)" --plain | urldecode | awksep '&'
+    #_exit 147
+    else
+      _echo "$(msg green)OK, API with action ${action} executed with the following status: $(msg end)" --name
+      _echo "$(msg green)${da_api_exec}$(msg end)" --plain | urldecode | awksep '&'
+    fi
+
+    #
   else
     _echo "$(msg red)The Directadmin API action ${action} does not exist!$(msg end)" --name
     _exit 147
@@ -13289,13 +13322,12 @@ configure_da_settings() {
     # https://www.directadmin.com/features.php?id=930
     ${da_bin} set tokenizer_debug "${C_DA_TOKENIZER_DEBUG}"
     echo ""
-    #_echo "$(msg cyan)Setting directadmin session minutes ...$(msg end)" --name
+    _echo "$(msg cyan)Setting directadmin session minutes ...$(msg end)" --name
     # Set the login session timeout in minutes (when idle), session counter reset to 0 if any da page is reload (default 60 minutes / 1 hour)
     # 2880 = 2 days / 48 hours
-    # TODO This session_minutes contain bug and have not resolved yet (enable later):
-    #  This one session_minutes has bug, wait until there is a fix https://forum.directadmin.com/threads/bug-cannot-set-session_minutes-using-directadmin-set-command.64280/#post-334271
-    # ${da_bin} set session_minutes "${C_DA_SESSION_MINUTES}"
-    #echo ""
+    #  This had bug before (it is fixed now): https://forum.directadmin.com/threads/bug-cannot-set-session_minutes-using-directadmin-set-command.64280/#post-334271
+    ${da_bin} set session_minutes "${C_DA_SESSION_MINUTES}"
+    echo ""
     _echo "$(msg cyan)Setting directadmin max file size ...$(msg end)" --name
     # Increase upload max file size in bytes
     # 5368709120 = 5GB
@@ -13583,8 +13615,8 @@ configure_da_memcached() {
     echo "[${SCRIPT_NAME}]: Removing previous php-extension.sh ..."
     rm -f "php-extension.sh"
     # cp "${DATA_PATH}/maxinet/storage/os/${DISTRO_ID}/usr/local/directadmin/install_scripts/php_extension.sh" "${INST_TEMP_DIR}/php_extension.sh"
-    echo "[${SCRIPT_NAME}]: Downloading php-extension.sh ..."
-    wget https://raw.githubusercontent.com/sofibox/directadmin-utils/master/php/php-extension.sh
+    echo "[${SCRIPT_NAME}]: Downloading php-extension.sh into ${INST_TEMP_DIR}/php-extension.sh ..."
+    wget -O ${INST_TEMP_DIR}/php-extension.sh https://raw.githubusercontent.com/sofibox/directadmin-utils/master/php/php-extension.sh
     echo ""
     echo "[${SCRIPT_NAME}]: Making php-extension.sh executable ..."
     chmod +x "${INST_TEMP_DIR}/php-extension.sh"
@@ -14928,7 +14960,7 @@ configure_da_user_domain_ssl() {
 
       else
         # TODO
-        echo "SSL restore disable.. manually request here"
+        echo "SSL restore disable specific to this user.. manually request here"
       fi
     else
       # TODO improve this message
@@ -15372,6 +15404,13 @@ configure_maxibox() {
   else
     end_execute_options "${run_mode}" "${func_name}"
   fi
+}
+
+# TODO this is rclone installation (for storing backup in cloud)
+configure_rclone() {
+  :
+  curl https://rclone.org/install.sh | sudo bash
+
 }
 
 # This is the pre-requisite components or packages for all maxicode binary
@@ -16125,6 +16164,9 @@ configure_maxida() {
         _echo "$(msg cyan)Running dacli -V ...$(msg end)" --name
         dacli -V
         get_status_message "$?"
+        echo ""
+        _echo "$(msg cyan)Turning all websites to maintenance mode ...$(msg end)" --name
+        dacli maintain-web --set-status offline
         echo ""
       else
         _echo "$(msg red)Warning, dacli  binary doesn't exist inside /usr/local/maxicode ...$(msg end)" --name
@@ -19158,6 +19200,86 @@ configure_da_user_databases() {
     end_execute_options "${run_mode}" "${func_name}"
   fi
 }
+
+configure_da_user_web_configs() {
+  local run_mode func_name
+  run_mode="$1"
+  extra_option="$2"
+  func_name="${FUNCNAME[0]}"
+  if [[ "${extra_option}" == "--silent-if-executed" ]]; then
+    start_execute_options "${run_mode}" "${func_name}" &>/dev/null
+  else
+    start_execute_options "${run_mode}" "${func_name}"
+  fi
+  [[ "${SKIP_RUN}" == "true" ]] && return 0
+  if [[ ! -f "${CONF_PATH}/${func_name}_executed" && "${FUNCTION_RUN}" == "true" ]]; then
+
+    local user_count da_user_usernames_count
+
+    da_user_usernames_count=$(echo "${!C_DA_USER_USERNAME@}" | wc -w)
+    user_count=1
+
+    while [[ ${user_count} -le ${da_user_usernames_count} ]]; do
+      local da_user_username da_user_db_accounts da_user_db_accounts_count database_count
+      typeset -n "da_user_username=C_DA_USER_USERNAME${user_count}"
+      typeset -n "da_user_custom_web_configs=C_DA_USER_CUSTOM_WEB_CONFIG${user_count}"
+
+      _echo "da_user_username: ${da_user_username}" --name --verbose 7
+      _echo "da_user_custom_web_configs: ${da_user_custom_web_configs[*]}" --name --verbose 7
+
+      for da_user_web_config in "${da_user_custom_web_configs[@]}"; do
+        local platform_domain platform_name platform_version
+        platform_domain=$(echo "${da_user_web_config}" | awk -F: '{ print $1 }')
+        platform_name=$(echo "${da_user_web_config}" | awk -F: '{ print $2 }')
+        platform_version=$(echo "${da_user_web_config}" | awk -F: '{ print $3 }')
+
+        #echo ${platform_domain}
+        #echo ${platform_name}
+        #echo ${platform_version}
+
+        if [[ "${platform_name^^}" == "WORDPRESS" ]]; then
+          if [[ "${platform_version}" == "5.7" ]]; then
+            :
+            # Do nothing seems wordpress work with PHP 8.0 and default setting
+          fi
+          # Look at the prestashop requirement and write based on that here:
+        elif [[ "${platform_name^^}" == "PRESTASHOP" ]]; then
+          if [[ "${platform_version}" == "1.7.8.0" ]]; then
+            echo "Platform is set to Prestashop version 1.7.8.0"
+            php_compatible_version="7.4"
+            # First change PHP version here for this domain:
+            echo "Changing PHP version for domain ${platform_domain} ..."
+            da_api_admin change-php-version --sign-as ${da_user_username} --domain "${platform_domain}" --php-version "${php_compatible_version}"
+
+            # TODO add this API
+            echo "Changing PHP setting"
+            da_api_admin change-php-setting --sign-as ${da_user_username} --domain "${platform_domain}" --prestashop-recommend-php-settings "${platform_version}"
+
+            # TODO add this in API
+            # if [ "${prestashop_recommend_php_settings}" == "1.7.8.0" ]; then
+            #   CMD_API_PHP_SETTINGS
+            #   data="domain=${domain}&json=yes&action=add&allow_url_fopen=On&save_allow_url_fopen=On&max_input_vars=20000&save_max_input_vars=20000&memory_limit=256M&save_memory_limit=256M&post_max_size=128M&save_post_max_size=128M&upload_max_filesize=128M&save_upload_max_filesize=128M"
+            # fi
+
+          fi
+        fi
+      done
+      ((user_count++))
+    done
+    echo ""
+    check_finish_reboot "${func_name}"
+  else
+    _echo "$(msg yellow)[Skipped by system]: $(msg magenta)${func_name}$(msg end) $(msg yellow)with current option ${run_mode} has ran before $(msg end)" --name
+    _echo "$(msg yellow)=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=$(msg end)" --plain
+  fi
+
+  if [[ "${extra_option}" == "--silent-if-executed" ]]; then
+    end_execute_options "${run_mode}" "${func_name}" &>/dev/null
+  else
+    end_execute_options "${run_mode}" "${func_name}"
+  fi
+}
+
 # This is a custom function used to modify user websites configuration based on the type of website
 configure_da_custom_webs() {
   local run_mode func_name
@@ -19681,11 +19803,13 @@ setup() {
         configure_da_reseller_accounts --run
         # " -- user ---"
         configure_da_user_accounts --run
+        configure_da_user_web_configs --skip # Put inside configure_Da_accounts TODO (skip first)
         # " -- others ---"
-        configure_da_user_domain_ssl --run
+        configure_da_user_domain_ssl --run # have not test restore
         configure_da_domain_security --run
         configure_da_custom_webs --skip # (Not really useful at the moment)
         configure_da_wpcli --run        # (this one just install wpcli, no need to configure template)
+        configure_rclone --skip         #skip first has not implemented
         # " -- maxicode ---"
         # Note 1: Get the latest security codes from maxicode (recommend to run as --run-force instead of --run so we always get the latest security update)
         update_latest_maxicode --run
@@ -19699,7 +19823,7 @@ setup() {
         configure_maxibox --run    # TODO improve this script (haven't implemented)
         configure_maxinis --run    # TODO improve this script (it contains bug)
         configure_maxirbl --run
-        configure_maxiwall --skip # TODO maxiwall contain bug in reporting rule (fix it later)
+        configure_maxiwall --run # TODO Improve the report rule category
         configure_maxicli --run
         configure_maxicloud --run
         configure_maxipass --run
@@ -20074,6 +20198,11 @@ fi
 while [ "$#" -gt 0 ]; do
   case "${ACTION}" in
   # test-script
+  --clear-setup-files | --remove-setup-files)
+  # TODO remove setup files command
+    exit 0
+    break
+    ;;
   -t | --test)
     exit 0
     break
@@ -20165,7 +20294,7 @@ while [ "$#" -gt 0 ]; do
     ssh_api transfer-files --server-port "${C_BOX_HOSTNAME_FQHN}:${C_SSH_PORT}" --group-user "${C_ROOT_USERGROUP}:${C_ROOT_USERNAME}" --local-files "${FILE_TO_TRANSFER}" --remote-path "${REMOTE_PATH_TO_RECEIVE}"
 
     # Backup file to update
-    FILE_TO_TRANSFER="${SECURE_PATH}/backup/admin_backups/*"
+    FILE_TO_TRANSFER="${SECURE_PATH}/backup/admin_backups/current_backups/*"
     REMOTE_PATH_TO_RECEIVE="${HOME}/admin_backups/"
     ssh_api mkdir --server-port ${C_BOX_HOSTNAME_FQHN}:${C_SSH_PORT} --group-user ${C_ROOT_USERGROUP}:${C_ROOT_USERNAME} --remote-path "${REMOTE_PATH_TO_RECEIVE}"
 
@@ -20422,6 +20551,11 @@ ENDSSH
   linode-api | linode | manage-linode)
     shift
     linode_api_admin "$@"
+    break
+    exit 0
+    ;;
+  create-server-backup | pull-server-backup | create-backup | create-admin-backup)
+    echo "Creating and pulling server backup ..."
     break
     exit 0
     ;;
