@@ -107,13 +107,6 @@ C_COMPANY_ID="codegix"
 # Possible values are: true, false
 C_USE_MULTI_LOG_FILE=true
 
-# C_ENABLE_DNSSEC:
-# This option enable the DNS feature of DNSSEC for a server
-# Note that this feature is only tested in Directadmin. Default value is false
-# Some DNS provider does not support DNSSEC. Before enabling this option, check the compatibility.
-# This option is turned off by default
-# Possible values: true, false
-C_ENABLE_DNSSEC=false
 
 # C_PRE_AUTORUN_SETUP:
 # This variable is used to automatically continue server remote installation when it has finished installing Operating System
@@ -145,22 +138,20 @@ C_HOST_MAX_PROCESSOR="2"
 # "prestashop" - Installation of a single server of prestashop coming soon (with security hardened feature)
 C_SERVER_TYPE="directadmin"
 
-# C_USE_CUSTOM_WEB_CONFIG:
-# This variable is used to set custom script called (websetup) for setting up specific website configuration.
+# C_USE_CUSTOM_WEB_CONFIG is used to set custom script called (websetup) for setting up specific website configuration.
 # For example, a prestashop website called test.com needs to have custom php config to match prestashop requirement
 # By enabling this feature, this website test.com will have its own configuration.
 # Currently, this feature only compatible with private repo
 # Possible values are: true, false
 C_USE_CUSTOM_WEB_CONFIG=true
 
-# C_DISK_ENCRYPTION:
-# This variable is used to create full disk encryption or use normal partition during OS installation.
+# C_DISK_ENCRYPTION is used to create full disk encryption or use normal partition during OS installation.
 # The encryption will use LUKS method. This option should be enabled for VPS that support full disk encryption such as linode
 # Possible values are: true, false
 C_DISK_ENCRYPTION=true
 
-# Disable this might improve performance (quota is optional feature to be used for server)
-C_DISK_QUOTA=true
+# Disable this variable C_ENABLE_DISK_QUOTA might improve performance (quota is optional feature to be used for server)
+C_ENABLE_DISK_QUOTA=true
 
 # C_LVM_GROUP_NAME:
 # This variable is used to give the volume group name for Logical Volume Manager.
@@ -320,24 +311,27 @@ C_DA_LOGIN_METHOD="sign-as"
 C_DA_USER_BACKUP_PASSWORD="PASSWORD_HERE"
 
 # Global variable for disabling all user backup restoration
-C_DA_DISABLE_USER_BACKUP_RESTORE=true
+# To allow user backup restoration automatically put this value to true
+C_DA_ENABLE_USER_BACKUP_RESTORE=true
 
-# By default Directadmin enable this AUTO SSL feature (to disable put to false)
-# Note auto SSL only work with user domain not hostname (this config should be false by default unless have reason to stop auto SSL)
-C_DA_DISABLE_DOMAIN_AUTO_SSL=false
+# By default Directadmin enable this AUTO SSL feature after installation (to disable the feature put to false)
+# To allow domain to automatically request SSL, put this to true
+# Note auto SSL only work with user domain not hostname (this config should be set to true by default unless have reason to stop auto SSL)
+C_DA_ENABLE_DOMAIN_AUTO_SSL=true
 
 # This will restore the SSL certificate for hostname without requesting new
-# If C_DA_RESTORE_PREVIOUS_HOSTNAME_SSL is set to false, this setting has no effect
-# There is a popular known issue on the month of october 2021 that all certificate became invalid in letsencrypt
-# If that is the case, do not set this to true to fix those errors first, once the backup cert is placed properly then this can be set to true
-C_DA_RESTORE_PREVIOUS_HOSTNAME_SSL=false
+# Only enable this, if you reached the hostname SSL request
+C_DA_ENABLE_HOSTNAME_SSL_RESTORE=false
 
-# This will only work if C_DA_DISABLE_DOMAIN_AUTO_SSL=true (script will check this)
-# This will use manual method to restore SSL certificate, if it failed it will use old method to restore certificate (requesting manually)
+# This will use manual method to restore SSL certificate, if it failed it will use old method to restore certificate (requesting manually via letsencrypt.sh)
+# To allow user domain SSL restoration put this to true but if C_DA_DISABLE_DOMAIN_AUTO_SSL is set to false, this setting has no effect
+# Only use this option if the users' backup files do not have SSL certificates
+# Regarding to the user backup restore, when C_DA_DISABLE_USER_BACKUP_RESTORE is set to false and each user backup config is enabled it will restore previous certificate (if exist)
+# That means if this is set to true, it will replace the backup SSL certificate (do not enable this without reason)
 C_DA_ENABLE_USER_DOMAIN_SSL_RESTORE=false
 
 #------------------------------------------------------------------
-# Start directadmin.conf options ( Directadmin version: 1.63.0 )  #
+# Start directadmin.conf options ( Directadmin version: 1.63.1 )  #
 #------------------------------------------------------------------
 
 # Example, for directadmin certification group
@@ -401,6 +395,7 @@ C_DA_USER_BRUTECOUNT=1
 C_DA_EXEMPT_LOCAL_BLOCK=1
 C_DA_BRUTE_FORCE_TIME_LIMIT=1200
 C_DA_CLEAR_BLACKLIST_IP_TIME=86400
+# This will hide bruteforce notification (will speed up ticket system)
 C_DA_HIDE_BRUTE_FORCE_NOTIFICATIONS=1
 C_DA_IP_BRUTECOUNT=100
 #  In days
@@ -456,6 +451,12 @@ C_DA_TALLY_AFTER_RESTORE=2
 # This setting is for AUTO SSL (This is commented because C_DA_DISABLE_DOMAIN_AUTO_SSL will determine the value for this)
 # C_DA_ADMIN_SSL_CHECK_RETRIES=1
 
+# This will make imap backup faster: https://www.directadmin.com/features.php?id=1834
+C_DA_DIRECT_IMAP_BACKUP=1
+
+# Set the jailshell option based on this: https://www.directadmin.com/features.php?id=2740
+C_DA_JAIL=2
+
 #---- End directadmin.conf settings ----
 #---------------------------------------
 
@@ -486,6 +487,8 @@ C_DA_CB_CLAMAV_VERSION="latest"
 C_ENABLE_CLAMAV_SERVICE=false
 # Enable / disable user directory access
 C_DA_CB_USERDIR_ACCESS="no"
+# This will install bubblewrap/jailshell
+C_DA_CB_INSTALL_SANDBOX="yes"
 #---- End custombuild options.conf settings ----
 #-----------------------------------------------
 
@@ -906,6 +909,14 @@ C_INSTALL_RUSTC_VERSION="1.52.0"
 # Or set to false to disable yq installation
 # Latest: 4.3.12
 C_YQ_VERSION=false
+
+# C_ENABLE_DNSSEC:
+# This option enable the DNS feature of DNSSEC for a server
+# Note that this feature is only tested in Directadmin. Default value is false
+# Some DNS provider does not support DNSSEC. Before enabling this option, check the compatibility.
+# This option is turned off by default
+# Possible values: true, false
+C_ENABLE_DNSSEC=false
 
 # GOTIFY configuration
 # Temporarily disable to enable SSL first later and check for vulnerabilities:
