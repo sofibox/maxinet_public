@@ -4,7 +4,7 @@
 
 _APP_SPECIFIC_NAME="Maxinet"
 # Note that some minor versions are not published
-_APP_VERSION="0.7.6"
+_APP_VERSION="0.7.7"
 _APP_STATUS="alpha"
 _APP_VERSION_STATUS="${_APP_VERSION}-${_APP_STATUS}"
 
@@ -15,7 +15,7 @@ _APP_VERSION_STATUS="${_APP_VERSION}-${_APP_STATUS}"
 ### END TEMPORARY NOTE
 
 # This is a personal project that I wrote for server automation to reduce server configuration time.
-# The aim is this project is to have everything automated when deploying a new server without wasting a lot of time.
+# The aim of this project is to have everything automated when deploying a new server without wasting a lot of time.
 # For example setting up a secured server from scratch with hardened configs might take few days (I've experienced this) but this script will reduce that longer period to about 1 hour with one command!
 # I focused a lot of security enhancements in this script for a new server deployment in order to reduce server malicious attack.
 
@@ -473,7 +473,7 @@ script_header() {
   _echo "$(msg cyan)Welcome to $(msg red)${_APP_SPECIFIC_NAME}$(msg cyan) Automated Script (${EXECUTION_ENV})$(msg end)" --plain
   _echo "$(msg blue)This powerful script is part of Sofibox/MaxiNet scripts$(msg end)" --plain
   _echo "$(msg green)For script help: $(msg yellow)${SCRIPT_NAME} --help$(msg end)" --plain
-  _echo "$(msg green)Script official URL: $(msg yAellow)http://sofibox.com/maxinet$(msg end)" --plain
+  _echo "$(msg green)Script official URL: $(msg yellow)http://sofibox.com/maxinet$(msg end)" --plain
   _echo "$(msg green)Version: $(msg yellow)${SCRIPT_NAME}-${_APP_VERSION_STATUS}$(msg end)" --plain
   _echo "$(msg green)Distro ID: $(msg yellow)${DISTRO_ID}$(msg end) | $(msg green) Distro Version: $(msg yellow)${DISTRO_VERSION}$(msg end)" --plain
   _echo "$(msg cyan)$(msg bold)(C) Author: Arafat Ali | Email: arafat@sofibox.com$(msg end)" --plain
@@ -10510,7 +10510,7 @@ install_da_pre() {
 
     db_custom_version_txt="/usr/local/directadmin/custombuild/custom_versions.txt"
     # da_latest_version=$(curl -s https://www.directadmin.com/version.php | grep -Eo "[0-9]+\.[0-9]+")
-    da_latest_version=$(dig +short -t txt current-version.directadmin.com | sed 's|.*v=\([0-9.]*\).*|\1|')
+    da_latest_version=$(dig +short -t txt ${C_DA_VERSION_CHANNEL}-version.directadmin.com | sed 's|.*v=\([0-9.]*\).*|\1|')
     mkdir -p "/usr/local/directadmin/custombuild"
     touch "${db_custom_version_txt}"
     _echo "$(msg cyan)The latest version of Directadmin is ${da_latest_version}$(msg end)" --name
@@ -10739,6 +10739,13 @@ install_da_pre() {
       sed -i "s|^clamav=.*|clamav=${C_DA_CB_INSTALL_CLAMAV}|" /usr/local/directadmin/custombuild/options.conf
       echo ""
 
+      if [ "${C_DA_CB_DOWNLOADSERVER}" == "fastest" ]; then
+        :
+      else
+        _echo "$(msg cyan)Changing downloadserver option to ${C_DA_CB_DOWNLOADSERVER} ...$(msg end)" --name
+        sed -i "s|^downloadserver=.*|downloadserver=${C_DA_CB_DOWNLOADSERVER}|" /usr/local/directadmin/custombuild/options.conf
+        echo ""
+      fi
       _echo "$(msg cyan)Creating new custombuild custom php_extensions.conf into /usr/local/directadmin/custombuild/php_extensions.conf ...$(msg end)" --name
       {
         echo "#PHP Extension Settings"
@@ -10790,6 +10797,14 @@ install_da_pre() {
     elif [[ "${C_DA_INSTALL_TYPE}" == "auto" || "${C_DA_INSTALL_TYPE}" == "automatic" ]]; then
       _echo "$(msg cyan)Directadmin installation type C_DA_INSTALL_TYPE is set to auto or automatic. This will make the installation of directadmin using its common default components including CSF without any questions$(msg end)" --name
       C_DA_INSTALL_TYPE="automatic"
+    elif [[ "${C_DA_INSTALL_TYPE}" == "auto-option" || "${C_DA_INSTALL_TYPE}" == "automatic-option" ]]; then
+      # TODO add pre options
+      _echo "$(msg cyan)Directadmin installation type C_DA_INSTALL_TYPE is set to ${C_DA_INSTALL_TYPE}$(msg end)" --name
+      C_DA_INSTALL_TYPE="automatic-option"
+    elif [[ "${C_DA_INSTALL_TYPE}" == "auto-custom" || "${C_DA_INSTALL_TYPE}" == "automatic-custom" ]]; then
+      # TODO add pre options
+      _echo "$(msg cyan)Directadmin installation type C_DA_INSTALL_TYPE is set to ${C_DA_INSTALL_TYPE}$(msg end)" --name
+      C_DA_INSTALL_TYPE="automatic-custom"
     else
       _echo "$(msg red)Error, invalid installation type C_DA_INSTALL_TYPE set for directadmin in config file.$(msg end)" --name
       _exit 147
@@ -10840,9 +10855,9 @@ install_da() {
     chmod 755 setup.sh
     echo ""
     # da_latest_version=$(curl -s https://www.directadmin.com/version.php | grep -Eo "[0-9]+\.[0-9]+")
-    da_latest_version=$(dig +short -t txt current-version.directadmin.com | sed 's|.*v=\([0-9.]*\).*|\1|')
+    da_latest_version=$(dig +short -t txt ${C_DA_VERSION_CHANNEL}-version.directadmin.com | sed 's|.*v=\([0-9.]*\).*|\1|')
     _echo "$(msg magenta)=======================================================================$(msg end)" --plain
-    _echo "$(msg yellow)Setup will install Directadmin ${da_latest_version} within 30 seconds. $(msg end)" --name
+    _echo "$(msg yellow)Setup will install Directadmin ${da_latest_version}-${C_DA_VERSION_CHANNEL} within 30 seconds. $(msg end)" --name
     _echo "$(msg yellow)This would take a long time depending on the package selection or directadmin installation type, so please be patient$(msg end)" --name
     _echo "$(msg yellow)If you don't want to install Directadmin now, press (CTRL+C) to exit$(msg end)" --name
     _echo "$(msg yellow)Remember that you can always re-run this script to resume or restart installation (even it is halt due to error)$(msg end)" --name
@@ -10859,6 +10874,8 @@ install_da() {
     if [[ "${C_DA_INSTALL_TYPE}" == "custom" || "${C_DA_INSTALL_TYPE}" == "original" ]]; then
       # If provided options.conf, it means we use custom else we use original
       (
+        _echo "$(msg cyan)Changing download channel to ${C_DA_VERSION_CHANNEL} ...$(msg end)"
+        sed -i "s|^DOWNLOAD_CHANNEL=\".*\"|DOWNLOAD_CHANNEL=\"${C_DA_VERSION_CHANNEL}\"|" setup.sh
         ./setup.sh "${C_DA_CLIENT_ID}" "${C_DA_LICENSE_ID}" "${C_BOX_HOSTNAME_FQHN}" "${C_NIC_INTERFACE_NAME}" "${C_IPV4_ADD0}" &>"${da_install_log}"
         exit $?
       ) &
@@ -10872,10 +10889,30 @@ install_da() {
     elif [[ "${C_DA_INSTALL_TYPE}" == "automatic" || "${C_DA_INSTALL_TYPE}" == "auto" ]]; then
       # This will not ask question and everything will be installed as default including CSF
       (
-        bash <(curl -Ss https://www.directadmin.com/setup.sh) auto &>"${da_install_log}"
+        ./setup.sh auto ${C_DA_VERSION_CHANNEL} &>"${da_install_log}"
+        # bash <(curl -Ss https://www.directadmin.com/setup.sh) auto &>"${da_install_log}"
         exit $?
       ) &
       my_pid=$!
+    elif [[ "${C_DA_INSTALL_TYPE}" == "automatic-option" || "${C_DA_INSTALL_TYPE}" == "auto-option" ]]; then
+      (
+        # TODO include options.conf or use export setting before installing
+        # https://forum.directadmin.com/threads/da-1-63-1-after-a-new-da-installation-with-auto-mode-apache-is-not-running-httpd-syntax-error-on-line-222-of-etc-httpd-conf-httpd-conf.64921/post-338076
+        ./setup.sh auto ${C_DA_VERSION_CHANNEL} &>"${da_install_log}"
+        # bash <(curl -Ss https://www.directadmin.com/setup.sh) auto &>"${da_install_log}"
+
+        exit $?
+      ) &
+      my_pid=$!
+    elif [[ "${C_DA_INSTALL_TYPE}" == "automatic-custom" || "${C_DA_INSTALL_TYPE}" == "auto-custom" ]]; then
+      (
+        ./setup.sh auto ${C_DA_VERSION_CHANNEL} &>"${da_install_log}"
+        # TODO after install using automatic-custom, we rebuild or add packages based on config file
+        # bash <(curl -Ss https://www.directadmin.com/setup.sh) auto &>"${da_install_log}"
+        exit $?
+      ) &
+      my_pid=$!
+
     fi
 
     if [ -n "${my_pid}" ]; then
@@ -10953,9 +10990,6 @@ install_da() {
       fi
     fi
 
-    echo ""
-    _echo "$(msg cyan)Rewriting virtual host files ... $(msg end)" --name
-    ${da_cb_bin} rewrite_confs
     echo ""
     _echo "$(msg cyan)Checking directadmin file path ... $(msg end)" --name
     check_path "${da_bin}" "${da_cb_bin}" "${da_conf}"
@@ -11127,7 +11161,12 @@ install_da_post() {
     restart_da
     echo ""
 
+    # This is optional
+    _echo "$(msg cyan)Rewriting virtual host files ... $(msg end)" --name
+    ${da_cb_bin} rewrite_confs
     echo ""
+    # Optional end
+
     # At this moment directadmin can be login using a new port ${LABEL_C_DA_PORT}"
     check_finish_reboot "${func_name}"
   else
@@ -19235,6 +19274,7 @@ configure_da_user_databases() {
 }
 
 configure_da_user_web_configs() {
+  # Note make sure do not run this if backup restore is enabled because backup always contain updated data.
   local run_mode func_name
   run_mode="$1"
   extra_option="$2"
@@ -19836,7 +19876,7 @@ setup() {
         configure_da_reseller_accounts --run
         # " -- user ---"
         configure_da_user_accounts --run
-        configure_da_user_web_configs --skip # skipped need improvement (TODO)
+        configure_da_user_web_configs --skip # Put inside configure_Da_accounts TODO (skip first, because this need to be improved)
         # " -- others ---"
         configure_da_user_domain_ssl --run # have not test restore
         configure_da_domain_security --run
@@ -19856,7 +19896,7 @@ setup() {
         configure_maxibox --run    # TODO improve this script (haven't implemented)
         configure_maxinis --run    # TODO improve this script (it contains bug)
         configure_maxirbl --run
-        configure_maxiwall --run # TODO Improve the report rule category
+        configure_maxiwall --run # TODO maxiwall contain bug in reporting rule (fix it later)
         configure_maxicli --run
         configure_maxicloud --run
         configure_maxipass --run
@@ -20232,7 +20272,7 @@ while [ "$#" -gt 0 ]; do
   case "${ACTION}" in
   # test-script
   --clear-setup-files | --remove-setup-files)
-  # TODO remove setup files command
+   # TODO remove setup files command
     exit 0
     break
     ;;

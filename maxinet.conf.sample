@@ -239,15 +239,19 @@ C_DA_ENABLE_PRE_INSTALL_TEMP_FIX=false
 # Note 1: This feature is beta (enable this if API has error with SSL.)
 C_DA_AUTO_SELECT_API_PROTOCOL=true
 
-# C_DA_INSTALL_TYPE:
-# This variable is used to specify directadmin installation type. Currently it has 4 types:
+# Note: Latest directadmin recommends to use auto switch for installation (the staff said it will give latest packages)
+# C_DA_INSTALL_TYPE: is used to specify directadmin installation type. Currently it has 4 types:
 # 1) custom = use your own setting during DA installation (provide options.conf and php_extensions.conf),
 # 2) ori = let DA decide what to install default things providing some details using auto
 # 3) interactive = ask question what to install (require input from user)
 # 4) auto = Automated everything by directadmin as default packages (include CSF installation)
-# 5) auto-custom= Install directadmin using automatic mode in 4) when complete customize based on config file
-# Note, this script was designed to use custom type.
+# 5) auto-option= Install directadmin using automatic mode and during installation use options.conf based on config files
+# 6) auto-custom= Install directadmin using automatic mode when completed customize packages based on config file
+# Note, this script was designed to use custom type. Recommend to use auto-option for new version
 C_DA_INSTALL_TYPE="custom"
+
+# stable, current, beta, alpha
+C_DA_VERSION_CHANNEL="current"
 
 # C_DA_CLIENT_ID:
 # This is the directadmin client/user ID license obtained in the directadmin client area
@@ -489,6 +493,9 @@ C_ENABLE_CLAMAV_SERVICE=false
 C_DA_CB_USERDIR_ACCESS="no"
 # This will install bubblewrap/jailshell
 C_DA_CB_INSTALL_SANDBOX="yes"
+# This will use the mirror (files.directadmin.com should be the first to use)
+# or set fastest for the server to select faster server (might not get latest build)
+C_DA_CB_DOWNLOADSERVER=files.directadmin.com
 #---- End custombuild options.conf settings ----
 #-----------------------------------------------
 
