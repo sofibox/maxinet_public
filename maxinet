@@ -13503,6 +13503,10 @@ configure_da_settings() {
     ${da_bin} set direct_imap_backup "${C_DA_DIRECT_IMAP_BACKUP}"
     # Set the jailshell option.
     ${da_bin} set jail "${C_DA_JAIL}"
+
+    ${da_bin} set letsencrypt_list "${C_DA_LETSENCRYPT_LIST}"
+    ${da_bin} set letsencrypt_list_selected "${C_DA_LETSENCRYPT_LIST_SELECTED}"
+    ${da_bin} set letsencrypt_renewal_success_notice "${C_DA_LETSENCRYPT_RENEWAL_SUCCESS_NOTICE}"
     echo ""
     # A lot of setting have been changed, now we need to restart directadmin
     _echo "$(msg cyan)Requesting directadmin to restart ...$(msg end)" --name
@@ -14544,8 +14548,6 @@ configure_da_reseller_accounts() {
       configure_da_reseller_wildcard_domains --skip #(Skipped: Do not use wildcard for security purpose)
       configure_da_reseller_email_accounts --run
       configure_da_reseller_databases --run
-      #configure_da_reseller_domain_ssl_pre --skip # Deprecated and not needed (new directadmin version has this)
-      #configure_da_reseller_domain_ssl --skip # Directadmin has autoSSL but I need this incase autoSSL is slow or invalid (mostly for restoring backup from .lego)
     fi
     check_finish_reboot "${func_name}"
   else
@@ -14699,13 +14701,26 @@ configure_da_ssl_pre() {
     ${da_bin} set ecc_certificates 1
     echo ""
 
-    #5) Install letsencrypt latest version at pre function
+    _echo "$(msg cyan)Installing lego certificate management ...$(msg end)" --name
+    ${da_cb_bin} lego
+    echo ""
+
+    # Install letsencrypt latest version at pre function
     # install the latest letsencrypt here (this will only get the latest letsencrypt.sh)
     _echo "$(msg cyan)Installing the latest letsencrypt.sh for Directadmin ...$(msg end)" --name
     ${da_cb_bin} letsencrypt
     echo ""
 
-    # 6) Restart directadmin
+    # Enable zerossl based on config file
+
+    if [ "${C_DA_ENABLE_ZEROSSL_CERTIFICATE}" == "true" ]; then
+      _echo "$(msg cyan)Enabling zerossl certificate ...$(msg end)" --name
+      touch /root/.zerossl
+    else
+      rm -f /root/.zerossl
+    fi
+
+    # Restart directadmin
     _echo "$(msg cyan)Restarting directadmin after changing directadmin.conf ...$(msg end)" --name
     restart_da
     # No need to reboot
@@ -14726,29 +14741,34 @@ configure_da_ssl_pre() {
     end_execute_options "${run_mode}" "${func_name}"
   fi
 }
+update_timestamp() {
+  TIMESTAMP=$(${DATE_BIN} +%s)
+}
 letsencrypt_challenge_check() {
-  local domain curl_bin
+  local domain curl_bin well_known_path timestamp
+  well_known_path="/var/www/html/.well-known/acme-challenge"
   domain="$1"
-
   curl_bin=$(which curl)
   if [ -z "${curl_bin}" ]; then
     _echo "$(msg red)Error, curl binary is needed!$(msg end)" --name
     _exit 147
   fi
 
-  if [ ! -d ${WELLKNOWN_PATH} ]; then
-    mkdir -p ${WELLKNOWN_PATH}
+  if [ ! -d ${well_known_path} ]; then
+    mkdir -p ${well_known_path}
   fi
-  touch ${well_known_path}/letsencrypt_${TIMESTAMP}
-  #Checking if http://www.domain.com/.well-known/acme-challenge/letsencrypt_${TIMESTAMP} is available
-  if ! ${curl_bin} -k -I -L -X GET http://${domain}/.well-known/acme-challenge/letsencrypt_${TIMESTAMP} 2>/dev/null | grep -m1 -q 'HTTP.*200'; then
+  timestamp=$(${DATE_BIN} +%s)
+  touch ${well_known_path}/letsencrypt_${timestamp}
+  #Checking if http://www.domain.com/.well-known/acme-challenge/letsencrypt_${timestamp} is available
+  if ! ${curl_bin} -k -I -L -X GET http://${domain}/.well-known/acme-challenge/letsencrypt_${timestamp} 2>/dev/null | grep -m1 -q 'HTTP.*200'; then
     echo 1
   else
     echo 0
   fi
-  rm -f ${WELLKNOWN_PATH}/letsencrypt_${TIMESTAMP}
+  rm -f ${well_known_path}/letsencrypt_${timestamp}
 }
 
+# TODO TEST again when restore certificate!
 # This will configure all user domain SSL (including owner,admin,reseller, just to be sure that the user domain is created first)
 # Note this is working but I consider this as beta feature at this point
 configure_da_user_domain_ssl() {
@@ -14786,36 +14806,27 @@ configure_da_user_domain_ssl() {
     # This script is based on the original DA script http://files.directadmin.com/services/all/letsencrypt/autoletsencrypt.sh
     # and the improvement was specifically made to solve this issue which is not documented:
     # https://forum.directadmin.com/threads/restore-ssl-certificate-for-user-domain-from-usr-local-directadmin-data-lego-folder.64842/
-    local lego_data_path has_letsencrypt_set letsencrypt_list_selected
 
-    lego_data_path="/usr/local/directadmin/data/.lego"
-    mkdir -p "${lego_data_path}/certificates"
-
-    # SSL location:
-    key=$(${da_bin} c | grep ^cakey= | cut -d= -f2)
-    cert=$(${da_bin} c | grep ^cacert= | cut -d= -f2)
-    cacert=$(${da_bin} c | grep ^carootcert= | cut -d= -f2)
-
-    set_da_cacert=false
-    if [ "${cacert}" = "" ] || [ "${cert}" = "${da_conf_path}/carootcert.pem" ]; then
-      cert="${da_conf_path}/cacert.pem"
-      cacert="${da_conf_path}/carootcert.pem"
-      set_da_cacert=true
-    fi
-
-    # This is the well known path for letsencrypt SSL server verification
-    has_letsencrypt_set=$(${da_bin} c | grep -m1 '^letsencrypt=1$')
-
-    if [ -z "${has_letsencrypt_set}" ]; then
-      _echo "$(msg red)Error, let's encrypt hasn't been enabled on the system!$(msg end)" --name
-      _exit 147
-    else
-      letsencrypt_list_selected="$(${da_bin} c | grep '^letsencrypt_list_selected=' | cut -d= -f2 | tr ':' ' ')"
-    fi
-
+    # Make sure AUTO SSL is not enable to restore certificate because I think this might be conflict because AUTO SSL use different cert method
     if [ "${C_DA_ENABLE_DOMAIN_AUTO_SSL}" == "false" ]; then
       if [ "${C_DA_ENABLE_USER_DOMAIN_SSL_RESTORE}" == "true" ]; then
-        local da_reseller_usernames_count reseller_count
+
+        local lego_data_path da_reseller_usernames_count reseller_count
+        lego_data_path="/usr/local/directadmin/data/.lego"
+        mkdir -p "${lego_data_path}/certificates"
+
+        # SSL location:
+        key=$(${da_bin} c | grep ^cakey= | cut -d= -f2)
+        cert=$(${da_bin} c | grep ^cacert= | cut -d= -f2)
+        cacert=$(${da_bin} c | grep ^carootcert= | cut -d= -f2)
+
+        set_da_cacert=false
+        if [ "${cacert}" = "" ] || [ "${cert}" = "${da_conf_path}/carootcert.pem" ]; then
+          cert="${da_conf_path}/cacert.pem"
+          cacert="${da_conf_path}/carootcert.pem"
+          set_da_cacert=true
+        fi
+
         da_reseller_usernames_count=$(echo "${!C_DA_RESELLER_USERNAME@}" | wc -w)
         reseller_count=1
         while [[ ${reseller_count} -le ${da_reseller_usernames_count} ]]; do
@@ -14915,7 +14926,9 @@ configure_da_user_domain_ssl() {
                 fi
               fi
             done
-
+          else
+            _echo "$(msg yellow)[Skipped]: Warning SSL restoration is skipped based on config file for the user ${da_reseller_username}$(msg end)" --name
+            _pause 10
           fi
 
           echo "=========================================="
@@ -15025,18 +15038,135 @@ configure_da_user_domain_ssl() {
                 fi
               fi
             done
+          else
+            _echo "$(msg yellow)[Skipped]: Warning SSL restoration is skipped based on config file for the user ${da_user_username}$(msg end)" --name
+            _pause 10
           fi
           echo "=========================================="
           ((user_count++))
         done
 
       else
-        # TODO
-        echo "SSL restore disable specific to this user.. manually request here"
+
+        _echo "$(msg yellow)Notice: SSL restoration is not set for all users based on C_DA_ENABLE_USER_DOMAIN_SSL_RESTORE value... $(msg end)" --name
+        _pause 10
+
+        # This certificate request can be backed up or restore compared auto SSL
+        local has_letsencrypt_set letsencrypt_list_selected da_user_path rewrite
+
+        # This is the well known path for letsencrypt SSL server verification
+        _echo "$(msg cyan)Checking if letsencrypt is enabled in directadmin.conf ...$(msg end)" --name
+        has_letsencrypt_set=$(${da_bin} c | grep -m1 '^letsencrypt=1$')
+
+        if [ -z "${has_letsencrypt_set}" ]; then
+          _echo "$(msg red)Error, let's encrypt hasn't been enabled on the system!$(msg end)" --name
+          _exit 147
+        else
+          letsencrypt_list_selected="$(${da_bin} c | grep '^letsencrypt_list_selected=' | cut -d= -f2 | tr ':' ' ')"
+        fi
+
+        echo ""
+
+        da_user_path="/usr/local/directadmin/data/users"
+
+        for da_user in $(ls ${da_user_path}); do
+          {
+            for root_domain in $(cat "${da_user_path}/${da_user}/domains.list"); do
+              {
+                _echo "$(msg cyan)Configure new certificate for domain ${root_domain} (belongs to user ${da_user}) ...$(msg end)" --name
+                echo ""
+                if [ ! -e "${da_user_path}/${da_user}/domains/${root_domain}.cert" ] && [ -s "${da_user_path}/${da_user}/domains/${root_domain}.conf" ]; then
+                  local all_domains challenge_test subdomain
+                  # domain_list="${root_domain}"
+                  all_domains="${root_domain}"
+
+                  _echo "$(msg cyan)Requesting domain challenge test for domain ${root_domain} for list of extra subdomains ...$(msg end)" --name
+                  challenge_test=$(letsencrypt_challenge_check ${root_domain})
+                  echo "challenge test value for ${root_domain} is: ${challenge_test}"
+                  if [ ${challenge_test} -ne 1 ]; then
+                    for extra_subdomain in ${letsencrypt_list_selected}; do
+                      # Note extra_subdomain is taken from directadmin.conf
+                      local list_extra_subdomain
+                      {
+                        list_extra_subdomain=${extra_subdomain}.${root_domain}
+                        echo "list_extra_subdomain is: ${list_extra_subdomain}"
+                        challenge_test=$(letsencrypt_challenge_check ${list_extra_subdomain})
+                        echo "challenge test value for qualified domain ${list_extra_subdomain} is: ${challenge_test}"
+                        if [ ${challenge_test} -ne 1 ]; then
+                          all_domains="${all_domains},${list_extra_subdomain}"
+                        fi
+                      }
+                    done
+                    echo ""
+                    _echo "$(msg cyan)Requesting domain challenge test for domain ${root_domain} for subdomains ...$(msg end)" --name
+                    # Checking for subdomain for the domain if exist
+                    for sub_domain in $(cat /usr/local/directadmin/data/users/${da_user}/domains/${root_domain}.subdomains); do
+                      challenge_test=$(letsencrypt_challenge_check "${sub_domain}.${root_domain}")
+                      echo "challenge test value for subdomain ${sub_domain}.${root_domain} is: ${challenge_test}"
+                      if [ ${challenge_test} -ne 1 ]; then
+                        all_domains="${all_domains},${sub_domain}.${root_domain}"
+                      fi
+                    done
+                    echo ""
+                    echo "all_domains: ${all_domains}"
+                    echo ""
+                    # Duplicate code
+                    # challenge_test=$(letsencrypt_challenge_check ${root_domain})
+                    _echo "$(msg cyan)Checking ECC certificate ...$(msg end)" --name
+                    has_ecc_certificates=$(cat "${da_conf}" | grep "^ecc_certificates=" | cut -d= -f2)
+                    echo ""
+                    if echo "${all_domains}" | grep -m1 -q ','; then
+                      _echo "$(msg cyan)Requesting SSL certificate for multiple domains: ${all_domains} ...$(msg end)" --name
+                      if [ -n "${has_ecc_certificates}" ]; then
+                        ${da_script_path}/letsencrypt.sh request ${all_domains} ${C_DA_CERTIFICATE_SIZE}
+                      else
+                        ${da_script_path}/letsencrypt.sh request ${all_domains} 4096
+                      fi
+                    else
+                      _echo "$(msg cyan)Requesting SSL certificate for single domain: ${root_domain} ...$(msg end)" --name
+                      if [ -n "${has_ecc_certificates}" ]; then
+                        ${da_script_path}/letsencrypt.sh request_single ${root_domain} ${C_DA_CERTIFICATE_SIZE}
+                      else
+                        ${da_script_path}/letsencrypt.sh request_single ${root_domain} 4096
+                      fi
+                    fi
+                    echo ""
+                  fi
+                fi
+                _echo "$(msg cyan)Checking domain ${root_domain} cert at ${da_user_path}/${da_user}/domains/${root_domain}.cert ...$(msg end)" --name
+                if [ -e "${da_user_path}/${da_user}/domains/${root_domain}.cert" ]; then
+                  rewrite=false
+                  if ! grep -m1 -q '^ssl=ON' "${da_user_path}/${da_user}/domains/${root_domain}.conf"; then
+                    _echo "$(msg cyan)Turning ssl=ON for ${da_user_path}/${da_user}/domains/${root_domain}.conf ...$(msg end)" --name
+                    perl -pi -e 's|^ssl\=.*|ssl=ON|g' "${da_user_path}/${da_user}/domains/${root_domain}.conf"
+                    rewrite=true
+                    echo ""
+                  fi
+                  if ! grep -m1 -q '^ssl=ON' "${da_user_path}/${da_user}/domains/${root_domain}.conf"; then
+                    _echo "$(msg cyan)Writing ssl=ON for ${da_user_path}/${da_user}/domains/${root_domain}.conf ...$(msg end)" --name
+                    echo 'ssl=ON' >>"${da_user_path}/${da_user}/domains/${root_domain}.conf"
+                    echo ""
+                  fi
+                  if ! grep -m1 -q '^SSLCACertificateFile=' "${da_user_path}/${da_user}/domains/${root_domain}.conf" && ! grep -m1 -q '^SSLCertificateFile=' ${da_user_path}/${da_user}/domains/${root_domain}.conf && ! grep -m1 -q '^SSLCertificateKeyFile=' ${da_user_path}/${da_user}/domains/${root_domain}.conf; then
+                    _echo "$(msg cyan)Adding certificate links for ${da_user_path}/${da_user}/domains/${root_domain}.conf ...$(msg end)" --name
+                    perl -pi -e "s|^UseCanonicalName=|SSLCACertificateFile=${da_user_path}/${da_user}/domains/${root_domain}.cacert\nSSLCertificateFile=${da_user_path}/${da_user}/domains/${root_domain}.cert\nSSLCertificateKeyFile=${da_user_path}/${da_user}/domains/${root_domain}.key\nUseCanonicalName=|g" "${da_user_path}/${da_user}/domains/${root_domain}.conf"
+                    rewrite=true
+                  fi
+                  if ${rewrite}; then
+                    _echo "$(msg cyan)Writing rewrite values in task.queue ...$(msg end)" --name
+                    echo "action=rewrite&value=httpd&user=${da_user}" >>/usr/local/directadmin/data/task.queue
+                    echo "action=rewrite&value=mail_sni&domain=${root_domain}" >>/usr/local/directadmin/data/task.queue
+                    echo ""
+                  fi
+                fi
+              }
+            done
+          }
+        done
       fi
     else
-      # TODO improve this message
-      echo "Skip auto SSL is enable. Should not restore this."
+      _echo "$(msg yellow)[Skipped]: Warning DA Auto SSL is not enabled. The SSL restoration is skipped$(msg end)" --plain
+
     fi
 
     echo ""
@@ -18064,8 +18194,6 @@ configure_da_user_accounts() {
       configure_da_user_wildcard_domains --skip #(Skipped: Do not use wildcard for security purpose)
       configure_da_user_email_accounts --run
       configure_da_user_databases --run
-      #configure_da_user_domain_ssl_pre --skip # Deprecated (new directadmin version has this)
-      #configure_da_user_domain_ssl --skip     # Directadmin has autoSSL but I need this incase autoSSL is slow or invalid (mostly for restoring backup from .lego)
     fi
 
     check_finish_reboot "${func_name}"
@@ -18529,425 +18657,6 @@ configure_da_user_emails() {
       ((user_count++))
     done
 
-    echo ""
-    check_finish_reboot "${func_name}"
-  else
-    _echo "$(msg yellow)[Skipped by system]: $(msg magenta)${func_name}$(msg end) $(msg yellow)with current option ${run_mode} has ran before $(msg end)" --name
-    _echo "$(msg yellow)=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=$(msg end)" --plain
-  fi
-
-  if [[ "${extra_option}" == "--silent-if-executed" ]]; then
-    end_execute_options "${run_mode}" "${func_name}" &>/dev/null
-  else
-    end_execute_options "${run_mode}" "${func_name}"
-  fi
-}
-# Note this is deprecated function (everything will be stored in configure_da_user_domain_ssl)
-configure_da_reseller_domain_ssl_pre() {
-  local run_mode func_name
-  run_mode="$1"
-  extra_option="$2"
-  func_name="${FUNCNAME[0]}"
-  if [[ "${extra_option}" == "--silent-if-executed" ]]; then
-    start_execute_options "${run_mode}" "${func_name}" &>/dev/null
-  else
-    start_execute_options "${run_mode}" "${func_name}"
-  fi
-  [[ "${SKIP_RUN}" == "true" ]] && return 0
-  if [[ ! -f "${CONF_PATH}/${func_name}_executed" && "${FUNCTION_RUN}" == "true" ]]; then
-
-    echo "Make condition to restore certificate from lego (user decide or if da backup is not restore or global backup is not set)"
-
-    exit
-
-    local reseller_count da_reseller_ssl_sub_names da_reseller_ssl_sub_names_count count_n count_o
-    local this_da_reseller_uname this_da_reseller_userpass this_da_reseller_enable_domain_ssl \
-      this_da_reseller_ssl_subdomains retval le_select_query
-    # Get all the reseller ssl_sub_names
-    da_reseller_ssl_sub_names="${!C_DA_RESELLER_SSL_SUBDOMAIN@}"
-    # Get the total count for reseller ssl_sub_names
-    da_reseller_ssl_sub_names_count=$(echo "${da_reseller_ssl_sub_names}" | wc -w)
-    reseller_count=1
-    echo "[${SCRIPT_NAME}]: Creating acme-challenge file through custombuild rewrite_confs ..."
-    /usr/local/directadmin/custombuild/build rewrite_confs
-    while [[ ${reseller_count} -le ${da_reseller_ssl_sub_names_count} ]]; do
-      echo ""
-      echo "===== Loop count: ${reseller_count} ========="
-      typeset -n "this_da_reseller_username"="C_DA_RESELLER_USERNAME${reseller_count}"
-      typeset -n "this_da_reseller_userpass"="C_DA_RESELLER_USERPASS${reseller_count}"
-      typeset -n "this_da_reseller_enable_domain_ssl"="C_DA_RESELLER_ENABLE_DOMAIN_SSL${reseller_count}"
-      typeset -n "this_da_reseller_ssl_subdomains"="C_DA_RESELLER_SSL_SUBDOMAIN${reseller_count}"
-
-      echo "this_da_reseller_username: ${this_da_reseller_username}"
-      echo "this_da_reseller_userpass: ${this_da_reseller_userpass}"
-      echo "this_da_reseller_enable_domain_ssl: ${this_da_reseller_enable_domain_ssl}"
-      echo "this_da_reseller_ssl_subdomains: ${this_da_reseller_ssl_subdomains[*]}"
-      echo "this_da_reseller_ssl_subdomains_count: ${#this_da_reseller_ssl_subdomains[*]}"
-      echo "=========================================="
-
-      if [[ ${this_da_reseller_enable_domain_ssl} == "yes" ]]; then
-        echo ""
-        echo "OK, This reseller is set to enable SSL"
-        count_n=0
-        while [ ${count_n} -le $((this_da_reseller_ssl_subdomains_count - 1)) ]; do
-          echo ""
-
-          ssl_provider=$(echo "${this_da_reseller_ssl_subdomains[count_n]}" | awk -F':' '{ print $1 }')
-          ssl_domain=$(echo "${this_da_reseller_ssl_subdomains[count_n]}" | awk -F':' '{ print $2 }')
-          ssl_subdomains_raw=$(echo "${this_da_reseller_ssl_subdomains[count_n]}" | awk -F':' '{ print $3 }')
-          # Debug
-          # echo "==============---count_n = ${count_n} ---==============="
-          # echo "SSL_PROVIDER: ${ssl_provider}"
-          # echo "SSL_DOMAIN: ${ssl_domain}"
-          # echo "SSL_SUBDOMAINS_RAW: ${ssl_subdomains_raw}"
-
-          if [ "${ssl_provider}" == "letsencrypt" ]; then
-            echo "Testing, requesting letsencrypt SSL certificate for domain ${ssl_domain} in staging mode ..."
-            staging=yes /usr/local/directadmin/scripts/letsencrypt.sh request_single "${ssl_domain}"
-            retval=$?
-            if [ ${retval} -ne 0 ]; then
-              echo "Warning, this domain ${ssl_domain} has issue when requesting ssl certificate in staging mode"
-            else
-              echo "OK, this domain ${ssl_domain} has no issue when requesting ssl certificate in staging mode"
-            fi
-
-            count_o=0
-            le_select_query=""
-            for ssl_subdomain in ${ssl_subdomains}; do
-              if [ ${count_o} = 0 ]; then
-                le_select[${count_o}]="${ssl_domain}"
-                echo "Count OO: ${le_select_query}"
-              else
-                le_select[${count_o}]="${ssl_subdomain}.${ssl_domain}"
-                echo "Count > 00: ${le_select_query}"
-              fi
-              ((count_o++))
-            done
-          elif [ "${ssl_provider}" == "digicert" ]; then
-            :
-          fi
-          ((count_n++))
-        done
-      elif [[ ${this_da_user_enable_domain_ssl} == "no" ]]; then
-        echo "Warning This user is set to not enable SSL. Do nothing for this"
-      fi
-      echo ""
-      ((reseller_count++))
-
-    done
-    echo ""
-    check_finish_reboot "${func_name}"
-  else
-    _echo "$(msg yellow)[Skipped by system]: $(msg magenta)${func_name}$(msg end) $(msg yellow)with current option ${run_mode} has ran before $(msg end)" --name
-    _echo "$(msg yellow)=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=$(msg end)" --plain
-  fi
-
-  if [[ "${extra_option}" == "--silent-if-executed" ]]; then
-    end_execute_options "${run_mode}" "${func_name}" &>/dev/null
-  else
-    end_execute_options "${run_mode}" "${func_name}"
-  fi
-}
-
-# Note this is deprecated function (everything will be stored in configure_da_user_domain_ssl)
-configure_da_user_domain_ssl_pre() {
-  local run_mode func_name
-  run_mode="$1"
-  extra_option="$2"
-  func_name="${FUNCNAME[0]}"
-  if [[ "${extra_option}" == "--silent-if-executed" ]]; then
-    start_execute_options "${run_mode}" "${func_name}" &>/dev/null
-  else
-    start_execute_options "${run_mode}" "${func_name}"
-  fi
-  [[ "${SKIP_RUN}" == "true" ]] && return 0
-  if [[ ! -f "${CONF_PATH}/${func_name}_executed" && "${FUNCTION_RUN}" == "true" ]]; then
-    local da_user_ssl_sub_names da_user_ssl_sub_names_count
-    local this_da_user_uname this_da_user_userpass this_da_user_enable_domain_ssl \
-      this_da_user_ssl_subdomains retval
-    # Get all the user ssl_sub_names
-    da_user_ssl_sub_names="${!C_DA_USER_SSL_SUBDOMAIN@}"
-    # Get the total count for user ssl_sub_names
-    da_user_ssl_sub_names_count=$(echo "${da_user_ssl_sub_names}" | wc -w)
-    count_x=1
-    echo "[${SCRIPT_NAME}]: Creating acme-challenge file through custombuild rewrite_confs ..."
-    /usr/local/directadmin/custombuild/build rewrite_confs
-    while [[ ${count_x} -le ${da_user_ssl_sub_names_count} ]]; do
-      echo ""
-      echo "===== Loop count: ${count_x} ========="
-      typeset -n "this_da_user_username"="C_DA_USER_USERNAME${count_x}"
-      typeset -n "this_da_user_userpass"="C_DA_USER_USERPASS${count_x}"
-      typeset -n "this_da_user_enable_domain_ssl"="C_DA_USER_ENABLE_DOMAIN_SSL${count_x}"
-      typeset -n "this_da_user_ssl_subdomains"="C_DA_USER_SSL_SUBDOMAIN${count_x}"
-
-      echo "this_da_user_username: ${this_da_user_username}"
-      echo "this_da_user_userpass: ${this_da_user_userpass}"
-      echo "this_da_user_enable_domain_ssl: ${this_da_user_enable_domain_ssl}"
-      echo "this_da_user_ssl_subdomains: ${this_da_user_ssl_subdomains[*]}"
-      this_da_user_ssl_subdomains_count=${#this_da_user_ssl_subdomains[@]}
-      echo "=========================================="
-
-      if [[ ${this_da_user_enable_domain_ssl} == "yes" ]]; then
-        echo ""
-        echo "OK, This user is set to enable SSL"
-        count_n=0
-        while [ ${count_n} -le $((this_da_user_ssl_subdomains_count - 1)) ]; do
-          echo ""
-
-          ssl_provider=$(echo "${this_da_user_ssl_subdomains[count_n]}" | awk -F':' '{ print $1 }')
-          ssl_domain=$(echo "${this_da_user_ssl_subdomains[count_n]}" | awk -F':' '{ print $2 }')
-          ssl_subdomains_raw=$(echo "${this_da_user_ssl_subdomains[count_n]}" | awk -F':' '{ print $3 }')
-          # Debug
-          # echo "==============---count_n = ${count_n} ---==============="
-          # echo "SSL_PROVIDER: ${ssl_provider}"
-          # echo "SSL_DOMAIN: ${ssl_domain}"
-          # echo "SSL_SUBDOMAINS_RAW: ${ssl_subdomains_raw}"
-
-          if [ "${ssl_provider}" == "letsencrypt" ]; then
-            echo "Testing, requesting letsencrypt SSL certificate for domain ${ssl_domain} in staging mode ..."
-            staging=yes /usr/local/directadmin/scripts/letsencrypt.sh request_single "${ssl_domain}"
-            retval=$?
-            if [ ${retval} -ne 0 ]; then
-              echo "Warning, this domain ${ssl_domain} has issue when requesting ssl certificate in staging mode"
-            else
-              echo "OK, this domain ${ssl_domain} has no issue when requesting ssl certificate in staging mode"
-            fi
-          elif [ "${ssl_provider}" == "digicert" ]; then
-            :
-          fi
-          ((count_n++))
-        done
-      elif [[ ${this_da_user_enable_domain_ssl} == "no" ]]; then
-        echo "Warning This user is set to not enable SSL. Do nothing for this"
-      fi
-      echo ""
-      ((count_x++))
-
-    done
-    echo ""
-    check_finish_reboot "${func_name}"
-  else
-    _echo "$(msg yellow)[Skipped by system]: $(msg magenta)${func_name}$(msg end) $(msg yellow)with current option ${run_mode} has ran before $(msg end)" --name
-    _echo "$(msg yellow)=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=$(msg end)" --plain
-  fi
-
-  if [[ "${extra_option}" == "--silent-if-executed" ]]; then
-    end_execute_options "${run_mode}" "${func_name}" &>/dev/null
-  else
-    end_execute_options "${run_mode}" "${func_name}"
-  fi
-}
-
-# Note this is deprecated function (everything will be stored in configure_da_user_domain_ssl)
-configure_da_reseller_domain_ssl() {
-  local run_mode func_name
-  run_mode="$1"
-  extra_option="$2"
-  func_name="${FUNCNAME[0]}"
-  if [[ "${extra_option}" == "--silent-if-executed" ]]; then
-    start_execute_options "${run_mode}" "${func_name}" &>/dev/null
-  else
-    start_execute_options "${run_mode}" "${func_name}"
-  fi
-  [[ "${SKIP_RUN}" == "true" ]] && return 0
-  if [[ ! -f "${CONF_PATH}/${func_name}_executed" && "${FUNCTION_RUN}" == "true" ]]; then
-    local reseller_count da_reseller_ssl_sub_names da_reseller_ssl_sub_names_count
-    local this_da_reseller_uname this_da_reseller_userpass this_da_reseller_enable_domain_ssl \
-      this_da_reseller_ssl_subdomains retval
-    # Get all the reseller ssl_sub_names
-    da_reseller_ssl_sub_names="${!C_DA_RESELLER_SSL_SUBDOMAIN@}"
-    # Get the total count for reseller ssl_sub_names
-    da_reseller_ssl_sub_names_count=$(echo "${da_reseller_ssl_sub_names}" | wc -w)
-
-    echo "[${SCRIPT_NAME}]: Creating acme-challenge file through custombuild rewrite_confs ..."
-    /usr/local/directadmin/custombuild/build rewrite_confs
-    echo ""
-    reseller_count=1
-    while [[ ${reseller_count} -le ${da_reseller_ssl_sub_names_count} ]]; do
-      echo ""
-      echo "===== Loop count: ${reseller_count} ========="
-      typeset -n "this_da_reseller_username"="C_DA_RESELLER_USERNAME${reseller_count}"
-      typeset -n "this_da_reseller_userpass"="C_DA_RESELLER_USERPASS${reseller_count}"
-      typeset -n "this_da_reseller_enable_domain_ssl"="C_DA_RESELLER_ENABLE_DOMAIN_SSL${reseller_count}"
-      typeset -n "this_da_reseller_ssl_subdomains"="C_DA_RESELLER_SSL_SUBDOMAIN${reseller_count}"
-
-      echo "this_da_reseller_username: ${this_da_reseller_username}"
-      echo "this_da_reseller_userpass: ${this_da_reseller_userpass}"
-      echo "this_da_reseller_enable_domain_ssl: ${this_da_reseller_enable_domain_ssl}"
-      echo "this_da_reseller_ssl_subdomains: ${this_da_reseller_ssl_subdomains[*]}"
-      this_da_reseller_ssl_subdomains_count=${#this_da_reseller_ssl_subdomains[@]}
-      echo "=========================================="
-
-      if [[ ${this_da_reseller_enable_domain_ssl} == "yes" ]]; then
-        echo ""
-        echo "OK, This reseller is set to enable SSL"
-        count_n=0
-        while [ ${count_n} -le $((this_da_reseller_ssl_subdomains_count - 1)) ]; do
-          echo ""
-          ssl_provider=$(echo "${this_da_reseller_ssl_subdomains[count_n]}" | awk -F':' '{ print $1 }')
-          ssl_domain=$(echo "${this_da_reseller_ssl_subdomains[count_n]}" | awk -F':' '{ print $2 }')
-          ssl_subdomains_raw=$(echo "${this_da_reseller_ssl_subdomains[count_n]}" | awk -F':' '{ print $3 }')
-          # Debug
-          echo "==============---count_n = ${count_n} ---==============="
-          echo "SSL_PROVIDER: ${ssl_provider}"
-          echo "SSL_DOMAIN: ${ssl_domain}"
-          echo "SSL_SUBDOMAINS_RAW: ${ssl_subdomains_raw}"
-          if [ "${ssl_provider}" == "letsencrypt" ]; then
-            echo "Testing, requesting letsencrypt SSL certificate for domain ${ssl_domain} in staging mode ..."
-            staging=yes /usr/local/directadmin/scripts/letsencrypt.sh request "${ssl_domain}"
-            retval=$?
-            if [ ${retval} -ne 0 ]; then
-              echo "Warning, this domain ${ssl_domain} has issue when requesting ssl certificate in staging mode"
-              # TODO add the ability to resume failed certificate request for reseller (when rerun this script)
-            else
-              echo "OK, this domain ${ssl_domain} has no issue when requesting ssl certificate in staging mode"
-            fi
-            ssl_subdomains=$(echo "${ssl_subdomains_raw}" | awk -F',' '{for (i=0;i<=NF;i++)print $i}')
-            count_o=0
-            le_select_query=""
-            for ssl_subdomain in ${ssl_subdomains}; do
-              if [ ${count_o} = 0 ]; then
-                le_select[${count_o}]="${ssl_domain}"
-                ls="le_select${count_o}=${le_select[${count_o}]}"
-              else
-                le_select[${count_o}]="${ssl_subdomain}.${ssl_domain}"
-                ls="&le_select${count_o}=${le_select[${count_o}]}"
-              fi
-              le_select_query="${le_select_query}${ls}"
-              ((count_o++))
-            done
-            echo "LE_SELECT_QUERY: ${le_select_query}"
-            echo "================-------------------======================="
-            echo ""
-            # Now we got all variables. Call API here:
-            # Seems like DA admin or owner level also can use this authentication to request certificate for user (I will verify this again)
-            echo "Requesting SSL for domain ${ssl_domain} with the following query: ${le_select_query}"
-            da_api_admin request-domain-ssl --sign-as "${this_da_reseller_username}" --ssl-provider "${ssl_provider}" --ssl-root-domain "${ssl_domain}" --ssl-subdomain-query "${le_select_query}"
-          elif [ "${ssl_provider}" == "digicert" ]; then
-            :
-          fi
-          ((count_n++))
-        done
-      elif [[ ${this_da_user_enable_domain_ssl} == "no" ]]; then
-        echo "Warning This user is set to not enable SSL. Do nothing for this"
-      fi
-      echo ""
-      ((reseller_count++))
-
-    done
-    echo ""
-    check_finish_reboot "${func_name}"
-  else
-    _echo "$(msg yellow)[Skipped by system]: $(msg magenta)${func_name}$(msg end) $(msg yellow)with current option ${run_mode} has ran before $(msg end)" --name
-    _echo "$(msg yellow)=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=$(msg end)" --plain
-  fi
-
-  if [[ "${extra_option}" == "--silent-if-executed" ]]; then
-    end_execute_options "${run_mode}" "${func_name}" &>/dev/null
-  else
-    end_execute_options "${run_mode}" "${func_name}"
-  fi
-}
-configure_da_user_domain_ssl_deprecated() {
-  # Here we configure SSL for specific domains we want based on the config variable: C_DA_USER_ENABLE_DOMAIN_SSL{?}
-  # Where Domain can have 1 or more
-  local run_mode func_name
-  run_mode="$1"
-  extra_option="$2"
-  func_name="${FUNCNAME[0]}"
-  if [[ "${extra_option}" == "--silent-if-executed" ]]; then
-    start_execute_options "${run_mode}" "${func_name}" &>/dev/null
-  else
-    start_execute_options "${run_mode}" "${func_name}"
-  fi
-  [[ "${SKIP_RUN}" == "true" ]] && return 0
-  if [[ ! -f "${CONF_PATH}/${func_name}_executed" && "${FUNCTION_RUN}" == "true" ]]; then
-    local da_user_ssl_sub_names da_user_ssl_sub_names_count this_da_user_username this_da_user_userpass \
-      this_da_user_enable_domain_ssl this_da_user_ssl_subdomains this_da_user_ssl_subdomains_count
-    local ssl_provider ssl_domain ssl_subdomains_raw le_select_query le_s count_o count_n count_x retval
-    # Get all the user ssl_sub_names
-    da_user_ssl_sub_names="${!C_DA_USER_SSL_SUBDOMAIN@}"
-    # Get the total count for user ssl_sub_names
-    da_user_ssl_sub_names_count=$(echo "${da_user_ssl_sub_names}" | wc -w)
-    count_x=1
-    while [[ ${count_x} -le ${da_user_ssl_sub_names_count} ]]; do
-      echo ""
-      echo ""
-      echo "===== countx = ${count_x} ========="
-      typeset -n "this_da_user_username"="C_DA_USER_USERNAME${count_x}"
-      typeset -n "this_da_user_userpass"="C_DA_USER_USERPASS${count_x}"
-      typeset -n "this_da_user_enable_domain_ssl"="C_DA_USER_ENABLE_DOMAIN_SSL${count_x}"
-      typeset -n "this_da_user_ssl_subdomains"="C_DA_USER_SSL_SUBDOMAIN${count_x}"
-
-      echo "this_da_user_username: ${this_da_user_username}"
-      echo "this_da_user_userpass: ${this_da_user_userpass}"
-      echo "this_da_user_enable_domain_ssl: ${this_da_user_enable_domain_ssl}"
-      echo "this_da_user_ssl_subdomains: ${this_da_user_ssl_subdomains[*]}"
-      this_da_user_ssl_subdomains_count=${#this_da_user_ssl_subdomains[@]}
-
-      if [[ ${this_da_user_enable_domain_ssl} == "yes" ]]; then
-        echo ""
-        echo "=========================================="
-        echo "OK, This user is set to enable SSL"
-        count_n=0
-        while [ ${count_n} -le $((this_da_user_ssl_subdomains_count - 1)) ]; do
-          echo ""
-          echo "---count_n=${count_n} ---"
-          ssl_provider=$(echo "${this_da_user_ssl_subdomains[count_n]}" | awk -F':' '{ print $1 }')
-          ssl_domain=$(echo "${this_da_user_ssl_subdomains[count_n]}" | awk -F':' '{ print $2 }')
-          ssl_subdomains_raw=$(echo "${this_da_user_ssl_subdomains[count_n]}" | awk -F':' '{ print $3 }')
-          # Debug
-          echo "SSL_PROVIDER: ${ssl_provider}"
-          echo "SSL_DOMAIN: ${ssl_domain}"
-          echo "SSL_SUBDOMAINS_RAW: ${ssl_subdomains_raw}"
-          if [ "${ssl_provider}" == "letsencrypt" ]; then
-            echo "Testing, requesting letsencrypt SSL certificate for domain ${ssl_domain} in staging mode ..."
-            staging=yes /usr/local/directadmin/scripts/letsencrypt.sh request "${ssl_domain}"
-            retval=$?
-            if [ ${retval} -ne 0 ]; then
-              echo "Warning, this domain ${ssl_domain} has issue when requesting ssl certificate in staging mode"
-              # TODO add the ability to resume failed certificate request for user when rerun this script
-            else
-              echo "OK, this domain ${ssl_domain} has no issue when requesting ssl certificate in staging mode"
-            fi
-            ssl_subdomains=$(echo "${ssl_subdomains_raw}" | awk -F',' '{for (i=0;i<=NF;i++)print $i}')
-            count_o=0
-            le_select_query=""
-            for ssl_subdomain in ${ssl_subdomains}; do
-              if [ ${count_o} = 0 ]; then
-                le_select[${count_o}]="${ssl_domain}"
-                le_s="le_select${count_o}=${le_select[${count_o}]}"
-              else
-                le_select[${count_o}]="${ssl_subdomain}.${ssl_domain}"
-                le_s="&le_select${count_o}=${le_select[${count_o}]}"
-              fi
-              le_select_query="${le_select_query}${le_s}"
-              ((count_o++))
-            done
-            echo "---------------"
-            echo "LE_SELECT_QUERY: ${le_select_query}"
-            echo ""
-            # Now we got all variables. Call API here:
-            # da_api_admin "request-domain-ssl" <provider> <root_domain> <keysize> <encryption> <ssl_sub_domains_query>
-            da_api_admin "signas+${this_da_user_username}+${this_da_user_userpass}"
-            # Most secure key now is secp521r1 and sha256
-            echo "Requesting SSL for domain ${ssl_domain} with the following query: ${le_select_query}"
-            da_api_admin "request-domain-ssl" "${ssl_provider}" "${ssl_domain}" "secp521r1" "sha256" "${le_select_query}"
-
-          elif [ "${ssl_provider}" == "digicert" ]; then
-            :
-          fi
-
-          ((count_n++))
-        done
-
-      elif [[ ${this_da_user_enable_domain_ssl} == "no" ]]; then
-        echo "Warning This user is set to not enable SSL. Do nothing for this"
-      fi
-      echo "=========================================="
-      ((count_x++))
-
-    done
     echo ""
     check_finish_reboot "${func_name}"
   else
@@ -20272,7 +19981,6 @@ while [ "$#" -gt 0 ]; do
   case "${ACTION}" in
   # test-script
   --clear-setup-files | --remove-setup-files)
-   # TODO remove setup files command
     exit 0
     break
     ;;
@@ -20380,16 +20088,13 @@ while [ "$#" -gt 0 ]; do
   srt | ssl-request-test | request-ssl-test)
     # Beta test
     validate_config
-    #configure_da_reseller_domain_ssl_pre "--run-force"
-    #configure_da_user_domain_ssl_pre "--run-force"
     exit 0
     break
     ;;
   # This will request certificate
   sr | ssl-request | request-ssl)
     validate_config
-    #configure_da_reseller_domain_ssl "--run-force"
-    #configure_da_user_domain_ssl "--run-force"
+    configure_da_user_domain_ssl --run-force
     exit 0
     break
     ;;

@@ -286,10 +286,6 @@ C_DA_INSTALL_MEMCACHED=true
 # This is used to enable and install geoip
 C_DA_INSTALL_GEOIP=true
 
-# C_ENABLE_DA_HOST_SSL
-# This variable is used to enable server/host domain SSL. Leave this this option enabled for security
-C_ENABLE_DA_HOST_SSL=true
-
 # C_DA_AUTO_ADD_IPV46_ENTRY:
 # This is a feature to add automatically ipv6 or ipv4 config file in directadmin.
 # When this option is enabled (true), we do not need to manually add IPv6 through directadmin GUI.
@@ -311,28 +307,48 @@ C_DA_AUTO_LINK_IP=true
 # direct-login = login directly using username and password (disadvantage: need to know directadmin client username and password)
 C_DA_LOGIN_METHOD="sign-as"
 
-# This is the directadmin backup password. Use to decrypt backup automatically
-C_DA_USER_BACKUP_PASSWORD="PASSWORD_HERE"
-
 # Global variable for disabling all user backup restoration
 # To allow user backup restoration automatically put this value to true
 C_DA_ENABLE_USER_BACKUP_RESTORE=true
 
-# By default Directadmin enable this AUTO SSL feature after installation (to disable the feature put to false)
-# To allow domain to automatically request SSL, put this to true
-# Note auto SSL only work with user domain not hostname (this config should be set to true by default unless have reason to stop auto SSL)
-C_DA_ENABLE_DOMAIN_AUTO_SSL=true
+# This is the directadmin backup password. Use to decrypt backup automatically
+C_DA_USER_BACKUP_PASSWORD="PASSWORD_HERE"
+
+
+# C_DA_ENABLE_DOMAIN_AUTO_SSL is used to enable or disable DA AUTO SSL feature
+# If this is enabled, all domains will be requested SSL certificate automatically in the background
+# Important note: At this moment the certificate that is being used is a server shared certificates
+# The shared certificate will not be restored via admin_backups tool if you did backup the certificate.
+# Only certificate created by pasting key or requested via letsencrypt checkbox through GUI can be restored.
+# By default Directadmin enable this AUTO SSL feature after installation.
+# In order to disable the feature put the value to false and the script will disable the AUTO SSL automatically after DA has finished installed
+# To allow domain to automatically request SSL, then put this variable to true
+# Another note: Directadmin AUTO SSL only work with user domain SLL not hostname SSL. For hostname SSL use C_ENABLE_DA_HOST_SSL
+# This config should be set to true by default unless have reason to stop auto SSL
+C_DA_ENABLE_DOMAIN_AUTO_SSL=false
+
+# C_ENABLE_DA_HOST_SSL is used to enable server/host domain SSL. Leave this this option enabled for security
+C_ENABLE_DA_HOST_SSL=true
 
 # This will restore the SSL certificate for hostname without requesting new
 # Only enable this, if you reached the hostname SSL request
+# By default should be disable
 C_DA_ENABLE_HOSTNAME_SSL_RESTORE=false
 
-# This will use manual method to restore SSL certificate, if it failed it will use old method to restore certificate (requesting manually via letsencrypt.sh)
+# This will use manual method to restore SSL certificate, if it failed it will use old method to request new certificate (requesting manually via letsencrypt.sh)
 # To allow user domain SSL restoration put this to true but if C_DA_DISABLE_DOMAIN_AUTO_SSL is set to false, this setting has no effect
-# Only use this option if the users' backup files do not have SSL certificates
+# Only use this option if the users' backup files do not have SSL certificates and you really need the SSL restoration manually when you have the backup certificates
 # Regarding to the user backup restore, when C_DA_DISABLE_USER_BACKUP_RESTORE is set to false and each user backup config is enabled it will restore previous certificate (if exist)
 # That means if this is set to true, it will replace the backup SSL certificate (do not enable this without reason)
 C_DA_ENABLE_USER_DOMAIN_SSL_RESTORE=false
+
+# C_DA_ENABLE_ZEROSSL_CERTIFICATE is used to enable zerossl cerficate for website which has more rate limit for big hosting.
+# This is a new test feature in directadmin
+# I have many dedicated servers so using letsencryppt is not enough for customers
+# If you don't want to use zerossl put this variable to false
+# Note if you enable this, the old method of requesting certificate via letsencrypt will be disabled and it will use zerossl instead.
+# To disable zerossl manually and revert to the old method just remove the file /root/.zerossl and that will revert to using letsencrypt for requesting ssl certificate
+C_DA_ENABLE_ZEROSSL_CERTIFICATE=true
 
 #------------------------------------------------------------------
 # Start directadmin.conf options ( Directadmin version: 1.63.1 )  #
@@ -460,6 +476,15 @@ C_DA_DIRECT_IMAP_BACKUP=1
 
 # Set the jailshell option based on this: https://www.directadmin.com/features.php?id=2740
 C_DA_JAIL=2
+
+# This will enable checkbox for list of subdomain to request SSL certificate
+C_DA_LETSENCRYPT_LIST="www:mail:ftp:pop:smtp"
+
+# THis will check the checkbox automatically for list of subdomains to request SSL certificate
+C_DA_LETSENCRYPT_LIST_SELECTED="www:mail:ftp:pop:smtp"
+
+# This will send notification if renew success
+C_DA_LETSENCRYPT_RENEWAL_SUCCESS_NOTICE=0
 
 #---- End directadmin.conf settings ----
 #---------------------------------------

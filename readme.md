@@ -1,5 +1,5 @@
 This is a personal project that I wrote for server automation to reduce server configuration time. 
-The aim is this project is to have everything automated when deploying a new server without wasting a lot of time. 
+The aim of this project is to have everything automated when deploying a new server without wasting a lot of time. 
 For example setting up a secured server from scratch with hardened configs might take few days (I've experienced this) but this script will reduce that longer period to about 1 hour with one command! 
 I focused a lot of security enhancements in this script for a new server deployment in order to reduce server malicious attack.
 
