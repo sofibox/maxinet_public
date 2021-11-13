@@ -4,7 +4,7 @@
 
 _APP_SPECIFIC_NAME="Maxinet"
 # Note that some minor versions are not published
-_APP_VERSION="0.7.7"
+_APP_VERSION="0.7.8"
 _APP_STATUS="alpha"
 _APP_VERSION_STATUS="${_APP_VERSION}-${_APP_STATUS}"
 
@@ -1155,213 +1155,223 @@ ensure_linode_rdns_resolved() {
   done
 }
 ensure_domain_server_resolved() {
-  local failed_check_count count_check_duration
+  if [ "${C_ENABLE_DNS_PROPAGATION_CHECKER}" == "true" ]; then
+    local failed_check_count count_check_duration
 
-  failed_check_count=0
-  count_check_duration=30
+    failed_check_count=0
+    count_check_duration=30
 
-  echo -n "Checking domain ${LABEL_C_BOX_DOMAIN} A record resolves with IPv4 ${LABEL_C_IPV4_ADD0} ... "
-  while :; do
-    if is_valid ipv4_resolved "${C_IPV4_ADD0}" "${C_BOX_DOMAIN}"; then
-      _echo "$(msg green) [OK]$(msg end)" --plain
-      break
-    else
-      local check_duration
-      _echo "$(msg red) [FAILED]$(msg end)" --plain
-      ((failed_check_count++))
-      if [[ "${failed_check_count}" -eq 1 ]]; then
-        if [ "${DNS_PROVIDER_NAME}" == "linode" ]; then
-          _echo "$(msg cyan)Creating domain ${LABEL_C_BOX_DOMAIN} in linode if does not exist ...$(msg end)" --name
-          linode_api_admin create-domain --domain-type "master" --domain "${C_BOX_DOMAIN}" --domain-email "webmaster@${C_BOX_DOMAIN}" --domain-ttl 30
+    echo -n "Checking domain ${LABEL_C_BOX_DOMAIN} A record resolves with IPv4 ${LABEL_C_IPV4_ADD0} ... "
+    while :; do
+      if is_valid ipv4_resolved "${C_IPV4_ADD0}" "${C_BOX_DOMAIN}"; then
+        _echo "$(msg green) [OK]$(msg end)" --plain
+        break
+      else
+        local check_duration
+        _echo "$(msg red) [FAILED]$(msg end)" --plain
+        ((failed_check_count++))
+        if [[ "${failed_check_count}" -eq 1 ]]; then
+          if [ "${DNS_PROVIDER_NAME}" == "linode" ]; then
+            _echo "$(msg cyan)Creating domain ${LABEL_C_BOX_DOMAIN} in linode if does not exist ...$(msg end)" --name
+            linode_api_admin create-domain --domain-type "master" --domain "${C_BOX_DOMAIN}" --domain-email "webmaster@${C_BOX_DOMAIN}" --domain-ttl 30
+            echo ""
+            _echo "$(msg cyan)Creating dns A record ${LABEL_C_BOX_DOMAIN} in linode...$(msg end)" --name
+            linode_api_admin add-dns-record --domain "${C_BOX_DOMAIN}" --record-type "A" --record-name "${C_BOX_DOMAIN}" --record-value "${C_IPV4_ADD0}" --record-ttl 30
+          elif [ "${DNS_PROVIDER_NAME}" == "local" ]; then
+            echo "[${SCRIPT_NAME}]: External DNS provider for domain ${C_BOX_DOMAIN} is set to local"
+            # Do nothing because it's local DNS managed by Directadmin
+          fi
+        fi
+
+        #_echo "$(msg red)Please create / check for domain ${LABEL_C_BOX_DOMAIN} that it must have an A record pointing to ${LABEL_C_IPV4_ADD0}$(msg end)" --name
+        #_exit 147
+
+        if [[ "${failed_check_count}" -eq 4 ]]; then
+          _echo "$(msg yellow)Warning, failed to propagate domain ${LABEL_C_BOX_DOMAIN} ...$(msg end)" --name
+          _echo "$(msg cyan)Creating domain ${LABEL_C_BOX_DOMAIN} in linode with rebuild option ...$(msg end)" --name
+          linode_api_admin create-domain --domain-type "master" --domain "${C_BOX_DOMAIN}" --domain-email "webmaster@${C_BOX_DOMAIN}" --domain-ttl 30 --rebuild
           echo ""
           _echo "$(msg cyan)Creating dns A record ${LABEL_C_BOX_DOMAIN} in linode...$(msg end)" --name
           linode_api_admin add-dns-record --domain "${C_BOX_DOMAIN}" --record-type "A" --record-name "${C_BOX_DOMAIN}" --record-value "${C_IPV4_ADD0}" --record-ttl 30
-        elif [ "${DNS_PROVIDER_NAME}" == "local" ]; then
-          echo "[${SCRIPT_NAME}]: External DNS provider for domain ${C_BOX_DOMAIN} is set to local"
-          # Do nothing because it's local DNS managed by Directadmin
         fi
+
+        # Increase the check 30 seconds when failed on the 5th times and a above
+        if [[ "${failed_check_count}" -ge 15 && "${failed_check_count}" -le 100 ]]; then
+          ((count_check_duration = count_check_duration + 30))
+        else
+          count_check_duration=30
+        fi
+        check_duration="${count_check_duration}"
+        while :; do
+          ((check_duration--))
+          _echo "[${failed_check_count}]: Re-checking ${LABEL_C_BOX_DOMAIN} A record resolves with IPv4 ${LABEL_C_IPV4_ADD0} within ${check_duration} seconds ... " --name --start-spin
+          if [ "${check_duration}" -le 0 ]; then
+            # echo -n "Re-checking ${LABEL_C_BOX_DOMAIN} A record resolves with IPv4 ${LABEL_C_IPV4_ADD0} in 120 seconds ... "
+            break
+          fi
+          sleep 1
+        done
       fi
+    done
 
-      #_echo "$(msg red)Please create / check for domain ${LABEL_C_BOX_DOMAIN} that it must have an A record pointing to ${LABEL_C_IPV4_ADD0}$(msg end)" --name
-      #_exit 147
-
-      if [[ "${failed_check_count}" -eq 4 ]]; then
-        _echo "$(msg yellow)Warning, failed to propagate domain ${LABEL_C_BOX_DOMAIN} ...$(msg end)" --name
-        _echo "$(msg cyan)Creating domain ${LABEL_C_BOX_DOMAIN} in linode with rebuild option ...$(msg end)" --name
-        linode_api_admin create-domain --domain-type "master" --domain "${C_BOX_DOMAIN}" --domain-email "webmaster@${C_BOX_DOMAIN}" --domain-ttl 30 --rebuild
-        echo ""
-        _echo "$(msg cyan)Creating dns A record ${LABEL_C_BOX_DOMAIN} in linode...$(msg end)" --name
-        linode_api_admin add-dns-record --domain "${C_BOX_DOMAIN}" --record-type "A" --record-name "${C_BOX_DOMAIN}" --record-value "${C_IPV4_ADD0}" --record-ttl 30
-      fi
-
-      # Increase the check 30 seconds when failed on the 5th times and a above
-      if [[ "${failed_check_count}" -ge 15 && "${failed_check_count}" -le 100 ]]; then
-        ((count_check_duration = count_check_duration + 30))
+    failed_check_count=0
+    count_check_duration=30
+    echo -n "Checking domain ${LABEL_C_BOX_DOMAIN} AAAA record resolves with IPv6 ${LABEL_C_IPV6_ADD0} ... "
+    while :; do
+      if is_valid ipv6_resolved "${C_IPV6_ADD0}" "${C_BOX_DOMAIN}"; then
+        _echo "$(msg green) [OK]$(msg end)" --plain
+        break
       else
-        count_check_duration=30
-      fi
-      check_duration="${count_check_duration}"
-      while :; do
-        ((check_duration--))
-        _echo "[${failed_check_count}]: Re-checking ${LABEL_C_BOX_DOMAIN} A record resolves with IPv4 ${LABEL_C_IPV4_ADD0} within ${check_duration} seconds ... " --name --start-spin
-        if [ "${check_duration}" -le 0 ]; then
-          # echo -n "Re-checking ${LABEL_C_BOX_DOMAIN} A record resolves with IPv4 ${LABEL_C_IPV4_ADD0} in 120 seconds ... "
-          break
+        local check_duration
+        _echo "$(msg red) [FAILED]$(msg end)" --plain
+        ((failed_check_count++))
+        if [[ "${failed_check_count}" -eq 1 ]]; then
+          if [ "${DNS_PROVIDER_NAME}" == "linode" ]; then
+            _echo "$(msg cyan)Creating domain ${LABEL_C_BOX_DOMAIN} in linode if does not exist ...$(msg end)" --name
+            linode_api_admin create-domain --domain-type "master" --domain "${C_BOX_DOMAIN}" --domain-email "webmaster@${C_BOX_DOMAIN}" --domain-ttl 30
+            echo ""
+            _echo "$(msg cyan)Creating dns AAAA record ${LABEL_C_BOX_DOMAIN} in linode...$(msg end)" --name
+            linode_api_admin add-dns-record --domain "${C_BOX_DOMAIN}" --record-type "AAAA" --record-name "${C_BOX_DOMAIN}" --record-value "${C_IPV6_ADD0}" --record-ttl 30
+          elif [ "${DNS_PROVIDER_NAME}" == "local" ]; then
+            echo "[${SCRIPT_NAME}]: External DNS provider for domain ${C_BOX_DOMAIN} is set to local"
+            # Do nothing because it's local DNS managed by Directadmin
+          fi
         fi
-        sleep 1
-      done
-    fi
-  done
 
-  failed_check_count=0
-  count_check_duration=30
-  echo -n "Checking domain ${LABEL_C_BOX_DOMAIN} AAAA record resolves with IPv6 ${LABEL_C_IPV6_ADD0} ... "
-  while :; do
-    if is_valid ipv6_resolved "${C_IPV6_ADD0}" "${C_BOX_DOMAIN}"; then
-      _echo "$(msg green) [OK]$(msg end)" --plain
-      break
-    else
-      local check_duration
-      _echo "$(msg red) [FAILED]$(msg end)" --plain
-      ((failed_check_count++))
-      if [[ "${failed_check_count}" -eq 1 ]]; then
-        if [ "${DNS_PROVIDER_NAME}" == "linode" ]; then
-          _echo "$(msg cyan)Creating domain ${LABEL_C_BOX_DOMAIN} in linode if does not exist ...$(msg end)" --name
-          linode_api_admin create-domain --domain-type "master" --domain "${C_BOX_DOMAIN}" --domain-email "webmaster@${C_BOX_DOMAIN}" --domain-ttl 30
-          echo ""
-          _echo "$(msg cyan)Creating dns AAAA record ${LABEL_C_BOX_DOMAIN} in linode...$(msg end)" --name
-          linode_api_admin add-dns-record --domain "${C_BOX_DOMAIN}" --record-type "AAAA" --record-name "${C_BOX_DOMAIN}" --record-value "${C_IPV6_ADD0}" --record-ttl 30
-        elif [ "${DNS_PROVIDER_NAME}" == "local" ]; then
-          echo "[${SCRIPT_NAME}]: External DNS provider for domain ${C_BOX_DOMAIN} is set to local"
-          # Do nothing because it's local DNS managed by Directadmin
+        #_echo "$(msg red)Please create / check for domain ${LABEL_C_BOX_DOMAIN} that it must have an AAAA record pointing to ${LABEL_C_IPV4_ADD0}$(msg end)" --name
+        #_exit 147
+
+        # Increase the check 30 seconds when failed on the 5th times and a above
+        if [[ "${failed_check_count}" -ge 15 && "${failed_check_count}" -le 100 ]]; then
+          ((count_check_duration = count_check_duration + 2))
+        else
+          count_check_duration=30
         fi
+        check_duration="${count_check_duration}"
+        while :; do
+          ((check_duration--))
+          _echo "[${failed_check_count}]: Re-checking domain ${LABEL_C_BOX_DOMAIN} AAAA record resolves with IPv6 ${LABEL_C_IPV6_ADD0} within ${check_duration} seconds ... " --name --start-spin
+          if [ "${check_duration}" -le 0 ]; then
+            # echo -n "Re-checking ${LABEL_C_BOX_DOMAIN} AAAA record resolves with IPv6 ${LABEL_C_IPV6_ADD0} in 120 seconds ... "
+            break
+          fi
+          sleep 1
+        done
       fi
+    done
 
-      #_echo "$(msg red)Please create / check for domain ${LABEL_C_BOX_DOMAIN} that it must have an AAAA record pointing to ${LABEL_C_IPV4_ADD0}$(msg end)" --name
-      #_exit 147
-
-      # Increase the check 30 seconds when failed on the 5th times and a above
-      if [[ "${failed_check_count}" -ge 15 && "${failed_check_count}" -le 100 ]]; then
-        ((count_check_duration = count_check_duration + 2))
-      else
-        count_check_duration=30
-      fi
-      check_duration="${count_check_duration}"
-      while :; do
-        ((check_duration--))
-        _echo "[${failed_check_count}]: Re-checking domain ${LABEL_C_BOX_DOMAIN} AAAA record resolves with IPv6 ${LABEL_C_IPV6_ADD0} within ${check_duration} seconds ... " --name --start-spin
-        if [ "${check_duration}" -le 0 ]; then
-          # echo -n "Re-checking ${LABEL_C_BOX_DOMAIN} AAAA record resolves with IPv6 ${LABEL_C_IPV6_ADD0} in 120 seconds ... "
-          break
-        fi
-        sleep 1
-      done
-    fi
-  done
+  else
+    _echo "$(msg yellow)Skip checking domain for propagation for domain because C_ENABLE_DNS_PROPAGATION_CHECKER is not set to true$(msg end)" --name
+  fi
 }
 ############## FOR HOSTNAME test.server.com ################
 ensure_fqhn_server_resolved() {
-  local failed_check_count count_check_duration
+  if [ "${C_ENABLE_DNS_PROPAGATION_CHECKER}" == "true" ]; then
+    local failed_check_count count_check_duration
 
-  failed_check_count=0
-  count_check_duration=30
-  echo -n "Checking hostname ${LABEL_C_BOX_HOSTNAME_FQHN} A record resolves with IPv4 ${LABEL_C_IPV4_ADD0} ... "
-  while :; do
-    if is_valid ipv4_resolved "${C_IPV4_ADD0}" "${C_BOX_HOSTNAME_FQHN}"; then
-      _echo "$(msg green) [OK]$(msg end)" --plain
-      break
-    else
-      local check_duration
-      _echo "$(msg red) [FAILED]$(msg end)" --plain
-      ((failed_check_count++))
-      if [[ "${failed_check_count}" -eq 1 ]]; then
-        if [ "${DNS_PROVIDER_NAME}" == "linode" ]; then
-          _echo "$(msg cyan)Creating domain ${LABEL_C_BOX_HOSTNAME_FQHN} in linode if does not exist ...$(msg end)" --name
-          linode_api_admin create-domain --domain-type "master" --domain "${C_BOX_HOSTNAME_FQHN}" --domain-email "webmaster@${C_BOX_HOSTNAME_FQHN}" --domain-ttl 30
+    failed_check_count=0
+    count_check_duration=30
+    echo -n "Checking hostname ${LABEL_C_BOX_HOSTNAME_FQHN} A record resolves with IPv4 ${LABEL_C_IPV4_ADD0} ... "
+    while :; do
+      if is_valid ipv4_resolved "${C_IPV4_ADD0}" "${C_BOX_HOSTNAME_FQHN}"; then
+        _echo "$(msg green) [OK]$(msg end)" --plain
+        break
+      else
+        local check_duration
+        _echo "$(msg red) [FAILED]$(msg end)" --plain
+        ((failed_check_count++))
+        if [[ "${failed_check_count}" -eq 1 ]]; then
+          if [ "${DNS_PROVIDER_NAME}" == "linode" ]; then
+            _echo "$(msg cyan)Creating domain ${LABEL_C_BOX_HOSTNAME_FQHN} in linode if does not exist ...$(msg end)" --name
+            linode_api_admin create-domain --domain-type "master" --domain "${C_BOX_HOSTNAME_FQHN}" --domain-email "webmaster@${C_BOX_HOSTNAME_FQHN}" --domain-ttl 30
+            echo ""
+            _echo "$(msg cyan)Creating dns A record ${LABEL_C_BOX_HOSTNAME_FQHN} in linode...$(msg end)" --name
+            linode_api_admin add-dns-record --domain "${C_BOX_HOSTNAME_FQHN}" --record-type "A" --record-name "${C_BOX_HOSTNAME_FQHN}" --record-value "${C_IPV4_ADD0}" --record-ttl 30
+          elif [ "${DNS_PROVIDER_NAME}" == "local" ]; then
+            echo "[${SCRIPT_NAME}]: External DNS provider for domain ${domain} is set to local"
+            # Do nothing because it's local DNS managed by Directadmin
+          fi
+        fi
+
+        #_echo "$(msg red)Please create / check for domain ${C_BOX_HOSTNAME_FQHN} that it must have an A record pointing to ${LABEL_C_IPV4_ADD0}$(msg end)" --name
+        #_exit 147
+        # 30,4, 15 ,100,30
+        # If failed for the 3rd time, readd domain with --force
+        if [[ "${failed_check_count}" -eq 30 ]]; then
+          _echo "$(msg yellow)Warning, failed to propagate domain ${LABEL_C_BOX_HOSTNAME_FQHN} ...$(msg end)" --name
+          _echo "$(msg cyan)Creating domain ${LABEL_C_BOX_HOSTNAME_FQHN} in linode with rebuild option ...$(msg end)" --name
+          linode_api_admin create-domain --domain-type "master" --domain "${C_BOX_HOSTNAME_FQHN}" --domain-email "webmaster@${C_BOX_HOSTNAME_FQHN}" --domain-ttl 30 --rebuild
           echo ""
           _echo "$(msg cyan)Creating dns A record ${LABEL_C_BOX_HOSTNAME_FQHN} in linode...$(msg end)" --name
           linode_api_admin add-dns-record --domain "${C_BOX_HOSTNAME_FQHN}" --record-type "A" --record-name "${C_BOX_HOSTNAME_FQHN}" --record-value "${C_IPV4_ADD0}" --record-ttl 30
-        elif [ "${DNS_PROVIDER_NAME}" == "local" ]; then
-          echo "[${SCRIPT_NAME}]: External DNS provider for domain ${domain} is set to local"
-          # Do nothing because it's local DNS managed by Directadmin
         fi
-      fi
 
-      #_echo "$(msg red)Please create / check for domain ${C_BOX_HOSTNAME_FQHN} that it must have an A record pointing to ${LABEL_C_IPV4_ADD0}$(msg end)" --name
-      #_exit 147
-      # 30,4, 15 ,100,30
-      # If failed for the 3rd time, readd domain with --force
-      if [[ "${failed_check_count}" -eq 30 ]]; then
-        _echo "$(msg yellow)Warning, failed to propagate domain ${LABEL_C_BOX_HOSTNAME_FQHN} ...$(msg end)" --name
-        _echo "$(msg cyan)Creating domain ${LABEL_C_BOX_HOSTNAME_FQHN} in linode with rebuild option ...$(msg end)" --name
-        linode_api_admin create-domain --domain-type "master" --domain "${C_BOX_HOSTNAME_FQHN}" --domain-email "webmaster@${C_BOX_HOSTNAME_FQHN}" --domain-ttl 30 --rebuild
-        echo ""
-        _echo "$(msg cyan)Creating dns A record ${LABEL_C_BOX_HOSTNAME_FQHN} in linode...$(msg end)" --name
-        linode_api_admin add-dns-record --domain "${C_BOX_HOSTNAME_FQHN}" --record-type "A" --record-name "${C_BOX_HOSTNAME_FQHN}" --record-value "${C_IPV4_ADD0}" --record-ttl 30
+        # Increase the check 30 seconds when failed on the 5th times and a above
+        if [[ "${failed_check_count}" -ge 4 && "${failed_check_count}" -le 100 ]]; then
+          ((count_check_duration = count_check_duration + 2))
+        else
+          count_check_duration=30
+        fi
+        check_duration="${count_check_duration}"
+        while :; do
+          ((check_duration--))
+          _echo "[${failed_check_count}]: Re-checking hostname ${LABEL_C_BOX_HOSTNAME_FQHN} A record resolves with IPv4 ${LABEL_C_IPV4_ADD0} within ${check_duration} seconds ... " --name --start-spin
+          if [ "${check_duration}" -le 0 ]; then
+            # echo -n "Re-checking ${LABEL_C_BOX_HOSTNAME_FQHN} A record resolves with IPv4 ${LABEL_C_IPV4_ADD0} in 120 seconds ... "
+            break
+          fi
+          sleep 1
+        done
       fi
+    done
 
-      # Increase the check 30 seconds when failed on the 5th times and a above
-      if [[ "${failed_check_count}" -ge 4 && "${failed_check_count}" -le 100 ]]; then
-        ((count_check_duration = count_check_duration + 2))
+    failed_check_count=0
+    count_check_duration=30
+    echo -n "Checking hostname ${LABEL_C_BOX_HOSTNAME_FQHN} AAAA record resolves with IPv6 ${LABEL_C_IPV6_ADD0} ... "
+    while :; do
+      if is_valid ipv6_resolved "${C_IPV6_ADD0}" "${C_BOX_HOSTNAME_FQHN}"; then
+        _echo "$(msg green) [OK]$(msg end)" --plain
+        break
       else
-        count_check_duration=30
-      fi
-      check_duration="${count_check_duration}"
-      while :; do
-        ((check_duration--))
-        _echo "[${failed_check_count}]: Re-checking hostname ${LABEL_C_BOX_HOSTNAME_FQHN} A record resolves with IPv4 ${LABEL_C_IPV4_ADD0} within ${check_duration} seconds ... " --name --start-spin
-        if [ "${check_duration}" -le 0 ]; then
-          # echo -n "Re-checking ${LABEL_C_BOX_HOSTNAME_FQHN} A record resolves with IPv4 ${LABEL_C_IPV4_ADD0} in 120 seconds ... "
-          break
+        local check_duration
+        _echo "$(msg red) [FAILED]$(msg end)" --plain
+        ((failed_check_count++))
+        if [[ "${failed_check_count}" -eq 1 ]]; then
+          if [ "${DNS_PROVIDER_NAME}" == "linode" ]; then
+            _echo "$(msg cyan)Creating domain ${LABEL_C_BOX_HOSTNAME_FQHN} in linode if does not exist ...$(msg end)" --name
+            linode_api_admin create-domain --domain-type "master" --domain "${C_BOX_HOSTNAME_FQHN}" --domain-email "webmaster@${C_BOX_HOSTNAME_FQHN}" --domain-ttl 30
+            echo ""
+            _echo "$(msg cyan)Creating dns AAAA record ${LABEL_C_BOX_HOSTNAME_FQHN} in linode...$(msg end)" --name
+            linode_api_admin add-dns-record --domain "${C_BOX_HOSTNAME_FQHN}" --record-type "AAAA" --record-name "${C_BOX_HOSTNAME_FQHN}" --record-value "${C_IPV6_ADD0}" --record-ttl 30
+          elif [ "${DNS_PROVIDER_NAME}" == "local" ]; then
+            echo "[${SCRIPT_NAME}]: External DNS provider for domain ${LABEL_C_BOX_HOSTNAME_FQHN} is set to local"
+            # Do nothing because it's local DNS managed by Directadmin
+          fi
         fi
-        sleep 1
-      done
-    fi
-  done
+        #_echo "$(msg red)Please create / check for domain ${LABEL_C_BOX_HOSTNAME_FQHN} that it must have an AAAA record pointing to ${LABEL_C_IPV6_ADD0}$(msg end)" --name
+        #_exit 147
 
-  failed_check_count=0
-  count_check_duration=30
-  echo -n "Checking hostname ${LABEL_C_BOX_HOSTNAME_FQHN} AAAA record resolves with IPv6 ${LABEL_C_IPV6_ADD0} ... "
-  while :; do
-    if is_valid ipv6_resolved "${C_IPV6_ADD0}" "${C_BOX_HOSTNAME_FQHN}"; then
-      _echo "$(msg green) [OK]$(msg end)" --plain
-      break
-    else
-      local check_duration
-      _echo "$(msg red) [FAILED]$(msg end)" --plain
-      ((failed_check_count++))
-      if [[ "${failed_check_count}" -eq 1 ]]; then
-        if [ "${DNS_PROVIDER_NAME}" == "linode" ]; then
-          _echo "$(msg cyan)Creating domain ${LABEL_C_BOX_HOSTNAME_FQHN} in linode if does not exist ...$(msg end)" --name
-          linode_api_admin create-domain --domain-type "master" --domain "${C_BOX_HOSTNAME_FQHN}" --domain-email "webmaster@${C_BOX_HOSTNAME_FQHN}" --domain-ttl 30
-          echo ""
-          _echo "$(msg cyan)Creating dns AAAA record ${LABEL_C_BOX_HOSTNAME_FQHN} in linode...$(msg end)" --name
-          linode_api_admin add-dns-record --domain "${C_BOX_HOSTNAME_FQHN}" --record-type "AAAA" --record-name "${C_BOX_HOSTNAME_FQHN}" --record-value "${C_IPV6_ADD0}" --record-ttl 30
-        elif [ "${DNS_PROVIDER_NAME}" == "local" ]; then
-          echo "[${SCRIPT_NAME}]: External DNS provider for domain ${LABEL_C_BOX_HOSTNAME_FQHN} is set to local"
-          # Do nothing because it's local DNS managed by Directadmin
+        # Increase the check 30 seconds when failed on the 5th times and a above
+        if [[ "${failed_check_count}" -ge 15 && "${failed_check_count}" -le 100 ]]; then
+          ((count_check_duration = count_check_duration + 2))
+        else
+          count_check_duration=30
         fi
+        check_duration="${count_check_duration}"
+        while :; do
+          ((check_duration--))
+          _echo "[${failed_check_count}]: Re-checking hostname ${LABEL_C_BOX_HOSTNAME_FQHN} AAAA record resolves with IPv6 ${LABEL_C_IPV6_ADD0} within ${check_duration} seconds ... " --name --start-spin
+          if [ "${check_duration}" -le 0 ]; then
+            break
+          fi
+          sleep 1
+        done
       fi
-      #_echo "$(msg red)Please create / check for domain ${LABEL_C_BOX_HOSTNAME_FQHN} that it must have an AAAA record pointing to ${LABEL_C_IPV6_ADD0}$(msg end)" --name
-      #_exit 147
+    done
 
-      # Increase the check 30 seconds when failed on the 5th times and a above
-      if [[ "${failed_check_count}" -ge 15 && "${failed_check_count}" -le 100 ]]; then
-        ((count_check_duration = count_check_duration + 2))
-      else
-        count_check_duration=30
-      fi
-      check_duration="${count_check_duration}"
-      while :; do
-        ((check_duration--))
-        _echo "[${failed_check_count}]: Re-checking hostname ${LABEL_C_BOX_HOSTNAME_FQHN} AAAA record resolves with IPv6 ${LABEL_C_IPV6_ADD0} within ${check_duration} seconds ... " --name --start-spin
-        if [ "${check_duration}" -le 0 ]; then
-          break
-        fi
-        sleep 1
-      done
-    fi
-  done
+  else
+    _echo "$(msg yellow)Skip checking domain for propagation for hostname because C_ENABLE_DNS_PROPAGATION_CHECKER is not set to true$(msg end)" --name
+  fi
 
 }
 
@@ -1624,7 +1634,7 @@ init_server() {
     ssh_api transfer-files --server-port "${C_BOX_HOSTNAME_FQHN}:${C_SSH_PORT}" --group-user "${C_ROOT_USERGROUP}:${C_ROOT_USERNAME}" --local-files "${file_to_transfer}" --remote-path "${remote_path_to_receive}"
     echo ""
     # SSL cert to update
-    file_to_transfer="${SECURE_PATH}/ssl/.lego/certificates/*"
+    file_to_transfer="${SECURE_PATH}/ssl/.lego/*"
     remote_path_to_receive="${HOME}/ssl/"
     ssh_api mkdir --server-port ${C_BOX_HOSTNAME_FQHN}:${C_SSH_PORT} --group-user ${C_ROOT_USERGROUP}:${C_ROOT_USERNAME} --remote-path "${remote_path_to_receive}"
     ssh_api transfer-files --server-port "${C_BOX_HOSTNAME_FQHN}:${C_SSH_PORT}" --group-user "${C_ROOT_USERGROUP}:${C_ROOT_USERNAME}" --local-files "${file_to_transfer}" --remote-path "${remote_path_to_receive}"
@@ -2476,6 +2486,7 @@ lish_console() {
 }
 
 # This function will validate if config is valid, if one of the variables missing, it will complain and exit
+# TODO update check with new variables
 validate_config() {
   local count_user total_valid_user this_da_owner_name this_da_owner_uname this_da_owner_password this_da_owner_system_email this_da_owner_security_qna
   total_valid_user=0
@@ -2587,7 +2598,7 @@ validate_config() {
   # Validate resellers #
   #--------------------#
   local this_da_reseller_uname this_da_reseller_password this_da_reseller_name this_da_reseller_system_email \
-    this_da_reseller_package_name this_da_reseller_domains this_da_reseller_wildcard_domains this_da_reseller_subdomains \
+    this_da_reseller_package_name this_da_reseller_domains this_da_reseller_wildcard_domains \
     this_c_da_reseller_ip_type this_da_reseller_enable_domain_ssl this_da_reseller_ssl_subdomains this_da_reseller_mail_accounts \
     this_da_reseller_security_qna this_da_reseller_db_accounts
 
@@ -2602,7 +2613,6 @@ validate_config() {
     typeset -n "this_da_reseller_package_name=C_DA_RESELLER_PACKAGE_NAME${count_user}"
     typeset -n "this_da_reseller_domains=C_DA_RESELLER_DOMAIN${count_user}"
     typeset -n "this_da_reseller_wildcard_domains=C_DA_RESELLER_WILDCARD_DOMAIN${count_user}"
-    typeset -n "this_da_reseller_subdomains=C_DA_RESELLER_SUBDOMAIN${count_user}"
     typeset -n "this_c_da_reseller_ip_type=C_DA_RESELLER_IP_TYPE${count_user}"
     typeset -n "this_da_reseller_enable_domain_ssl=C_DA_RESELLER_ENABLE_DOMAIN_SSL${count_user}"
     typeset -n "this_da_reseller_ssl_subdomains=C_DA_RESELLER_SSL_SUBDOMAIN${count_user}"
@@ -2659,12 +2669,6 @@ validate_config() {
     elif [[ -z "${this_da_reseller_enable_domain_ssl+x}" ]]; then
       echo "[${SCRIPT_NAME}]: [Skipped]: Warning reseller ${this_da_reseller_uname} doesn't have domain enable ssl set in config file (missing or invalid variable). Please check configuration file"
       _exit 147
-    elif [[ -z "${this_da_reseller_subdomains+x}" ]]; then
-      echo "[${SCRIPT_NAME}]: [Skipped]: Warning reseller ${this_da_reseller_uname} doesn't have subdomains set in config file (missing or invalid variable). Please check configuration file"
-      _exit 147
-    elif [[ -n "${this_da_reseller_subdomains}" && $(awk -F':' '{print NF-1}' <<<"${this_da_reseller_subdomains[@]}") -ne ${#this_da_reseller_subdomains[@]} ]]; then
-      echo "[${SCRIPT_NAME}]: [Skipped]: Warning reseller ${this_da_user_uname} has invalid subdomains format set in config file (invalid separator). Please check configuration file "
-      _exit 147
       # TODO check extra this_da_reseller_ssl_subdomains for format
     elif [[ -z "${this_da_reseller_ssl_subdomains+x}" ]]; then
       echo "[${SCRIPT_NAME}]: [Skipped]: Warning reseller ${this_da_reseller_uname} doesn't have ssl subdomains set in config file (missing or invalid variable). Please check configuration file"
@@ -2689,7 +2693,7 @@ validate_config() {
   done
 
   local this_da_user_uname this_da_user_password this_da_user_name this_da_user_system_email \
-    this_da_user_package_name this_da_user_domains this_da_user_wildcard_domains this_da_user_subdomains \
+    this_da_user_package_name this_da_user_domains this_da_user_wildcard_domains \
     this_da_user_enable_domain_ssl this_da_user_ssl_subdomains this_da_user_mail_accounts \
     this_da_user_security_qna this_da_user_db_accounts
 
@@ -2704,7 +2708,6 @@ validate_config() {
     typeset -n "this_da_user_package_name=C_DA_USER_PACKAGE_NAME${count_user}"
     typeset -n "this_da_user_domains=C_DA_USER_DOMAIN${count_user}"
     typeset -n "this_da_user_wildcard_domains=C_DA_USER_WILDCARD_DOMAIN${count_user}"
-    typeset -n "this_da_user_subdomains=C_DA_USER_SUBDOMAIN${count_user}"
     typeset -n "this_da_user_enable_domain_ssl=C_DA_USER_ENABLE_DOMAIN_SSL${count_user}"
     typeset -n "this_da_user_ssl_subdomains=C_DA_USER_SSL_SUBDOMAIN${count_user}"
     typeset -n "this_da_user_mail_accounts=C_DA_USER_MAIL_ACCOUNT${count_user}"
@@ -2756,12 +2759,6 @@ validate_config() {
       _exit 147
     elif [[ -z "${this_da_user_enable_domain_ssl+x}" ]]; then
       echo "[${SCRIPT_NAME}]: [Skipped]: Warning user ${this_da_user_uname} doesn't have domain enable ssl set in config file (missing or invalid variable). Please check configuration file"
-      _exit 147
-    elif [[ -z "${this_da_user_subdomains+x}" ]]; then
-      echo "[${SCRIPT_NAME}]: [Skipped]: Warning user ${this_da_user_uname} doesn't have subdomains set in config file (missing or invalid variable). Please check configuration file"
-      _exit 147
-    elif [[ -z "${this_da_user_subdomains}" && $(awk -F':' '{print NF-1}' <<<"${this_da_user_subdomains[@]}") -ne ${#this_da_user_subdomains[@]} ]]; then
-      echo "[${SCRIPT_NAME}]: [Skipped]: Warning user ${this_da_user_uname} has invalid subdomains format set in config file (invalid separator). Please check configuration file "
       _exit 147
       # TODO check extra this_da_user_ssl_subdomains for format
     elif [[ -z "${this_da_user_ssl_subdomains+x}" ]]; then
@@ -4801,291 +4798,295 @@ iso_api() {
 copy_local_dns_to_external_dns() {
   local domain a_records aaaa_records cname_records txt_records ns_records mx_records
   domain="$1"
+  if [ "${C_AUTO_CREATE_EXTERNAL_DNS_RECORD}" == "true" ]; then
+    if [ "${DNS_PROVIDER_NAME}" == "linode" ]; then
+      _echo "$(msg cyan)Creating domain ${domain} in linode with --rebuild option ...$(msg end)" --name
+      linode_api_admin create-domain --domain-type "master" --domain "${domain}" --domain-email "webmaster@${domain}" --domain-ttl 30 --rebuild
+      echo ""
 
-  if [ "${DNS_PROVIDER_NAME}" == "linode" ]; then
-    _echo "$(msg cyan)Creating domain ${domain} in linode with --rebuild option ...$(msg end)" --name
-    linode_api_admin create-domain --domain-type "master" --domain "${domain}" --domain-email "webmaster@${domain}" --domain-ttl 30 --rebuild
-    echo ""
+      # Here we can create DNS records (we should scan all the records exists in test.domain.com and add them one by one into external DNS)
+      # Important notes, this NS record is special in directadmin it does not show up in directadmin DNS management as A or AAAA records,
+      # but if you query using API, you will get NS record at A and AAAA records.
+      # NS record also can be found in ns_records call below with NS record type
+      a_records=$(da_api_admin get-dns-records --domain "${domain}" --special-type "a" --scripting)
+      aaaa_records=$(da_api_admin get-dns-records --domain "${domain}" --special-type "aaaa" --scripting)
+      cname_records=$(da_api_admin get-dns-records --domain "${domain}" --special-type "cname" --scripting)
+      txt_records=$(da_api_admin get-dns-records --domain "${domain}" --special-type "txt" --scripting)
+      ns_records=$(da_api_admin get-dns-records --domain "${domain}" --special-type "ns" --scripting)
+      mx_records=$(da_api_admin get-dns-records --domain "${domain}" --special-type "mx" --scripting)
+      # We are not interested with this record yet
+      #  srv_records=$(da_api_admin get-dns-records --domain "${domain}" --special-type "srv" --scripting)
+      #  caa_records=$(da_api_admin get-dns-records --domain "${domain}" --special-type "caa" --scripting)
+      #  ptr_records=$(da_api_admin get-dns-records --domain "${domain}" --special-type "ptr" --scripting)
 
-    # Here we can create DNS records (we should scan all the records exists in test.domain.com and add them one by one into external DNS)
-    # Important notes, this NS record is special in directadmin it does not show up in directadmin DNS management as A or AAAA records,
-    # but if you query using API, you will get NS record at A and AAAA records.
-    # NS record also can be found in ns_records call below with NS record type
-    a_records=$(da_api_admin get-dns-records --domain "${domain}" --special-type "a" --scripting)
-    aaaa_records=$(da_api_admin get-dns-records --domain "${domain}" --special-type "aaaa" --scripting)
-    cname_records=$(da_api_admin get-dns-records --domain "${domain}" --special-type "cname" --scripting)
-    txt_records=$(da_api_admin get-dns-records --domain "${domain}" --special-type "txt" --scripting)
-    ns_records=$(da_api_admin get-dns-records --domain "${domain}" --special-type "ns" --scripting)
-    mx_records=$(da_api_admin get-dns-records --domain "${domain}" --special-type "mx" --scripting)
-    # We are not interested with this record yet
-    #  srv_records=$(da_api_admin get-dns-records --domain "${domain}" --special-type "srv" --scripting)
-    #  caa_records=$(da_api_admin get-dns-records --domain "${domain}" --special-type "caa" --scripting)
-    #  ptr_records=$(da_api_admin get-dns-records --domain "${domain}" --special-type "ptr" --scripting)
+      echo ""
+      # For A record
+      if [ -n "${a_records}" ]; then
+        _echo "$(msg cyan)Adding all A records in linode ...$(msg end)" --name
 
-    echo ""
-    # For A record
-    if [ -n "${a_records}" ]; then
-      _echo "$(msg cyan)Adding all A records in linode ...$(msg end)" --name
+        #echo "A record not empty"
+        #echo "a record: "
+        #echo "${a_records}"
+        #echo "record length: "
+        # total_record=$(echo "${a_records}" | jq -r ".type" | wc -w)
+        # For record name
+        readarray -t record <<<$(echo "${a_records}" | jq -r ".name")
+        # For record value
+        readarray -t record2 <<<$(echo "${a_records}" | jq -r ".value")
 
-      #echo "A record not empty"
-      #echo "a record: "
-      #echo "${a_records}"
-      #echo "record length: "
-      # total_record=$(echo "${a_records}" | jq -r ".type" | wc -w)
-      # For record name
-      readarray -t record <<<$(echo "${a_records}" | jq -r ".name")
-      # For record value
-      readarray -t record2 <<<$(echo "${a_records}" | jq -r ".value")
+        _echo "" --plain --verbose 7
+        _echo "record name:" --plain --verbose 7
+        _echo "${record[@]}" --plain --verbose 7
+        _echo "" --plain --verbose 7
+        _echo "record value:" --plain --verbose 7
+        _echo "${record2[@]}" --plain --verbose 7
+        _echo "" --plain --verbose 7
 
-      _echo "" --plain --verbose 7
-      _echo "record name:" --plain --verbose 7
-      _echo "${record[@]}" --plain --verbose 7
-      _echo "" --plain --verbose 7
-      _echo "record value:" --plain --verbose 7
-      _echo "${record2[@]}" --plain --verbose 7
-      _echo "" --plain --verbose 7
+        for i in "${!record[@]}"; do
+          local record_name record_value
+          record_name="${record[i]}"
+          # This one fixed the dot character of the ending domain
+          if [[ "$(echo "${record_name: -1}")" == "." ]]; then
+            echo "Fixing record[$i] that contains dot character: ${record[$i]} ..."
+            record_name=$(echo "${record_name}" | sed 's/.$//')
+            echo "Record record[$i] is now set as ${record_name}"
+            echo ""
+          fi
+          record_value="${record2[i]}"
 
-      for i in "${!record[@]}"; do
-        local record_name record_value
-        record_name="${record[i]}"
-        # This one fixed the dot character of the ending domain
-        if [[ "$(echo "${record_name: -1}")" == "." ]]; then
-          echo "Fixing record[$i] that contains dot character: ${record[$i]} ..."
-          record_name=$(echo "${record_name}" | sed 's/.$//')
-          echo "Record record[$i] is now set as ${record_name}"
+          echo "record_name is ${record_name}"
+          echo "record_value is ${record_value}"
           echo ""
-        fi
-        record_value="${record2[i]}"
-
-        echo "record_name is ${record_name}"
-        echo "record_value is ${record_value}"
-        echo ""
-        linode_api_admin add-dns-record --domain "${domain}" --record-type "A" --record-name "${record_name}" --record-value "${record_value}" --record-ttl 30
-        echo ""
-      done
-    else
-      _echo "$(msg yellow)Notice, no A record is found$(msg end)" --name
-
-    fi
-
-    echo ""
-    # For AAAA record
-    if [ -n "${aaaa_records}" ]; then
-      _echo "$(msg cyan)Adding all AAAA records in linode ...$(msg end)" --name
-      # For record name
-      readarray -t record <<<"$(echo "${aaaa_records}" | jq -r ".name")"
-      # For record value
-      readarray -t record2 <<<"$(echo "${aaaa_records}" | jq -r ".value")"
-
-      _echo "" --plain --verbose 7
-      _echo "record name:" --plain --verbose 7
-      _echo "${record[@]}" --plain --verbose 7
-      _echo "" --plain --verbose 7
-      _echo "record value:" --plain --verbose 7
-      _echo "${record2[@]}" --plain --verbose 7
-      _echo "" --plain --verbose 7
-
-      for i in "${!record[@]}"; do
-        local record_name record_value
-        record_name="${record[i]}"
-        # This one fixed the dot character of the ending domain
-        if [[ "$(echo "${record_name: -1}")" == "." ]]; then
-          echo "Fixing record[$i] that contains dot character: ${record[$i]} ..."
-          record_name=$(echo "${record_name}" | sed 's/.$//')
-          echo "Record record[$i] is now set as ${record_name}"
+          linode_api_admin add-dns-record --domain "${domain}" --record-type "A" --record-name "${record_name}" --record-value "${record_value}" --record-ttl 30
           echo ""
-        fi
-        record_value="${record2[i]}"
-        linode_api_admin add-dns-record --domain "${domain}" --record-type "AAAA" --record-name "${record_name}" --record-value "${record_value}" --record-ttl 30
-        echo ""
-      done
-    else
-      _echo "$(msg yellow)Notice, no AAAA record is found$(msg end)" --name
+        done
+      else
+        _echo "$(msg yellow)Notice, no A record is found$(msg end)" --name
 
-    fi
+      fi
 
-    echo ""
+      echo ""
+      # For AAAA record
+      if [ -n "${aaaa_records}" ]; then
+        _echo "$(msg cyan)Adding all AAAA records in linode ...$(msg end)" --name
+        # For record name
+        readarray -t record <<<"$(echo "${aaaa_records}" | jq -r ".name")"
+        # For record value
+        readarray -t record2 <<<"$(echo "${aaaa_records}" | jq -r ".value")"
 
-    # For CNAME record
-    if [ -n "${cname_records}" ]; then
-      _echo "$(msg cyan)Adding all CNAME records in linode ...$(msg end)" --name
-      # For record name
-      readarray -t record <<<"$(echo "${cname_records}" | jq -r ".name")"
-      # For record value
-      readarray -t record2 <<<"$(echo "${cname_records}" | jq -r ".value")"
+        _echo "" --plain --verbose 7
+        _echo "record name:" --plain --verbose 7
+        _echo "${record[@]}" --plain --verbose 7
+        _echo "" --plain --verbose 7
+        _echo "record value:" --plain --verbose 7
+        _echo "${record2[@]}" --plain --verbose 7
+        _echo "" --plain --verbose 7
 
-      _echo "" --plain --verbose 7
-      _echo "record name:" --plain --verbose 7
-      _echo "${record[@]}" --plain --verbose 7
-      _echo "" --plain --verbose 7
-      _echo "record value:" --plain --verbose 7
-      _echo "${record2[@]}" --plain --verbose 7
-      _echo "" --plain --verbose 7
-
-      for i in "${!record[@]}"; do
-        local record_name record_value
-        record_name="${record[i]}"
-        # This one fixed the dot character of the ending domain
-        if [[ "$(echo "${record_name: -1}")" == "." ]]; then
-          echo "Fixing record[$i] that contains dot character: ${record[$i]} ..."
-          record_name=$(echo "${record_name}" | sed 's/.$//')
-          echo "Record record[$i] is now set as ${record_name}"
+        for i in "${!record[@]}"; do
+          local record_name record_value
+          record_name="${record[i]}"
+          # This one fixed the dot character of the ending domain
+          if [[ "$(echo "${record_name: -1}")" == "." ]]; then
+            echo "Fixing record[$i] that contains dot character: ${record[$i]} ..."
+            record_name=$(echo "${record_name}" | sed 's/.$//')
+            echo "Record record[$i] is now set as ${record_name}"
+            echo ""
+          fi
+          record_value="${record2[i]}"
+          linode_api_admin add-dns-record --domain "${domain}" --record-type "AAAA" --record-name "${record_name}" --record-value "${record_value}" --record-ttl 30
           echo ""
-        fi
-        record_value="${record2[i]}"
-        linode_api_admin add-dns-record --domain "${domain}" --record-type "CNAME" --record-name "${record_name}" --record-value "${record_value}" --record-ttl 30
-        echo ""
-      done
-    else
-      _echo "$(msg cyan)Notice, no CNAME record is found$(msg end)" --name
+        done
+      else
+        _echo "$(msg yellow)Notice, no AAAA record is found$(msg end)" --name
 
-    fi
-    echo ""
-    # For TXT record
-    if [ -n "${txt_records}" ]; then
-      _echo "$(msg cyan)Adding all TXT records in linode ...$(msg end)" --name
-      # For record name
-      readarray -t record <<<$(echo "${txt_records}" | jq -r ".name")
-      # For record value
-      readarray -t record2 <<<$(echo "${txt_records}" | jq -r ".value")
+      fi
 
-      _echo "" --plain --verbose 7
-      _echo "record name:" --plain --verbose 7
-      _echo "${record[@]}" --plain --verbose 7
-      _echo "" --plain --verbose 7
-      _echo "record value:" --plain --verbose 7
-      _echo "${record2[@]}" --plain --verbose 7
-      _echo "" --plain --verbose 7
-      #exit 1
-      for i in "${!record[@]}"; do
-        local record_name record_value
-        record_name="${record[i]}"
-        # This one fixed the dot character of the ending domain
-        if [[ "$(echo "${record_name: -1}")" == "." ]]; then
-          echo "Fixing record[$i] that contains dot character: ${record[$i]} ..."
-          record_name=$(echo "${record_name}" | sed 's/.$//')
-          echo "Record record[$i] is now set as ${record_name}"
+      echo ""
+
+      # For CNAME record
+      if [ -n "${cname_records}" ]; then
+        _echo "$(msg cyan)Adding all CNAME records in linode ...$(msg end)" --name
+        # For record name
+        readarray -t record <<<"$(echo "${cname_records}" | jq -r ".name")"
+        # For record value
+        readarray -t record2 <<<"$(echo "${cname_records}" | jq -r ".value")"
+
+        _echo "" --plain --verbose 7
+        _echo "record name:" --plain --verbose 7
+        _echo "${record[@]}" --plain --verbose 7
+        _echo "" --plain --verbose 7
+        _echo "record value:" --plain --verbose 7
+        _echo "${record2[@]}" --plain --verbose 7
+        _echo "" --plain --verbose 7
+
+        for i in "${!record[@]}"; do
+          local record_name record_value
+          record_name="${record[i]}"
+          # This one fixed the dot character of the ending domain
+          if [[ "$(echo "${record_name: -1}")" == "." ]]; then
+            echo "Fixing record[$i] that contains dot character: ${record[$i]} ..."
+            record_name=$(echo "${record_name}" | sed 's/.$//')
+            echo "Record record[$i] is now set as ${record_name}"
+            echo ""
+          fi
+          record_value="${record2[i]}"
+          linode_api_admin add-dns-record --domain "${domain}" --record-type "CNAME" --record-name "${record_name}" --record-value "${record_value}" --record-ttl 30
           echo ""
-        fi
-        # Important must remove double quote for TXT record value because linode does not accept double quote as valid record
-        record_value=$(echo "${record2[i]}" | sed -e 's/^"//' -e 's/"$//')
-        echo "record_name is ${record_name}"
-        echo "record_value is ${record_value}"
-        echo ""
-        linode_api_admin add-dns-record --domain "${domain}" --record-type "TXT" --record-name "${record_name}" --record-value "${record_value}" --record-ttl 30
-        echo ""
-      done
-    else
-      _echo "$(msg yellow)Notice, no TXT record is found$(msg end)" --name
+        done
+      else
+        _echo "$(msg cyan)Notice, no CNAME record is found$(msg end)" --name
 
-    fi
+      fi
+      echo ""
+      # For TXT record
+      if [ -n "${txt_records}" ]; then
+        _echo "$(msg cyan)Adding all TXT records in linode ...$(msg end)" --name
+        # For record name
+        readarray -t record <<<$(echo "${txt_records}" | jq -r ".name")
+        # For record value
+        readarray -t record2 <<<$(echo "${txt_records}" | jq -r ".value")
 
-    echo ""
-
-    # For NS record
-    if [ -n "${ns_records}" ]; then
-
-      _echo "$(msg cyan)Adding all NS records in linode ...$(msg end)" --name
-      # For record name
-      readarray -t record <<<$(echo "${ns_records}" | jq -r ".name")
-      # For record value
-      readarray -t record2 <<<$(echo "${ns_records}" | jq -r ".value")
-
-      _echo "" --plain --verbose 7
-      _echo "record name:" --plain --verbose 7
-      _echo "${record[@]}" --plain --verbose 7
-      _echo "" --plain --verbose 7
-      _echo "record value:" --plain --verbose 7
-      _echo "${record2[@]}" --plain --verbose 7
-      _echo "" --plain --verbose 7
-
-      for i in "${!record[@]}"; do
-        local record_name record_value
-        record_name="${record[i]}"
-        record_value="${record2[i]}"
-        # This one fixed the dot character of the ending domain
-        if [[ "$(echo "${record_name: -1}")" == "." ]]; then
-          echo "Fixing record[$i] that contains dot character: ${record[$i]} ..."
-          record_name=$(echo "${record_name}" | sed 's/.$//')
-          echo "Record record[$i] is now set as ${record_name}"
+        _echo "" --plain --verbose 7
+        _echo "record name:" --plain --verbose 7
+        _echo "${record[@]}" --plain --verbose 7
+        _echo "" --plain --verbose 7
+        _echo "record value:" --plain --verbose 7
+        _echo "${record2[@]}" --plain --verbose 7
+        _echo "" --plain --verbose 7
+        #exit 1
+        for i in "${!record[@]}"; do
+          local record_name record_value
+          record_name="${record[i]}"
+          # This one fixed the dot character of the ending domain
+          if [[ "$(echo "${record_name: -1}")" == "." ]]; then
+            echo "Fixing record[$i] that contains dot character: ${record[$i]} ..."
+            record_name=$(echo "${record_name}" | sed 's/.$//')
+            echo "Record record[$i] is now set as ${record_name}"
+            echo ""
+          fi
+          # Important must remove double quote for TXT record value because linode does not accept double quote as valid record
+          record_value=$(echo "${record2[i]}" | sed -e 's/^"//' -e 's/"$//')
+          echo "record_name is ${record_name}"
+          echo "record_value is ${record_value}"
           echo ""
-
-        fi
-        if [[ "$(echo "${record_value: -1}")" == "." ]]; then
-          echo "Fixing record2[$i] that contains dot character: ${record2[$i]} ..."
-          record_value=$(echo "${record_value}" | sed 's/.$//')
-          echo "Record record2[$i] is now set as ${record_value}"
+          linode_api_admin add-dns-record --domain "${domain}" --record-type "TXT" --record-name "${record_name}" --record-value "${record_value}" --record-ttl 30
           echo ""
-        fi
+        done
+      else
+        _echo "$(msg yellow)Notice, no TXT record is found$(msg end)" --name
 
-        linode_api_admin add-dns-record --domain "${domain}" --record-type "NS" --record-name "${record_name}" --record-value "${record_value}" --record-ttl 30
-        echo ""
-      done
-    else
-      _echo "$(msg yellow)Notice, no NS record is found$(msg end)" --name
+      fi
 
+      echo ""
+
+      # For NS record
+      if [ -n "${ns_records}" ]; then
+
+        _echo "$(msg cyan)Adding all NS records in linode ...$(msg end)" --name
+        # For record name
+        readarray -t record <<<$(echo "${ns_records}" | jq -r ".name")
+        # For record value
+        readarray -t record2 <<<$(echo "${ns_records}" | jq -r ".value")
+
+        _echo "" --plain --verbose 7
+        _echo "record name:" --plain --verbose 7
+        _echo "${record[@]}" --plain --verbose 7
+        _echo "" --plain --verbose 7
+        _echo "record value:" --plain --verbose 7
+        _echo "${record2[@]}" --plain --verbose 7
+        _echo "" --plain --verbose 7
+
+        for i in "${!record[@]}"; do
+          local record_name record_value
+          record_name="${record[i]}"
+          record_value="${record2[i]}"
+          # This one fixed the dot character of the ending domain
+          if [[ "$(echo "${record_name: -1}")" == "." ]]; then
+            echo "Fixing record[$i] that contains dot character: ${record[$i]} ..."
+            record_name=$(echo "${record_name}" | sed 's/.$//')
+            echo "Record record[$i] is now set as ${record_name}"
+            echo ""
+
+          fi
+          if [[ "$(echo "${record_value: -1}")" == "." ]]; then
+            echo "Fixing record2[$i] that contains dot character: ${record2[$i]} ..."
+            record_value=$(echo "${record_value}" | sed 's/.$//')
+            echo "Record record2[$i] is now set as ${record_value}"
+            echo ""
+          fi
+
+          linode_api_admin add-dns-record --domain "${domain}" --record-type "NS" --record-name "${record_name}" --record-value "${record_value}" --record-ttl 30
+          echo ""
+        done
+      else
+        _echo "$(msg yellow)Notice, no NS record is found$(msg end)" --name
+
+      fi
+
+      echo ""
+      echo "${mx_records}"
+      if [ -n "${mx_records}" ]; then
+        _echo "$(msg cyan)Adding all MX records in linode ...$(msg end)" --name
+        # For record name
+        readarray -t record <<<$(echo "${mx_records}" | jq -r ".name")
+        # For record value
+        readarray -t record2 <<<$(echo "${mx_records}" | jq -r ".value")
+
+        _echo "" --plain --verbose 7
+        _echo "record name:" --plain --verbose 7
+        _echo "${record[@]}" --plain --verbose 7
+        _echo "" --plain --verbose 7
+        _echo "record value (priority):" --plain --verbose 7
+        _echo "${record2[@]}" --plain --verbose 7
+        _echo "" --plain --verbose 7
+
+        for i in "${!record[@]}"; do
+          local record_value record_name record_priority
+          record_value="${record[i]}"
+          # record_name="${record2[i]}"
+
+          if [[ "$(echo "${record_value: -1}")" == "." ]]; then
+
+            echo "Fixing record[$i] that contains dot character: ${record_value} ..."
+            record_value=$(echo "${record_value}" | sed 's/.$//')
+            echo "Record record[$i] is now set as ${record_value}"
+
+          fi
+
+          record_name="$(echo "${record2[i]}" | awk '{ print $2 }')"
+
+          if [[ "$(echo "${record_name: -1}")" == "." ]]; then
+            echo "Fixing record_name that contains dot character: ${record_name} ..."
+            record_name=$(echo "${record_name}" | sed 's/.$//')
+            echo "Record record_name is now set as ${record_name}"
+          fi
+
+          record_priority="$(echo "${record2[i]}" | awk '{ print $1 }')"
+
+          echo "record_name ${record_name}"
+          echo "record_value ${record_value}"
+          echo "record priority ${record_priority}"
+
+          linode_api_admin add-dns-record --domain "${domain}" --record-type "MX" --record-name "${record_name}" --record-value "${record_value}" --record-priority "${record_priority}" --record-ttl 30
+        done
+      else
+        _echo "$(msg yellow)Notice, no MX record is found$(msg end)" --name
+      fi
+      echo ""
+
+    elif
+      [ "${DNS_PROVIDER_NAME}" == "digitalocean" ]
+    then
+      echo "[${SCRIPT_NAME}]: External DNS provider for domain ${domain} is set to digitalocean [Using digitalocean API ...]"
+      #Call digitalocean_api_admin
+    #elif other provider
+    elif [ "${DNS_PROVIDER_NAME}" == "local" ]; then
+      echo "[${SCRIPT_NAME}]: External DNS provider for domain ${domain} is set to local"
+    # Do nothing because it's local DNS managed by Directadmin or using bind
     fi
-
+  else
+    _echo "$(msg yellow)[Skipped]: Warning skipped copying local DNS into external DNS because C_AUTO_CREATE_EXTERNAL_DNS_RECORD is not set to true$(msg end)" --name
     echo ""
-    echo "${mx_records}"
-    if [ -n "${mx_records}" ]; then
-      _echo "$(msg cyan)Adding all MX records in linode ...$(msg end)" --name
-      # For record name
-      readarray -t record <<<$(echo "${mx_records}" | jq -r ".name")
-      # For record value
-      readarray -t record2 <<<$(echo "${mx_records}" | jq -r ".value")
-
-      _echo "" --plain --verbose 7
-      _echo "record name:" --plain --verbose 7
-      _echo "${record[@]}" --plain --verbose 7
-      _echo "" --plain --verbose 7
-      _echo "record value (priority):" --plain --verbose 7
-      _echo "${record2[@]}" --plain --verbose 7
-      _echo "" --plain --verbose 7
-
-      for i in "${!record[@]}"; do
-        local record_value record_name record_priority
-        record_value="${record[i]}"
-        # record_name="${record2[i]}"
-
-        if [[ "$(echo "${record_value: -1}")" == "." ]]; then
-
-          echo "Fixing record[$i] that contains dot character: ${record_value} ..."
-          record_value=$(echo "${record_value}" | sed 's/.$//')
-          echo "Record record[$i] is now set as ${record_value}"
-
-        fi
-
-        record_name="$(echo "${record2[i]}" | awk '{ print $2 }')"
-
-        if [[ "$(echo "${record_name: -1}")" == "." ]]; then
-          echo "Fixing record_name that contains dot character: ${record_name} ..."
-          record_name=$(echo "${record_name}" | sed 's/.$//')
-          echo "Record record_name is now set as ${record_name}"
-        fi
-
-        record_priority="$(echo "${record2[i]}" | awk '{ print $1 }')"
-
-        echo "record_name ${record_name}"
-        echo "record_value ${record_value}"
-        echo "record priority ${record_priority}"
-
-        linode_api_admin add-dns-record --domain "${domain}" --record-type "MX" --record-name "${record_name}" --record-value "${record_value}" --record-priority "${record_priority}" --record-ttl 30
-      done
-    else
-      _echo "$(msg yellow)Notice, no MX record is found$(msg end)" --name
-    fi
-    echo ""
-
-  elif
-    [ "${DNS_PROVIDER_NAME}" == "digitalocean" ]
-  then
-    echo "[${SCRIPT_NAME}]: External DNS provider for domain ${domain} is set to digitalocean [Using digitalocean API ...]"
-    #Call digitalocean_api_admin
-  #elif other provider
-  elif [ "${DNS_PROVIDER_NAME}" == "local" ]; then
-    echo "[${SCRIPT_NAME}]: External DNS provider for domain ${domain} is set to local"
-  # Do nothing because it's local DNS managed by Directadmin
   fi
 }
 
@@ -13389,11 +13390,16 @@ configure_da_settings() {
     # https://www.directadmin.com/features.php?id=930
     ${da_bin} set tokenizer_debug "${C_DA_TOKENIZER_DEBUG}"
     echo ""
-    _echo "$(msg cyan)Setting directadmin session minutes ...$(msg end)" --name
-    # Set the login session timeout in minutes (when idle), session counter reset to 0 if any da page is reload (default 60 minutes / 1 hour)
-    # 2880 = 2 days / 48 hours
-    #  This had bug before (it is fixed now): https://forum.directadmin.com/threads/bug-cannot-set-session_minutes-using-directadmin-set-command.64280/#post-334271
-    ${da_bin} set session_minutes "${C_DA_SESSION_MINUTES}"
+
+    # Only enable this when DA version is at least 1.63.1
+    if is_valid version_required "$(${da_bin} v | grep -oP '[0-9]+\.[0-9]+\.[0-9]+')" "1.63.1"; then
+      _echo "$(msg cyan)Setting directadmin session minutes ...$(msg end)" --name
+      # Set the login session timeout in minutes (when idle), session counter reset to 0 if any da page is reload (default 60 minutes / 1 hour)
+      # 2880 = 2 days / 48 hours
+      #  This had bug before (it is fixed now): https://forum.directadmin.com/threads/bug-cannot-set-session_minutes-using-directadmin-set-command.64280/#post-334271
+      ${da_bin} set session_minutes "${C_DA_SESSION_MINUTES}"
+    fi
+
     echo ""
     _echo "$(msg cyan)Setting directadmin max file size ...$(msg end)" --name
     # Increase upload max file size in bytes
@@ -14296,8 +14302,9 @@ configure_da_reseller_accounts() {
   if [[ ! -f "${CONF_PATH}/${func_name}_executed" && "${FUNCTION_RUN}" == "true" ]]; then
     local da_reseller_packages_list count_reseller1 \
       da_reseller_creator da_reseller_role da_reseller_restore_user_backup da_reseller_uname da_reseller_password da_reseller_name da_reseller_system_email \
-      da_reseller_mail_users da_reseller_mail_passwords da_reseller_domains da_reseller_ip_type da_reseller_package_name da_reseller_enable_domain_ssl grep_count \
-      da_scripts_path da_bin da_cb_bin da_conf retval
+      da_reseller_mail_users da_reseller_mail_passwords da_reseller_domains da_reseller_wildcard_domains da_reseller_subdomains da_reseller_ip_type da_reseller_package_name \
+      da_reseller_enable_domain_ssl \
+      da_scripts_path da_bin da_cb_bin da_conf retval grep_count
 
     da_scripts_path="/usr/local/directadmin/scripts"
     da_bin="/usr/local/directadmin/directadmin"
@@ -14308,6 +14315,8 @@ configure_da_reseller_accounts() {
     echo ""
     # This file contains list of packages for admin and reseller (use this file for checking existing package)
     da_reseller_packages_list="/usr/local/directadmin/data/admin/packages.list"
+
+    # Skip this
     # We can restart directadmin to clear pending Directadmin cron
     #_echo "$(msg cyan)Requesting directadmin to restart before configuring directadmin accounts ...$(msg end)" --name
     #restart_da
@@ -14327,6 +14336,7 @@ configure_da_reseller_accounts() {
       typeset -n da_reseller_mail_users="C_DA_RESELLER_MAIL_USER${count_reseller1}"
       typeset -n da_reseller_mail_passwords="C_DA_RESELLER_MAIL_PASSWORD${count_reseller1}"
       typeset -n da_reseller_domains="C_DA_RESELLER_DOMAIN${count_reseller1}"
+      typeset -n da_reseller_wildcard_domains="C_DA_RESELLER_WILDCARD_DOMAIN${count_reseller1}"
       typeset -n da_reseller_ip_type="C_DA_RESELLER_IP_TYPE${count_reseller1}"
       typeset -n da_reseller_package_name="C_DA_RESELLER_PACKAGE_NAME${count_reseller1}"
       typeset -n da_reseller_enable_domain_ssl="C_DA_RESELLER_ENABLE_DOMAIN_SSL${count_reseller1}"
@@ -14343,7 +14353,8 @@ configure_da_reseller_accounts() {
       # Get the total domain count for this reseller
       da_reseller_domain_count="${#da_reseller_domains[@]}"
       # The first domain in array is used to create account (default domain for that reseller)
-      da_reseller_domain_first=$(echo "${da_reseller_domains[@]}" | awk '{ print $1 }')
+      da_reseller_domain_first_raw=$(echo "${da_reseller_domains[@]}" | awk '{ print $1 }')
+      da_reseller_domain_first=$(echo "${da_reseller_domains[@]}" | awk '{ print $1 }' | awk -F':' '{print $1}')
 
       _echo "$(msg newline)" --plain --verbose 7
       _echo "$(msg yellow)Warning this information contains sensitive data due to verbosity level was set to 7 or more$(msg end)" --name --verbose 7
@@ -14359,15 +14370,18 @@ configure_da_reseller_accounts() {
       _echo "da_reseller_system_email: ${da_reseller_system_email}" --name --verbose 7
       _echo "da_reseller_mail_users: ${da_reseller_mail_users[*]}" --name --verbose 7
       _echo "da_reseller_mail_passwords: ${da_reseller_mail_passwords}" --name --verbose 7
-      _echo "da_reseller_domains: ${da_reseller_domains[*]}" --name --verbose 7
+      _echo "da_reseller_domains_with_subdomains: ${da_reseller_domains[*]}" --name --verbose 7
+      _echo "da_reseller_domain_count: ${da_reseller_domain_count}" --name --verbose 7
+      _echo "da_reseller_domain_first_raw ${da_reseller_domain_first_raw}" --name --verbose 7
+      _echo "da_reseller_domain_first: ${da_reseller_domain_first}" --name --verbose 7
+      _echo "da_reseller_wildcard_domains: ${da_reseller_wildcard_domains[*]}" --name --verbose 7
+      # Deprecated variable
+      # _echo "da_reseller_subdomains: ${da_reseller_subdomains[*]}" --name --verbose 7
       _echo "da_reseller_ip_type: ${da_reseller_ip_type}" --name --verbose 7
       _echo "da_reseller_package_name: ${da_reseller_package_name}" --name --verbose 7
       _echo "da_reseller_enable_domain_ssl: ${da_reseller_enable_domain_ssl}" --name --verbose 7
       _echo "$(msg newline)" --plain --verbose 7
-      _echo "Domain information for reseller ${da_reseller_uname}:" --name --verbose 7
-      _echo "Domain total (config): ${da_reseller_domain_count}" --name --verbose 7
-      _echo "Domain list (config): ${da_reseller_domains[*]}" --name --verbose 7
-      _echo "First domain (config): ${da_reseller_domain_first}" --name --verbose 7
+
       _echo "$(msg magenta)=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=$(msg end)" --name
       _echo "$(msg newline)" --plain --verbose 7
 
@@ -14459,7 +14473,8 @@ configure_da_reseller_accounts() {
         echo ""
         da_api_admin restore-user-backup --backup-ip "${C_IPV4_ADD0}" --backup-path "$(dirname ${da_owner_backup_location})" --backup-file-name "$(basename -- ${da_owner_backup_location})" --backup-password ${C_DA_USER_BACKUP_PASSWORD}
         echo ""
-        _echo "$(msg cyan) Getting list of all domains created ...$(msg end)" --name
+        # We knew it will generate this /etc/virtual/domainowners after we have restored the backup file
+        _echo "$(msg cyan) Getting list of all domains created from backup ...$(msg end)" --name
         readarray -t da_domains <<<"$(grep -w "${da_reseller_uname}" "/etc/virtual/domainowners" | cut -d ":" -f 1)"
         echo ""
         if [ -n "${da_domains}" ]; then
@@ -14484,7 +14499,7 @@ configure_da_reseller_accounts() {
         echo ""
         # Now login as reseller and enable its own email DKIM. We can use reseller account to configure its own user-level variable settings like DKIM or DNS records
         _echo "$(msg cyan)Enabling email/domain DKIM for user ${da_reseller_uname} with default domain of ${da_reseller_domain_first} ...$(msg end)" --name
-        # Note 1: We dont use reseller1 because currently reseller can have 1 or more (this script support multiple creation of reseller)
+        # Note 1: We don't use reseller1 because currently reseller can have 1 or more (this script support multiple creation of reseller)
         # eg: --sign-as ${da_reseller_uname}
         da_api_admin enable-email-dkim --sign-as "${da_reseller_uname}" --domain "${da_reseller_domain_first}"
         echo ""
@@ -14500,14 +14515,45 @@ configure_da_reseller_accounts() {
         #da_api_admin create-dns-record --sign-as "${da_reseller_uname}" --domain "${da_reseller_domain_first}" --record-type MX --record-domain "${da_reseller_domain_first}." --record-priority "${record_priority}" --record-subdomain "${record_subdomain}" --record-ttl 30 --affect-pointers yes
         da_api_admin create-dns-record --sign-as "${da_reseller_uname}" --domain "${da_reseller_domain_first}" --record-type MX --record-domain "${da_reseller_domain_first}." --record-priority "10" --record-subdomain "${da_reseller_domain_first}." --record-ttl 30 --affect-pointers yes
         echo ""
-        copy_local_dns_to_external_dns "${da_reseller_domain_first}"
 
+        # Adding extra subdomain starting here for first domain
+        # da_reseller_domain_first_subdomains_raw=$(echo ${da_reseller_domain_first_raw} | awk -F':' '{print $2}')
+        local da_reseller_domain_first_sub_domains
+        readarray -t da_reseller_domain_first_sub_domains <<<"$(echo ${da_reseller_domain_first_raw} | awk -F':' '{print $2}' | awk -F',' '{for (i=1;i<=NF;i++)print $i}')"
+        #da_reseller_domain_first=$(echo "${da_reseller_domains[@]}" | awk '{ print $1 }' | awk -F':' '{print $1}')
+
+        # echo "da_reseller_domain_first_subdomains_raw: ${da_reseller_domain_first_subdomains_raw}"
+        echo "da_reseller_domain_first_sub_domains: ${da_reseller_domain_first_sub_domains}"
+
+        if [ -n "${da_reseller_domain_first_sub_domains}" ]; then
+          for da_reseller_subdomain_first in "${da_reseller_domain_first_sub_domains[@]}"; do
+            # echo "da_reseller_subdomain_first ${da_reseller_subdomain_first}"
+            _echo "$(msg cyan)Creating reseller ${da_reseller_uname} subdomain ${da_reseller_subdomain_first}.${da_reseller_domain_first}$(msg end)" --name
+            da_api_admin create-user-subdomain --sign-as "${da_reseller_uname}" --domain "${da_reseller_domain_first}" --subdomain "${da_reseller_subdomain_first}"
+            echo ""
+          done
+        else
+          _echo "$(msg yellow)Notice: Skipped creating subdomain for domain ${da_reseller_domain_first} because it does not have subdomains defined in config file$(msg end)" --name
+        fi
+
+        copy_local_dns_to_external_dns "${da_reseller_domain_first}"
+        echo ""
         # This will be executed if reseller has more than 1 domains. We add the extra domains here and skipped the default domain:
         if [ "${da_reseller_domain_count}" -gt 1 ]; then
           _echo "$(msg cyan)Notice, this reseller ${da_reseller_uname} has ${da_reseller_domain_count} domains$(msg end)" --name
-          for extra_domain in "${da_reseller_domains[@]}"; do
+          for extra_domain_raw in "${da_reseller_domains[@]}"; do
+            local extra_domain extra_subdomains_raw extra_subdomains
             # Here, we don't add the first domain, we did that before when we first create reseller user account where directadmin automatically add this default or first domain
+            extra_domain=$(echo "${extra_domain_raw}" | awk -F':' '{ print $1 }')
+            extra_subdomains_raw=$(echo "${extra_domain_raw}" | awk -F':' '{ print $2 }')
+            readarray -t extra_subdomains <<<"$(echo "${extra_subdomains_raw}" | awk -F',' '{for (i=1;i<=NF;i++)print $i}')"
+            echo "extra_domain_raw:${extra_domain_raw}"
+            echo "extra_domain: ${extra_domain}"
+            echo "extra_subdomains_raw: ${extra_subdomains_raw}"
+            echo "extra_subdomains: ${extra_subdomains[*]}"
+            echo "================================================"
             if [[ "${extra_domain}" == "${da_reseller_domain_first}" ]]; then
+              # Skip the domain that has been added before
               _echo "$(msg cyan)Skipped adding the default domain: ${da_reseller_domain_first}$(msg end)" --name
               continue
             fi
@@ -14522,9 +14568,25 @@ configure_da_reseller_accounts() {
             echo ""
             _echo "$(msg cyan)Creating Mail MX record for ${extra_domain} without subdomain ...$(msg end)" --name
             da_api_admin create-dns-record --sign-as "${da_reseller_uname}" --domain "${extra_domain}" --record-type MX --record-domain "${extra_domain}." --record-priority "10" --record-subdomain "${da_reseller_domain_first}." --record-ttl 30 --affect-pointers yes
+            echo ""
+
+            # Adding extra subdomains starting here
+            if [ -n "${extra_subdomains}" ]; then
+              for extra_subdomain in "${extra_subdomains[@]}"; do
+                #  echo "extra_subdomain: ${extra_subdomain}"
+                _echo "$(msg cyan)Creating reseller ${da_reseller_uname} subdomain ${extra_subdomain}.${extra_domain}$(msg end)" --name
+                da_api_admin create-user-subdomain --sign-as "${da_reseller_uname}" --domain "${extra_domain}" --subdomain "${extra_subdomain}"
+                echo ""
+                # End looping for adding extra subdomains
+              done
+            else
+              _echo "$(msg yellow)Notice: Skipped creating subdomain for domain ${extra_domain} because it does not have subdomains defined in config file$(msg end)" --name
+            fi
+            echo ""
             copy_local_dns_to_external_dns "${extra_domain}"
           done # End looping for adding extra domains
         fi
+
       fi
       ((count_reseller1++))
       echo ""
@@ -14541,93 +14603,12 @@ configure_da_reseller_accounts() {
       da_api_admin create-user-package --sign-as "${C_DA_RESELLER_USERNAME1}" --package-name "${C_DA_USER_PACKAGE_NAME1}" --recommend-values
       echo ""
       # Run additional step as we did not restore backup (this would be new setting for this reseller):
-      configure_da_reseller_skins --run
-      configure_da_reseller_security --run
-      configure_da_reseller_root_domains --skip #(this is deprecated, already done in configure_da_reseller_accounts)
-      configure_da_reseller_subdomains --run
+      configure_da_reseller_skins --run-force
+      configure_da_reseller_security --run-force
       configure_da_reseller_wildcard_domains --skip #(Skipped: Do not use wildcard for security purpose)
-      configure_da_reseller_email_accounts --run
-      configure_da_reseller_databases --run
+      configure_da_reseller_email_accounts --run-force
+      configure_da_reseller_databases --run-force
     fi
-    check_finish_reboot "${func_name}"
-  else
-    _echo "$(msg yellow)[Skipped by system]: $(msg magenta)${func_name}$(msg end) $(msg yellow)with current option ${run_mode} has ran before $(msg end)" --name
-    _echo "$(msg yellow)=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=$(msg end)" --plain
-  fi
-
-  if [[ "${extra_option}" == "--silent-if-executed" ]]; then
-    end_execute_options "${run_mode}" "${func_name}" &>/dev/null
-  else
-    end_execute_options "${run_mode}" "${func_name}"
-  fi
-}
-
-# By default the root domain were created in directadmin. Only add in external DNS
-# This function will scan the current domain list of reseller and automatically add root, A or AAAA records to external DNS
-# Remember that all record created here need to wait for propagation time before they become available
-configure_da_reseller_root_domains() {
-  local run_mode func_name
-  run_mode="$1"
-  extra_option="$2"
-  func_name="${FUNCNAME[0]}"
-  if [[ "${extra_option}" == "--silent-if-executed" ]]; then
-    start_execute_options "${run_mode}" "${func_name}" &>/dev/null
-  else
-    start_execute_options "${run_mode}" "${func_name}"
-  fi
-  [[ "${SKIP_RUN}" == "true" ]] && return 0
-  if [[ ! -f "${CONF_PATH}/${func_name}_executed" && "${FUNCTION_RUN}" == "true" ]]; then
-
-    # initial value to loop
-    count_reseller1=1
-    # !C_DA_RESELLER_USERNAME@ = Assign all reseller account based on the variable of C_DA_RESELLER_USERNAME[N] :
-    while [[ ${count_reseller1} -le $(echo "${!C_DA_RESELLER_USERNAME@}" | wc -w) ]]; do
-      _echo "$(msg cyan)Getting all required variables from config file ...$(msg end)" --name --verbose 7
-      typeset -n da_reseller_uname="C_DA_RESELLER_USERNAME${count_reseller1}"
-      typeset -n da_reseller_password="C_DA_RESELLER_USERPASS${count_reseller1}"
-
-      typeset -n da_reseller_domains="C_DA_RESELLER_DOMAIN${count_reseller1}"
-      # Get the total domain count for this reseller from config
-      da_reseller_domain_count="${#da_reseller_domains[@]}"
-      # The first domain in array is used to create account (default domain for that reseller) from config
-      da_reseller_domain_first=$(echo "${da_reseller_domains[@]}" | awk '{ print $1 }')
-      # From system
-      da_reseller_system_domain_list=$(cat "/usr/local/directadmin/data/users/${da_reseller_uname}/domains.list")
-
-      # Debug:
-      _echo "$(msg newline)" --plain --verbose 7
-      _echo "$(msg yellow)Warning this information contains sensitive data due to verbosity level was set to 7 or more$(msg end)" --name --verbose 7
-      _echo "$(msg magenta)=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=$(msg end)" --name
-      _echo "Reseller config variables:" --name --verbose 7
-      _echo "Reseller count ${count_reseller1}/$(echo "${!C_DA_RESELLER_USERNAME@}" | wc -w)" --name --verbose 7
-      _echo "da_reseller_uname: ${da_reseller_uname}" --name --verbose 7
-      _echo "da_reseller_password: ${da_reseller_password}" --name --verbose 7
-      _echo "$(msg newline)" --plain --verbose 7
-      _echo "Domain information for reseller ${da_reseller_uname}:" --name --verbose 7
-      _echo "Domain total: ${da_reseller_domain_count}" --name --verbose 7
-      _echo "Domain list (config): ${da_reseller_domains[*]}" --name --verbose 7
-      _echo "Domain list (system) (below):" --name --verbose 7
-      _echo "${da_reseller_system_domain_list}" --verbose 7
-      _echo "First domain: ${da_reseller_domain_first}" --name --verbose 7
-      _echo "$(msg magenta)=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=$(msg end)" --name
-      _echo "$(msg newline)" --plain --verbose 7
-
-      #reseller_domain_count=1
-      for da_reseller_system_domain in ${da_reseller_system_domain_list}; do
-        echo "${da_reseller_system_domain}"
-        if [ "${DNS_PROVIDER_NAME}" == "linode" ]; then
-          # Since the record is supplied with --build option, we do not need to delete the record before adding
-          _echo "$(msg cyan)Adding root domain ${da_reseller_system_domain} record for IPv4 in linode$(msg end)" --name
-          linode_api_admin add-dns-record --domain "${da_reseller_system_domain}" --record-type "A" --record-name "${da_reseller_system_domain}" --record-value "${C_IPV4_ADD0}" --record-ttl 30
-          echo ""
-          _echo "$(msg cyan)Adding root domain ${da_reseller_system_domain} record for IPv6 in linode$(msg end)" --name
-          linode_api_admin add-dns-record --domain "${da_reseller_system_domain}" --record-type "AAAA" --record-name "${da_reseller_system_domain}" --record-value "${C_IPV6_ADD0}" --record-ttl 30
-          echo ""
-        fi
-      done
-      ((count_reseller1++))
-    done
-    echo ""
     check_finish_reboot "${func_name}"
   else
     _echo "$(msg yellow)[Skipped by system]: $(msg magenta)${func_name}$(msg end) $(msg yellow)with current option ${run_mode} has ran before $(msg end)" --name
@@ -14768,9 +14749,13 @@ letsencrypt_challenge_check() {
   rm -f ${well_known_path}/letsencrypt_${timestamp}
 }
 
-# TODO TEST again when restore certificate!
+# Certificate restoration for user domain is working perfectly
 # This will configure all user domain SSL (including owner,admin,reseller, just to be sure that the user domain is created first)
 # Note this is working but I consider this as beta feature at this point
+# NOTE:
+# How to force renew to test error:
+# https://docs.directadmin.com/webservices/ssl/troubleshooting-letsencrypt.html#let-s-encrypt-manually-forcing-the-automated-renewal-to-test-for-errors
+# After certificate restoration, need to wait for at least 1 minute for all certificate to sync.
 configure_da_user_domain_ssl() {
   local run_mode func_name
   run_mode="$1"
@@ -14784,7 +14769,7 @@ configure_da_user_domain_ssl() {
   [[ "${SKIP_RUN}" == "true" ]] && return 0
   if [[ ! -f "${CONF_PATH}/${func_name}_executed" && "${FUNCTION_RUN}" == "true" ]]; then
 
-    local da_bin da_cb_bin dataskq da_conf task_queue da_script_path lego_data_path
+    local da_bin da_cb_bin dataskq da_conf task_queue da_script_path lego_data_path da_user_path
 
     da_bin="/usr/local/directadmin/directadmin"
     da_cb_bin="/usr/local/directadmin/custombuild/build"
@@ -14794,12 +14779,11 @@ configure_da_user_domain_ssl() {
     da_script_path="/usr/local/directadmin/scripts"
     # This file does not exist by default
     task_queue="/usr/local/directadmin/data/task.queue.cb"
+    da_user_path="/usr/local/directadmin/data/users"
 
     _echo "$(msg cyan)Checking directadmin required files ...$(msg end)" --name
-    check_path "${da_bin}" "${da_cb_bin}" "${dataskq}" "${da_conf}" "${da_script_path}" "${da_conf_path}"
+    check_path "${da_bin}" "${da_cb_bin}" "${dataskq}" "${da_conf}" "${da_script_path}" "${da_conf_path}" "${da_user_path}"
     echo ""
-
-    _echo "$(msg cyan)Configuring Directadmin SSL for user domain certificate ...$(msg end)" --name
 
     # Only do this if AUTO SSL is not enable
 
@@ -14815,18 +14799,7 @@ configure_da_user_domain_ssl() {
         lego_data_path="/usr/local/directadmin/data/.lego"
         mkdir -p "${lego_data_path}/certificates"
 
-        # SSL location:
-        key=$(${da_bin} c | grep ^cakey= | cut -d= -f2)
-        cert=$(${da_bin} c | grep ^cacert= | cut -d= -f2)
-        cacert=$(${da_bin} c | grep ^carootcert= | cut -d= -f2)
-
-        set_da_cacert=false
-        if [ "${cacert}" = "" ] || [ "${cert}" = "${da_conf_path}/carootcert.pem" ]; then
-          cert="${da_conf_path}/cacert.pem"
-          cacert="${da_conf_path}/carootcert.pem"
-          set_da_cacert=true
-        fi
-
+        _echo "$(msg cyan)Configuring reseller SSL for restoration ...$(msg end)" --name
         da_reseller_usernames_count=$(echo "${!C_DA_RESELLER_USERNAME@}" | wc -w)
         reseller_count=1
         while [[ ${reseller_count} -le ${da_reseller_usernames_count} ]]; do
@@ -14836,21 +14809,25 @@ configure_da_user_domain_ssl() {
           typeset -n da_reseller_restore_domain_ssl="C_DA_RESELLER_RESTORE_USER_DOMAIN_SSL${reseller_count}"
           echo "da_reseller_username: ${da_reseller_username}"
           echo "da_reseller_restore_domain_ssl: ${da_reseller_restore_domain_ssl}"
-
+          echo ""
           if [ "${da_reseller_restore_domain_ssl}" == "true" ]; then
+
             all_domains=""
-            for root_domain in $(cat /usr/local/directadmin/data/users/${da_reseller_username}/domains.list); do
+            _echo "$(msg cyan)Populating domain and subdomain entry(es) ...$(msg end)" --name
+            for root_domain in $(cat ${da_user_path}/${da_reseller_username}/domains.list); do
               # For domain first:======================
               echo "root_domain: ${root_domain}"
-              all_domains="${root_domain}"
+              all_domains=" ${all_domains} ${root_domain}"
               # For its subdomain: ====================
-              for sub_domain in $(cat /usr/local/directadmin/data/users/${da_reseller_username}/domains/${root_domain}.subdomains); do
+              for sub_domain in $(cat ${da_user_path}/${da_reseller_username}/domains/${root_domain}.subdomains); do
                 all_domains="${all_domains} ${sub_domain}.${root_domain}"
+                echo "all_domains: ${all_domains}"
               done
             done
-
-            all_domains=("${all_domains}")
+            echo ""
+            all_domains=(${all_domains})
             echo "all_domains: ${all_domains[*]}"
+
             # This 3 files must be pushed from SSH into ${lego_data_path} then check them if they exist
             for da_domain in "${all_domains[@]}"; do
               lego_cert_path="${lego_data_path}/certificates/${da_domain}.crt"
@@ -14858,19 +14835,22 @@ configure_da_user_domain_ssl() {
               lego_issuer_cert_path=$(echo "${lego_cert_path}" | sed 's/\.crt/.issuer.crt/')
               lego_cert_json_path="${lego_data_path}/certificates/${da_domain}.json"
 
-              check_path "${SSL_PATH}/${da_domain}.crt" "${SSL_PATH}/${da_domain}.key" "${SSL_PATH}/${da_domain}.issuer.crt" "${SSL_PATH}/${da_domain}.json"
-
-              echo -n "Copying ${SSL_PATH}/${da_domain}.crt into ${lego_cert_path} ... "
-              cp "${SSL_PATH}/${da_domain}.crt" "${lego_cert_path}"
+              _echo "$(msg cyan)Checking certificate for ${da_domain} files in ${SSL_PATH}/certificates ...$(msg end)" --name
+              check_path "${SSL_PATH}/certificates/${da_domain}.crt" "${SSL_PATH}/certificates/${da_domain}.key" "${SSL_PATH}/certificates/${da_domain}.issuer.crt" "${SSL_PATH}/certificates/${da_domain}.json"
+              echo ""
+              # Note that we only copy certificate that has domain exist for user
+              # Here we copy the certificate folders (but based on the existing domain in da system)
+              echo -n "Copying ${SSL_PATH}/certificates/${da_domain}.crt into ${lego_cert_path} ... "
+              cp "${SSL_PATH}/certificates/${da_domain}.crt" "${lego_cert_path}"
               get_status_message "$?"
-              echo -n "Copying ${SSL_PATH}/${da_domain}.key into ${lego_key_path} ... "
-              cp "${SSL_PATH}/${da_domain}.key" "${lego_key_path}"
+              echo -n "Copying ${SSL_PATH}/certificates/${da_domain}.key into ${lego_key_path} ... "
+              cp "${SSL_PATH}/certificates/${da_domain}.key" "${lego_key_path}"
               get_status_message "$?"
-              echo -n "Copying ${SSL_PATH}/${da_domain}.issuer.key into ${lego_issuer_cert_path} ... "
-              cp "${SSL_PATH}/${da_domain}.issuer.crt" "${lego_issuer_cert_path}"
+              echo -n "Copying ${SSL_PATH}/certificates/${da_domain}.issuer.key into ${lego_issuer_cert_path} ... "
+              cp "${SSL_PATH}/certificates/${da_domain}.issuer.crt" "${lego_issuer_cert_path}"
               get_status_message "$?"
-              echo -n "Copying ${SSL_PATH}/${da_domain}.json into ${lego_cert_json_path} ... "
-              cp "${SSL_PATH}/${da_domain}.json" "${lego_cert_json_path}"
+              echo -n "Copying ${SSL_PATH}/certificates/${da_domain}.json into ${lego_cert_json_path} ... "
+              cp "${SSL_PATH}/certificates/${da_domain}.json" "${lego_cert_json_path}"
               get_status_message "$?"
               _echo "$(msg cyan)Correcting permission of certificates ...$(msg end)" --name
               chmod 600 "${lego_cert_path}" "${lego_key_path}" "${lego_issuer_cert_path}" "${lego_cert_json_path}"
@@ -14879,63 +14859,113 @@ configure_da_user_domain_ssl() {
               _echo "$(msg cyan)Checking certificate path for ${da_domain} ...$(msg end)" --name
               check_path "${lego_cert_path}" "${lego_key_path}" "${lego_issuer_cert_path}" "${lego_cert_json_path}"
               echo ""
+              # Here we copy the accounts folder into the .lego root directory
+              _echo "Copying ${SSL_PATH}/accounts into ${lego_data_path} ... "
+              cp -fr "${SSL_PATH}/accounts" "${lego_data_path}"
+              get_status_message "$?"
+              echo ""
+              _echo "$(msg cyan)Checking lego accounts path ...$(msg end)" --name
+              check_path "${lego_data_path}/accounts"
+              echo ""
 
+              # Populating variable of reseller certificate
+              key="${da_user_path}/${da_reseller_username}/domains/${da_domain}.key"
+              cert="${da_user_path}/${da_reseller_username}/domains/${da_domain}.cert"
+              cacert="${da_user_path}/${da_reseller_username}/domains/${da_domain}.ca"
+              # combine_cert="${da_user_path}/${da_reseller_username}/domains/${da_domain}.combined"
+
+              _echo "$(msg cyan)Checking lego certificate and key path ...$(msg end)" --name
               if [ -s "${lego_cert_path}" ] && [ -s "${lego_key_path}" ]; then
+                _echo "$(msg cyan)Checking certificate entry in with BEGIN CERTIFICATE in ${lego_cert_path} ...$(msg end)" --name
                 if [ $(grep -c "BEGIN CERTIFICATE" "${lego_cert_path}") -eq 1 ]; then
+                  _echo "$(msg cyan)Notice entry count is 1. Copying ${lego_cert_path} into ${cert} ...$(msg end)" --name
                   cp -pf "${lego_cert_path}" ${cert}
+                  get_status_message "$?"
                 else
+                  _echo "$(msg cyan)Notice entry count is not 1. Generating new SSL key based on ${lego_cert_path} into ${cert} ...$(msg end)" --name
                   openssl x509 -in "${lego_cert_path}" -out ${cert}
                   get_status_message "$?"
                 fi
+                echo ""
+                _echo "$(msg cyan)Copying ${lego_key_path} into ${key} ...$(msg end)" --name
                 cp -pf "${lego_key_path}" ${key}
+                get_status_message "$?"
+                echo ""
+
+                _echo "$(msg cyan)Checking whether issuer cert is empty in ${lego_issuer_cert_path} ...$(msg end)" --name
                 if [ -s "${lego_issuer_cert_path}" ]; then
+                  _echo "$(msg cyan)Notice, issuer cert is not empty. Copying ${lego_issuer_cert_path} into ${cacert} ...$(msg end)" --name
                   cp -pfv "${lego_issuer_cert_path}" ${cacert}
+                  get_status_message "$?"
+                  echo ""
+                  _echo "$(msg cyan)Combining cert entry from ${cert} and ${cacert} into ${cert}.combined $(msg end)" --name
                   cat ${cert} ${cacert} >${cert}.combined
+                  get_status_message "$?"
+                  echo ""
                 else
+                  _echo "$(msg cyan)Notice, issuer cert is empty. Copying ${lego_cert_path} into ${cert}.combined ...$(msg end)" --name
                   cp -pfv "${lego_cert_path}" ${cert}.combined
+                  get_status_message "$?"
                 fi
-                date +%s >${cert}.creation_time
-                chown diradmin:${C_DA_SECURE_ACCESS_GROUP} ${key} ${cert} ${cert}.combined ${cacert} ${cert}.creation_time
+                echo ""
+                _echo "$(msg cyan)Creating certificate renewal time at ${cert}.creation_time ...$(msg end)" --name
                 # This file is the one that renew certificate, if this is deleted, renewal will be disable
+                date +%s >${cert}.creation_time
+                get_status_message "$?"
+                echo ""
+                _echo "$(msg cyan)Correcting all certificate ownership ...$(msg end)" --name
+                chown diradmin:${C_DA_SECURE_ACCESS_GROUP} ${key} ${cert} ${cert}.combined ${cacert} ${cert}.creation_time
+                get_status_message "$?"
+                echo ""
+                _echo "$(msg cyan)Correcting all certificate permission ...$(msg end)" --name
                 chmod 640 ${key} ${cert} ${cert}.combined ${cacert} ${cert}.creation_time
-                echo "Certificate for ${da_domain} has been created successfully!"
+                get_status_message "$?"
+                echo ""
+                _echo "$(msg green)OK, certificate for ${da_domain} has been created successfully!$(msg end)" --name
               else
-                echo "New key/certificate is empty. Exiting..."
+                _echo "$(msg red)Error, New key/certificate is empty. Exiting...$(msg end)" --name
                 exit 1
               fi
 
               echo "DirectAdmin certificate for ${da_domain} has been setup."
-
-              if [ -e /usr/local/directadmin/data/users/${da_user}/domains/${da_domain}.cert ]; then
+              echo ""
+              _echo "$(msg cyan)Checking domain ${da_domain} cert at ${da_user_path}/${da_reseller_username}/domains/${da_domain}.cert ...$(msg end)" --name
+              if [ -e ${da_user_path}/${da_reseller_username}/domains/${da_domain}.cert ]; then
                 REWRITE=false
-                if ! grep -m1 -q '^ssl=ON' /usr/local/directadmin/data/users/${da_user}/domains/${da_domain}.conf; then
-                  perl -pi -e 's|^ssl\=.*|ssl=ON|g' /usr/local/directadmin/data/users/${da_user}/domains/${da_domain}.conf
+                if ! grep -m1 -q '^ssl=ON' ${da_user_path}/${da_reseller_username}/domains/${da_domain}.conf; then
+                  _echo "$(msg cyan)Turning ssl=ON for ${da_user_path}/${da_reseller_username}/domains/${da_domain}.conf ...$(msg end)" --name
+                  perl -pi -e 's|^ssl\=.*|ssl=ON|g' ${da_user_path}/${da_reseller_username}/domains/${da_domain}.conf
                   REWRITE=true
                 fi
-                if ! grep -m1 -q '^ssl=ON' /usr/local/directadmin/data/users/${da_user}/domains/${da_domain}.conf; then
-                  echo 'ssl=ON' >>/usr/local/directadmin/data/users/${da_user}/domains/${da_domain}.conf
+                if ! grep -m1 -q '^ssl=ON' ${da_user_path}/${da_reseller_username}/domains/${da_domain}.conf; then
+                  _echo "$(msg cyan)Writing ssl=ON for ${da_user_path}/${da_reseller_username}/domains/${da_domain}.conf ...$(msg end)" --name
+                  echo 'ssl=ON' >>${da_user_path}/${da_reseller_username}/domains/${da_domain}.conf
                 fi
-                if ! grep -m1 -q '^SSLCACertificateFile=' /usr/local/directadmin/data/users/${da_user}/domains/${da_domain}.conf && ! grep -m1 -q '^SSLCertificateFile=' /usr/local/directadmin/data/users/${da_user}/domains/${da_domain}.conf && ! grep -m1 -q '^SSLCertificateKeyFile=' /usr/local/directadmin/data/users/${da_user}/domains/${da_domain}.conf; then
-                  perl -pi -e "s|^UseCanonicalName=|SSLCACertificateFile=/usr/local/directadmin/data/users/${da_user}/domains/${da_domain}.cacert\nSSLCertificateFile=/usr/local/directadmin/data/users/${da_user}/domains/${da_domain}.cert\nSSLCertificateKeyFile=/usr/local/directadmin/data/users/${da_user}/domains/${da_domain}.key\nUseCanonicalName=|g" /usr/local/directadmin/data/users/${da_user}/domains/${da_domain}.conf
+                if ! grep -m1 -q '^SSLCACertificateFile=' ${da_user_path}/${da_reseller_username}/domains/${da_domain}.conf && ! grep -m1 -q '^SSLCertificateFile=' ${da_user_path}/${da_reseller_username}/domains/${da_domain}.conf && ! grep -m1 -q '^SSLCertificateKeyFile=' ${da_user_path}/${da_reseller_username}/domains/${da_domain}.conf; then
+                  _echo "$(msg cyan)Adding certificate links for ${da_user_path}/${da_reseller_username}/domains/${da_domain}.conf ...$(msg end)" --name
+                  perl -pi -e "s|^UseCanonicalName=|SSLCACertificateFile=${da_user_path}/${da_reseller_username}/domains/${da_domain}.cacert\nSSLCertificateFile=${da_user_path}/${da_reseller_username}/domains/${da_domain}.cert\nSSLCertificateKeyFile=${da_user_path}/${da_reseller_username}/domains/${da_domain}.key\nUseCanonicalName=|g" ${da_user_path}/${da_reseller_username}/domains/${da_domain}.conf
                   REWRITE=true
                 fi
 
                 if ${REWRITE}; then
-                  echo "action=rewrite&value=httpd&user=${da_user}" >>/usr/local/directadmin/data/task.queue
+                  _echo "$(msg cyan)Writing rewrite values in task.queue ...$(msg end)" --name
+                  echo "action=rewrite&value=httpd&user=${da_reseller_username}" >>/usr/local/directadmin/data/task.queue
                   echo "action=rewrite&value=mail_sni&domain=${da_domain}" >>/usr/local/directadmin/data/task.queue
                 fi
               fi
             done
           else
             _echo "$(msg yellow)[Skipped]: Warning SSL restoration is skipped based on config file for the user ${da_reseller_username}$(msg end)" --name
-            _pause 10
+            _pause 5
           fi
 
           echo "=========================================="
+          _pause 1
           ((reseller_count++))
         done
-
-        # For user SSL
+        echo ""
+        _echo "$(msg cyan)Configuring user SSL for restoration ...$(msg end)" --name
+        # For user SSL manual restoration
         local user_count da_user_usernames_count
 
         da_user_usernames_count=$(echo "${!C_DA_USER_USERNAME@}" | wc -w)
@@ -14948,21 +14978,29 @@ configure_da_user_domain_ssl() {
           typeset -n da_user_restore_domain_ssl="C_DA_USER_RESTORE_USER_DOMAIN_SSL${user_count}"
           echo "da_user_username: ${da_user_username}"
           echo "da_user_restore_domain_ssl: ${da_user_restore_domain_ssl}"
+          echo ""
 
           if [ "${da_user_restore_domain_ssl}" == "true" ]; then
+
+            # TODO recheck this populating
+            # Make sure I populate the cert selected box too (refer to the cert request)
+
             all_domains=""
+            _echo "$(msg cyan)Populating domain and subdomain entry(es) ...$(msg end)" --name
             for root_domain in $(cat /usr/local/directadmin/data/users/${da_user_username}/domains.list); do
               # For domain first:======================
               echo "root_domain: ${root_domain}"
-              all_domains="${root_domain}"
+              all_domains=" ${all_domains} ${root_domain}"
               # For its subdomain: ====================
               for sub_domain in $(cat /usr/local/directadmin/data/users/${da_user_username}/domains/${root_domain}.subdomains); do
                 all_domains="${all_domains} ${sub_domain}.${root_domain}"
+                echo "all_domains: ${all_domains}"
               done
             done
-
+            echo ""
             all_domains=(${all_domains})
             echo "all_domains: ${all_domains[*]}"
+
             # This 3 files must be pushed from SSH into ${lego_data_path} then check them if they exist
             for da_domain in "${all_domains[@]}"; do
               lego_cert_path="${lego_data_path}/certificates/${da_domain}.crt"
@@ -14970,19 +15008,22 @@ configure_da_user_domain_ssl() {
               lego_issuer_cert_path=$(echo "${lego_cert_path}" | sed 's/\.crt/.issuer.crt/')
               lego_cert_json_path="${lego_data_path}/certificates/${da_domain}.json"
 
-              check_path "${SSL_PATH}/${da_domain}.crt" "${SSL_PATH}/${da_domain}.key" "${SSL_PATH}/${da_domain}.issuer.crt" "${SSL_PATH}/${da_domain}.json"
-
-              echo -n "Copying ${SSL_PATH}/${da_domain}.crt into ${lego_cert_path} ... "
-              cp "${SSL_PATH}/${da_domain}.crt" "${lego_cert_path}"
+              _echo "$(msg cyan)Checking certificate for ${da_domain} files in ${SSL_PATH}/certificates ...$(msg end)" --name
+              check_path "${SSL_PATH}/certificates/${da_domain}.crt" "${SSL_PATH}/certificates/${da_domain}.key" "${SSL_PATH}/certificates/${da_domain}.issuer.crt" "${SSL_PATH}/certificates/${da_domain}.json"
+              echo ""
+              # Note that we only copy certificate that has domain exist for user
+              # Here we copy the certificate folders (but based on the existing domain in da system)
+              echo -n "Copying ${SSL_PATH}/certificates/${da_domain}.crt into ${lego_cert_path} ... "
+              cp "${SSL_PATH}/certificates/${da_domain}.crt" "${lego_cert_path}"
               get_status_message "$?"
-              echo -n "Copying ${SSL_PATH}/${da_domain}.key into ${lego_key_path} ... "
-              cp "${SSL_PATH}/${da_domain}.key" "${lego_key_path}"
+              echo -n "Copying ${SSL_PATH}/certificates/${da_domain}.key into ${lego_key_path} ... "
+              cp "${SSL_PATH}/certificates/${da_domain}.key" "${lego_key_path}"
               get_status_message "$?"
-              echo -n "Copying ${SSL_PATH}/${da_domain}.issuer.key into ${lego_issuer_cert_path} ... "
-              cp "${SSL_PATH}/${da_domain}.issuer.crt" "${lego_issuer_cert_path}"
+              echo -n "Copying ${SSL_PATH}/certificates/${da_domain}.issuer.key into ${lego_issuer_cert_path} ... "
+              cp "${SSL_PATH}/certificates/${da_domain}.issuer.crt" "${lego_issuer_cert_path}"
               get_status_message "$?"
-              echo -n "Copying ${SSL_PATH}/${da_domain}.json into ${lego_cert_json_path} ... "
-              cp "${SSL_PATH}/${da_domain}.json" "${lego_cert_json_path}"
+              echo -n "Copying ${SSL_PATH}/certificates/${da_domain}.json into ${lego_cert_json_path} ... "
+              cp "${SSL_PATH}/certificates/${da_domain}.json" "${lego_cert_json_path}"
               get_status_message "$?"
               _echo "$(msg cyan)Correcting permission of certificates ...$(msg end)" --name
               chmod 600 "${lego_cert_path}" "${lego_key_path}" "${lego_issuer_cert_path}" "${lego_cert_json_path}"
@@ -14991,68 +15032,117 @@ configure_da_user_domain_ssl() {
               _echo "$(msg cyan)Checking certificate path for ${da_domain} ...$(msg end)" --name
               check_path "${lego_cert_path}" "${lego_key_path}" "${lego_issuer_cert_path}" "${lego_cert_json_path}"
               echo ""
-
+              # Here we copy the accounts folder into the .lego root directory
+              echo "Copying ${SSL_PATH}/accounts into ${lego_data_path} ... "
+              cp -fr "${SSL_PATH}/accounts" "${lego_data_path}"
+              get_status_message "$?"
+              echo ""
+              _echo "$(msg cyan)Checking lego accounts path ...$(msg end)" --name
+              check_path "${lego_data_path}/accounts"
+              echo ""
+              # Populating variable of reseller certificate
+              key="${da_user_path}/${da_user_username}/domains/${da_domain}.key"
+              cert="${da_user_path}/${da_user_username}/domains/${da_domain}.cert"
+              cacert="${da_user_path}/${da_user_username}/domains/${da_domain}.ca"
+              # combine_cert="${da_user_path}/${da_user_username}/domains/${da_domain}.combined"
+              echo ""
+              _echo "$(msg cyan)Checking lego certificate and key path ...$(msg end)" --name
               if [ -s "${lego_cert_path}" ] && [ -s "${lego_key_path}" ]; then
+                _echo "$(msg cyan)Checking certificate entry in with BEGIN CERTIFICATE in ${lego_cert_path} ...$(msg end)" --name
                 if [ $(grep -c "BEGIN CERTIFICATE" "${lego_cert_path}") -eq 1 ]; then
+                  _echo "$(msg cyan)Notice entry count is 1. Copying ${lego_cert_path} into ${cert} ...$(msg end)" --name
                   cp -pf "${lego_cert_path}" ${cert}
+                  get_status_message "$?"
                 else
+                  _echo "$(msg cyan)Notice entry count is not 1. Generating new SSL key based on ${lego_cert_path} into ${cert} ...$(msg end)" --name
                   openssl x509 -in "${lego_cert_path}" -out ${cert}
                   get_status_message "$?"
                 fi
+                echo ""
+                _echo "$(msg cyan)Copying ${lego_key_path} into ${key} ...$(msg end)" --name
                 cp -pf "${lego_key_path}" ${key}
+                get_status_message "$?"
+                echo ""
+
+                _echo "$(msg cyan)Checking whether issuer cert is empty in ${lego_issuer_cert_path} ...$(msg end)" --name
                 if [ -s "${lego_issuer_cert_path}" ]; then
+                  _echo "$(msg cyan)Notice, issuer cert is not empty. Copying ${lego_issuer_cert_path} into ${cacert} ...$(msg end)" --name
                   cp -pfv "${lego_issuer_cert_path}" ${cacert}
+                  get_status_message "$?"
+                  echo ""
+                  _echo "$(msg cyan)Combining cert entry from ${cert} and ${cacert} into ${cert}.combined $(msg end)" --name
                   cat ${cert} ${cacert} >${cert}.combined
+                  get_status_message "$?"
+                  echo ""
                 else
+                  _echo "$(msg cyan)Notice, issuer cert is empty. Copying ${lego_cert_path} into ${cert}.combined ...$(msg end)" --name
                   cp -pfv "${lego_cert_path}" ${cert}.combined
+                  get_status_message "$?"
                 fi
-                date +%s >${cert}.creation_time
-                chown diradmin:${C_DA_SECURE_ACCESS_GROUP} ${key} ${cert} ${cert}.combined ${cacert} ${cert}.creation_time
+                echo ""
+                _echo "$(msg cyan)Creating certificate renewal time at ${cert}.creation_time ...$(msg end)" --name
                 # This file is the one that renew certificate, if this is deleted, renewal will be disable
+                date +%s >${cert}.creation_time
+                get_status_message "$?"
+                echo ""
+                _echo "$(msg cyan)Correcting all certificate ownership ...$(msg end)" --name
+                chown diradmin:${C_DA_SECURE_ACCESS_GROUP} ${key} ${cert} ${cert}.combined ${cacert} ${cert}.creation_time
+                get_status_message "$?"
+                echo ""
+                _echo "$(msg cyan)Correcting all certificate permission ...$(msg end)" --name
                 chmod 640 ${key} ${cert} ${cert}.combined ${cacert} ${cert}.creation_time
-                echo "Certificate for ${da_domain} has been created successfully!"
+                get_status_message "$?"
+                echo ""
+                _echo "$(msg green)OK, certificate for ${da_domain} has been created successfully!$(msg end)" --name
               else
-                echo "New key/certificate is empty. Exiting..."
+                _echo "$(msg red)Error, New key/certificate is empty. Exiting...$(msg end)" --name
                 exit 1
               fi
 
               echo "DirectAdmin certificate for ${da_domain} has been setup."
-
-              if [ -e /usr/local/directadmin/data/users/${da_user}/domains/${da_domain}.cert ]; then
+              echo ""
+              _echo "$(msg cyan)Checking domain ${da_domain} cert at ${da_user_path}/${da_user_username}/domains/${da_domain}.cert ...$(msg end)" --name
+              if [ -e ${da_user_path}/${da_user_username}/domains/${da_domain}.cert ]; then
                 REWRITE=false
-                if ! grep -m1 -q '^ssl=ON' /usr/local/directadmin/data/users/${da_user}/domains/${da_domain}.conf; then
-                  perl -pi -e 's|^ssl\=.*|ssl=ON|g' /usr/local/directadmin/data/users/${da_user}/domains/${da_domain}.conf
+                if ! grep -m1 -q '^ssl=ON' ${da_user_path}/${da_user_username}/domains/${da_domain}.conf; then
+                  _echo "$(msg cyan)Turning ssl=ON for ${da_user_path}/${da_user_username}/domains/${da_domain}.conf ...$(msg end)" --name
+                  perl -pi -e 's|^ssl\=.*|ssl=ON|g' ${da_user_path}/${da_user_username}/domains/${da_domain}.conf
                   REWRITE=true
                 fi
-                if ! grep -m1 -q '^ssl=ON' /usr/local/directadmin/data/users/${da_user}/domains/${da_domain}.conf; then
-                  echo 'ssl=ON' >>/usr/local/directadmin/data/users/${da_user}/domains/${da_domain}.conf
+                if ! grep -m1 -q '^ssl=ON' ${da_user_path}/${da_user_username}/domains/${da_domain}.conf; then
+                  _echo "$(msg cyan)Writing ssl=ON for ${da_user_path}/${da_user_username}/domains/${da_domain}.conf ...$(msg end)" --name
+                  echo 'ssl=ON' >>${da_user_path}/${da_user_username}/domains/${da_domain}.conf
                 fi
-                if ! grep -m1 -q '^SSLCACertificateFile=' /usr/local/directadmin/data/users/${da_user}/domains/${da_domain}.conf && ! grep -m1 -q '^SSLCertificateFile=' /usr/local/directadmin/data/users/${da_user}/domains/${da_domain}.conf && ! grep -m1 -q '^SSLCertificateKeyFile=' /usr/local/directadmin/data/users/${da_user}/domains/${da_domain}.conf; then
-                  perl -pi -e "s|^UseCanonicalName=|SSLCACertificateFile=/usr/local/directadmin/data/users/${da_user}/domains/${da_domain}.cacert\nSSLCertificateFile=/usr/local/directadmin/data/users/${da_user}/domains/${da_domain}.cert\nSSLCertificateKeyFile=/usr/local/directadmin/data/users/${da_user}/domains/${da_domain}.key\nUseCanonicalName=|g" /usr/local/directadmin/data/users/${da_user}/domains/${da_domain}.conf
+                if ! grep -m1 -q '^SSLCACertificateFile=' ${da_user_path}/${da_user_username}/domains/${da_domain}.conf && ! grep -m1 -q '^SSLCertificateFile=' ${da_user_path}/${da_user_username}/domains/${da_domain}.conf && ! grep -m1 -q '^SSLCertificateKeyFile=' ${da_user_path}/${da_user_username}/domains/${da_domain}.conf; then
+                  _echo "$(msg cyan)Adding certificate links for ${da_user_path}/${da_user_username}/domains/${da_domain}.conf ...$(msg end)" --name
+                  perl -pi -e "s|^UseCanonicalName=|SSLCACertificateFile=${da_user_path}/${da_user_username}/domains/${da_domain}.cacert\nSSLCertificateFile=${da_user_path}/${da_user_username}/domains/${da_domain}.cert\nSSLCertificateKeyFile=${da_user_path}/${da_user_username}/domains/${da_domain}.key\nUseCanonicalName=|g" ${da_user_path}/${da_user_username}/domains/${da_domain}.conf
                   REWRITE=true
                 fi
 
                 if ${REWRITE}; then
-                  echo "action=rewrite&value=httpd&user=${da_user}" >>/usr/local/directadmin/data/task.queue
+                  _echo "$(msg cyan)Writing rewrite values in task.queue ...$(msg end)" --name
+                  echo "action=rewrite&value=httpd&user=${da_user_username}" >>/usr/local/directadmin/data/task.queue
                   echo "action=rewrite&value=mail_sni&domain=${da_domain}" >>/usr/local/directadmin/data/task.queue
                 fi
               fi
             done
+
           else
             _echo "$(msg yellow)[Skipped]: Warning SSL restoration is skipped based on config file for the user ${da_user_username}$(msg end)" --name
-            _pause 10
+            _pause 5
           fi
           echo "=========================================="
+          _pause 1
           ((user_count++))
         done
-
+      # Restoration end
       else
 
         _echo "$(msg yellow)Notice: SSL restoration is not set for all users based on C_DA_ENABLE_USER_DOMAIN_SSL_RESTORE value... $(msg end)" --name
         _pause 10
 
         # This certificate request can be backed up or restore compared auto SSL
-        local has_letsencrypt_set letsencrypt_list_selected da_user_path rewrite
+        local has_letsencrypt_set letsencrypt_list_selected rewrite
 
         # This is the well known path for letsencrypt SSL server verification
         _echo "$(msg cyan)Checking if letsencrypt is enabled in directadmin.conf ...$(msg end)" --name
@@ -15066,8 +15156,6 @@ configure_da_user_domain_ssl() {
         fi
 
         echo ""
-
-        da_user_path="/usr/local/directadmin/data/users"
 
         for da_user in $(ls ${da_user_path}); do
           {
@@ -17604,106 +17692,6 @@ configure_da_reseller_wildcard_domains() {
   fi
 }
 
-# Note directadmin will automatically add www to each subdomain
-# For example if we create subdomain shop, it will add another subdomain called www.shop automatically
-configure_da_reseller_subdomains() {
-  local run_mode func_name
-  run_mode="$1"
-  extra_option="$2"
-  func_name="${FUNCNAME[0]}"
-  if [[ "${extra_option}" == "--silent-if-executed" ]]; then
-    start_execute_options "${run_mode}" "${func_name}" &>/dev/null
-  else
-    start_execute_options "${run_mode}" "${func_name}"
-  fi
-  [[ "${SKIP_RUN}" == "true" ]] && return 0
-  if [[ ! -f "${CONF_PATH}/${func_name}_executed" && "${FUNCTION_RUN}" == "true" ]]; then
-    local reseller_count da_reseller_usernames_count
-    da_reseller_usernames_count=$(echo "${!C_DA_RESELLER_USERNAME@}" | wc -w)
-    reseller_count=1
-    while [[ ${reseller_count} -le ${da_reseller_usernames_count} ]]; do
-      local da_reseller_username da_reseller_subdomains da_reseller_subdomains_count subdomain_count
-      typeset -n "da_reseller_username=C_DA_RESELLER_USERNAME${reseller_count}"
-      typeset -n "da_reseller_subdomains=C_DA_RESELLER_SUBDOMAIN${reseller_count}"
-      da_reseller_subdomains_count="${#da_reseller_subdomains[@]}"
-
-      _echo "$(msg newline)" --plain --verbose 7
-      _echo "$(msg yellow)Warning this information contains sensitive data due to verbosity level was set to 7 or more$(msg end)" --name --verbose 7
-      _echo "$(msg magenta)=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=$(msg end)" --name --verbose 7
-      _echo "Reseller subdomains details:" --name --verbose 7
-      _echo "Reseller count ${reseller_count} out of ${da_reseller_usernames_count}" --name --verbose 7
-      _echo "da_reseller_username: ${da_reseller_username}" --name --verbose 7
-      _echo "da_reseller_subdomains: ${da_reseller_subdomains[*]}" --name --verbose 7
-      _echo "da_reseller_subdomains_count: ${da_reseller_subdomains_count}" --name --verbose 7
-      _echo "$(msg newline)" --plain --verbose 7
-
-      subdomain_count=0
-      while [ ${subdomain_count} -le $((da_reseller_subdomains_count - 1)) ]; do
-        local root_domain sub_domains_raw
-        root_domain=$(echo "${da_reseller_subdomains[subdomain_count]}" | awk -F':' '{ print $1 }')
-        sub_domains_raw=$(echo "${da_reseller_subdomains[subdomain_count]}" | awk -F':' '{ print $2 }')
-        sub_domains=$(echo "${sub_domains_raw}" | awk -F',' '{for (i=1;i<=NF;i++)print $i}')
-
-        _echo "root_domain: ${root_domain}" --name --verbose 7
-        _echo "sub_domains_raw: ${sub_domains_raw[*]}" --name --verbose 7
-        _echo "sub_domains list (below):" --name --verbose 7
-        _echo "${sub_domains}" --plain --verbose 7
-        _echo "$(msg newine)" --plain --verbose 7
-
-        for sub_domain in ${sub_domains}; do
-          _echo "Subdomain for reseller: ${da_reseller_username}" --name --verbose 7
-          _echo "subdomain: ${sub_domain}" --name --verbose 7
-          _echo "$(msg newline)" --plain --verbose 7
-          _echo "$(msg magenta)=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=$(msg end)" --name --verbose 7
-
-          # Now we got sub_domain and root_domain, call the da_api_admin:
-          # Note that reseller and user share the same API
-          _echo "$(msg cyan)Creating reseller ${da_reseller_username} subdomain ${sub_domain}$(msg end)" --name
-          da_api_admin create-user-subdomain --sign-as "${da_reseller_username}" --domain "${root_domain}" --subdomain "${sub_domain}"
-          echo ""
-
-          if [ "${DNS_PROVIDER_NAME}" == "linode" ]; then
-            _echo "$(msg cyan)Notice, DNS provider is set to linode. Using linode API ...$(msg end)" --name
-            # Add delete and add subdomain for linode API here
-            _echo "$(msg cyan)Deleting subdomain ${sub_domain} record for IPv4 from linode$(msg end)" --name
-            linode_api_admin delete-dns-record --domain "${root_domain}" --record-name "${sub_domain}" --record-type "A"
-            echo ""
-            _echo "$(msg cyan)Deleting subdomain ${sub_domain} record for IPv6 from linode$(msg end)" --name
-            linode_api_admin delete-dns-record --domain "${root_domain}" --record-name "${sub_domain}" --record-type "AAAA"
-            echo ""
-            _echo "$(msg cyan)Adding subdomain ${sub_domain} record for IPv4 in linode ...$(msg end)" --name
-            linode_api_admin add-dns-record --domain "${root_domain}" --record-type "A" --record-name "${sub_domain}" --record-value "${C_IPV4_ADD0}" --record-ttl 30
-            echo ""
-            _echo "$(msg cyan)Adding subdomain ${sub_domain} record for IPv6 in linode ...$(msg end)" --name
-            linode_api_admin add-dns-record --domain "${root_domain}" --record-type "AAAA" --record-name "${sub_domain}" --record-value "${C_IPV6_ADD0}" --record-ttl 30
-            echo ""
-          elif [ "${DNS_PROVIDER_NAME}" == "digitalocean" ]; then
-            _echo "$(msg cyan)Notice, DNS provider is set to digitalocean$(msg end)" --name
-            # Call digitalocean_api_admin
-            # elif other provider
-          elif [ "${DNS_PROVIDER_NAME}" == "local" ]; then
-            _echo "$(msg cyan)Notice, DNS provider is set to local (Internal DNS)$(msg end)" --name
-            # Do nothing
-          fi
-        done
-        ((subdomain_count++))
-      done
-      ((reseller_count++))
-    done
-    echo ""
-    check_finish_reboot "${func_name}"
-  else
-    _echo "$(msg yellow)[Skipped by system]: $(msg magenta)${func_name}$(msg end) $(msg yellow)with current option ${run_mode} has ran before $(msg end)" --name
-    _echo "$(msg yellow)=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=$(msg end)" --plain
-  fi
-
-  if [[ "${extra_option}" == "--silent-if-executed" ]]; then
-    end_execute_options "${run_mode}" "${func_name}" &>/dev/null
-  else
-    end_execute_options "${run_mode}" "${func_name}"
-  fi
-}
-
 configure_da_reseller_email_accounts() {
   local run_mode func_name
   run_mode="$1"
@@ -17958,9 +17946,10 @@ configure_da_user_accounts() {
     _echo "$(msg cyan)Checking if required files are presents ...$(msg end)" --name
     check_path "${da_bin}" "${da_cb_bin}" "${da_conf}" "${da_scripts_path}/decrypt_file.sh"
     echo ""
-
     # This file contains list of user packages (use this file for checking existing package)
     da_user_packages_list="/usr/local/directadmin/data/users/${C_DA_RESELLER_USERNAME1}/packages.list"
+
+    # Skip this
     # We can restart directadmin to clear pending Directadmin cron
     #_echo "$(msg cyan)Requesting directadmin to restart before configuring directadmin accounts ...$(msg end)" --name
     #restart_da
@@ -17980,6 +17969,7 @@ configure_da_user_accounts() {
       typeset -n da_user_mail_users="C_DA_USER_MAIL_USER${count_user1}"
       typeset -n da_user_mail_passwords="C_DA_USER_MAIL_PASSWORD${count_user1}"
       typeset -n da_user_domains="C_DA_USER_DOMAIN${count_user1}"
+      typeset -n da_user_wildcard_domains="C_DA_USER_WILDCARD_DOMAIN${count_user1}"
       typeset -n da_user_package_name="C_DA_USER_PACKAGE_NAME${count_user1}"
       typeset -n da_user_enable_domain_ssl="C_DA_USER_ENABLE_DOMAIN_SSL${count_user1}"
 
@@ -17996,7 +17986,8 @@ configure_da_user_accounts() {
       # Get the total domain count for this user
       da_user_domain_count="${#da_user_domains[@]}"
       # The first domain in array is used to create account (default domain for that user)
-      da_user_domain_first=$(echo "${da_user_domains[@]}" | awk '{ print $1 }')
+      da_user_domain_first_raw=$(echo "${da_user_domains[@]}" | awk '{ print $1 }')
+      da_user_domain_first=$(echo "${da_user_domains[@]}" | awk '{ print $1 }' | awk -F':' '{print $1}')
 
       _echo "$(msg newline)" --plain --verbose 7
       _echo "$(msg yellow)Warning this information contains sensitive data due to verbosity level was set to 7 or more$(msg end)" --name --verbose 7
@@ -18012,14 +18003,14 @@ configure_da_user_accounts() {
       _echo "da_user_system_email: ${da_user_system_email}" --name --verbose 7
       _echo "da_user_mail_users: ${da_user_mail_users[*]}" --name --verbose 7
       _echo "da_user_mail_passwords: ${da_user_mail_passwords}" --name --verbose 7
-      _echo "da_user_domains: ${da_user_domains[*]}" --name --verbose 7
+      _echo "da_user_domains_with_subdomains: ${da_user_domains[*]}" --name --verbose 7
+      _echo "da_user_domain_count: ${da_user_domain_count}" --name --verbose 7
+      _echo "da_user_domain_first_raw: ${da_user_domain_first_raw}" --name --verbose 7
+      _echo "da_user_domain_first: ${da_user_domain_first}" --name --verbose 7
       _echo "da_user_package_name: ${da_user_package_name}" --name --verbose 7
       _echo "da_user_enable_domain_ssl: ${da_user_enable_domain_ssl}" --name --verbose 7
       _echo "$(msg newline)" --plain --verbose 7
-      _echo "Domain information for user ${da_user_uname}:" --name --verbose 7
-      _echo "Domain total (config): ${da_user_domain_count}" --name --verbose 7
-      _echo "Domain list (config): ${da_user_domains[*]}" --name --verbose 7
-      _echo "First domain (config): ${da_user_domain_first}" --name --verbose 7
+
       _echo "$(msg magenta)=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=$(msg end)" --name
       _echo "$(msg newline)" --plain --verbose 7
 
@@ -18109,7 +18100,8 @@ configure_da_user_accounts() {
         echo ""
         da_api_admin restore-user-backup --backup-ip "${C_IPV4_ADD0}" --backup-path "$(dirname ${da_owner_backup_location})" --backup-file-name "$(basename -- ${da_owner_backup_location})" --backup-password ${C_DA_USER_BACKUP_PASSWORD}
         echo ""
-        _echo "$(msg cyan) Getting list of all domains created ...$(msg end)" --name
+        # We knew it will generate this /etc/virtual/domainowners after we have restored the backup file
+        _echo "$(msg cyan) Getting list of all domains created from backup ...$(msg end)" --name
         readarray -t da_domains <<<"$(grep -w "${da_user_uname}" "/etc/virtual/domainowners" | cut -d ":" -f 1)"
         echo ""
         if [ -n "${da_domains}" ]; then
@@ -18152,14 +18144,41 @@ configure_da_user_accounts() {
         da_api_admin create-dns-record --sign-as "${da_user_uname}" --domain "${da_user_domain_first}" --record-type MX --record-domain "${da_user_domain_first}." --record-priority "10" --record-subdomain "${da_reseller_domain_first}." --record-ttl 30 --affect-pointers yes
         echo ""
 
-        copy_local_dns_to_external_dns "${da_user_domain_first}"
+        # Adding extra subdomain starting here for first domain
+        #
+        local da_user_domain_first_sub_domains
+        readarray -t da_user_domain_first_sub_domains <<<"$(echo ${da_user_domain_first_raw} | awk -F':' '{print $2}' | awk -F',' '{for (i=1;i<=NF;i++)print $i}')"
 
+        echo "da_user_domain_first_sub_domains: ${da_user_domain_first_sub_domains}"
+
+        if [ -n "${da_user_domain_first_sub_domains}" ]; then
+          for da_user_subdomain_first in "${da_user_domain_first_sub_domains[@]}"; do
+            _echo "$(msg cyan)Creating user ${da_user_uname} subdomain ${da_user_subdomain_first}.${da_user_domain_first}$(msg end)" --name
+            da_api_admin create-user-subdomain --sign-as "${da_user_uname}" --domain "${da_user_domain_first}" --subdomain "${da_user_subdomain_first}"
+            echo ""
+          done
+        else
+          _echo "$(msg yellow)Notice: Skipped creating subdomain for domain ${da_user_domain_first} because it does not have subdomains defined in config file$(msg end)" --name
+        fi
+
+        copy_local_dns_to_external_dns "${da_user_domain_first}"
+        echo ""
         # This will be executed if user has more than 1 domains. We add the extra domains here and skipped the default domain:
         if [ "${da_user_domain_count}" -gt 1 ]; then
           _echo "$(msg cyan)Notice, this user ${da_user_uname} has ${da_user_domain_count} domains$(msg end)" --name
-          for extra_domain in "${da_user_domains[@]}"; do
+          for extra_domain_raw in "${da_user_domains[@]}"; do
+            local extra_domain extra_subdomains_raw extra_subdomains
             # Here, we don't add the first domain, we did that before when we first create user user account where directadmin automatically add this default or first domain
+            extra_domain=$(echo "${extra_domain_raw}" | awk -F':' '{ print $1 }')
+            extra_subdomains_raw=$(echo "${extra_domain_raw}" | awk -F':' '{ print $2 }')
+            readarray -t extra_subdomains <<<"$(echo "${extra_subdomains_raw}" | awk -F',' '{for (i=1;i<=NF;i++)print $i}')"
+            echo "extra_domain_raw:${extra_domain_raw}"
+            echo "extra_domain: ${extra_domain}"
+            echo "extra_subdomains_raw: ${extra_subdomains_raw}"
+            echo "extra_subdomains: ${extra_subdomains[*]}"
+            echo "================================================"
             if [[ "${extra_domain}" == "${da_user_domain_first}" ]]; then
+              # Skip the domain that has been added before
               _echo "$(msg cyan)Skipped adding the default domain: ${da_user_domain_first}$(msg end)" --name
               continue
             fi
@@ -18175,6 +18194,19 @@ configure_da_user_accounts() {
             _echo "$(msg cyan)Creating Mail MX record for ${extra_domain} without subdomain ...$(msg end)" --name
             da_api_admin create-dns-record --sign-as "${da_user_uname}" --domain "${extra_domain}" --record-type MX --record-domain "${extra_domain}." --record-priority "10" --record-subdomain "${da_reseller_domain_first}." --record-ttl 30 --affect-pointers yes
             echo ""
+            # Adding extra subdomains starting here
+            if [ -n "${extra_subdomains}" ]; then
+              for extra_subdomain in "${extra_subdomains[@]}"; do
+                #  echo "extra_subdomain: ${extra_subdomain}"
+                _echo "$(msg cyan)Creating user ${da_user_uname} subdomain ${extra_subdomain}.${extra_domain}$(msg end)" --name
+                da_api_admin create-user-subdomain --sign-as "${da_user_uname}" --domain "${extra_domain}" --subdomain "${extra_subdomain}"
+                echo ""
+                # End looping for adding extra subdomains
+              done
+            else
+              _echo "$(msg yellow)Notice: Skipped creating subdomain for domain ${extra_domain} because it does not have subdomains defined in config file$(msg end)" --name
+            fi
+            echo ""
             copy_local_dns_to_external_dns "${extra_domain}"
           done # End looping for adding extra domains
         fi
@@ -18184,126 +18216,16 @@ configure_da_user_accounts() {
     done
     echo ""
 
-    if [[ "${da_reseller_restore_user_backup}" == "true" && "${C_DA_ENABLE_USER_BACKUP_RESTORE}" == "true" ]]; then
+    if [[ "${da_user_restore_user_backup}" == "true" && "${C_DA_ENABLE_USER_BACKUP_RESTORE}" == "true" ]]; then
       :
     else
       # Run additional step because we don't restore from backup for this user
-      configure_da_user_security --run
-      configure_da_user_root_domains --skip #(this is deprecated, already done in configure_da_user_accounts)
-      configure_da_user_subdomains --run
+      # configure_da_user_skins --run-force (This user skin function does not exist but put this here and implement later if I need)
+      configure_da_user_security --run-force
       configure_da_user_wildcard_domains --skip #(Skipped: Do not use wildcard for security purpose)
-      configure_da_user_email_accounts --run
-      configure_da_user_databases --run
+      configure_da_user_email_accounts --run-force
+      configure_da_user_databases --run-force
     fi
-
-    check_finish_reboot "${func_name}"
-  else
-    _echo "$(msg yellow)[Skipped by system]: $(msg magenta)${func_name}$(msg end) $(msg yellow)with current option ${run_mode} has ran before $(msg end)" --name
-    _echo "$(msg yellow)=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=$(msg end)" --plain
-  fi
-
-  if [[ "${extra_option}" == "--silent-if-executed" ]]; then
-    end_execute_options "${run_mode}" "${func_name}" &>/dev/null
-  else
-    end_execute_options "${run_mode}" "${func_name}"
-  fi
-}
-
-configure_da_user_root_domains() {
-  local run_mode func_name
-  run_mode="$1"
-  extra_option="$2"
-  func_name="${FUNCNAME[0]}"
-  if [[ "${extra_option}" == "--silent-if-executed" ]]; then
-    start_execute_options "${run_mode}" "${func_name}" &>/dev/null
-  else
-    start_execute_options "${run_mode}" "${func_name}"
-  fi
-  [[ "${SKIP_RUN}" == "true" ]] && return 0
-  if [[ ! -f "${CONF_PATH}/${func_name}_executed" && "${FUNCTION_RUN}" == "true" ]]; then
-    local da_user_domains da_user_domains_count this_da_user_username this_da_user_userpass \
-      this_da_user_domains this_da_user_domains_count
-    local count_x count_n count_o domain
-    # Get list of all user subdomains
-    da_user_domains="${!C_DA_USER_DOMAIN@}"
-    # Count the total domains
-    da_user_domains_count=$(echo "${da_user_domains}" | wc -w)
-    # Debug:
-    echo "da_user_domains: ${da_user_domains}"
-    echo "da_user_domains_count ${da_user_domains_count}"
-    # initial value to loop
-    count_x=1
-    while [[ ${count_x} -le ${da_user_domains_count} ]]; do
-      echo "Count_x: ${count_x}"
-      echo "DA_USER_DOMAINS_COUNT ${da_user_domains_count}"
-      echo "=~=~=~=~=~=~=~=~=~+~+~+~=~=~"
-      echo "count_user_domain_loop = ${count_x}"
-      echo ""
-      typeset -n "this_da_user_username"="C_DA_USER_USERNAME${count_x}"
-      typeset -n "this_da_user_userpass"="C_DA_USER_USERPASS${count_x}"
-
-      this_da_user_domains=$(cat "/usr/local/directadmin/data/users/${this_da_user_username}/domains.list")
-      # Debug:
-      echo "this_da_user_username: ${this_da_user_username}"
-      echo "this_da_user_userpass: ${this_da_user_userpass}"
-
-      echo "this_da_user_domains: ${this_da_user_domains[*]}"
-      this_da_user_domains_count=$(echo "${this_da_user_domains}" | wc -w)
-      echo "this_da_user_domains_count: ${this_da_user_domains_count}"
-      count_n=1
-      while [ ${count_n} -le "${this_da_user_domains_count}" ]; do
-        echo "------------------------"
-        echo "Total count: ${count_n}"
-        count_o=0
-        for domain in ${this_da_user_domains}; do
-          echo "count_o: ${count_o}"
-          # Debug
-          echo "domain is set: ${domain}"
-          echo ""
-
-          echo "[${SCRIPT_NAME}]: Creating root domain ${domain} for both IPv4 and IPv6 ..."
-          echo "~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~"
-          da_api_admin "signas+${this_da_user_username}+${this_da_user_userpass}"
-          # Note if record exist, it won't create in DA
-          da_api_admin "create-dns-record" "${domain}" "A" "${domain}." "${C_IPV4_ADD0}"
-          da_api_admin "create-dns-record" "${domain}" "AAAA" "${domain}." "$(ipv6calc --addr2uncompaddr "${C_IPV6_ADD0}")"
-          echo "~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~"
-          echo ""
-          if [ "${DNS_PROVIDER_NAME}" == "linode" ]; then
-            # In linode DNS record are duplicated, we don't want so must delete previous record first before adding new
-            echo "[${SCRIPT_NAME}]: DNS provider is set to linode. Using linode API"
-
-            echo "[${SCRIPT_NAME}]: Deleting root ${domain} record for IPv4 and IPv6 from linode"
-            echo "~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~"
-            # In linode empty there means hostname or I can use @ or try domain.com
-            linode_api_admin "delete-dns-record" "${domain}" "" "A"
-            linode_api_admin "delete-dns-record" "${domain}" "" "AAAA"
-            echo "~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~"
-            echo ""
-
-            # Also add wildcard domain for linode API here
-            echo "[${SCRIPT_NAME}]: Adding wildcard domain ${domain} record for IPv4 and IPv6 from linode"
-            echo "~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~"
-            #In linode empty there means hostname or I can use @ or try domain.com
-            linode_api_admin "add-dns-record" "${domain}" "A" "" "${C_IPV4_ADD0}" "5"
-            linode_api_admin "add-dns-record" "${domain}" "AAAA" "" "${C_IPV6_ADD0}" "5"
-            echo "~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~"
-            echo ""
-          elif [ "${DNS_PROVIDER_NAME}" == "digitalocean" ]; then
-            echo "[${SCRIPT_NAME}]: DNS provider is set to digitalocean"
-            # Call digitalocean_api_admin
-            #elif other provider
-          elif [ "${DNS_PROVIDER_NAME}" == "local" ]; then
-            echo "[${SCRIPT_NAME}]: DNS provider is set to local (Internal DNS)"
-            # Do nothing
-          fi
-          ((count_o++))
-        done
-        ((count_n++))
-      done
-      ((count_x++))
-    done
-    echo ""
     check_finish_reboot "${func_name}"
   else
     _echo "$(msg yellow)[Skipped by system]: $(msg magenta)${func_name}$(msg end) $(msg yellow)with current option ${run_mode} has ran before $(msg end)" --name
@@ -18422,105 +18344,6 @@ configure_da_user_wildcard_domains() {
   else
     end_execute_options "${run_mode}" "${func_name}"
   fi
-}
-
-configure_da_user_subdomains() {
-  local run_mode func_name
-  run_mode="$1"
-  extra_option="$2"
-  func_name="${FUNCNAME[0]}"
-  if [[ "${extra_option}" == "--silent-if-executed" ]]; then
-    start_execute_options "${run_mode}" "${func_name}" &>/dev/null
-  else
-    start_execute_options "${run_mode}" "${func_name}"
-  fi
-  [[ "${SKIP_RUN}" == "true" ]] && return 0
-  if [[ ! -f "${CONF_PATH}/${func_name}_executed" && "${FUNCTION_RUN}" == "true" ]]; then
-    local user_count da_user_usernames_count
-    da_user_usernames_count=$(echo "${!C_DA_USER_USERNAME@}" | wc -w)
-    user_count=1
-    while [[ ${user_count} -le ${da_user_usernames_count} ]]; do
-      local da_user_username da_user_subdomains da_user_subdomains_count subdomain_count
-      typeset -n "da_user_username=C_DA_USER_USERNAME${user_count}"
-      typeset -n "da_user_subdomains=C_DA_USER_SUBDOMAIN${user_count}"
-      da_user_subdomains_count="${#da_user_subdomains[@]}"
-
-      _echo "$(msg newline)" --plain --verbose 7
-      _echo "$(msg yellow)Warning this information contains sensitive data due to verbosity level was set to 7 or more$(msg end)" --name --verbose 7
-      _echo "$(msg magenta)=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=$(msg end)" --name --verbose 7
-      _echo "User subdomains details:" --name --verbose 7
-      _echo "User count ${user_count} out of ${da_user_usernames_count}" --name --verbose 7
-      _echo "da_user_username: ${da_user_username}" --name --verbose 7
-      _echo "da_user_subdomains: ${da_user_subdomains[*]}" --name --verbose 7
-      _echo "da_user_subdomains_count: ${da_user_subdomains_count}" --name --verbose 7
-      _echo "$(msg newline)" --plain --verbose 7
-
-      subdomain_count=0
-      while [ ${subdomain_count} -le $((da_user_subdomains_count - 1)) ]; do
-        local root_domain sub_domains_raw
-        root_domain=$(echo "${da_user_subdomains[subdomain_count]}" | awk -F':' '{ print $1 }')
-        sub_domains_raw=$(echo "${da_user_subdomains[subdomain_count]}" | awk -F':' '{ print $2 }')
-        sub_domains=$(echo "${sub_domains_raw}" | awk -F',' '{for (i=1;i<=NF;i++)print $i}')
-
-        _echo "root_domain: ${root_domain}" --name --verbose 7
-        _echo "sub_domains_raw: ${sub_domains_raw[*]}" --name --verbose 7
-        _echo "sub_domains list (below):" --name --verbose 7
-        _echo "${sub_domains}" --plain --verbose 7
-        _echo "$(msg newline)" --plain --verbose 7
-
-        for sub_domain in ${sub_domains}; do
-          _echo "Subdomain for user: ${da_user_username}" --name --verbose 7
-          _echo "subdomain: ${sub_domain}" --name --verbose 7
-          _echo "$(msg newline)" --plain --verbose 7
-          _echo "$(msg magenta)=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=$(msg end)" --name --verbose 7
-
-          # Now we got sub_domain and root_domain, call the da_api_admin:
-          # Note that user and user share the same API
-          _echo "$(msg cyan)Creating user ${da_user_username} subdomain ${sub_domain}" --name
-          da_api_admin create-user-subdomain --sign-as "${da_user_username}" --domain "${root_domain}" --subdomain "${sub_domain}"
-          echo ""
-
-          if [ "${DNS_PROVIDER_NAME}" == "linode" ]; then
-            _echo "$(msg cyan)Notice, DNS provider is set to linode. Using linode API ...$(msg end)" --name
-            # Add delete and add subdomain for linode API here
-            _echo "$(msg cyan)Deleting subdomain ${sub_domain} record for IPv4 from linode$(msg end)" --name
-            linode_api_admin delete-dns-record --domain "${root_domain}" --record-name "${sub_domain}" --record-type "A"
-            echo ""
-            _echo "$(msg cyan)Deleting subdomain ${sub_domain} record for IPv6 from linode$(msg end)" --name
-            linode_api_admin delete-dns-record --domain "${root_domain}" --record-name "${sub_domain}" --record-type "AAAA"
-            echo ""
-            _echo "$(msg cyan)Adding subdomain ${sub_domain} record for IPv4 in linode ...$(msg end)" --name
-            linode_api_admin add-dns-record --domain "${root_domain}" --record-type "A" --record-name "${sub_domain}" --record-value "${C_IPV4_ADD0}" --record-ttl 30
-            echo ""
-            _echo "$(msg cyan)Adding subdomain ${sub_domain} record for IPv6 in linode ...$(msg end)" --name
-            linode_api_admin add-dns-record --domain "${root_domain}" --record-type "AAAA" --record-name "${sub_domain}" --record-value "${C_IPV6_ADD0}" --record-ttl 30
-            echo ""
-          elif [ "${DNS_PROVIDER_NAME}" == "digitalocean" ]; then
-            _echo "$(msg cyan)Notice, DNS provider is set to digitalocean$(msg end)" --name
-            # Call digitalocean_api_admin
-            # elif other provider
-          elif [ "${DNS_PROVIDER_NAME}" == "local" ]; then
-            _echo "$(msg cyan)Notice, DNS provider is set to local (Internal DNS)$(msg end)" --name
-            # Do nothing
-          fi
-        done
-        ((subdomain_count++))
-      done
-      ((user_count++))
-    done
-    echo ""
-    check_finish_reboot "${func_name}"
-  else
-    _echo "$(msg yellow)[Skipped by system]: $(msg magenta)${func_name}$(msg end) $(msg yellow)with current option ${run_mode} has ran before $(msg end)" --name
-    _echo "$(msg yellow)=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=$(msg end)" --plain
-  fi
-
-  if [[ "${extra_option}" == "--silent-if-executed" ]]; then
-    end_execute_options "${run_mode}" "${func_name}" &>/dev/null
-  else
-    end_execute_options "${run_mode}" "${func_name}"
-  fi
-
 }
 
 configure_da_user_email_accounts() {
@@ -19339,9 +19162,11 @@ microphone=(), camera=(), magnetometer=(), gyroscope=(), payment=(), fullscreen=
       # Test the first user domain for header
       test_count=0
       while :; do
+        local first_domain
         ((test_count++))
-        _echo "$(msg cyan)Testing header message for domain ${LABEL_C_DA_USER_DOMAIN1}...$(msg end)" --name
-        curl -s -D- "https://${C_DA_USER_DOMAIN1[0]}" | grep -i Strict
+        first_domain=$(echo "${C_DA_USER_DOMAIN1[0]}" | awk -F':' '{ print $1 }')
+        _echo "$(msg cyan)Testing header message for domain ${first_domain}...$(msg end)" --name
+        curl -s -D- "https://${first_domain}" | grep -i Strict
         retval=$?
         if [ "${retval}" -eq 0 ]; then
           echo "Success"
@@ -19350,8 +19175,9 @@ microphone=(), camera=(), magnetometer=(), gyroscope=(), payment=(), fullscreen=
           echo "Failed"
         fi
         echo ""
-        _echo "$(msg cyan)Testing another header message for domain ${LABEL_C_DA_RESELLER_DOMAIN1}...$(msg end)" --name
-        curl -s -D- "https://${C_DA_RESELLER_DOMAIN1[0]}" | grep -i Strict
+        first_domain=$(echo "${C_DA_RESELLER_DOMAIN1[0]}" | awk -F':' '{ print $1 }')
+        _echo "$(msg cyan)Testing another header message for domain ${first_domain}...$(msg end)" --name
+        curl -s -D- "https://${first_domain}" | grep -i Strict
         retval=$?
         if [ "${retval}" -eq 0 ]; then
           echo "Success"
@@ -20068,7 +19894,7 @@ while [ "$#" -gt 0 ]; do
     echo ""
 
     # SSL cert to update
-    FILE_TO_TRANSFER="${SECURE_PATH}/ssl/.lego/certificates/*"
+    FILE_TO_TRANSFER="${SECURE_PATH}/ssl/.lego/*"
     REMOTE_PATH_TO_RECEIVE="${HOME}/ssl/"
     ssh_api mkdir --server-port ${C_BOX_HOSTNAME_FQHN}:${C_SSH_PORT} --group-user ${C_ROOT_USERGROUP}:${C_ROOT_USERNAME} --remote-path "${REMOTE_PATH_TO_RECEIVE}"
 
