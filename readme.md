@@ -49,4 +49,38 @@ auto SSL with zerossl or letsencrypt that can be backup and restore automaticall
 
 ---
 
+list of features (not all are listed right now):
+
+1) Customize operating system (iso_api)
+- Automatically create operating system ISO file (currently support Debian)
+- Operating system version can be selected manually from config file (able to switch to old OS) or download latest version automatically (currently support Debian)
+- Automatically upload ISO file (currently support dropbox) and generate random link to install operating system remotely
+- Operating system ISO file can be backup automatically with option --backup before creating new one
+- Able to use existing operating system without downloading the new one (offline mode)
+- Operating system can be setup with LUKS encryption (can be turn off via config)
+- Automatically generate installer bootloader menu for operating system with various settings.The boot menu screen can be customized (eg: Welcome to Arafat Operating System)
+- Able to switch whether to create operating system ISO or rescue ISO (currently rescue ISO) --iso-base local/web
+- Automatically write ISO script file for remote installer
+- There are dozens of OS customization based on Debian preseed file.
+
+2) Linode support (linode_api_admin)
+- Automatically rebuild linode partition disk, swap
+- Automatically rebuild linode profile config
+- Various linode APIs included to manage initial setup
+- and more ...
+
+3) SSH management (ssh_api)
+- Automatically login into server with shortcut (eg: maxinet login, to login as root using cert)
+- Easy to retrieve and upload files
+- Automatically unlock LUKS encryption remotely
+- Easy to manage linode lish console
+- Able to create secure private and public RSA key that compatible with putty for Windows
+- and more ...
+
+and more ..
+
+and more ..
+
+to be continued ...
+
 Author: Arafat Ali | Email: arafat@sofibox.com | Personal Blog: arafatx.com
