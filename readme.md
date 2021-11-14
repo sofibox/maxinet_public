@@ -21,12 +21,32 @@ It might contain bugs for other distributions. This script is fully tested on De
 
 mail-tester.com score:
 
-![mail-tester.com](files/mail_tester.JPG)
+![mail-tester.com](files/mail_tester.jpg)
 
+---
 
 ssllabs.com score:
 
-![mail-tester.com](files/ssllabs_test.JPG)
+![ssllabs.com](files/ssllabs_test.jpg)
 
+---
+
+dkim, dmarc, and spf auto setup (including outbound signing policy for dkim):
+
+![dkim_dmarc_spf_passed in gmail](files/dkim_dmarc_spf.jpg)
+
+---
+
+mail is signed with secure certificate using the latest encryption:
+
+![dkim_dmarc_spf_passed in gmail](files/tls_mail_signed.jpg)
+
+---
+
+auto SSL with zerossl or letsencrypt that can be backup and restore automatically
+
+![dkim_dmarc_spf_passed in gmail](files/auto_ssl_with_zerossl_or_letsencrypt.jpg)
+
+---
 
 Author: Arafat Ali | Email: arafat@sofibox.com | Personal Blog: arafatx.com

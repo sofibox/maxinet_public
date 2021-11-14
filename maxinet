@@ -4,7 +4,7 @@
 
 _APP_SPECIFIC_NAME="Maxinet"
 # Note that some minor versions are not published
-_APP_VERSION="0.7.8"
+_APP_VERSION="0.7.9"
 _APP_STATUS="alpha"
 _APP_VERSION_STATUS="${_APP_VERSION}-${_APP_STATUS}"
 
@@ -1443,7 +1443,9 @@ init_server() {
     esac
   done
 
-  _echo "$(msg cyan)Creating a new server for ${LABEL_C_BOX_HOSTNAME_FQHN} ...$(msg end)" --name
+  _confirm "Warning, this command will wipe the entire server if --rebuild-partition is supplied! Continue? [Y/y] or Cancel [CTRL +C]:"
+    echo ""
+  _echo "$(msg cyan)Initializing a new server for ${LABEL_C_BOX_HOSTNAME_FQHN} ...$(msg end)" --name
 
   echo "Server Physical Information:"
   # Get all of this from provider
@@ -1462,7 +1464,6 @@ init_server() {
   ensure_fqhn_server_resolved
   echo ""
 
-  sleep 1
   if [ ${backup} == "true" ]; then
     _echo "$(msg blue)Notice, the option --backup-all is set. The following backup events will be triggered automatically: $(msg end)" --name --plain
     _echo "$(msg blue)1) Previous iso image will be backed up automatically $(msg end)" --name --plain
@@ -12722,6 +12723,8 @@ configure_da_sql_security() {
 }
 
 # This configure_da_mail can be roundcube squirrelmail or others
+# Note to compress email we can use the following DA script: /usr/local/directadmin/scripts/dovecot_compress.sh all
+# More info about speedup email: https://docs.directadmin.com/other-hosting-services/dovecot/customizing-dovecot.html#how-to-enable-email-compression
 configure_da_mail() {
   local run_mode func_name
   run_mode="$1"
@@ -14075,7 +14078,7 @@ configure_da_owner_accounts() {
         echo "${da_domains[*]}"
         echo ""
         for da_domain in "${da_domains[@]}"; do
-          _echo "$(msg cyan) Writing all DNS record for domain ${da_domain} to external DNS ...$(msg end)" --name
+          _echo "$(msg cyan)Writing all DNS record for domain ${da_domain} to external DNS ...$(msg end)" --name
           copy_local_dns_to_external_dns "${da_domain}"
           echo ""
         done
@@ -14243,7 +14246,7 @@ configure_da_admin_accounts() {
         echo "${da_domains[*]}"
         echo ""
         for da_domain in "${da_domains[@]}"; do
-          _echo "$(msg cyan) Writing all DNS record for domain ${da_domain} to external DNS ...$(msg end)" --name
+          _echo "$(msg cyan)Writing all DNS record for domain ${da_domain} to external DNS ...$(msg end)" --name
           copy_local_dns_to_external_dns "${da_domain}"
           echo ""
         done
@@ -14482,7 +14485,7 @@ configure_da_reseller_accounts() {
           echo "${da_domains[*]}"
           echo ""
           for da_domain in "${da_domains[@]}"; do
-            _echo "$(msg cyan) Writing all DNS record for domain ${da_domain} to external DNS ...$(msg end)" --name
+            _echo "$(msg cyan)Writing all DNS record for domain ${da_domain} to external DNS ...$(msg end)" --name
             copy_local_dns_to_external_dns "${da_domain}"
             echo ""
           done
@@ -15138,7 +15141,11 @@ configure_da_user_domain_ssl() {
       # Restoration end
       else
 
-        _echo "$(msg yellow)Notice: SSL restoration is not set for all users based on C_DA_ENABLE_USER_DOMAIN_SSL_RESTORE value... $(msg end)" --name
+        _echo "$(msg yellow)Notice: SSL restoration is not set for all users based on C_DA_ENABLE_USER_DOMAIN_SSL_RESTORE value $(msg end)" --name
+        if [ -f "/root/.zerossl" ]; then
+          _echo "$(msg yellow)Notice: ZeroSSL flag is found. SSL certificate will be requested using ZeroSSL method$(msg end)" --name
+        fi
+        echo ""
         _pause 10
 
         # This certificate request can be backed up or restore compared auto SSL
@@ -15168,39 +15175,41 @@ configure_da_user_domain_ssl() {
                   # domain_list="${root_domain}"
                   all_domains="${root_domain}"
 
-                  _echo "$(msg cyan)Requesting domain challenge test for domain ${root_domain} for list of extra subdomains ...$(msg end)" --name
+                  _echo "$(msg cyan)Requesting domain challenge test for domain ${root_domain} ...$(msg end)" --name
                   challenge_test=$(letsencrypt_challenge_check ${root_domain})
-                  echo "challenge test value for ${root_domain} is: ${challenge_test}"
+                  get_status_message "${challenge_test}"
                   if [ ${challenge_test} -ne 1 ]; then
                     for extra_subdomain in ${letsencrypt_list_selected}; do
                       # Note extra_subdomain is taken from directadmin.conf
                       local list_extra_subdomain
                       {
                         list_extra_subdomain=${extra_subdomain}.${root_domain}
-                        echo "list_extra_subdomain is: ${list_extra_subdomain}"
+                        _echo "$(msg cyan)Requesting domain challenge test for domain ${list_extra_subdomain} ...$(msg end)" --name
                         challenge_test=$(letsencrypt_challenge_check ${list_extra_subdomain})
-                        echo "challenge test value for qualified domain ${list_extra_subdomain} is: ${challenge_test}"
+                        get_status_message "${challenge_test}"
                         if [ ${challenge_test} -ne 1 ]; then
                           all_domains="${all_domains},${list_extra_subdomain}"
                         fi
                       }
                     done
                     echo ""
-                    _echo "$(msg cyan)Requesting domain challenge test for domain ${root_domain} for subdomains ...$(msg end)" --name
+
                     # Checking for subdomain for the domain if exist
                     for sub_domain in $(cat /usr/local/directadmin/data/users/${da_user}/domains/${root_domain}.subdomains); do
+                      _echo "$(msg cyan)Requesting domain challenge test for domain ${sub_domain}.${root_domain} ...$(msg end)" --name
                       challenge_test=$(letsencrypt_challenge_check "${sub_domain}.${root_domain}")
-                      echo "challenge test value for subdomain ${sub_domain}.${root_domain} is: ${challenge_test}"
+                      get_status_message "${challenge_test}"
                       if [ ${challenge_test} -ne 1 ]; then
                         all_domains="${all_domains},${sub_domain}.${root_domain}"
                       fi
                     done
                     echo ""
-                    echo "all_domains: ${all_domains}"
+                    echo "List of all domains to be requested SSL: "
+                    echo "${all_domains}"
                     echo ""
                     # Duplicate code
                     # challenge_test=$(letsencrypt_challenge_check ${root_domain})
-                    _echo "$(msg cyan)Checking ECC certificate ...$(msg end)" --name
+                    _echo "$(msg cyan)Checking for ECC certificate ...$(msg end)" --name
                     has_ecc_certificates=$(cat "${da_conf}" | grep "^ecc_certificates=" | cut -d= -f2)
                     echo ""
                     if echo "${all_domains}" | grep -m1 -q ','; then
@@ -15329,19 +15338,19 @@ configure_da_host_domain_ssl() {
         lego_issuer_cert_path=$(echo "${lego_cert_path}" | sed 's/\.crt/.issuer.crt/')
         lego_cert_json_path="${lego_data_path}/certificates/${C_BOX_HOSTNAME_FQHN}.json"
 
-        check_path "${SSL_PATH}/${C_BOX_HOSTNAME_FQHN}.crt" "${SSL_PATH}/${C_BOX_HOSTNAME_FQHN}.key" "${SSL_PATH}/${C_BOX_HOSTNAME_FQHN}.issuer.crt" "${SSL_PATH}/${C_BOX_HOSTNAME_FQHN}.json"
+        check_path "${SSL_PATH}/certificates/${C_BOX_HOSTNAME_FQHN}.crt" "${SSL_PATH}/certificates/${C_BOX_HOSTNAME_FQHN}.key" "${SSL_PATH}/certificates/${C_BOX_HOSTNAME_FQHN}.issuer.crt" "${SSL_PATH}/certificates/${C_BOX_HOSTNAME_FQHN}.json"
 
-        echo -n "Copying ${SSL_PATH}/${C_BOX_HOSTNAME_FQHN}.crt into ${lego_cert_path} ... "
-        cp "${SSL_PATH}/${C_BOX_HOSTNAME_FQHN}.crt" "${lego_cert_path}"
+        echo -n "Copying ${SSL_PATH}/certificates/${C_BOX_HOSTNAME_FQHN}.crt into ${lego_cert_path} ... "
+        cp "${SSL_PATH}/certificates/${C_BOX_HOSTNAME_FQHN}.crt" "${lego_cert_path}"
         get_status_message "$?"
-        echo -n "Copying ${SSL_PATH}/${C_BOX_HOSTNAME_FQHN}.key into ${lego_key_path} ... "
-        cp "${SSL_PATH}/${C_BOX_HOSTNAME_FQHN}.key" "${lego_key_path}"
+        echo -n "Copying ${SSL_PATH}/certificates/${C_BOX_HOSTNAME_FQHN}.key into ${lego_key_path} ... "
+        cp "${SSL_PATH}/certificates/${C_BOX_HOSTNAME_FQHN}.key" "${lego_key_path}"
         get_status_message "$?"
-        echo -n "Copying ${SSL_PATH}/${C_BOX_HOSTNAME_FQHN}.issuer.key into ${lego_issuer_cert_path} ... "
-        cp "${SSL_PATH}/${C_BOX_HOSTNAME_FQHN}.issuer.crt" "${lego_issuer_cert_path}"
+        echo -n "Copying ${SSL_PATH}/certificates/${C_BOX_HOSTNAME_FQHN}.issuer.key into ${lego_issuer_cert_path} ... "
+        cp "${SSL_PATH}/certificates/${C_BOX_HOSTNAME_FQHN}.issuer.crt" "${lego_issuer_cert_path}"
         get_status_message "$?"
-        echo -n "Copying ${SSL_PATH}/${C_BOX_HOSTNAME_FQHN}.json into ${lego_cert_json_path} ... "
-        cp "${SSL_PATH}/${C_BOX_HOSTNAME_FQHN}.json" "${lego_cert_json_path}"
+        echo -n "Copying ${SSL_PATH}/certificates/${C_BOX_HOSTNAME_FQHN}.json into ${lego_cert_json_path} ... "
+        cp "${SSL_PATH}/certificates/${C_BOX_HOSTNAME_FQHN}.json" "${lego_cert_json_path}"
         get_status_message "$?"
         _echo "$(msg cyan)Correcting permission of certificates ...$(msg end)" --name
         chmod 600 "${lego_cert_path}" "${lego_key_path}" "${lego_issuer_cert_path}" "${lego_cert_json_path}"
@@ -15412,9 +15421,10 @@ configure_da_host_domain_ssl() {
           echo "action=exim&value=restart" >>${task_queue}
           echo "action=dovecot&value=restart" >>${task_queue}
         fi
+        echo ""
         #Apache
-        echo "Setting up cert for WWW server..."
         if [ -d /etc/httpd/conf/ssl.key ] && [ -d /etc/httpd/conf/ssl.crt ]; then
+           echo "Setting up cert for apache ..."
           local apachekey apachecert apachecacert apachecertcombined httpd_action graceful
           apachekey="/etc/httpd/conf/ssl.key/server.key"
           apachecert="/etc/httpd/conf/ssl.crt/server.crt"
@@ -15441,9 +15451,10 @@ configure_da_host_domain_ssl() {
           fi
           echo "action=httpd&value=${httpd_action}&affect_php_fpm=no" >>${task_queue}
         fi
-
+        echo ""
         #Nginx
         if [ -d /etc/nginx/ssl.key ] && [ -d /etc/nginx/ssl.crt ]; then
+           echo "Setting up cert for nginx ..."
           local nginxkey nginxcert nginxcacert nginxcertcombined
           nginxkey="/etc/nginx/ssl.key/server.key"
           nginxcert="/etc/nginx/ssl.crt/server.crt"
@@ -15455,12 +15466,12 @@ configure_da_host_domain_ssl() {
           cat ${nginxcert} ${nginxcacert} >${nginxcertcombined}
           chown -v root:root ${nginxkey} ${nginxcert} ${nginxcacert} ${nginxcertcombined}
           chmod -v 600 ${nginxkey} ${nginxcert} ${nginxcacert} ${nginxcertcombined}
-
           echo "action=nginx&value=restart&affect_php_fpm=no" >>${task_queue}
         fi
-
+        echo ""
         #OLS
         if [ -d /usr/local/lsws/ssl.key ] && [ -d /usr/local/lsws/ssl.crt ]; then
+           echo "Setting up cert for openlitespeed ..."
           local olskey olscer olscacert olscertcombined
           olskey="/usr/local/lsws/ssl.key/server.key"
           olscert="/usr/local/lsws/ssl.crt/server.crt"
@@ -15474,14 +15485,13 @@ configure_da_host_domain_ssl() {
           chmod -v 600 ${olskey} ${olscert} ${olscacert} ${olscertcombined}
           echo "action=openlitespeed&value=restart&affect_php_fpm=no" >>${task_queue}
         fi
-
+        echo ""
         #FTP
         if command -v pure-ftpd &>/dev/null; then
-          echo "Setting up cert for FTP server..."
+          echo "Setting up certificate for FTP server..."
           cat ${key} ${cert} ${cacert} >/etc/pure-ftpd.pem
           chmod -v 600 /etc/pure-ftpd.pem
           chown -v root:root /etc/pure-ftpd.pem
-
           if ${da_bin} c | grep -m1 -q "^pureftp=1\$"; then
             echo "action=pure-ftpd&value=restart" >>${task_queue}
           else
@@ -15698,9 +15708,32 @@ configure_maxibox() {
 
 # TODO this is rclone installation
 configure_rclone() {
-  :
-  curl https://rclone.org/install.sh | sudo bash
+  local run_mode func_name
+  run_mode="$1"
+  extra_option="$2"
+  func_name="${FUNCNAME[0]}"
+  if [[ "${extra_option}" == "--silent-if-executed" ]]; then
+    start_execute_options "${run_mode}" "${func_name}" &>/dev/null
+  else
+    start_execute_options "${run_mode}" "${func_name}"
+  fi
+  [[ "${SKIP_RUN}" == "true" ]] && return 0
+  if [[ ! -f "${CONF_PATH}/${func_name}_executed" && "${FUNCTION_RUN}" == "true" ]]; then
 
+    curl https://rclone.org/install.sh | sudo bash
+
+    echo ""
+    check_finish_reboot "${func_name}"
+  else
+    _echo "$(msg yellow)[Skipped by system]: $(msg magenta)${func_name}$(msg end) $(msg yellow)with current option ${run_mode} has ran before $(msg end)" --name
+    _echo "$(msg yellow)=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=$(msg end)" --plain
+  fi
+
+  if [[ "${extra_option}" == "--silent-if-executed" ]]; then
+    end_execute_options "${run_mode}" "${func_name}" &>/dev/null
+  else
+    end_execute_options "${run_mode}" "${func_name}"
+  fi
 }
 
 # This is the pre-requisite components or packages for all maxicode binary
@@ -17211,7 +17244,28 @@ configure_logs() {
   fi
   [[ "${SKIP_RUN}" == "true" ]] && return 0
   if [[ ! -f "${CONF_PATH}/${func_name}_executed" && "${FUNCTION_RUN}" == "true" ]]; then
-    :
+    local grep_count
+
+    # The server will be filled with such non intrusive log from /var/log/auth.log:
+    # CRON: pam_unix(cron:session): session opened for user root by (uid=0)
+    # CRON: pam_unix(cron:session): session closed for user root
+    # This will disable the PAM log for user session:
+    _echo "$(msg cyan)Disabling PAM log for user session at /etc/pam.d/common-session-noninteractive ...$(msg end)" --name
+    check_path "/etc/pam.d/common-session-noninteractive"
+    echo ""
+    _echo "$(msg cyan)Checking for existing entry ...$(msg end)" --name
+    grep_count=$(grep -ic '^session.*.[success=1 default=ignore].*.pam_succeed_if.so.*.service.*.in.*.cron.*.quiet.*.use_uid' "/etc/pam.d/common-session-noninteractive")
+    if [ "${grep_count}" -gt 0 ]; then
+      _echo "$(msg green)OK, existing entry found$(msg end)" --name
+    else
+      # This will add a new entry before session required pam_unix.so
+      _echo "$(msg cyan)Notice, existing entry does not exist. Adding new entry ...$(msg end)" --name
+      sed -i 's/^session.*.required.*.pam_unix\.so/session [success=1 default=ignore] pam_succeed_if.so service in cron quiet use_uid\n&/' /etc/pam.d/common-session-noninteractive
+      get_status_message "$?"
+      echo ""
+      _echo "$(msg cyan)Restarting system cron ...$(msg end)" --name
+      service cron restart
+    fi
 
     echo ""
     check_finish_reboot "${func_name}"
@@ -18109,7 +18163,7 @@ configure_da_user_accounts() {
           echo "${da_domains[*]}"
           echo ""
           for da_domain in "${da_domains[@]}"; do
-            _echo "$(msg cyan) Writing all DNS record for domain ${da_domain} to external DNS ...$(msg end)" --name
+            _echo "$(msg cyan)Writing all DNS record for domain ${da_domain} to external DNS ...$(msg end)" --name
             copy_local_dns_to_external_dns "${da_domain}"
             echo ""
           done
@@ -19512,24 +19566,41 @@ setup() {
       sleep 5
     fi
     # Remove all setup information except CONF_PATH because CONF_PATH and CODE_PATH
-
+    echo ""
     _echo "$(msg cyan)Cleaning installation log files$(msg end)" --name
-    rm -rf "${LOG_PATH}"
     # CONF_PATH contains setup step information
     #rm -rf "${CONF_PATH}"
     rm -rf "${DATA_PATH}"
-    # CODE_PATH contains autogenerated file/script ending with _ag.extension
-    #rm -rf "${CODE_PATH}"
+    # CODE_PATH contains autogenerated file/script ending with _ag.extension (but can be removed if triggering setup)
+    rm -rf "${CODE_PATH}"
     rm -rf "${TEMP_PATH}"
     rm -rf "${INST_TEMP_DIR}"
+    rm -rf "${SECURE_PATH}"
+    rm -rf "${STORAGE_PATH}"
+    rm -rf "${ISO_PATH}"
+    rm -rf "${SSL_PATH}"
+    rm -rf "${DOWNLOAD_PATH}"
+    # extra remove temp files in root folders
+    rm -rf "/root/admin_backups"
+    rm -rf "/root/gpg"
+    rm -f "/root/maxinet.log"
+    rm -f "/root/readme.txt"
+    rm -f "/root/os_initialize.sh"
+    rm -f "/root/execution_env"
+    rm -f "/root/user_${C_SSH_USERNAME}_${C_BOX_HOSTNAME_FQHN}.id_rsa.pub"
+    echo ""
     # Clear bash history
     _echo "$(msg cyan)Cleaning bash history$(msg end)" --name
     history -c
     get_status_message "$?"
-    echo "# DONE !"
+    echo ""
+    _echo "$(msg cyan)Destroying main script at ${SCRIPT_PATH}/${SCRIPT_NAME} ...$(msg end)" --name
+    rm -f "${SCRIPT_PATH}/${SCRIPT_NAME}"
+    echo "######### DONE ! #########"
   fi
-
+  return 0
 }
+
 temp1() {
   :
 }

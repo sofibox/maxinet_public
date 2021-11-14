@@ -341,7 +341,7 @@ C_DA_ENABLE_HOSTNAME_SSL_RESTORE=false
 # That means if this is set to true, it will replace the backup SSL certificate (do not enable this without reason)
 C_DA_ENABLE_USER_DOMAIN_SSL_RESTORE=false
 
-# C_DA_ENABLE_ZEROSSL_CERTIFICATE is used to enable zerossl cerficate for website which has more rate limit for big hosting.
+# C_DA_ENABLE_ZEROSSL_CERTIFICATE is used to enable zerossl certificate for website which has more rate limit for big hosting.
 # This is a new test feature in directadmin
 # I have many dedicated servers so using letsencryppt is not enough for customers
 # If you don't want to use zerossl put this variable to false
@@ -469,7 +469,7 @@ C_DA_SHOW_INFO_IN_TITLE=0
 # This will sync restore
 C_DA_TALLY_AFTER_RESTORE=2
 
-# This setting is for AUTO SSL (This is commented because C_DA_DISABLE_DOMAIN_AUTO_SSL will determine the value for this)
+# This setting is for AUTO SSL (This is commented because C_DA_ENABLE_DOMAIN_AUTO_SSL will determine the value for this)
 # C_DA_ADMIN_SSL_CHECK_RETRIES=1
 
 # This will make imap backup faster: https://www.directadmin.com/features.php?id=1834
@@ -481,7 +481,7 @@ C_DA_JAIL=2
 # This will enable checkbox for list of subdomain to request SSL certificate
 C_DA_LETSENCRYPT_LIST="www:mail:ftp:pop:smtp"
 
-# THis will check the checkbox automatically for list of subdomains to request SSL certificate
+# This will check the checkbox automatically for list of subdomains to request SSL certificate
 C_DA_LETSENCRYPT_LIST_SELECTED="www:mail:ftp:pop:smtp"
 
 # This will send notification if renew success
@@ -508,7 +508,7 @@ C_DA_CB_SQL_VERSION="mariadb-10.6"
 # php7.3:php-fpm means php version 7.3 with FPM mode
 # the first order is the first PHP version (also used by directadmin system). Max is 4, extra argument will be ignored
 C_DA_CB_PHP_VERSION="8.0:php-fpm,7.4:php-fpm"
-# This for installing
+# This for installing clamav
 C_DA_CB_INSTALL_CLAMAV="yes"
 # Put "latest" to install the latest version
 # or specify version number if the latest version has problem
