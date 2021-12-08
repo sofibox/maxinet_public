@@ -240,10 +240,13 @@ C_DA_ENABLE_PRE_INSTALL_TEMP_FIX=false
 C_DA_AUTO_SELECT_API_PROTOCOL=true
 
 # Note: Latest directadmin recommends to use auto switch for installation (the staff said it will give latest packages)
+# IMPORTANT ** NEW: The setup.sh has been updated to not accept interactive installation anymore! (but might be temporary)
+# New version will be released as mentioned here: https://forum.directadmin.com/threads/license-key-hashes-new-method-for-installs-setup-sh-and-getlicense-sh.65099/#post-339425
+# So the option 3 here does not work any more at this moment
 # C_DA_INSTALL_TYPE: is used to specify directadmin installation type. Currently it has 4 types:
 # 1) custom = use your own setting during DA installation (provide options.conf and php_extensions.conf),
 # 2) ori = let DA decide what to install default things providing some details using auto
-# 3) interactive = ask question what to install (require input from user)
+# 3) interactive = ask question what to install (require input from user) - Note this value does not work at this moment
 # 4) auto = Automated everything by directadmin as default packages (include CSF installation)
 # 5) auto-option= Install directadmin using automatic mode and during installation use options.conf based on config files
 # 6) auto-custom= Install directadmin using automatic mode when completed customize packages based on config file
@@ -260,6 +263,10 @@ C_DA_CLIENT_ID="12345"
 # C_DA_LICENSE_ID:
 # This is the directadmin license ID obtained in the directadmin client area
 C_DA_LICENSE_ID="123456"
+
+# C_DA_LICENSE_KEY:
+# This is the directadmin license KEY and should be used for installation
+C_DA_LICENSE_KEY="*+awwwsdsdswwJwHwddAISswyHsCS9sBw="
 
 # C_DA_PORT:
 # This is the directadmin port. You should change this port to reduce bruteforce attack
@@ -330,7 +337,7 @@ C_DA_ENABLE_DOMAIN_AUTO_SSL=false
 C_ENABLE_DA_HOST_SSL=true
 
 # This will restore the SSL certificate for hostname without requesting new
-# Only enable this, if you reached the hostname SSL request
+# Only enable this, if you reached the hostname SSL limit request
 # By default should be disable
 C_DA_ENABLE_HOSTNAME_SSL_RESTORE=false
 
@@ -430,7 +437,7 @@ C_DA_BRUTE_FORCE_SCAN_APACHE_LOGS=2
 C_DA_BRUTE_DOS_COUNT=100
 C_DA_CHECK_PARTITIONS=2
 C_DA_PARTITION_USAGE_THRESHOLD=95
-# 1 = tar.gz, 0 = .tar, 2 = .zstd (default is zstd)
+# 0 = .tar, 1 = tar.gz, 2 = .zstd (default is zstd)
 C_DA_BACKUP_GZIP=2
 C_DA_DEMODOCSROOT="./data/skins/evolution"
 C_DA_LOST_PASSWORD=0
@@ -504,7 +511,7 @@ C_DA_CB_MODSECURITY_RULESET="comodo"
 # Format <sql_type>-<sql_version>
 # or mysql-8.0
 C_DA_CB_SQL_VERSION="mariadb-10.6"
-# Format <7.3:php-fpm,74:php-fpm,8.0:php-fpm>
+# Format <7.3:php-fpm,7.4:php-fpm,8.0:php-fpm>
 # php7.3:php-fpm means php version 7.3 with FPM mode
 # the first order is the first PHP version (also used by directadmin system). Max is 4, extra argument will be ignored
 C_DA_CB_PHP_VERSION="8.0:php-fpm,7.4:php-fpm"
@@ -522,6 +529,8 @@ C_DA_CB_INSTALL_SANDBOX="yes"
 # This will use the mirror (files.directadmin.com should be the first to use)
 # or set fastest for the server to select faster server (might not get latest build)
 C_DA_CB_DOWNLOADSERVER=files.directadmin.com
+# Option to make proftpd password unified (enabled by default)
+C_DA_UNIFIED_FTP_PASSWORD_FILE=1
 #---- End custombuild options.conf settings ----
 #-----------------------------------------------
 
@@ -601,7 +610,9 @@ C_DA_RESELLER_PACKAGE_NAME1="RESELLER_UNLIMITED"
 # Create user domain here, can declare multiple domains here. The first domain in array is the default domain
 # This variable required at least one domain (subdomain is optional)
 # You can add unlimited subdomain with format: <rootdomain>:<subdomain1.subdomain2>,<anothersubdomain>, ...
-# eg: C_DA_RESELLER_DOMAIN[N]=("maxibi.com:sales,login" "hacker32.com:secure,download,file" "arafatx.com")
+# eg: C_DA_RESELLER_DOMAIN[N]=("maxibi.com:sales,login" "hacker32.com:secure,download,file" "arafatx.com")C_DA_RESELLER_DOMAIN1=("sofibox.com:sales,login,secure,svn,api,help,dashboard")
+# Put wildcard record for this domain. To disable just let this variable empty with ""
+# Format <domain.com>:<anotherdomain.com>:<anotheronedomain.com>: ...
 C_DA_RESELLER_DOMAIN1=("masternom.com" "sofinang.com")
 # Put wildcard record for this domain. To disable just let this variable empty with ""
 # Format <domain.com>:<anotherdomain.com>:<anotheronedomain.com>: ...

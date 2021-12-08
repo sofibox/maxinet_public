@@ -4,7 +4,7 @@
 
 _APP_SPECIFIC_NAME="Maxinet"
 # Note that some minor versions are not published
-_APP_VERSION="0.7.9"
+_APP_VERSION="0.8.0"
 _APP_STATUS="alpha"
 _APP_VERSION_STATUS="${_APP_VERSION}-${_APP_STATUS}"
 
@@ -12,6 +12,7 @@ _APP_VERSION_STATUS="${_APP_VERSION}-${_APP_STATUS}"
 # TODO configure cloudflare IP in CSF
 # TODO reconfigure DA redis
 # TODO note for new domain of users to have custom .html edit this :/home/reseller_username/domains/default/index.html
+# TODO check log for proftpd
 ### END TEMPORARY NOTE
 
 # This is a personal project that I wrote for server automation to reduce server configuration time.
@@ -1444,7 +1445,7 @@ init_server() {
   done
 
   _confirm "Warning, this command will wipe the entire server if --rebuild-partition is supplied! Continue? [Y/y] or Cancel [CTRL +C]:"
-    echo ""
+  echo ""
   _echo "$(msg cyan)Initializing a new server for ${LABEL_C_BOX_HOSTNAME_FQHN} ...$(msg end)" --name
 
   echo "Server Physical Information:"
@@ -1619,7 +1620,6 @@ init_server() {
       done
     fi
 
-    # TODO testing this!!! previous test it did not create backup file
     _echo "$(msg cyan)Copying all setup files into server ... $(msg end)" --name
     local file_to_transfer remote_path_to_receive
 
@@ -10555,11 +10555,9 @@ install_da_pre() {
       _echo "$(msg cyan)Writing new custombuild custom options.conf into /usr/local/directadmin/custombuild/options.conf (as a placeholder) ...$(msg end)" --name
 
       {
-        echo "# Note on PHP setting: At this moment if using php2 as 8.0 and php1 as 7.4 fixed roundcube issue."
-        echo "# Should not use php 8.0 as main it contains bug"
         echo "php1_release=7.4"
         echo "php1_mode=php-fpm"
-        echo "php2_release=8.0"
+        echo "php2_release=no"
         echo "php2_mode=php-fpm"
         echo "php3_release=no"
         echo "php3_mode=php-fpm"
@@ -10788,6 +10786,12 @@ install_da_pre() {
         echo ""
       fi
 
+      # Switch FTP version here
+      echo ""
+      _echo "$(msg cyan)Changing the value ftpd= into ftpd=${C_DA_CB_FTP_SOFTWARE} from options.conf ...$(msg end)" --name
+      sed -i "s|^ftpd=.*|ftpd=${C_DA_CB_FTP_SOFTWARE}|" /usr/local/directadmin/custombuild/options.conf
+      echo ""
+
     elif
       [[ "${C_DA_INSTALL_TYPE}" == "ori" || "${C_DA_INSTALL_TYPE}" == "original" ]]
     then
@@ -10871,27 +10875,35 @@ install_da() {
     ensure_domain_server_resolved
     ensure_fqhn_server_resolved
     echo ""
+
     _echo "$(msg cyan)Note: Directadmin ${da_latest_version} will be installed on ${LABEL_C_BOX_HOSTNAME_FQHN} using ${C_DA_INSTALL_TYPE} mode$(msg end)"
     echo ""
     if [[ "${C_DA_INSTALL_TYPE}" == "custom" || "${C_DA_INSTALL_TYPE}" == "original" ]]; then
       # If provided options.conf, it means we use custom else we use original
       (
-        _echo "$(msg cyan)Changing download channel to ${C_DA_VERSION_CHANNEL} ...$(msg end)"
-        sed -i "s|^DOWNLOAD_CHANNEL=\".*\"|DOWNLOAD_CHANNEL=\"${C_DA_VERSION_CHANNEL}\"|" setup.sh
-        ./setup.sh "${C_DA_CLIENT_ID}" "${C_DA_LICENSE_ID}" "${C_BOX_HOSTNAME_FQHN}" "${C_NIC_INTERFACE_NAME}" "${C_IPV4_ADD0}" &>"${da_install_log}"
+        # _echo "$(msg cyan)Changing download channel to ${C_DA_VERSION_CHANNEL} ...$(msg end)"
+        # sed -i "s|^DOWNLOAD_CHANNEL=\".*\"|DOWNLOAD_CHANNEL=\"${C_DA_VERSION_CHANNEL}\"|" setup.sh
+        #./setup.sh "${C_DA_CLIENT_ID}" "${C_DA_LICENSE_ID}" "${C_BOX_HOSTNAME_FQHN}" "${C_NIC_INTERFACE_NAME}" "${C_IPV4_ADD0}" &>"${da_install_log}"
+        # Update new way to setup:
+        DA_CHANNEL="${C_DA_VERSION_CHANNEL}" DA_EMAIL="${C_DA_OWNER_SYSTEM_EMAIL1}" DA_HOSTNAME="${C_BOX_HOSTNAME_FQHN}" DA_NS1="${C_BOX_NS1}" DA_NS2="${C_BOX_NS2}" DA_SKIP_CSF=true ./setup.sh "${C_DA_LICENSE_KEY}" &>"${da_install_log}"
         exit $?
       ) &
       my_pid=$!
+      # Deprecated
     elif [[ "${C_DA_INSTALL_TYPE}" == "interactive" ]]; then
+      echo "The option interactive does not work with the newest setup.sh. Exiting"
+      _exit 147
       # This will ask questions (so do not put in background)
-      bash <(curl -Ss https://www.directadmin.com/setup.sh) | tee -a "${da_install_log}"
-      retval=$?
-      echo ""
-      _echo "Installation return code is ${retval}" --verbose 7
+      #bash <(curl -Ss https://www.directadmin.com/setup.sh) | tee -a "${da_install_log}"
+      #retval=$?
+      #echo ""
+      #_echo "Installation return code is ${retval}" --verbose 7
     elif [[ "${C_DA_INSTALL_TYPE}" == "automatic" || "${C_DA_INSTALL_TYPE}" == "auto" ]]; then
       # This will not ask question and everything will be installed as default including CSF
       (
-        ./setup.sh auto ${C_DA_VERSION_CHANNEL} &>"${da_install_log}"
+        # ./setup.sh auto ${C_DA_VERSION_CHANNEL} &>"${da_install_log}"
+        # Note it seems like we need to supply email argument else it doesn't work (support team told that)
+        DA_CHANNEL="${C_DA_VERSION_CHANNEL}" DA_HOSTNAME="${C_BOX_HOSTNAME_FQHN}" DA_EMAIL="${C_DA_OWNER_SYSTEM_EMAIL1}" ./setup.sh auto &>"${da_install_log}"
         # bash <(curl -Ss https://www.directadmin.com/setup.sh) auto &>"${da_install_log}"
         exit $?
       ) &
@@ -10900,7 +10912,7 @@ install_da() {
       (
         # TODO include options.conf or use export setting before installing
         # https://forum.directadmin.com/threads/da-1-63-1-after-a-new-da-installation-with-auto-mode-apache-is-not-running-httpd-syntax-error-on-line-222-of-etc-httpd-conf-httpd-conf.64921/post-338076
-        ./setup.sh auto ${C_DA_VERSION_CHANNEL} &>"${da_install_log}"
+        DA_CHANNEL="${C_DA_VERSION_CHANNEL}" DA_HOSTNAME="${C_BOX_HOSTNAME_FQHN}" DA_EMAIL="${C_DA_OWNER_SYSTEM_EMAIL1}" ./setup.sh auto &>"${da_install_log}"
         # bash <(curl -Ss https://www.directadmin.com/setup.sh) auto &>"${da_install_log}"
 
         exit $?
@@ -10908,7 +10920,8 @@ install_da() {
       my_pid=$!
     elif [[ "${C_DA_INSTALL_TYPE}" == "automatic-custom" || "${C_DA_INSTALL_TYPE}" == "auto-custom" ]]; then
       (
-        ./setup.sh auto ${C_DA_VERSION_CHANNEL} &>"${da_install_log}"
+        #./setup.sh auto ${C_DA_VERSION_CHANNEL} &>"${da_install_log}"
+        DA_CHANNEL="${C_DA_VERSION_CHANNEL}" DA_HOSTNAME="${C_BOX_HOSTNAME_FQHN}" DA_EMAIL="${C_DA_OWNER_SYSTEM_EMAIL1}" ./setup.sh auto &>"${da_install_log}"
         # TODO after install using automatic-custom, we rebuild or add packages based on config file
         # bash <(curl -Ss https://www.directadmin.com/setup.sh) auto &>"${da_install_log}"
         exit $?
@@ -12933,17 +12946,176 @@ configure_da_ftp() {
   fi
   [[ "${SKIP_RUN}" == "true" ]] && return 0
   if [[ ! -f "${CONF_PATH}/${func_name}_executed" && "${FUNCTION_RUN}" == "true" ]]; then
+
+    local da_bin da_cb_bin da_cb_custom_conf_path
+
+    da_bin="/usr/local/directadmin/directadmin"
+    da_cb_bin="/usr/local/directadmin/custombuild/build"
+
+    da_cb_custom_conf_path="/usr/local/directadmin/custombuild/custom"
+
+    mkdir -p "${da_cb_custom_conf_path}"
+
+    _echo "$(msg cyan)Checking required paths ...$(msg end)" --name
+    check_path "${da_bin}" "${da_cb_bin}" "${da_cb_custom_conf_path}"
+    echo ""
+
     if [ "${C_DA_CB_FTP_SOFTWARE}" == "pureftpd" ]; then
       local grep_count
-      _echo "$(msg cyan)Setting up pure-ftpd to use log at /var/log/pureftpd.log ...$(msg end)" --name
-      grep_count=$(grep -ic '\-\/var\/log\/pureftpd\.log' /etc/rsyslog.conf)
+      _echo "$(msg cyan)Setting up /etc/rsyslog.conf to use pure-ftpd log at /var/log/pureftpd.log ...$(msg end)" --name
+      grep_count=$(grep -ic '\/var\/log\/pureftpd\.log' /etc/rsyslog.conf)
       if [ "${grep_count}" -eq 0 ]; then
-        printf "ftp.*\t\t\t\t-/var/log/pureftpd.log\n" >>/etc/rsyslog.conf
+        printf "ftp.*\t\t\t\t/var/log/pureftpd.log\n" >>/etc/rsyslog.conf
       else
-        _echo "$(msg yellow)[Skipped]: Found ftp log entry '-/var/log/pureftpd.log' at /etc/ryslog.conf$(msg end)" --name
+        _echo "$(msg yellow)[Skipped]: Found ftp log entry '/var/log/pureftpd.log' at /etc/ryslog.conf$(msg end)" --name
       fi
+      echo ""
+      _echo "$(msg cyan)Changing brute_force_messages_log value to /var/log/pureftpd.log in directadmin.conf ...$(msg end)" --name
+      ${da_bin} set brute_force_messages_log /var/log/pureftpd.log restart
+      echo ""
+      _echo "$(msg cyan)Changing FTPD_LOG value to /var/log/pureftpd.log in csf.conf ...$(msg end)" --name
+      check_path "/etc/csf/csf.conf"
+      sed -i "s/FTPD_LOG = .*/FTPD_LOG = \"\/var\/log\/pureftpd.log\"/" /etc/csf/csf.conf
+      get_status_message "$?"
+      echo ""
+      _echo "$(msg cyan)Restarting CSF and LFD ...$(msg end)" --name
+      csf -ra >/dev/null
     elif [ "${C_DA_CB_FTP_SOFTWARE}" == "proftpd" ]; then
-      _echo "$(msg yellow)[Skipped]: FTP software proftpd configuration is not yet implemented$(msg end)" --name
+      # Note the unified ftp password config has been previously set (this is required)
+      _echo "$(msg yellow)Enabling SFTP for proftpd ...$(msg end)" --name
+      echo ""
+      _echo "$(msg cyan)Creating custom directory for proftpd to hold custom config files ...$(msg end)" --name
+      mkdir -p "/usr/local/directadmin/custombuild/custom/proftpd/conf"
+      echo ""
+      _echo "$(msg cyan)Downloading proftpd build configuration file ...$(msg end)" --name
+      wget -O "/usr/local/directadmin/custombuild/custom/proftpd/configure.proftpd" http://files.directadmin.com/services/all/sftp/configure.proftpd.sftp
+      echo ""
+      _echo "$(msg cyan)Fixing permission for configure.proftpd ...$(msg end)" --name
+      chmod -v 755 "/usr/local/directadmin/custombuild/custom/proftpd/configure.proftpd"
+      echo ""
+      _echo "$(msg cyan)Downloading proftpd config template file ...$(msg end)" --name
+      wget -O "/usr/local/directadmin/custombuild/custom/proftpd/conf/proftpd.conf" http://files.directadmin.com/services/all/sftp/proftpd.conf
+      echo ""
+      _echo "$(msg cyan)Downloading proftpd.sftp.conf file into /etc/proftpd.sftp.conf ...$(msg end)" --name
+      wget -O /etc/proftpd.sftp.conf http://files.directadmin.com/services/all/sftp/proftpd.sftp.conf
+      echo ""
+
+      _echo "$(msg cyan)Creating proftpd SSH folder ...$(msg end)" --name
+      mkdir -p /etc/proftpd/ssh
+      echo ""
+
+      _echo "$(msg cyan)Copying SSH key from /etc/ssh/ssh_host_rsa_key* into /etc/proftpd/ssh/* ...$(msg end)" --name
+      cp /etc/ssh/ssh_host_rsa_key* /etc/proftpd/ssh
+      echo ""
+      _echo "$(msg cyan)Fixing permission /etc/proftpd/ssh/ssh_host_rsa_key ...$(msg end)" --name
+      chmod -v 400 /etc/proftpd/ssh/ssh_host_rsa_key
+      echo ""
+      _echo "$(msg cyan)Backing up file /etc/proftpd.sftp.conf into /etc/proftpd.sftp.conf_original ...$(msg end)" --name
+      cp /etc/proftpd.sftp.conf /etc/proftpd.sftp.conf_original
+      echo ""
+      _echo "$(msg cyan)Changing proftpd SSH key location for /etc/proftpd.sftp.conf ...$(msg end)" --name
+      sed -i 's|^SFTPHostKey .*|SFTPHostKey \/etc\/proftpd\/ssh\/ssh_host_rsa_key|' /etc/proftpd.sftp.conf
+      echo ""
+      _echo "$(msg cyan)Writing proftpd template file for new installer ...$(msg end)" --name
+      # TODO always check chiper for latest. This template is based on http://files.directadmin.com/services/all/sftp/proftpd.conf
+      {
+        echo "ServerName		\"ProFTPd\""
+        echo "ServerType          	standalone"
+        echo ""
+        echo "Port                    0"
+        echo "<VirtualHost 0.0.0.0>"
+        echo "        Port 0 # Add port to 0 here to prevent unencrypted FTP connection"
+        echo "	AuthUserFile	/etc/proftpd.passwd"
+        echo "</VirtualHost>"
+        echo ""
+        echo "PassivePorts		35000 35999"
+        echo "UseReverseDNS		off"
+        echo "TimesGMT		off"
+        echo "TimeoutLogin		120"
+        echo "TimeoutIdle		600"
+        echo "TimeoutNoTransfer	900"
+        echo "TimeoutStalled		3600"
+        echo ""
+        echo "ScoreboardFile  /var/run/proftpd/proftpd.scoreboard"
+        echo "PidFile			/var/run/proftpd/proftpd.pid"
+        echo ""
+        echo "TransferLog		/var/log/proftpd/xferlog.legacy"
+        echo "LogFormat		default \"%h %l %u %t \"%r\" %s %b\""
+        echo "LogFormat		auth    \"%v [%P] %h %t \"%r\" %s\""
+        echo "LogFormat		write   \"%h %l %u %t \"%r\" %s %b\""
+        echo ""
+        echo "#DON'T modify this log format.  Its used by DirectAdmin to determine user usage"
+        echo "LogFormat		userlog \"%u %b %m %a\""
+        echo "ExtendedLog		/var/log/proftpd/|SERVER_IP|.bytes WRITE,READ userlog"
+        echo ""
+        echo "AuthUserFile                    /etc/proftpd.passwd"
+        echo "DefaultServer		on"
+        echo "AuthOrder mod_auth_file.c"
+        echo ""
+        echo "#AuthPAM off"
+        echo ""
+        echo "<IfModule mod_tls.c>"
+        echo "	TLSEngine on"
+        echo "  TLSRequired on #Add this to force encryption for FTPS"
+        echo "  Port 21"
+        echo "  TLSOptions NoSessionReuseRequired #This is option is used to fix some clients that does not list out files in FTP"
+        echo "	TLSLog /var/log/proftpd/proftpd.tls.log"
+        echo "        TLSProtocol ALL -TLSv1 -TLSv1.1"
+        echo "        TLSCipherSuite ECDHE-ECDSA-AES128-GCM-SHA256:ECDHE-RSA-AES128-GCM-SHA256:ECDHE-ECDSA-AES256-GCM-SHA384:ECDHE-RSA-AES256-GCM-SHA384:ECDHE-ECDSA-CHACHA20-POLY1305:ECDHE-RSA-CHACHA20-POLY1305:DHE-RSA-AES128-GCM-SHA256:DHE-RSA-AES256-GCM-SHA384"
+        echo "        TLSVerifyClient off"
+        echo "	#Certificates"
+        echo "	TLSRSACertificateFile /etc/exim.cert"
+        echo "	TLSRSACertificateKeyFile /etc/exim.key"
+        echo "	#TLSCACertificateFile /etc/ftpd/root.cert.pem"
+        echo ""
+        echo "	TLSCipherSuite HIGH:MEDIUM:+TLSv1:!SSLv2:+SSLv3"
+        echo "</IfModule>"
+        echo ""
+        echo "<Global>"
+        echo "	PassivePorts            35000 35999"
+        echo "	DeferWelcome		on"
+        echo ""
+        echo "	RequireValidShell	no"
+        echo ""
+        echo "	DefaultRoot		~"
+        echo "	DirFakeUser on ftp"
+        echo "	DirFakeGroup on ftp"
+        echo ""
+        echo "	User			ftp"
+        echo "	Group			ftp"
+        echo "	#UserAlias		anonymous ftp"
+        echo ""
+        echo "	AllowStoreRestart	on"
+        echo "	AllowRetrieveRestart	on"
+        echo ""
+        echo "	ListOptions		-a"
+        echo ""
+        echo "	Umask			022"
+        echo "	DisplayLogin		welcome.msg"
+        echo "	DisplayChdir		readme"
+        echo "	AllowOverwrite		yes"
+        echo "	ExtendedLog		/var/log/proftpd/access.log WRITE,READ write"
+        echo "	ExtendedLog		/var/log/proftpd/auth.log AUTH auth"
+        echo ""
+        echo "	#"
+        echo "	# Paranoia logging level...."
+        echo "	#"
+        echo "	#ExtendedLog    /var/log/proftpd/paranoid.log ALL default"
+        echo ""
+        echo "	<IfModule mod_tls.c>"
+        echo "		TLSEngine on"
+        echo "		TLSLog /var/log/proftpd/proftpd.tls.log"
+        echo "		TLSRSACertificateFile /etc/exim.cert"
+        echo "		TLSRSACertificateKeyFile /etc/exim.key"
+        echo "	</IfModule>"
+        echo "</Global>"
+        echo ""
+        echo "Include /etc/proftpd.sftp.conf"
+      } >/usr/local/directadmin/custombuild/custom/proftpd/conf/proftpd.conf
+      echo ""
+      _echo "$(msg cyan)Rebuilding proftpd using new config ...$(msg end)" --name
+      "${da_cb_bin}" proftpd
+      echo ""
     else
       _echo "$(msg yellow)[Skipped]: FTP software ${C_DA_CB_FTP_SOFTWARE} configuration is not yet implemented$(msg end)" --name
     fi
@@ -13516,6 +13688,8 @@ configure_da_settings() {
     ${da_bin} set letsencrypt_list "${C_DA_LETSENCRYPT_LIST}"
     ${da_bin} set letsencrypt_list_selected "${C_DA_LETSENCRYPT_LIST_SELECTED}"
     ${da_bin} set letsencrypt_renewal_success_notice "${C_DA_LETSENCRYPT_RENEWAL_SUCCESS_NOTICE}"
+    # Option to set proftpd unified
+    ${da_bin} set unified_ftp_password_file "${C_DA_UNIFIED_FTP_PASSWORD_FILE}"
     echo ""
     # A lot of setting have been changed, now we need to restart directadmin
     _echo "$(msg cyan)Requesting directadmin to restart ...$(msg end)" --name
@@ -15424,7 +15598,7 @@ configure_da_host_domain_ssl() {
         echo ""
         #Apache
         if [ -d /etc/httpd/conf/ssl.key ] && [ -d /etc/httpd/conf/ssl.crt ]; then
-           echo "Setting up cert for apache ..."
+          echo "Setting up cert for apache ..."
           local apachekey apachecert apachecacert apachecertcombined httpd_action graceful
           apachekey="/etc/httpd/conf/ssl.key/server.key"
           apachecert="/etc/httpd/conf/ssl.crt/server.crt"
@@ -15454,7 +15628,7 @@ configure_da_host_domain_ssl() {
         echo ""
         #Nginx
         if [ -d /etc/nginx/ssl.key ] && [ -d /etc/nginx/ssl.crt ]; then
-           echo "Setting up cert for nginx ..."
+          echo "Setting up cert for nginx ..."
           local nginxkey nginxcert nginxcacert nginxcertcombined
           nginxkey="/etc/nginx/ssl.key/server.key"
           nginxcert="/etc/nginx/ssl.crt/server.crt"
@@ -15471,7 +15645,7 @@ configure_da_host_domain_ssl() {
         echo ""
         #OLS
         if [ -d /usr/local/lsws/ssl.key ] && [ -d /usr/local/lsws/ssl.crt ]; then
-           echo "Setting up cert for openlitespeed ..."
+          echo "Setting up cert for openlitespeed ..."
           local olskey olscer olscacert olscertcombined
           olskey="/usr/local/lsws/ssl.key/server.key"
           olscert="/usr/local/lsws/ssl.crt/server.crt"
@@ -19084,7 +19258,50 @@ configure_os_services() {
 
 }
 configure_services() {
-  :
+  local run_mode func_name
+  run_mode="$1"
+  extra_option="$2"
+  func_name="${FUNCNAME[0]}"
+  if [[ "${extra_option}" == "--silent-if-executed" ]]; then
+    start_execute_options "${run_mode}" "${func_name}" &>/dev/null
+  else
+    start_execute_options "${run_mode}" "${func_name}"
+  fi
+  [[ "${SKIP_RUN}" == "true" ]] && return 0
+  if [[ ! -f "${CONF_PATH}/${func_name}_executed" && "${FUNCTION_RUN}" == "true" ]]; then
+    local da_service_status service_names grep_find
+    da_service_status="/usr/local/directadmin/data/admin/services.status"
+    check_path "${da_service_status}"
+    # By using this method, we will receive notification if the service goes down
+    # Add service here, if it is turned off, it will be enabled.
+    service_names=("rsyslog" "csf" "suricata" "rspamd" "sshd" "mysqld")
+    _echo "$(msg cyan)Adding and enabling extra services: ${service_names} ...$(msg end)" --name
+    echo ""
+    for service_name in "${service_names[@]}"; do
+      _echo "$(msg cyan)Checking service status for ${service_name} ...$(msg end)" --name
+      grep_find=$(grep -m1 "^${service_name}=" ${da_service_status})
+      if [ -n "${grep_find}" ]; then
+        _echo "$(msg cyan)Turning on service ${service_name} ...$(msg end)" --name
+        sed -i "s|^${service_name}\=.*|${service_name}=ON|" ${da_service_status}
+      else
+        _echo "$(msg cyan)Adding new extra service ${service_name} ...$(msg end)" --name
+        echo "${service_name}=ON" >>${da_service_status}
+      fi
+      get_status_message "$?"
+      echo ""
+    done
+    echo ""
+    check_finish_reboot "${func_name}"
+  else
+    _echo "$(msg yellow)[Skipped by system]: $(msg magenta)${func_name}$(msg end) $(msg yellow)with current option ${run_mode} has ran before $(msg end)" --name
+    _echo "$(msg yellow)=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=$(msg end)" --plain
+  fi
+
+  if [[ "${extra_option}" == "--silent-if-executed" ]]; then
+    end_execute_options "${run_mode}" "${func_name}" &>/dev/null
+  else
+    end_execute_options "${run_mode}" "${func_name}"
+  fi
 }
 
 # This is used to get A+ rating for SSL and increase security
@@ -19229,6 +19446,7 @@ microphone=(), camera=(), magnetometer=(), gyroscope=(), payment=(), fullscreen=
           echo "Failed"
         fi
         echo ""
+
         first_domain=$(echo "${C_DA_RESELLER_DOMAIN1[0]}" | awk -F':' '{ print $1 }')
         _echo "$(msg cyan)Testing another header message for domain ${first_domain}...$(msg end)" --name
         curl -s -D- "https://${first_domain}" | grep -i Strict
@@ -19467,7 +19685,7 @@ setup() {
         configure_da_user_accounts --run
         configure_da_user_web_configs --skip # Put inside configure_Da_accounts TODO (skip first, because this need to be improved)
         # " -- others ---"
-        configure_da_user_domain_ssl --run # have not test restore
+        configure_da_user_domain_ssl --run
         configure_da_domain_security --run
         configure_da_custom_webs --skip # (Not really useful at the moment)
         configure_da_wpcli --run        # (this one just install wpcli, no need to configure template)
@@ -19717,24 +19935,34 @@ else
   EXECUTION_ENV="remote"
 fi
 
-if [[ "${C_USE_MULTI_LOG_FILE}" == "true" ]]; then
-  # set to use multiple log files with different random date. eg: maxinet-31-03-2020_11-56-16.12345-report.log
-  REPORT_FILE="${LOG_PATH}/${SCRIPT_NAME}-${DATE_TIME_RANDSTR}-report.log"
-else
-  # set to use one log file with only one name. eg: maxinet-report.log
-  REPORT_FILE="${LOG_PATH}/${SCRIPT_NAME}-report.log"
+CONFIG_TEST=""
+# for setting up multi servers:
+CONFIG_FILE="${SCRIPT_PATH}/${SCRIPT_NAME}.conf"
+#CONFIG_FILE="${SCRIPT_PATH}/maxinet_sun.sofibox.com.conf"
+#CONFIG_FILE="${SCRIPT_PATH}/maxinet_moon.sofibox.com.conf"
+
+if [ ! -f "${CONFIG_FILE}" ]; then
+  C_LOG_VERBOSITY_LEVEL="3"
+  _echo "$(msg red)Error, could not find config file ${CONFIG_FILE}$(msg end)" --name --verbose 3
+  _exit 147
 fi
 
-# TODO Logging start here with exec after the REPORT_FILE is created
-
-# This report path is for storing error report
-# REPORT_FILE_ERROR="${LOG_PATH}/${SCRIPT_NAME}-${DATE_TIME_RANDSTR}-error-report.log"
-
-CONFIG_FILE="${SCRIPT_PATH}/${SCRIPT_NAME}.conf"
-CONFIG_TEST=""
 # This will only allow sourcing one time
 if [ -z "${C_CONFIG_VERSION}" ]; then
   if [ -s "${CONFIG_FILE}" ]; then
+
+    if [[ "${C_USE_MULTI_LOG_FILE}" == "true" ]]; then
+      # set to use multiple log files with different random date. eg: maxinet-31-03-2020_11-56-16.12345-report.log
+      REPORT_FILE="${LOG_PATH}/${SCRIPT_NAME}-${DATE_TIME_RANDSTR}-report.log"
+    else
+      # set to use one log file with only one name. eg: maxinet-report.log
+      REPORT_FILE="${LOG_PATH}/${SCRIPT_NAME}-report.log"
+    fi
+
+    # TODO Logging start here with exec after the REPORT_FILE is created
+
+    # This report path is for storing error report
+    # REPORT_FILE_ERROR="${LOG_PATH}/${SCRIPT_NAME}-${DATE_TIME_RANDSTR}-error-report.log"
     # CONFIG file must follow this regex.
     # eg: 1) abc=2 #OK 2) abc= #NOT-OK 3) abc #NOT-OK 4) @ok=abc #NOT-OK 5) .ok=abc #NOT-OK 6) _ok=abc #OK
     # It will ignore white spaces, blank-lines and comments.

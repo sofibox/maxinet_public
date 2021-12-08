@@ -77,6 +77,7 @@ list of features (not all are listed right now):
 - Able to create secure private and public RSA key that compatible with putty for Windows
 - and more ...
 
+- Enable server SFTP, FTPS and disable unsecure FTP connection
 and more ..
 
 and more ..
