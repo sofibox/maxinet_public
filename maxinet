@@ -4,7 +4,7 @@
 
 _APP_SPECIFIC_NAME="Maxinet"
 # Note that some minor versions are not published
-_APP_VERSION="0.8.0"
+_APP_VERSION="0.8.1"
 _APP_STATUS="alpha"
 _APP_VERSION_STATUS="${_APP_VERSION}-${_APP_STATUS}"
 
@@ -12,6 +12,7 @@ _APP_VERSION_STATUS="${_APP_VERSION}-${_APP_STATUS}"
 # TODO configure cloudflare IP in CSF
 # TODO reconfigure DA redis
 # TODO note for new domain of users to have custom .html edit this :/home/reseller_username/domains/default/index.html
+# TODO switch to sftp using proftpd (working fine using this tutorial https://forum.directadmin.com/threads/how-to-set-up-your-proftpd-ftp-server-to-support-the-secure-protocols-while-disabling-insecure-ftp.65025/ and make sure to use port 23 as mentioned in doc)
 # TODO check log for proftpd
 ### END TEMPORARY NOTE
 
@@ -1034,30 +1035,126 @@ init_server_rebuild_partition() {
 }
 
 configure_dropbox_cli() {
-  # Public git:
-  rm -rf "${INST_TEMP_DIR}/dropbox_cli"
-  mkdir -p "${INST_TEMP_DIR}/dropbox_cli"
+  # Make sure this folder exist. This folder will put all available dropbox cli
+  mkdir -p "/opt/dropbox_cli/"
+
+  # Remove Dropbox-Uploader and dbxcli
+  rm -rf "/opt/dropbox_cli/Dropbox-Uploader"
+  rm -f /usr/local/bin/dbxcli
+  # Install Dropbox-Uploader:
   _echo "$(msg cyan)Installing new version of dropbox-CLI forked from andreafabrizi/Dropbox-Uploader ... $(msg end)" --name
   required "debian@@apt:git" "ubuntu@@apt:git"
-  git clone https://github.com/sofibox/Dropbox-Uploader.git "${INST_TEMP_DIR}/dropbox_cli"
-  mv "${INST_TEMP_DIR}/dropbox_cli/dropbox_uploader.sh" "${INST_TEMP_DIR}/dropbox_cli/dbxcli"
-  chmod +x "${INST_TEMP_DIR}/dropbox_cli/dbxcli"
-  cp "${INST_TEMP_DIR}/dropbox_cli/dbxcli" /usr/local/bin
-  touch "/root/.dropbox_uploader"
-  {
-    echo "CONFIGFILE_VERSION=${C_DROPBOX_CONFIGFILE_VERSION}"
-    echo "OAUTH_APP_KEY=${C_DROPBOX_OAUTH_APP_KEY}"
-    echo "OAUTH_APP_SECRET=${C_DROPBOX_OAUTH_APP_SECRET}"
-    echo "OAUTH_REFRESH_TOKEN=${C_DROPBOX_OAUTH_REFRESH_TOKEN}"
-  } >"/root/.dropbox_uploader"
+  # My version has fixed some code return values and codes were made more readable
+  git clone https://github.com/sofibox/Dropbox-Uploader "/opt/dropbox_cli/Dropbox-Uploader"
+  mv /opt/dropbox_cli/Dropbox-Uploader/dropbox_uploader.sh /opt/dropbox_cli/Dropbox-Uploader/dbxcli
+  chmod +x "/opt/dropbox_cli/Dropbox-Uploader/dbxcli"
+  ln -s "/opt/dropbox_cli/Dropbox-Uploader/dbxcli" /usr/local/bin
+
+  # Test the existing setting if not ok, we recreate manually
 
   if ! command -v dbxcli &>/dev/null; then
     _echo "$(msg red)Error, missing binary dbxcli. It should exist!$(msg end)" --name
     _exit 147
   else
+    # Create a new authentication for dropbox_uploader automatically based on config file
+
+    if ! [ -f "/root/.dropbox_uploader" ]; then
+      touch "/root/.dropbox_uploader"
+      {
+        echo "CONFIGFILE_VERSION=${C_DROPBOX_CONFIGFILE_VERSION}"
+        echo "OAUTH_APP_KEY=${C_DROPBOX_OAUTH_APP_KEY}"
+        echo "OAUTH_APP_SECRET=${C_DROPBOX_OAUTH_APP_SECRET}"
+        echo "OAUTH_REFRESH_TOKEN=${C_DROPBOX_OAUTH_REFRESH_TOKEN}"
+      } >"/root/.dropbox_uploader"
+    fi
+
+    echo "This is just a test" >/tmp/testfile_can_delete
+
+    echo "Test file uploading ...."
+    error_status=$(dbxcli upload /tmp/testfile_can_delete /files/testfile_can_delete)
+    retval=$?
+
+    if [ $retval -ne 0 ]; then
+      error_path=$(echo "${error_status}" | tail -n 1 | awk '{print $(NF)}' | sed 's/\.$//')
+      echo "Warning, there is an error while uploading a test file. If you want to reauthenticate dropbox, run dbxcli unlink in terminal!"
+      # since dbxcli is installed, we can run dbxcli
+      echo ""
+      echo ""
+      echo "========================="
+      if [ -f /tmp/du_resp_debug ]; then
+        cat "/tmp/du_resp_debug"
+      else
+        cat "${error_path}"
+      fi
+      echo "========================="
+      echo ""
+      # Do something or exit
+      exit $?
+
+    else
+      get_status_message "0"
+    fi
+
+    echo "Test file sharing ...."
+    error_status=$(dbxcli share /files/testfile_can_delete)
+    retval=$?
+
+    if [ $retval -ne 0 ]; then
+      error_path=$(echo "${error_status}" | tail -n 1 | awk '{print $(NF)}' | sed 's/\.$//')
+      echo "Warning, there is an error while sharing a test file. If you want to reauthenticate dropbox, run dbxcli unlink in terminal!"
+      # since dbxcli is installed, we can run dbxcli
+      echo ""
+      echo ""
+      echo "========================="
+      if [ -f /tmp/du_resp_debug ]; then
+        cat "/tmp/du_resp_debug"
+      else
+        cat "${error_path}"
+      fi
+      echo "========================="
+      echo ""
+      # Do something or exit
+      exit $?
+
+    else
+      get_status_message "0"
+    fi
+
+    echo "Test file deleting ...."
+    error_status=$(dbxcli delete /files/testfile_can_delete)
+    retval=$?
+
+    if [ $retval -ne 0 ]; then
+      error_path=$(echo "${error_status}" | tail -n 1 | awk '{print $(NF)}' | sed 's/\.$//')
+      echo "Warning, there is an error while deleting a test file. If you want to reauthenticate dropbox, run dbxcli unlink in terminal!"
+      # since dbxcli is installed, we can run dbxcli
+      echo ""
+      echo ""
+      echo "========================="
+      if [ -f /tmp/du_resp_debug ]; then
+        cat "/tmp/du_resp_debug"
+      else
+        cat "${error_path}"
+      fi
+      echo "========================="
+      echo ""
+      # Do something or exit
+      exit $?
+
+    else
+      get_status_message "0"
+    fi
+
+    echo "Removing test file ..."
+    rm -f "/tmp/testfile_can_delete"
+    echo ""
     dbxcli info
+    get_status_message $?
     echo ""
     dbxcli space
+    get_status_message $?
+    echo ""
+
   fi
 }
 
@@ -1444,7 +1541,11 @@ init_server() {
     esac
   done
 
-  _confirm "Warning, this command will wipe the entire server if --rebuild-partition is supplied! Continue? [Y/y] or Cancel [CTRL +C]:"
+  _confirm "Warning, this command will wipe the entire server because --rebuild-partition is supplied! Continue? [Y/y] or Cancel [CTRL +C]:"
+  echo ""
+  _echo "$(msg yellow)Updating local system ...$(msg end)" --name
+  apt-get -y update
+  apt-get -y upgrade
   echo ""
   _echo "$(msg cyan)Initializing a new server for ${LABEL_C_BOX_HOSTNAME_FQHN} ...$(msg end)" --name
 
@@ -1624,6 +1725,7 @@ init_server() {
     local file_to_transfer remote_path_to_receive
 
     # Main script to update
+    check_path "${SCRIPT_PATH}/maxinet" "${SCRIPT_PATH}/maxinet.conf" "${SCRIPT_PATH}/readme.txt"
     file_to_transfer="${SCRIPT_PATH}/maxinet ${SCRIPT_PATH}/maxinet.conf ${SCRIPT_PATH}/readme.txt"
     remote_path_to_receive="${HOME}/"
     ssh_api transfer-files --server-port "${C_BOX_HOSTNAME_FQHN}:${C_SSH_PORT}" --group-user "${C_ROOT_USERGROUP}:${C_ROOT_USERNAME}" --local-files "${file_to_transfer}" --remote-path "${remote_path_to_receive}"
@@ -3388,7 +3490,8 @@ exec_time() {
     return 1
   fi
 }
-
+# syntax:
+# check_path "path1" "path2" "path3"
 check_path() {
   local paths
   paths="$*"
@@ -3913,14 +4016,16 @@ create_file() {
   done
 }
 
-# This functions create ISO file, and upload into dropbox
+# This functions upload file into dropbox
 
 # --dropbox-api upload --source /mnt/file.txt --destination /files
 # --dropbox-api get-link --destination /files --filename /test/test.txt
 # Note filename will only get the basename as dropbox only require this name /test/test2/test.txt = test.txt
 # Use --scripting option to suppress message (useful for scripting)
 dropbox_api() {
-
+  # dropbox app need to be created manually first, and manually authenticated in a browser and the scope required are:
+  # files.metadata.write / read , files.content.write / read , sharing.write / read
+  # Make sure to fill in the dropbox API information
   local action options retval argnum scripting source destination filename file_direct_link
   action="$1"
   # For local use this
@@ -4372,7 +4477,7 @@ iso_api() {
           echo "DEFAULT Debian - Auto Installation"
           echo "# Console Prompt"
           echo "say **********************************************************************"
-          echo "say Sofibox Cloud Sdn Bhd."
+          echo "say Sofibox Cloud Hosting"
           echo "say TOSP, Cyberjaya Malaysia."
           echo "say sofibox.com, tosp.sofibox.com"
           echo "say OPERATING SYSTEM INSTALLER"
@@ -10876,22 +10981,26 @@ install_da() {
     ensure_fqhn_server_resolved
     echo ""
 
+    # Temporary fix this issue, the new installer does not allow chattr +i /etc/hosts to be enabled
+    echo "Allowing DA installer to modify /etc/hosts temporarily ..."
+    chattr -i /etc/hosts
+    # https://forum.directadmin.com/threads/prevent-directadmin-to-modify-etc-hosts-during-installation.67200/
+
     _echo "$(msg cyan)Note: Directadmin ${da_latest_version} will be installed on ${LABEL_C_BOX_HOSTNAME_FQHN} using ${C_DA_INSTALL_TYPE} mode$(msg end)"
     echo ""
     if [[ "${C_DA_INSTALL_TYPE}" == "custom" || "${C_DA_INSTALL_TYPE}" == "original" ]]; then
       # If provided options.conf, it means we use custom else we use original
       (
-        # _echo "$(msg cyan)Changing download channel to ${C_DA_VERSION_CHANNEL} ...$(msg end)"
-        # sed -i "s|^DOWNLOAD_CHANNEL=\".*\"|DOWNLOAD_CHANNEL=\"${C_DA_VERSION_CHANNEL}\"|" setup.sh
-        #./setup.sh "${C_DA_CLIENT_ID}" "${C_DA_LICENSE_ID}" "${C_BOX_HOSTNAME_FQHN}" "${C_NIC_INTERFACE_NAME}" "${C_IPV4_ADD0}" &>"${da_install_log}"
-        # Update new way to setup:
-        DA_CHANNEL="${C_DA_VERSION_CHANNEL}" DA_EMAIL="${C_DA_OWNER_SYSTEM_EMAIL1}" DA_HOSTNAME="${C_BOX_HOSTNAME_FQHN}" DA_NS1="${C_BOX_NS1}" DA_NS2="${C_BOX_NS2}" DA_SKIP_CSF=true ./setup.sh "${C_DA_LICENSE_KEY}" &>"${da_install_log}"
+        # Update new command to setup directadmin:
+        # This will show custombuild progress on the terminal after DA is installed (required and recommended to check error during installation)
+        DA_FOREGROUND_CUSTOMBUILD="yes" DA_CHANNEL="${C_DA_VERSION_CHANNEL}" DA_EMAIL="${C_DA_OWNER_SYSTEM_EMAIL1}" DA_HOSTNAME="${C_BOX_HOSTNAME_FQHN}" DA_NS1="${C_BOX_NS1}" DA_NS2="${C_BOX_NS2}" DA_SKIP_CSF=true ./setup.sh "${C_DA_LICENSE_KEY}" &>"${da_install_log}"
         exit $?
       ) &
+      ## This will obtain the installation return status
       my_pid=$!
-      # Deprecated
+      # Deprecated condition
     elif [[ "${C_DA_INSTALL_TYPE}" == "interactive" ]]; then
-      echo "The option interactive does not work with the newest setup.sh. Exiting"
+      echo "The option interactive does not work with the newest setup.sh. Exiting ..."
       _exit 147
       # This will ask questions (so do not put in background)
       #bash <(curl -Ss https://www.directadmin.com/setup.sh) | tee -a "${da_install_log}"
@@ -10931,13 +11040,13 @@ install_da() {
     fi
 
     if [ -n "${my_pid}" ]; then
-      _echo "$(msg cyan)Installing directadmin ${da_latest_version} [ PID: ${my_pid} ] for the $(get_ordinal ${INSTALL_COUNT}) time(s) ... $(msg end)" --name
+      _echo "$(msg cyan)Installing directadmin ${da_latest_version} [ PID: ${my_pid} ] for the $(get_ordinal "${INSTALL_COUNT}") time(s) ... $(msg end)" --name
       echo ""
       while ps | grep -q " $my_pid "; do
         local progress_text memory_usage_percentage
         ((count++))
         memory_usage_percentage="$(free -m | grep Mem | awk '{printf("%.2f" ,($3/$2)*100)}')"
-        progress_text="$(tail -n 1 ${da_install_log})"
+        progress_text="$(tail -n 1 "${da_install_log}")"
         _echo "$(msg yellow)Memory: ${memory_usage_percentage}% | Elapsed time: $(show_time "${count}") | ${progress_text:0:47} ... $(msg end)" --start-spin --progress-style=".oO@*"
         sleep 1
       done
@@ -10948,7 +11057,39 @@ install_da() {
     _echo "Installation return code is ${retval}" --verbose 7
 
     ((INSTALL_COUNT++))
-    if [[ "${retval}" -ne 0 ]]; then
+    # If installation contains success status:
+    local install_complete_line
+    # This line shows that the installation has completed (including custombuild) for the latest installer script
+
+    install_complete_line=$(grep '^*   All parts have been installed' "${da_install_log}")
+
+    if [[ "${retval}" -eq 0 ]] && [[ -n "${install_complete_line}" ]]; then
+      local port
+      _echo "$(msg cyan)Installation completed!$(msg end)" --name
+      _echo "$(msg cyan)Checking if directadmin binary, custombuild and directadmin.conf are presents ...$(msg end)" --name
+      check_path "${da_bin}" "${da_cb_bin}" "${da_conf}"
+      echo ""
+      port="$(grep '^port=' /usr/local/directadmin/conf/directadmin.conf | cut -d= -f2)"
+      _echo "$(msg green)${install_complete_line}$(msg end)" --plain
+      _echo "$(msg red) ================================== $(msg end)" --plain
+
+      if [ "${C_HIDE_SENSITIVE_TEXT}" == "true" ]; then
+        echo "*** LOGIN INFORMATION IS HIDDEN BECAUSE C_HIDE_SENSITIVE_TEXT=true ***"
+      else
+        grep "^Admin username:  " "${da_install_log}"
+        grep "^Admin password:  " "${da_install_log}"
+        grep "^Admin email:  " "${da_install_log}"
+        echo "URL:    http://${C_BOX_HOSTNAME_FQHN}:${port}"
+      fi
+      echo "If the above information is hidden. You can always view this from:"
+      echo "cat /usr/local/directadmin/scripts/setup.txt"
+      _echo "$(msg red) ================================== $(msg end)" --plain
+      echo ""
+
+      echo "Making /etc/hosts file read-only..."
+      chattr +i /etc/hosts
+    else
+      # if it return other than success
       local error_msg total_error_line
       # How many line of errors to show:
       total_error_line=20
@@ -10975,34 +11116,6 @@ install_da() {
       _echo "$(msg yellow)Reinstalling directadmin within 10 seconds for the $(get_ordinal ${INSTALL_COUNT})...$(msg end)" --name
       install_da --run
       echo ""
-    else
-      local install_complete_line port
-      _echo "$(msg cyan)Checking if directadmin binary, custombuild and directadmin.conf are presents ...$(msg end)" --name
-      check_path "${da_bin}" "${da_cb_bin}" "${da_conf}"
-      echo ""
-      port="$(cat /usr/local/directadmin/conf/directadmin.conf | grep '^port=' | cut -d= -f2)"
-      # Here I can display the current login information (only interested on this information) the other directadmin installation output are useless.
-      install_complete_line=$(grep '^## INSTALL_COMPLETE' "${da_install_log}")
-      if [[ -n "${install_complete_line}" ]]; then
-        echo ""
-        _echo "$(msg green)${install_complete_line}$(msg end)" --plain
-        _echo "$(msg red) ================================== $(msg end)" --plain
-        if [ "${C_HIDE_SENSITIVE_TEXT}" == "true" ]; then
-          echo "*** LOGIN INFORMATION IS HIDDEN BECAUSE C_HIDE_SENSITIVE_TEXT=true ***"
-        else
-          grep "^Admin username:   " "${da_install_log}"
-          grep "^Admin password:   " "${da_install_log}"
-          grep "^Admin email:   " "${da_install_log}"
-          echo "URL:    http://${C_BOX_HOSTNAME_FQHN}:${port}"
-        fi
-        echo "If the above information is hidden. You can always view this from:"
-        echo "cat /usr/local/directadmin/scripts/setup.txt"
-        _echo "$(msg red) ================================== $(msg end)" --plain
-        echo ""
-      else
-        _echo "$(msg yellow)Warning, directadmin installation returned success but could not found the install complete line [ ## INSTALL_COMPLETE ] in log file!$(msg end)" --name
-        _pause 300
-      fi
     fi
 
     echo ""
@@ -13088,7 +13201,7 @@ configure_da_ftp() {
         echo "	AllowStoreRestart	on"
         echo "	AllowRetrieveRestart	on"
         echo ""
-        echo "	ListOptions		-a"
+        echo "	#ListOptions		-a #deprecated"
         echo ""
         echo "	Umask			022"
         echo "	DisplayLogin		welcome.msg"
@@ -14086,6 +14199,7 @@ configure_da_fqhn_server() {
 
 # Here, we update the first owner account information (the original admin)
 configure_da_owner_accounts() {
+  # TODO Note we can use export DA_ADMIN_USER and DA_ADMIN_PASSWORD for creating new admin
   local run_mode func_name
   run_mode="$1"
   extra_option="$2"
@@ -19634,7 +19748,7 @@ setup() {
     # call the next function configure_net2 to configure the network files that use network interface based $C_NIC_INTERFACE_NAME value from config file
     # The reason is to prevent the system from network locked out due to unfinished configuration files between network files by using ip link down command.
     # Note 3: That means, configure_net2 will only run once if that is the case. If you still need configure_net2 to run for technical reason, use the option --run-force
-    configure_net --run  # This is optional because it was set in debian preseed file but we still can run this
+    configure_net --run # This is optional because it was set in debian preseed file but we still can run this
     # Must run configure_net first before running configure_net2 because we need interface to be ${C_NIC_INTERFACE_NAME} first #OK
     configure_net2 --run # The important part is the /etc/hosts
     # This is where we can configure mount option for disk
@@ -19648,7 +19762,7 @@ setup() {
     if [[ "${C_SERVER_TYPE}" == "directadmin" ]]; then
       if [[ "${C_DA_INSTALL_TYPE}" == "custom" ]]; then
         install_da_pre --run
-        install_da --run
+        install_da --run-exit
         install_da_post --run
         configure_da_auth --run
         configure_bind --run
@@ -19939,7 +20053,7 @@ CONFIG_TEST=""
 # for setting up multi servers:
 CONFIG_FILE="${SCRIPT_PATH}/${SCRIPT_NAME}.conf"
 #CONFIG_FILE="${SCRIPT_PATH}/maxinet_sun.sofibox.com.conf"
-#CONFIG_FILE="${SCRIPT_PATH}/maxinet_moon.sofibox.com.conf"
+#CONFIG_FILE="${SCRIPT_PATH}/maxinet_mars.sofibox.com.conf"
 
 if [ ! -f "${CONFIG_FILE}" ]; then
   C_LOG_VERBOSITY_LEVEL="3"
@@ -20110,6 +20224,7 @@ while [ "$#" -gt 0 ]; do
     break
     ;;
   -t | --test)
+    configure_services --run-force-exit
     exit 0
     break
     ;;
