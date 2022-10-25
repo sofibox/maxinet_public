@@ -4,7 +4,7 @@
 
 _APP_SPECIFIC_NAME="Maxinet"
 # Note that some minor versions are not published
-_APP_VERSION="0.8.1"
+_APP_VERSION="0.8.2"
 _APP_STATUS="alpha"
 _APP_VERSION_STATUS="${_APP_VERSION}-${_APP_STATUS}"
 
@@ -4477,7 +4477,7 @@ iso_api() {
           echo "DEFAULT Debian - Auto Installation"
           echo "# Console Prompt"
           echo "say **********************************************************************"
-          echo "say Sofibox Cloud Hosting"
+          echo "say Sofibox Cloud Sdn Bhd."
           echo "say TOSP, Cyberjaya Malaysia."
           echo "say sofibox.com, tosp.sofibox.com"
           echo "say OPERATING SYSTEM INSTALLER"
@@ -7459,8 +7459,8 @@ da_api_admin() {
   short_opts="h"
 
   long_opts="help,sign-as:,username:,password:,ip-address:,netmask:,email:,name:,nameserver1:,nameserver2:,where-username-is:,text-output:,package-name:, \
-  mail-domain:, mail-user:, mail-password:, mail-quota:, mail-limit:, db-domain:, db-name:, db-user:, db-password:, db-existing-user:,\
-  recommend-values,domain:,subdomain:,ip-type:, record-type:, record-name:, record-value:, record-domain:, record-priority:, record-subdomain:, record-ttl:, affect-pointers:, special-type:, skin-name:, \
+  mail-domain:,mail-user:,mail-password:, mail-quota:, mail-limit:, db-domain:, db-name:, db-user:, db-password:, db-existing-user:,\
+  recommend-values,domain:,hostname:,subdomain:,ip-type:, record-type:, record-name:, record-value:, record-domain:, record-priority:, record-subdomain:, record-ttl:, affect-pointers:, special-type:, skin-name:, \
   backup-ip:,backup-path:,backup-file-name:,backup-password:,php-version:,logo-mode:,logo-file:,question:,answer:,api-username:,api-password:,scripting"
   options=$(getopt -o "${short_opts}" --long "${long_opts}" -n "${FUNCNAME[0]}@${action} in ${SCRIPT_NAME}" -- "$@")
   retval=$?
@@ -7494,6 +7494,7 @@ da_api_admin() {
   package_name=""      # UNLIMITED_PACKAGE
   recommend_values=false
   domain=""               # sofibox.com
+  hostname=""             # sun.sofibox.com
   subdomain=""            # abc (don not specify full domain)
   ip_type=""              # shared, server etc
   api_username=""         # arafatx
@@ -7622,6 +7623,10 @@ da_api_admin() {
       ;;
     --domain)
       domain="$2"
+      shift 2
+      ;;
+    --hostname)
+      hostname="$2"
       shift 2
       ;;
     --subdomain)
@@ -7940,6 +7945,7 @@ da_api_admin() {
         _exit 147
       fi
     fi
+    # TODO understand what is the purpose of device=yes in technical way https://www.directadmin.com/features.php?id=2533
 
     #echo "Adding IP"
     #echo "Sign as: ${sign_as}"
@@ -8202,6 +8208,7 @@ da_api_admin() {
   elif [[ "${action}" == "create-admin-dns-record" || "${action}" == "add-admin-dns-record" ]]; then
     local cmd_api data method retval da_api_exec has_success record_value
     cmd_api="CMD_API_DNS_ADMIN"
+    # TODO inspect what the affect_pointers do, if important, we put another option --affect-pointers
     affect_pointers=yes
     data="domain=${domain}&type=${record_type}&name=${record_name}&value=${record_value}&ttl=${record_ttl}&affect_pointers=${affect_pointers}&action=add"
     method="POST"
@@ -8222,6 +8229,7 @@ da_api_admin() {
   elif [[ "${action}" == "create-dns-record" || "${action}" == "add-dns-record" ]]; then
     local cmd_api data method retval da_api_exec has_success record_value
     cmd_api="CMD_API_DNS_CONTROL"
+    # TODO inspect what the affect_pointers do, if important, we put another option --affect-pointers
     affect_pointers=yes
     if [[ "${record_type^^}" == "MX" ]]; then
       # for mx record, record name is the domain, record value is priority, record subdomain is mx_value
@@ -8692,6 +8700,22 @@ da_api_admin() {
     local cmd_api data method retval da_api_exec has_success
     cmd_api="CMD_API_USER_PASSWD"
     data="username=${username}&passwd=${password}&passwd2=${password}&action=create&referer=CMD_API_USER_PASSWD"
+    method="POST"
+    da_api_exec=$(curl --silent --request "${method}" --user "${da_api_username}":"${da_api_password}" --data "${data}" "${ssl_protocol}://${C_BOX_HOSTNAME_FQHN}:${port}/${cmd_api}")
+    has_success=$(echo "${da_api_exec}" | grep -w '^error=0')
+    if [ -z "${has_success}" ]; then
+      _echo "$(msg red)Error, API with action ${action} executed with the following error: $(msg end)" --name
+      _echo "$(msg red)${da_api_exec}$(msg end)" --plain | urldecode | awksep '&'
+    #_exit 147
+    else
+      _echo "$(msg green)OK, API with action ${action} executed with the following status: $(msg end)" --name
+      _echo "$(msg green)${da_api_exec}$(msg end)" --plain | urldecode | awksep '&'
+    fi
+  # da_api_admin add-hostname --hostname server.domain.com --ip-address 123.123.123.123 --nameserver1 ns1.domain.com --nameserver2 ns2.domain.com
+  elif [[ "${action}" == "add-hostname" || "${action}" == "create-hostname" ]]; then
+    local cmd_api data method retval da_api_exec has_success
+    cmd_api="CMD_API_DNS_ADMIN"
+    data="domain=${hostname}&ip=${ip_address}&ns1=${nameserver1}&ns2=${nameserver2}&reverse=no&action=create"
     method="POST"
     da_api_exec=$(curl --silent --request "${method}" --user "${da_api_username}":"${da_api_password}" --data "${data}" "${ssl_protocol}://${C_BOX_HOSTNAME_FQHN}:${port}/${cmd_api}")
     has_success=$(echo "${da_api_exec}" | grep -w '^error=0')
@@ -13697,8 +13721,11 @@ configure_da_settings() {
     _echo "$(msg cyan)Setting directadmin login history ...$(msg end)" --name
     # Set directadmin login history (default 10)
     ${da_bin} set login_history "${C_DA_LOGIN_HISTORY}"
+
     # Do not disable disable_ip_check (this one is session security) - default is 0
-    ${da_bin} set disable_ip_check "${C_DA_DISABLE_IPCHECK}"
+    # Deprecated variable
+    # ${da_bin} set disable_ip_check "${C_DA_DISABLE_IPCHECK}"
+
     # Disable foreign IP when login - default is 0
     ${da_bin} set allow_foreign_key "${C_DA_ALLOW_FOREIGN_KEY}"
     # Enable simple disk usage - lowering disk access (this might increase performance)
@@ -13777,7 +13804,8 @@ configure_da_settings() {
     fi
 
     # This will either hide DA version or show in header
-    ${da_bin} set show_info_in_header "${C_DA_SHOW_INFO_IN_HEADER}"
+    # Deprecated variable in the new version of DA
+    # ${da_bin} set show_info_in_header "${C_DA_SHOW_INFO_IN_HEADER}"
 
     # # This will either hide DA version or show in web title
     ${da_bin} set show_info_in_title "${C_DA_SHOW_INFO_IN_TITLE}"
@@ -13803,6 +13831,8 @@ configure_da_settings() {
     ${da_bin} set letsencrypt_renewal_success_notice "${C_DA_LETSENCRYPT_RENEWAL_SUCCESS_NOTICE}"
     # Option to set proftpd unified
     ${da_bin} set unified_ftp_password_file "${C_DA_UNIFIED_FTP_PASSWORD_FILE}"
+    # set php_fpm spawn process limit
+    ${da_bin} set php_fpm_max_children_default "${C_PHP_FPM_MAX_CHILDREN_DEFAULT}"
     echo ""
     # A lot of setting have been changed, now we need to restart directadmin
     _echo "$(msg cyan)Requesting directadmin to restart ...$(msg end)" --name
@@ -14078,7 +14108,7 @@ configure_da_dns_templates() {
     da_bin="/usr/local/directadmin/directadmin"
     da_cb_bin="/usr/local/directadmin/custombuild/build"
     da_conf="/usr/local/directadmin/conf/directadmin.conf"
-    dns_compatible_version="1.63.1"
+    dns_compatible_version="36f862603bd077978a451db5497132bb8f9efe9e"
 
     _echo "$(msg cyan)Checking if directadmin binary, custombuild and directadmin.conf are presents ...$(msg end)" --name
     check_path "${da_bin}" "${da_cb_bin}" "${da_conf}"
@@ -14159,18 +14189,22 @@ configure_da_fqhn_server() {
     check_path "${da_bin}" "${da_cb_bin}" "${da_conf}" "${da_scripts_path}/dkim_create.sh"
     echo ""
 
+    # Make sure a hostname is created (the new directadmin installer did not create this file and we have to manually create this)
+    # https://forum.directadmin.com/threads/how-to-enable-dkim-spf-for-server-domain.66593/#post-349863
+    da_api_admin add-hostname --hostname "${C_BOX_HOSTNAME_FQHN}" --ip-address "${C_IPV4_ADD0}" --nameserver1 "${C_BOX_NS1}" --nameserver2 "${C_BOX_NS2}"
+
     # DKIM for hostname can only be created using script (old way) as mentioned here:
     # https://forum.directadmin.com/threads/configure-dkim-for-host-domain-com-email-addresses.59809/post-309496
     # Remember this script does not touch the DNS zone directly, it uses taskq DNS so we have to wait at least 1 minute before it inserts into DNS record
     _echo "$(msg cyan) Creating DKIM for hostname ${C_BOX_HOSTNAME_FQHN} ...$(msg end)" --name
-    ${da_scripts_path}/dkim_create.sh ${C_BOX_HOSTNAME_FQHN} force
+    ${da_scripts_path}/dkim_create.sh "${C_BOX_HOSTNAME_FQHN}" force
     echo ""
 
     # This is a very important API call to restore the DNS record to default states based on customized option. If IPv6 is configured, the old DNS record will not have IPv6 DNS records
     # If we execute this, it will add IPv6 records automatically. In addition, a new custom template also will be used to write DNS record here like the _dmarc from /usr/local/directadmin/data/templates/custom
     # This API call also speeds up the dkim_create.sh taskq call. So, we can see immediate records being inserted into DNS record without having to wait for at least 1 minute
     _echo "$(msg cyan)Restoring/resetting domain DNS records to default state ...$(msg end)" --name
-    da_api_admin restore-dns-record --domain ${C_BOX_HOSTNAME_FQHN}
+    da_api_admin restore-dns-record --domain "${C_BOX_HOSTNAME_FQHN}"
     echo ""
 
     _echo "$(msg cyan)Creating DKIM signing policy TXT record for ${C_BOX_HOSTNAME_FQHN} ...$(msg end)" --name
@@ -14984,7 +15018,7 @@ configure_da_ssl_pre() {
     echo ""
 
     # Enable zerossl based on config file
-
+    # This method is not deprecated for hostname as mentioned in directadmin documentation: https://forum.directadmin.com/threads/switching-between-zerossl-and-letsencrypt-for-hostname.67206/#post-353578
     if [ "${C_DA_ENABLE_ZEROSSL_CERTIFICATE}" == "true" ]; then
       _echo "$(msg cyan)Enabling zerossl certificate ...$(msg end)" --name
       touch /root/.zerossl
@@ -15273,7 +15307,7 @@ configure_da_user_domain_ssl() {
 
           if [ "${da_user_restore_domain_ssl}" == "true" ]; then
 
-            # TODO recheck this populating
+            # TODO something wrong here with the populating ...
             # Make sure I populate the cert selected box too (refer to the cert request)
 
             all_domains=""
@@ -15473,9 +15507,9 @@ configure_da_user_domain_ssl() {
                       {
                         list_extra_subdomain=${extra_subdomain}.${root_domain}
                         _echo "$(msg cyan)Requesting domain challenge test for domain ${list_extra_subdomain} ...$(msg end)" --name
-                        challenge_test=$(letsencrypt_challenge_check ${list_extra_subdomain})
+                        challenge_test=$(letsencrypt_challenge_check "${list_extra_subdomain}")
                         get_status_message "${challenge_test}"
-                        if [ ${challenge_test} -ne 1 ]; then
+                        if [ "${challenge_test}" -ne 1 ]; then
                           all_domains="${all_domains},${list_extra_subdomain}"
                         fi
                       }
@@ -15604,6 +15638,8 @@ configure_da_host_domain_ssl() {
       # This options is deprecated in directadmin 1.62+ https://www.directadmin.com/features.php?id=801 (it replaced with javascript redirection)
       # echo "[${SCRIPT_NAME}]: Setting ssl_redirect_host to ${LABEL_C_BOX_HOSTNAME_FQHN} in directadmin.conf config ..."
       # ${da_bin} set ssl_redirect_host "${C_BOX_HOSTNAME_FQHN}"
+
+      # TODO recheck this for compatibility with the latest DA installer (check letsencrypt.sh)
 
       if [ "${C_DA_ENABLE_HOSTNAME_SSL_RESTORE}" == "true" ]; then
 
@@ -15826,7 +15862,7 @@ configure_da_host_domain_ssl() {
 
         echo ""
         # Staging call first
-        has_ecc_certificates=$(cat "${da_conf}" | grep "^ecc_certificates=" | cut -d= -f2)
+        has_ecc_certificates=$(grep "^ecc_certificates=" "${da_conf}" | cut -d= -f2)
         _echo "$(msg cyan)Staging request SSL certificate for ${LABEL_C_BOX_HOSTNAME_FQHN} ...$(msg end)" --name
         if [ -n "${has_ecc_certificates}" ]; then
           staging=yes ${da_script_path}/letsencrypt.sh request_single ${C_BOX_HOSTNAME_FQHN} ${C_DA_CERTIFICATE_SIZE}
@@ -15844,9 +15880,9 @@ configure_da_host_domain_ssl() {
         echo ""
         #7) Now let's request the real certificate after staging
         _echo "$(msg cyan)Requesting SSL certificate for ${LABEL_C_BOX_HOSTNAME_FQHN} ...$(msg end)" --name
-        has_ecc_certificates=$(cat "${da_conf}" | grep "^ecc_certificates=" | cut -d= -f2)
+        has_ecc_certificates=$(grep "^ecc_certificates=" "${da_conf}" | cut -d= -f2)
         if [ -n "${has_ecc_certificates}" ]; then
-          ${da_script_path}/letsencrypt.sh request_single ${C_BOX_HOSTNAME_FQHN} ${C_DA_CERTIFICATE_SIZE}
+          ${da_script_path}/letsencrypt.sh request_single "${C_BOX_HOSTNAME_FQHN}" ${C_DA_CERTIFICATE_SIZE}
         else
           ${da_script_path}/letsencrypt.sh request_single ${C_BOX_HOSTNAME_FQHN}
         fi
@@ -18718,7 +18754,7 @@ configure_da_user_email_accounts() {
       _echo "User email details:" --name --verbose 7
       _echo "User count ${user_count} out of ${da_user_usernames_count}" --name --verbose 7
       _echo "da_user_username: ${da_user_username}" --name --verbose 7
-      _echo "da_user_mail_accounts: ${da_user_mail_accounts[@]}" --name --verbose 7
+      _echo "da_user_mail_accounts: ${da_user_mail_accounts[*]}" --name --verbose 7
       _echo "da_user_mail_accounts_count: ${da_user_mail_accounts_count}" --name --verbose 7
 
       if [ "${da_user_mail_accounts_count}" -eq 0 ]; then
@@ -19762,7 +19798,7 @@ setup() {
     if [[ "${C_SERVER_TYPE}" == "directadmin" ]]; then
       if [[ "${C_DA_INSTALL_TYPE}" == "custom" ]]; then
         install_da_pre --run
-        install_da --run-exit
+        install_da --run
         install_da_post --run
         configure_da_auth --run
         configure_bind --run
@@ -20224,7 +20260,7 @@ while [ "$#" -gt 0 ]; do
     break
     ;;
   -t | --test)
-    configure_services --run-force-exit
+    da_api_admin --test-login
     exit 0
     break
     ;;
@@ -20260,6 +20296,10 @@ while [ "$#" -gt 0 ]; do
     rm -rf "${INST_TEMP_DIR}"
     echo "[${SCRIPT_NAME}]: Program path cleaned"
     exit 0
+    break
+    ;;
+  dadebug)
+    da_api_admin debug
     break
     ;;
   # STARTING BELOW IS ACTION (no symbol --)

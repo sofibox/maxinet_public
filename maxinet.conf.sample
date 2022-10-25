@@ -36,6 +36,16 @@
 #    eg: This is OK: ADMIN_USERNAME1 -> ADMIN_USERNAME2 -> ADMIN_USERNAME3 -> ADMIN_USERNAME[N+1]
 #    eg: This is not OK: ADMIN_USERNAME1 -> ADMIN_USERNAME4
 # # Be careful some characters are not accepted by phpMyAdmin. Bash has trouble with character #!.
+# 16) When the script is trying to upload ISO file into cloud storage eg: dropbox, it needs to be authenticated manually first with the following
+#     app scope (this can not be automated for security):
+#     files.metadata.write / read , files.content.write / read , sharing.write / read
+#     Anything goes wrong, removed ~/.dropbox_uploader to start from scratch
+#     Fill in authentication information from ~/.dropbox_uploader into this config file for the following variables:
+#     C_DROPBOX_CONFIGFILE_VERSION="2.0"
+#     C_DROPBOX_OAUTH_APP_KEY="FILL_IN_"
+#     C_DROPBOX_OAUTH_APP_SECRET="FILL_IN"
+#     C_DROPBOX_OAUTH_REFRESH_TOKEN="FILL_IN"
+# 17) Please fill in your current public IP at this variable to prevent lock out during setup C_HOST_PUBLIC_IP
 # =~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~="
 # C_CONFIG_VERSION:
 # This variable is the version of this config file. This is the main variable used by script to determine if source contain valid value
@@ -381,8 +391,8 @@ C_DA_LOGIN_HISTORY="10"
 C_DA_ENFORCE_DIFFICULT_PASSWORDS=1
 # Allow backup encryption option
 C_DA_ALLOW_BACKUP_ENCRYPTION=1
-
-C_DA_DISABLE_IPCHECK="1"
+# Deprecated variable in the new DA version
+# C_DA_DISABLE_IPCHECK="1"
 C_DA_ALLOW_FOREIGN_KEY="0"
 # Default is 0
 C_DA_SIMPLE_DISK_USAGE="1"
@@ -467,8 +477,9 @@ C_DA_CERTIFICATE_ENCRYPTION_ALGORITHM="sha256"
 # to disable just put false, to enable provide the value in second:
 C_DA_ENABLE_HOST_HSTS="31536000"
 
+# Deprecated variable
 # This will hide directadmin version and license ID (da v1.62 has internal default 0)
-C_DA_SHOW_INFO_IN_HEADER=0
+# C_DA_SHOW_INFO_IN_HEADER=0
 
 # This will hide directadmin version in web title
 C_DA_SHOW_INFO_IN_TITLE=0
@@ -494,6 +505,9 @@ C_DA_LETSENCRYPT_LIST_SELECTED="www:mail:ftp:pop:smtp"
 # This will send notification if renew success
 C_DA_LETSENCRYPT_RENEWAL_SUCCESS_NOTICE=0
 
+# Set php-fpm proceess
+C_PHP_FPM_MAX_CHILDREN_DEFAULT=15
+
 #---- End directadmin.conf settings ----
 #---------------------------------------
 
@@ -514,7 +528,7 @@ C_DA_CB_SQL_VERSION="mariadb-10.6"
 # Format <7.3:php-fpm,7.4:php-fpm,8.0:php-fpm>
 # php7.3:php-fpm means php version 7.3 with FPM mode
 # the first order is the first PHP version (also used by directadmin system). Max is 4, extra argument will be ignored
-C_DA_CB_PHP_VERSION="8.0:php-fpm,7.4:php-fpm"
+C_DA_CB_PHP_VERSION="8.0:php-fpm,7.4:php-fpm,7.3:php-fpm"
 # This for installing clamav
 C_DA_CB_INSTALL_CLAMAV="yes"
 # Put "latest" to install the latest version
@@ -809,7 +823,7 @@ C_SSH_PASSPHRASE="**SSH_PASSPHRASE***"
 # Possible values are: true, false
 C_USE_LATEST_ISO=false
 C_BOX_ISO_OS_NAME="debian"
-C_OS_SELECT_VERSION="11.1.0"
+C_OS_SELECT_VERSION="11.5.0"
 # Useful for creating ISO
 C_OS_SET_CODE_NAME="bullseye"
 # possible value: cfq, noop, deadline
@@ -973,7 +987,7 @@ C_GOTIFY_SYSTEM_GROUP="gotify"
 # 0 (No notification) , 1-3 (Icon in notification bar)
 # 4-7 (Icon in notification bar + Sound), 8-10 (Icon in notification bar + Sound + Vibration)
 C_GOTIFY_PUSH_PRIORITY=10
-C_GOTIFY_VERSION="2.1.0" # Previous 2.0.23 (work)
+C_GOTIFY_VERSION="2.1.7" # Previous 2.0.23 (work)
 C_GOTIFY_PLATFORM="linux-amd64"
 C_GOTIFY_PORT="8722"
 C_GOTIFY_USERNAME="admin"
@@ -981,9 +995,9 @@ C_GOTIFY_PASSWORD="gotifypassword++"
 C_GOTIFY_APP_NAME="test.server.com"
 # This variable C_GOTIFY_APP_DESCRIPTION is optional and be empty
 C_GOTIFY_APP_DESCRIPTION=""
-C_GOTIFY_CLI_VERSION="2.2.0"
+C_GOTIFY_CLI_VERSION="2.2.2"
 
-# Dropbox (This value can be obtained first from dbxcli)
+# Dropbox (Note, this value can be obtained first start of dbxcli. it cannot be automated at this moment)
 # For security reason, do not use full scope dropbox, use app scope
 C_DROPBOX_CONFIGFILE_VERSION="2.0"
 C_DROPBOX_OAUTH_APP_KEY="KEY"
