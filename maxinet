@@ -1,10 +1,11 @@
 #!/bin/bash
 # =~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~="
 # Author: Arafat Ali | Email: webmaster@sofibox.com | Website: sofibox.com
-
+# new local OS tested: ubuntu
+# remote OS tested: debian 11
 _APP_SPECIFIC_NAME="Maxinet"
 # Note that some minor versions are not published
-_APP_VERSION="0.8.2"
+_APP_VERSION="0.8.3"
 _APP_STATUS="alpha"
 _APP_VERSION_STATUS="${_APP_VERSION}-${_APP_STATUS}"
 
@@ -713,6 +714,7 @@ is_valid() {
   # is_valid ipv4-resolved 1.1.1.1 sun.server.com
   # is_valid ipv4_resolved
   elif [[ "${type}" == "ipv4-resolved" || "${type}" == "ipv4_resolved" ]]; then
+    required "debian@@apt:dnsutils" "ubuntu@@apt:dnsutils"
     local ipv4 ipv4_propagated domain
     ipv4="${data1}"
     domain="${data2}"
@@ -729,6 +731,7 @@ is_valid() {
     # is_valid ipv6-resolved 1.1.1.1 sun.server.com
     # is_valid ipv6_resolved
   elif [[ "${type}" == "ipv6-resolved" || "${type}" == "ipv6_resolved" ]]; then
+    required "debian@@apt:dnsutils" "ubuntu@@apt:dnsutils"
     local ipv6 ipv6_propagated domain
     ipv6="${data1}"
     domain="${data2}"
@@ -1034,6 +1037,7 @@ init_server_rebuild_partition() {
   fi
 }
 
+# Configure dropbox for both local and remote server
 configure_dropbox_cli() {
   # Make sure this folder exist. This folder will put all available dropbox cli
   mkdir -p "/opt/dropbox_cli/"
@@ -1068,6 +1072,7 @@ configure_dropbox_cli() {
       } >"/root/.dropbox_uploader"
     fi
 
+    mkdir -p /tmp
     echo "This is just a test" >/tmp/testfile_can_delete
 
     echo "Test file uploading ...."
@@ -1076,7 +1081,7 @@ configure_dropbox_cli() {
 
     if [ $retval -ne 0 ]; then
       error_path=$(echo "${error_status}" | tail -n 1 | awk '{print $(NF)}' | sed 's/\.$//')
-      echo "Warning, there is an error while uploading a test file. If you want to reauthenticate dropbox, run dbxcli unlink in terminal!"
+      echo "Warning, there is an error while uploading a test file. You might want to reauthenticate dropbox by running dbxcli unlink in terminal!"
       # since dbxcli is installed, we can run dbxcli
       echo ""
       echo ""
@@ -1159,6 +1164,7 @@ configure_dropbox_cli() {
 }
 
 ensure_internet_connected() {
+  required "debian@@apt:curl" "ubuntu@@apt:curl"
   if curl -s --head --request GET www.google.com | grep "200 OK" >/dev/null; then
     #echo "OK, connected to the internet"
     return 0
@@ -4113,6 +4119,8 @@ dropbox_api() {
     file_direct_link=$(dbxcli share "/${destination}/${filename}" | awk '{ print $4}' | sed 's/0$/1/g')
     [[ ${scripting} == "false" ]] && _echo "$(msg green)File direct link is: $(msg end)"
     echo "${file_direct_link}"
+  elif [[ "${action}" == "test-account" ]]; then
+      dbxcli test
   else
     echo "Unknown action"
   fi
@@ -4586,6 +4594,7 @@ iso_api() {
         if [[ "${upload_to_dropbox}" == "true" ]]; then
           # First check if the ISO file is bootable
           _echo "$(msg cyan)Checking whether ISO file ${debian_isofile_final} is valid (bootable) ...$(msg end)" --name
+          required "ubuntu@@apt:genisoimage" "debian@@apt:genisoimage"
           isoinfo -d -i "${debian_isofile_final}" 2>/dev/null | grep -q "bootable"
           retval=$?
           if [ ${retval} -eq 0 ]; then
@@ -4596,6 +4605,10 @@ iso_api() {
           fi
           echo ""
           _echo "$(msg cyan)Uploading local file ${debian_isofile_final} into dropbox remote location /files/${debian_isofile_final_base_name} ...$(msg end)" --name
+
+          # Test dropbox
+          dropbox_api test-account
+
           # Uploading to dropbox and generating link
           dropbox_api upload --source "${debian_isofile_final}" --destination "/files/$(basename -- "${debian_isofile_final}")"
           echo ""
@@ -10796,6 +10809,9 @@ install_da_pre() {
         echo "curl=no"
         echo "ssl_configuration=intermediate"
         echo ""
+        echo "#Other packages"
+        echo "csf=no"
+        echo "redis=yes"
         echo "#PHP extensions can be found in php_extensions.conf"
       } >"/usr/local/directadmin/custombuild/options.conf"
 
@@ -13561,10 +13577,17 @@ configure_web_apps() {
     c_ipv4add0_escaped="${C_IPV4_ADD0//./\\.}"
     _echo "$(msg cyan)Writing .htaccess rule at /var/www/html/.htaccess ...$(msg end)" --name
     {
-      echo "DirectoryIndex index.php index.html"
       echo "RewriteEngine On"
       echo "DirectoryIndex index.php index.html"
       echo ""
+
+      echo "# Define error documents"
+      echo "#ErrorDocument 400 /error_docs/sun/400.php"
+      echo "#ErrorDocument 401 /error_docs/sun/401.php"
+      echo "#ErrorDocument 403 /error_docs/sun/403.php"
+      echo "ErrorDocument 404 /error_docs/sun/404.php"
+      echo "#ErrorDocument 500 /error_docs/sun/500.php"
+
       echo "# First condition if IP is given, redirect to hostname"
       echo "RewriteCond %{HTTP_HOST} ^${c_ipv4add0_escaped}(:[0-9]+)?\$"
       echo "RewriteRule ^(.*)$ https://${C_BOX_HOSTNAME_FQHN}/\$1 [L,R=301]"
@@ -14121,7 +14144,7 @@ configure_da_dns_templates() {
 
     _echo "$(msg cyan)Creating SPF, DKIM and DMARC DNS custom template for directadmin server ...$(msg end)" --name
     da_current_version=$(${da_bin} v | awk '{ print $3 }')
-    if [ "${da_current_version}" == "v.${dns_compatible_version}" ]; then
+    if [ "${da_current_version}" == "${dns_compatible_version}" ]; then
       :
     else
       _echo "$(msg yellow)Warning, current DNS config has been tested with directadmin ${dns_compatible_version} but directadmin version is ${da_current_version}$(msg end)" --name
@@ -14191,7 +14214,16 @@ configure_da_fqhn_server() {
 
     # Make sure a hostname is created (the new directadmin installer did not create this file and we have to manually create this)
     # https://forum.directadmin.com/threads/how-to-enable-dkim-spf-for-server-domain.66593/#post-349863
+    _echo "$(msg cyan)Creating hostname DNS record ...$(msg end)" --name
     da_api_admin add-hostname --hostname "${C_BOX_HOSTNAME_FQHN}" --ip-address "${C_IPV4_ADD0}" --nameserver1 "${C_BOX_NS1}" --nameserver2 "${C_BOX_NS2}"
+    echo ""
+
+    # TODO check permission for this folder
+    # This method is required for dkim_create.sh to work (latest directadmin installer has bug, it did not create this folder)
+    _echo "$(msg cyan) Creating a hostname empty directory at /etc/virtual/${C_BOX_HOSTNAME_FQHN}...$(msg end)" --name
+    mkdir -p /etc/virtual/"${C_BOX_HOSTNAME_FQHN}"
+    chown mail:mail /etc/virtual/"${C_BOX_HOSTNAME_FQHN}"
+    echo ""
 
     # DKIM for hostname can only be created using script (old way) as mentioned here:
     # https://forum.directadmin.com/threads/configure-dkim-for-host-domain-com-email-addresses.59809/post-309496
@@ -15462,11 +15494,11 @@ configure_da_user_domain_ssl() {
         done
       # Restoration end
       else
-
-        _echo "$(msg yellow)Notice: SSL restoration is not set for all users based on C_DA_ENABLE_USER_DOMAIN_SSL_RESTORE value $(msg end)" --name
         if [ -f "/root/.zerossl" ]; then
           _echo "$(msg yellow)Notice: ZeroSSL flag is found. SSL certificate will be requested using ZeroSSL method$(msg end)" --name
         fi
+        _echo "$(msg yellow)Notice: SSL restoration is not set for all users based on C_DA_ENABLE_USER_DOMAIN_SSL_RESTORE value $(msg end)" --name
+
         echo ""
         _pause 10
 
@@ -16652,7 +16684,9 @@ configure_maxinance() {
 }
 
 configure_maxiaide() {
-  # Under testing for new version AIDE. New AIDE version has different config format.
+  # TODO add aide custom rule, the custom rule can be obtained from secure/maxiaide/custom_rules
+  # It stays there because this is a sensitive file that contains usernames
+
   local run_mode func_name
   run_mode="$1"
   extra_option="$2"
@@ -19424,7 +19458,7 @@ configure_services() {
     check_path "${da_service_status}"
     # By using this method, we will receive notification if the service goes down
     # Add service here, if it is turned off, it will be enabled.
-    service_names=("rsyslog" "csf" "suricata" "rspamd" "sshd" "mysqld")
+    service_names=("rsyslog" "csf" "suricata" "rspamd" "sshd" "mysqld" "gotify")
     _echo "$(msg cyan)Adding and enabling extra services: ${service_names} ...$(msg end)" --name
     echo ""
     for service_name in "${service_names[@]}"; do
@@ -19651,7 +19685,7 @@ setup_post() {
   if [[ ! -f "${CONF_PATH}/${func_name}_executed" && "${FUNCTION_RUN}" == "true" ]]; then
     if [ "${DISTRO_ID}" == "debian" ]; then
       # Install speedtest-cli
-      curl -s https://install.speedtest.net/app/cli/install.deb.sh | sudo bash
+      curl -s https://packagecloud.io/install/repositories/ookla/speedtest-cli/script.deb.sh | sudo bash
       apt-get install speedtest
       apt-get -y install ncdu htop gpg vim mutt
     else
@@ -19659,6 +19693,14 @@ setup_post() {
     fi
     # TODO: Audit system here with maxinis:
     # maxinis --audit system
+
+    # Enable all websites if dacli binary exist
+    if command -v dacli &>/dev/null; then
+
+      _echo "$(msg cyan)Turning all websites into live mode..$(msg end)" --name
+      dacli maintain-web --set-status online
+
+    fi
     echo ""
     check_finish_reboot "${func_name}"
   else
@@ -20260,7 +20302,7 @@ while [ "$#" -gt 0 ]; do
     break
     ;;
   -t | --test)
-    da_api_admin --test-login
+    # configure_services --run-force-exit
     exit 0
     break
     ;;
