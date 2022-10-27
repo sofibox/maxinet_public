@@ -5,7 +5,7 @@
 # remote OS tested: debian 11
 _APP_SPECIFIC_NAME="Maxinet"
 # Note that some minor versions are not published
-_APP_VERSION="0.8.4"
+_APP_VERSION="0.8.5"
 _APP_STATUS="alpha"
 _APP_VERSION_STATUS="${_APP_VERSION}-${_APP_STATUS}"
 
@@ -35,6 +35,8 @@ _APP_VERSION_STATUS="${_APP_VERSION}-${_APP_STATUS}"
 # It might contain bugs for other distributions. This script is fully tested on Debian 10, Debian 11 and with Directadmin custom and auto installation. This script compatible with linode + directadmin
 # Author: Arafat Ali | Email: arafat@sofibox.com | Personal Blog: arafatx.com
 # See maxinet --help for more information
+# To update remote files from local run this: maxinet update-remote-scripts
+# To login into remote: maxinet login
 
 #######################
 # FUNCTION BEGIN HERE #
@@ -1753,6 +1755,13 @@ init_server() {
     remote_path_to_receive="${HOME}/admin_backups/"
     ssh_api mkdir --server-port ${C_BOX_HOSTNAME_FQHN}:${C_SSH_PORT} --group-user ${C_ROOT_USERGROUP}:${C_ROOT_USERNAME} --remote-path "${remote_path_to_receive}"
     ssh_api transfer-files --server-port "${C_BOX_HOSTNAME_FQHN}:${C_SSH_PORT}" --group-user "${C_ROOT_USERGROUP}:${C_ROOT_USERNAME}" --local-files "${file_to_transfer}" --remote-path "${remote_path_to_receive}"
+    echo ""
+    # maxiaide / AIDE custom_rules file
+    file_to_transfer="${SECURE_PATH}/maxiaide/custom_rules"
+    remote_path_to_receive="${HOME}/maxiaide/"
+    ssh_api mkdir --server-port ${C_BOX_HOSTNAME_FQHN}:${C_SSH_PORT} --group-user ${C_ROOT_USERGROUP}:${C_ROOT_USERNAME} --remote-path "${remote_path_to_receive}"
+    ssh_api transfer-files --server-port "${C_BOX_HOSTNAME_FQHN}:${C_SSH_PORT}" --group-user "${C_ROOT_USERGROUP}:${C_ROOT_USERNAME}" --local-files "${file_to_transfer}" --remote-path "${remote_path_to_receive}"
+    echo ""
 
     sleep 2
 
@@ -11321,6 +11330,10 @@ install_da_post() {
     } >/var/www/html/redirect.php
     echo ""
 
+    _echo "$(msg cyan)Setting the redirect.php permission to webapps $(msg end)" --name
+    chown webapps:webapps /var/www/html/redirect.php
+    echo ""
+
     _echo "$(msg cyan)Setting directadmin port to ${LABEL_C_DA_PORT} ...$(msg end)" --name
     ${da_bin} set port "${C_DA_PORT}" restart
     echo ""
@@ -13573,75 +13586,98 @@ configure_web_apps() {
   fi
   [[ "${SKIP_RUN}" == "true" ]] && return 0
   if [[ ! -f "${CONF_PATH}/${func_name}_executed" && "${FUNCTION_RUN}" == "true" ]]; then
-    local c_ipv4add0_escaped
-    c_ipv4add0_escaped="${C_IPV4_ADD0//./\\.}"
-    _echo "$(msg cyan)Writing .htaccess rule at /var/www/html/.htaccess ...$(msg end)" --name
-    {
-      echo "RewriteEngine On"
-      echo "DirectoryIndex index.php index.html"
-      echo ""
+    #local c_ipv4add0_escaped
+    #c_ipv4add0_escaped="${C_IPV4_ADD0//./\\.}"
 
-      echo "# Define error documents"
-      echo "#ErrorDocument 400 /error_docs/sun/400.php"
-      echo "#ErrorDocument 401 /error_docs/sun/401.php"
-      echo "#ErrorDocument 403 /error_docs/sun/403.php"
-      echo "ErrorDocument 404 /error_docs/sun/404.php"
-      echo "#ErrorDocument 500 /error_docs/sun/500.php"
+    # If needed run this to get latest code in storage folder straight from git by running the following command:
+    # get_latest_code
 
-      echo "# First condition if IP is given, redirect to hostname"
-      echo "RewriteCond %{HTTP_HOST} ^${c_ipv4add0_escaped}(:[0-9]+)?\$"
-      echo "RewriteRule ^(.*)$ https://${C_BOX_HOSTNAME_FQHN}/\$1 [L,R=301]"
-      echo ""
-
-      echo "# Second condition, if https is off, redirect to"
-      echo "RewriteCond %{HTTPS} off"
-      echo "RewriteCond %{HTTP:X-Forwarded-Proto} !https"
-      echo "RewriteRule ^(.*)$ https://${C_BOX_HOSTNAME_FQHN}/\$1 [L,R=301]"
-    } >"/var/www/html/.htaccess"
-
-    chmod 644 /var/www/html/.htaccess
-    chown webapps:webapps /var/www/html/.htaccess
-
-    # TODO update and copy that webapps here (it should from storage) - below is just a temporary file as place holder
-
-    # 1) Replace index.html by calling index.php (index.html by default has root permission and root group)
-    _echo "$(msg cyan)Redirect index.html to index.php ...$(msg end)" --name
-    {
-      echo "<!DOCTYPE html>"
-      echo "<html lang=\"en\">"
-      echo "  <META HTTP-EQUIV=\"Refresh\""
-      echo "  CONTENT=\"0; URL=https://${C_BOX_HOSTNAME_FQHN}/index.php\">"
-      echo "</html>"
-    } >"/var/www/html/index.html"
+    _echo "$(msg cyan)Copying custom webapps from storage into /var/www/html ...$(msg end)" --name
+    cp -r ${LATEST_OS_CODE_PATH}/var/www/html/* /var/www/html/
+    get_status_message $?
     echo ""
 
+    _echo "$(msg cyan)giving all files inside /var/www/html permission name to webapps user and group ...$(msg end)" --name
+    chown -R webapps:webapps /var/www/html
+    get_status_message $?
+    echo ""
+
+    _echo "$(msg cyan)Giving file permission recursively for /var/www/html contents $(msg end)" --name
+    sudo find /var/www/html -type f -exec chmod 644 {} \;
+    get_status_message $?
+    echo ""
+    _echo "$(msg cyan)Giving directory permission recursively for /var/www/html contents $(msg end)" --name
+    sudo find /var/www/html -type d -exec chmod 755 {} \;
+    get_status_message $?
+    echo ""
+
+    # or I can use this as place holder:
+
+    #_echo "$(msg cyan)Writing .htaccess rule at /var/www/html/.htaccess ...$(msg end)" --name
+    #{
+    #  echo "RewriteEngine On"
+    #  echo "DirectoryIndex index.php index.html"
+    #  echo ""
+
+    #  echo "# Define error documents"
+    #  echo "#ErrorDocument 400 /error_docs/sun/400.php"
+    #  echo "#ErrorDocument 401 /error_docs/sun/401.php"
+    #  echo "#ErrorDocument 403 /error_docs/sun/403.php"
+    #  echo "ErrorDocument 404 /error_docs/sun/404.php"
+    #  echo "#ErrorDocument 500 /error_docs/sun/500.php"
+
+    #  echo "# First condition if IP is given, redirect to hostname"
+    #  echo "RewriteCond %{HTTP_HOST} ^${c_ipv4add0_escaped}(:[0-9]+)?\$"
+    #  echo "RewriteRule ^(.*)$ https://${C_BOX_HOSTNAME_FQHN}/\$1 [L,R=301]"
+    #  echo ""
+
+    #  echo "# Second condition, if https is off, redirect to"
+    #  echo "RewriteCond %{HTTPS} off"
+    #  echo "RewriteCond %{HTTP:X-Forwarded-Proto} !https"
+    #  echo "RewriteRule ^(.*)$ https://${C_BOX_HOSTNAME_FQHN}/\$1 [L,R=301]"
+    #} >"/var/www/html/.htaccess"
+
+    #chmod 644 /var/www/html/.htaccess
+    # chown webapps:webapps /var/www/html/.htaccess
+
+    # # 1) Replace index.html by calling index.php (index.html by default has root permission and root group)
+    # _echo "$(msg cyan)Redirect index.html to index.php ...$(msg end)" --name
+    #{
+    #  echo "<!DOCTYPE html>"
+    #  echo "<html lang=\"en\">"
+    #  echo "  <META HTTP-EQUIV=\"Refresh\""
+    #  echo "  CONTENT=\"0; URL=https://${C_BOX_HOSTNAME_FQHN}/index.php\">"
+    #  echo "</html>"
+    #} >"/var/www/html/index.html"
+    #echo ""
+
     # every custom webapps like /billing should be here
-    _echo "$(msg cyan)Configuring server frontpage ...$(msg end)" --name
+    # _echo "$(msg cyan)Configuring server frontpage ...$(msg end)" --name
 
-    cat /dev/null >/var/www/html/index.php
-    {
-      echo "<?php"
-      echo "echo \"MaXi32 - Arafat Ali - Rebuilding server ...\""
-      echo "?>"
-      echo "<!DOCTYPE html>"
-      echo "<html lang=\"en\">"
-      echo "<!--"
-      echo "Author: Arafat Ali"
-      echo "Email: arafat@maxibi.com"
-      echo "-->"
-      echo "<head>"
-      echo "  <meta charset=\"UTF-8\">"
-      echo "<meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0, minimum-scale=1.0, maximum-scale=1.0, user-scalable=no\">"
-      echo "<title>${C_BOX_HOSTNAME_FQHN^} Server - Sofibox Cloud Hosting</title>"
-      echo "</head>"
-      echo "<body>"
-      echo "</body>"
-      echo "</html>"
-    } \
-      >/var/www/html/index.php
+    #cat /dev/null >/var/www/html/index.php
+    #{
+    #  echo "<?php"
+    #  echo "echo \"MaXi32 - Arafat Ali - Rebuilding server ...\""
+    #  echo "?>"
+    #  echo "<!DOCTYPE html>"
+    #  echo "<html lang=\"en\">"
+    #  echo "<!--"
+    #  echo "Author: Arafat Ali"
+    #  echo "Email: arafat@maxibi.com"
+    #  echo "-->"
+    #  echo "<head>"
+    #  echo "  <meta charset=\"UTF-8\">"
+    #  echo "<meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0, minimum-scale=1.0, maximum-scale=1.0, user-scalable=no\">"
+    #  echo "<title>${C_BOX_HOSTNAME_FQHN^} Server - Sofibox Cloud Hosting</title>"
+    #  echo "</head>"
+    #  echo "<body>"
+    #  echo "</body>"
+    #  echo "</html>"
+    #} \
+    #  >/var/www/html/index.php
 
-    chmod 644 /var/www/html/index.php
-    chown webapps:webapps /var/www/html/index.php
+    #chmod 644 /var/www/html/index.php
+    #chown webapps:webapps /var/www/html/index.php
 
     echo ""
     check_finish_reboot "${func_name}"
@@ -14218,11 +14254,11 @@ configure_da_fqhn_server() {
     da_api_admin add-hostname --hostname "${C_BOX_HOSTNAME_FQHN}" --ip-address "${C_IPV4_ADD0}" --nameserver1 "${C_BOX_NS1}" --nameserver2 "${C_BOX_NS2}"
     echo ""
 
-    # TODO check permission for this folder
     # This method is required for dkim_create.sh to work (latest directadmin installer has bug, it did not create this folder)
     _echo "$(msg cyan) Creating a hostname empty directory at /etc/virtual/${C_BOX_HOSTNAME_FQHN}...$(msg end)" --name
     mkdir -p /etc/virtual/"${C_BOX_HOSTNAME_FQHN}"
     chown mail:mail /etc/virtual/"${C_BOX_HOSTNAME_FQHN}"
+    chmod 711 /etc/virtual/"${C_BOX_HOSTNAME_FQHN}"
     echo ""
 
     # DKIM for hostname can only be created using script (old way) as mentioned here:
@@ -16716,8 +16752,7 @@ configure_maxinance() {
 }
 
 configure_maxiaide() {
-  # TODO add aide custom rule, the custom rule can be obtained from secure/maxiaide/custom_rules
-  # It stays there because this is a sensitive file that contains usernames
+  # It stays there because this is a sensitive file that contains password
 
   local run_mode func_name
   run_mode="$1"
@@ -16737,6 +16772,7 @@ configure_maxiaide() {
     apt-get -y purge aide-common
     required "debian@@apt:aide" "ubuntu@@apt:aide"
     maxiaide_bin="/usr/local/maxicode/maxiaide/maxiaide"
+
     _echo "$(msg cyan)Removing previous maxiaide symlink shortcut in /usr/local/bin ...$(msg end)" --name
     rm -f /usr/local/bin/maxiaide
     if [ -f ${maxiaide_bin} ]; then
@@ -16749,6 +16785,22 @@ configure_maxiaide() {
       maxiaide -V
       get_status_message "$?"
       echo ""
+
+      # Check to make sure the custom_rules in maxiaide folder exist
+      _echo "$(msg cyan)Checking if AIDE custom_rules file exist in maxiaide folder ...$(msg end)" --name
+      maxiaide_custom_rules="${SCRIPT_PATH}/maxiaide/custom_rules"
+      check_path "${maxiaide_custom_rules}"
+      echo ""
+      # Copy custom_rules from secure folder:
+      _echo "$(msg cyan)Copying AIDE custom_rules from secure folder into /usr/local/maxicode/maxiaide/conf/custom_rules ...$(msg end)" --name
+      cp "${maxiaide_custom_rules}" /usr/local/maxicode/maxiaide/conf/custom_rules
+      get_status_message $?
+      echo ""
+      # Update rule
+      _echo "$(msg cyan)Updating maxiaide new rule ...$(msg end)" --name
+      maxiaide update-rule
+      echo ""
+
       # Do not scan, we do not interest with this yet
       #_echo "$(msg cyan)Scanning maxiaide ...$(msg end)" --name
       #echo ""
@@ -19728,12 +19780,18 @@ setup_post() {
 
     # Enable all websites if dacli binary exist
     if command -v dacli &>/dev/null; then
-
       _echo "$(msg cyan)Turning all websites into live mode..$(msg end)" --name
       dacli maintain-web --set-status online
-
     fi
     echo ""
+
+    # make the first AIDE scan using maxiaide
+    if command -v maxiaide &>/dev/null; then
+      _echo "$(msg cyan)Scanning file system for the first time$(msg end)" --name
+      maxiaide scan --update --verbose # or maxiaide scan -uv
+    fi
+    echo ""
+
     check_finish_reboot "${func_name}"
   else
     _echo "$(msg yellow)[Skipped by system]: $(msg magenta)${func_name}$(msg end) $(msg yellow)with current option ${run_mode} has ran before $(msg end)" --name
@@ -20334,7 +20392,6 @@ while [ "$#" -gt 0 ]; do
     break
     ;;
   -t | --test)
-    # configure_services --run-force-exit
     exit 0
     break
     ;;
@@ -20402,7 +20459,7 @@ while [ "$#" -gt 0 ]; do
     exit 0
     break
     ;;
-  update-maxinet-remote-script | update-remote-scripts | update-remote-script | update-remote-code)
+  update-maxinet-remote-script | update-remote-scripts | update-remote-script | update-remote-code | push-script | update-script | update-scripts)
     ensure_internet_connected
     ensure_domain_server_resolved
     ensure_fqhn_server_resolved
@@ -20425,15 +20482,20 @@ while [ "$#" -gt 0 ]; do
     FILE_TO_TRANSFER="${SECURE_PATH}/ssl/.lego/*"
     REMOTE_PATH_TO_RECEIVE="${HOME}/ssl/"
     ssh_api mkdir --server-port ${C_BOX_HOSTNAME_FQHN}:${C_SSH_PORT} --group-user ${C_ROOT_USERGROUP}:${C_ROOT_USERNAME} --remote-path "${REMOTE_PATH_TO_RECEIVE}"
-
     ssh_api transfer-files --server-port "${C_BOX_HOSTNAME_FQHN}:${C_SSH_PORT}" --group-user "${C_ROOT_USERGROUP}:${C_ROOT_USERNAME}" --local-files "${FILE_TO_TRANSFER}" --remote-path "${REMOTE_PATH_TO_RECEIVE}"
 
     # Backup file to update
     FILE_TO_TRANSFER="${SECURE_PATH}/backup/admin_backups/current_backups/*"
     REMOTE_PATH_TO_RECEIVE="${HOME}/admin_backups/"
     ssh_api mkdir --server-port ${C_BOX_HOSTNAME_FQHN}:${C_SSH_PORT} --group-user ${C_ROOT_USERGROUP}:${C_ROOT_USERNAME} --remote-path "${REMOTE_PATH_TO_RECEIVE}"
-
     ssh_api transfer-files --server-port "${C_BOX_HOSTNAME_FQHN}:${C_SSH_PORT}" --group-user "${C_ROOT_USERGROUP}:${C_ROOT_USERNAME}" --local-files "${FILE_TO_TRANSFER}" --remote-path "${REMOTE_PATH_TO_RECEIVE}"
+
+    # maxiaide / AIDE custom_rules file
+    FILE_TO_TRANSFER="${SECURE_PATH}/maxiaide/custom_rules"
+    REMOTE_PATH_TO_RECEIVE="${HOME}/maxiaide/"
+    ssh_api mkdir --server-port ${C_BOX_HOSTNAME_FQHN}:${C_SSH_PORT} --group-user ${C_ROOT_USERGROUP}:${C_ROOT_USERNAME} --remote-path "${REMOTE_PATH_TO_RECEIVE}"
+    ssh_api transfer-files --server-port "${C_BOX_HOSTNAME_FQHN}:${C_SSH_PORT}" --group-user "${C_ROOT_USERGROUP}:${C_ROOT_USERNAME}" --local-files "${FILE_TO_TRANSFER}" --remote-path "${REMOTE_PATH_TO_RECEIVE}"
+    echo ""
 
     exit 0
     break
