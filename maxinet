@@ -5,7 +5,7 @@
 # remote OS tested: debian 11
 _APP_SPECIFIC_NAME="Maxinet"
 # Note that some minor versions are not published
-_APP_VERSION="0.8.5"
+_APP_VERSION="0.8.7"
 _APP_STATUS="alpha"
 _APP_VERSION_STATUS="${_APP_VERSION}-${_APP_STATUS}"
 
@@ -492,28 +492,47 @@ help() {
   echo ""
   echo "Welcome to help section!"
   echo "------------------------"
-  echo "Run initialize installation with log output: ${SCRIPT_NAME} create-server --rebuild-all --backup 2>&1 | tee ${SCRIPT_NAME}.log"
+  echo ""
+  echo "To deploy a new server automatically with log output: "
+  echo "==============="
+  echo "${SCRIPT_NAME} create-server --rebuild-all 2>&1 | tee ${SCRIPT_NAME}.log"
+  echo "OR with ISO backup"
+  echo "${SCRIPT_NAME} create-server --rebuild-all --backup 2>&1 | tee ${SCRIPT_NAME}.log"
+  echo "Note: These arguments are optional for installation log that can be omitted -> 2>&1 | tee ${SCRIPT_NAME}.log"
+  echo "==============="
   echo ""
   echo "To start/resume local installation: "
-  echo "eg:"
-  echo "${SCRIPT_NAME} setup"
-  echo "OR"
+  echo "==============="
   echo "${SCRIPT_NAME} setup 2>&1 | tee ${SCRIPT_NAME}.log"
+  echo "==============="
   echo ""
   echo "To start/resume remote installation:"
+  echo "==============="
   echo "Syntax: ${SCRIPT_NAME} ssh-login <fqdn>:<ssh_port> <user_role>:<user_name> <local_script_to_push_for_installation>"
-  echo "eg:"
   echo "${SCRIPT_NAME} ssh-login \"${LABEL_C_BOX_HOSTNAME_FQHN}:${LABEL_C_SSH_PORT}\" \"root:${LABEL_C_ROOT_USERNAME}\" \"${CODE_PATH}/ssh_scripts/maxinet_setup.sh\""
+  echo "==============="
   echo ""
-  echo "To unlock LUKS Disk encryption:"
+  echo "To unlock LUKS Disk encryption without login into terminal:"
+  echo "==============="
   echo "Syntax: ${SCRIPT_NAME} --ssh-luks-unlock <DROP_BEAR_PORT> \"<LUKS_PASS>\""
   echo "eg:"
   echo "${SCRIPT_NAME} --ssh-luks-unlock ${LABEL_C_DROP_BEAR_PORT} \"${LABEL_C_LUKS_PASS}\""
+  echo "==============="
   echo ""
-  echo "To login as root user: ${SCRIPT_NAME} ssh-login \"${LABEL_C_BOX_HOSTNAME_FQHN}:${LABEL_C_SSH_PORT}\" \"user:root\""
+  echo "To login server as a root user:"
+  echo "==============="
+  echo "${SCRIPT_NAME} ssh-login \"${LABEL_C_BOX_HOSTNAME_FQHN}:${LABEL_C_SSH_PORT}\" \"user:root\" OR maxinet login"
+  echo "Note: this will automatically unlock LUKS disk"
+  echo "==============="
   echo ""
-  echo "To login as SSH user: ${SCRIPT_NAME} ssh-login \"${LABEL_C_BOX_HOSTNAME_FQHN}:${LABEL_C_SSH_PORT}\" \"root:${LABEL_C_SSH_USERNAME}\""
 
+  echo "To login as an SSH user:"
+  echo "==============="
+  echo "${SCRIPT_NAME} ssh-login \"${LABEL_C_BOX_HOSTNAME_FQHN}:${LABEL_C_SSH_PORT}\" \"root:${LABEL_C_SSH_USERNAME}\""
+  echo "Note: this will automatically unlock LUKS disk"
+  echo "==============="
+  echo ""
+  echo "There are a lot more, this section is developing ..."
 }
 
 manual() {
@@ -2045,8 +2064,18 @@ ssh_api() {
 
     # Do not quote local_path to enable multiple file transfers
     _echo "$(msg cyan)Getting remote files(s) from remote path ${remote_path} to ${local_path} via SSH ...$(msg end)" --name
-    scp -r -o "StrictHostKeyChecking no" -P "${port}" -i "${rsa_key}" "${user}@${server}:${remote_path}" "${local_path}" 2> >(grep -v 'Permanently' 1>&2)
 
+    rsync -og --chown=root:root -Pav -e "ssh -q -o 'StrictHostKeyChecking no' -i '${rsa_key}' -p '${port}'" "${user}@${server}:${remote_path}" ${local_path}
+    retval=$?
+
+    if [ "${retval}" -ne 0 ]; then
+      # I do not like using SCP to download because it does not have incremental feature, comment it
+      # scp -r -o "StrictHostKeyChecking no" -P "${port}" -i "${rsa_key}" "${user}@${server}:${remote_path}" ${local_path} 2> >(grep -v 'Permanently' 1>&2)
+      # retval=$?
+      _echo "$(msg cyan)Warning, failed to use rsync to download files from remote $(msg end)" --name
+      _exit "${retval}"
+    fi
+    echo "File download status is ${retval}"
   elif [[ "${action}" == "file-upload" || "${action}" == "upload-files" || "${action}" == "transfer-files" || "${action}" == "transfer-file" || "${action}" == "file-transfer" || "${action}" == "files-transfer" ]]; then
     # ssh_api transfer-files/file-transfer/transfer-file --server-port ${C_BOX_HOSTNAME_FQHN}:${C_SSH_PORT} --group-user root:${C_ROOT_USERNAME}
     # --local-files "/tmp/file1 /var/file2" --remote-path ~/
@@ -2066,7 +2095,7 @@ ssh_api() {
     #retval=$?
     #echo "status is ${retval}"
 
-    # New method using rsync (this method required the remote has rsync installed)
+    # New method using rsync (this method required the remote has rsync installed). Better use rsync because it has incremental feature
     # Important, I must use --chown=root:root to make sure that remote uploaded files have root permission by default (for security)
     rsync -og --chown=root:root -Pav --delete -e "ssh -q -o 'StrictHostKeyChecking no' -i '${rsa_key}' -p '${port}'" ${local_files} "${user}@${server}:${remote_path}"
     retval=$?
@@ -8717,6 +8746,27 @@ da_api_admin() {
         fi
       done
     fi
+
+    #TODO This required process ID and I'm not sure know what is this https://forum.directadmin.com/threads/restore-not-working-in-directadmin.67215/#post-353686
+  elif [ "${action}" == "monitor-user-backup" ]; then
+    local cmd_api data method da_api_exec has_success has_error max_wait_restore
+    cmd_api="CMD_ADMIN_BACKUP"
+    data="action=monitor&get=tracking_data&type=sse"
+    method="POST"
+    curl --silent --request "${method}" --user "${da_api_username}":"${da_api_password}" --data "${data}" "${ssl_protocol}://${C_BOX_HOSTNAME_FQHN}:${port}/${cmd_api}"
+
+    exit 1
+    da_api_exec=$(curl --silent --request "${method}" --user "${da_api_username}":"${da_api_password}" --data "${data}" "${ssl_protocol}://${C_BOX_HOSTNAME_FQHN}:${port}/${cmd_api}")
+    has_success=$(echo "${da_api_exec}" | grep -w '^error=0')
+    if [ -z "${has_success}" ]; then
+      _echo "$(msg red)Error, API with action ${action} executed with the following error: $(msg end)" --name
+      _echo "$(msg red)${da_api_exec}$(msg end)" --plain | urldecode | awksep '&'
+    #_exit 147
+    else
+      _echo "$(msg green)OK, API with action ${action} executed with the following status: $(msg end)" --name
+      _echo "$(msg green)${da_api_exec}$(msg end)" --plain | urldecode | awksep '&'
+    fi
+
   # da_api_admin change-user-password --username user1 --password 123
   elif [ "${action}" == "change-user-password" ]; then
     local cmd_api data method retval da_api_exec has_success
@@ -10675,6 +10725,18 @@ install_da_pre() {
     #Root email will use this one
     echo "${C_ROOT_EMAIL}" >/root/.email.txt
     echo ""
+    # TODO Untested
+    _echo "$(msg cyan)Writing new email aliases at /etc/aliases ...$(msg end)" --name
+    #Root email will use this one
+    {
+      echo "diradmin: :blackhole:" >>/etc/aliases
+      echo "root:${C_ROOT_EMAIL}" >>/etc/aliases
+    } >>/etc/aliases
+    get_status_message $?
+    newaliases
+
+    echo ""
+
     #Forward all email to admin (webmaster)
     _echo "$(msg cyan)Writing email ${LABEL_C_ADMIN_EMAIL} into /root/.forward to override directadmin admin email ...$(msg end)" --name
     echo "${C_ADMIN_EMAIL}" >/root/.forward
@@ -11013,6 +11075,7 @@ install_da() {
     echo ""
     _echo "$(msg cyan)Setting execution permission for setup.sh ...$(msg end)" --name
     chmod 755 setup.sh
+    get_status_message $?
     echo ""
     # da_latest_version=$(curl -s https://www.directadmin.com/version.php | grep -Eo "[0-9]+\.[0-9]+")
     da_latest_version=$(dig +short -t txt ${C_DA_VERSION_CHANNEL}-version.directadmin.com | sed 's|.*v=\([0-9.]*\).*|\1|')
@@ -11033,6 +11096,8 @@ install_da() {
     # Temporary fix this issue, the new installer does not allow chattr +i /etc/hosts to be enabled
     echo "Allowing DA installer to modify /etc/hosts temporarily ..."
     chattr -i /etc/hosts
+    get_status_message $?
+    echo ""
     # https://forum.directadmin.com/threads/prevent-directadmin-to-modify-etc-hosts-during-installation.67200/
 
     _echo "$(msg cyan)Note: Directadmin ${da_latest_version} will be installed on ${LABEL_C_BOX_HOSTNAME_FQHN} using ${C_DA_INSTALL_TYPE} mode$(msg end)"
@@ -11223,6 +11288,19 @@ install_da_post() {
       ${da_cb_bin} bubblewrap
       ${da_cb_bin} jailshell
       echo ""
+    fi
+
+    # Install maldetect only if clamav is set to install
+    if [ "${C_DA_CB_INSTALL_CLAMAV}" == "yes" ]; then
+      _echo "$(msg cyan)Installing maldetect from source ...$(msg end)" --name
+      echo "[${SCRIPT_NAME}]: Removing previous downloaded file ..."
+      rm -fv "${INST_TEMP_DIR}/maldetect-current.tar.gz"
+      navigate_path "${INST_TEMP_DIR}"
+      echo "[${SCRIPT_NAME}]: Downloading and extracting maldetect file in ${INST_TEMP_DIR} ..."
+      curl -SL http://www.rfxn.com/downloads/maldetect-current.tar.gz | tar -xzf -
+      # Now after extracted we have csf folder, let's enter to this path
+      cd "${INST_TEMP_DIR}"/maldetect-* || exit 0
+      bash ./install.sh
     fi
 
     # ClamAV and exim rebuild
@@ -12759,7 +12837,8 @@ configure_da_sql() {
     loop_count=0
     while :; do
       ((loop_count++))
-      randomBlowfishSecret=$(openssl rand -base64 32)
+      # This will generate 32bit long random number
+      randomBlowfishSecret=$(openssl rand -base64 22)
       replace_pma_blowfish="\$cfg['blowfish_secret'] = '${randomBlowfishSecret}'; \/* YOU MUST FILL IN THIS FOR COOKIE AUTH! *\/"
       sed -i "s/\$cfg\[.blowfish_secret.\]\s*=.*/${replace_pma_blowfish}/" /var/www/html/phpMyAdmin/config.inc.php 2>/dev/null
       retval=$?
@@ -14302,6 +14381,7 @@ configure_da_fqhn_server() {
 # Here, we update the first owner account information (the original admin)
 configure_da_owner_accounts() {
   # TODO Note we can use export DA_ADMIN_USER and DA_ADMIN_PASSWORD for creating new admin
+  # TODO testing owner restore progress bar
   local run_mode func_name
   run_mode="$1"
   extra_option="$2"
@@ -15669,6 +15749,8 @@ configure_da_user_domain_ssl() {
     end_execute_options "${run_mode}" "${func_name}"
   fi
 }
+# Note latest DA installer gave letsencrypt SSL certificate for hostname
+# Use below to have the ability to use another certificate like zerossl
 configure_da_host_domain_ssl() {
   # OLD NOTES:
   # Interesting answer: https://serverfault.com/questions/602700/debian-ipv6-is-not-asssigned-to-interface
@@ -16320,8 +16402,9 @@ configure_maxinis() {
   fi
   [[ "${SKIP_RUN}" == "true" ]] && return 0
   if [[ ! -f "${CONF_PATH}/${func_name}_executed" && "${FUNCTION_RUN}" == "true" ]]; then
-    local lynis_latest_version maxinis_bin
+    local lynis_latest_version maxinis_bin lynis_bin
     maxinis_bin="/usr/local/maxicode/maxinis/maxinis"
+    lynis_bin="/usr/local/lynis/lynis"
     # SSHD config enough. No more
     # TODO MORE HERE for others based on lynis suggestion.. (Need to obtain the scan ID first and get that value)
     # Use that value and auto apply hardening here
@@ -16341,10 +16424,19 @@ configure_maxinis() {
     echo "[${SCRIPT_NAME}]: Checking system security with lynis ..."
     # No need to audit system during setup because ain't nobody got time for this
     #./lynis audit system
+
+    if [ -f ${lynis_bin} ]; then
+      rm -f /usr/local/bin/lynis
+      echo "[${SCRIPT_NAME}]: Created symlink for lynis at /usr/local/bin ..."
+      ln -s "${lynis_bin}" /usr/local/bin
+    fi
+
     if [ -f ${maxinis_bin} ]; then
       echo "[${SCRIPT_NAME}]: Creating symlink and executable for ${maxinis_bin} ..."
       chmod +x ${maxinis_bin}
       # Symbolic name
+      rm -f /usr/local/bin/maxinis
+
       ln -s ${maxinis_bin} /usr/local/bin
     else
       echo "[${SCRIPT_NAME}]: Warning, maxinis doesn't exist in /usr/local/maxicode !"
@@ -19780,14 +19872,16 @@ setup_post() {
 
     # Enable all websites if dacli binary exist
     if command -v dacli &>/dev/null; then
-      _echo "$(msg cyan)Turning all websites into live mode..$(msg end)" --name
+      _echo "$(msg cyan)Turning all websites into live mode using the following command $(msg end)" --name
+      _echo "$(msg cyan)dacli maintain-web --set-status online$(msg end)" --name
       dacli maintain-web --set-status online
     fi
     echo ""
 
     # make the first AIDE scan using maxiaide
     if command -v maxiaide &>/dev/null; then
-      _echo "$(msg cyan)Scanning file system for the first time$(msg end)" --name
+      _echo "$(msg cyan)Scanning file system for the first time using the following command $(msgend)" --name
+      _echo "$(msg cyan)maxiaide scan --update --verbose$(msg end)" --name
       maxiaide scan --update --verbose # or maxiaide scan -uv
     fi
     echo ""
@@ -20150,6 +20244,7 @@ DATA_PATH="${SCRIPT_PATH}/data"
 CODE_PATH="${SCRIPT_PATH}/code"
 ISO_PATH="${SCRIPT_PATH}/iso"
 DOWNLOAD_PATH="${SCRIPT_PATH}/download"
+BACKUP_PATH="${SCRIPT_PATH}/backup"
 SECURE_PATH="${SCRIPT_PATH}/secure"
 STORAGE_PATH="${SCRIPT_PATH}/storage"
 TEMP_PATH="${SCRIPT_PATH}/temp"
@@ -20163,6 +20258,7 @@ mkdir -p "${DATA_PATH}"
 mkdir -p "${CODE_PATH}"
 mkdir -p "${ISO_PATH}"
 mkdir -p "${DOWNLOAD_PATH}"
+mkdir -p "${BACKUP_PATH}"
 mkdir -p "${SECURE_PATH}"
 mkdir -p "${STORAGE_PATH}"
 mkdir -p "${TEMP_PATH}"
@@ -20392,6 +20488,12 @@ while [ "$#" -gt 0 ]; do
     break
     ;;
   -t | --test)
+    configure_maxinis --run-force-exit
+    exit 0
+    break
+    ;;
+  -t2 | --test2)
+    da_api_admin monitor-user-backup
     exit 0
     break
     ;;
@@ -20571,8 +20673,8 @@ ENDSSH
     exit 0
     break
     ;;
-  # maxinet --get-remote-files "~/maxinet.log"
-  get-remote-files | download-remote-files | get-remote-file | download-remote-file)
+  # maxinet get-remote-files "~/maxinet.log"
+  get-remote-files | download-remote-files | get-remote-file | download-remote-file | get-server-files)
     ensure_internet_connected
     ensure_domain_server_resolved
     ensure_fqhn_server_resolved
@@ -20590,6 +20692,29 @@ ENDSSH
     exit 0
     break
     ;;
+
+  # maxinet backup-server "/opt /usr/local/maxicode"
+  backup-server | server-backup | backup-full-server)
+    ensure_internet_connected
+    ensure_domain_server_resolved
+    ensure_fqhn_server_resolved
+    shift
+    remote_files_path="$1"
+    if [ -z "${remote_files_path}" ]; then
+      remote_files_path="/home /boot /etc /root /usr /var /mnt /media /opt /srv"
+    fi
+    echo "Downloading file(s) from ${remote_files_path} into ${BACKUP_PATH}/system_backup ..."
+    ssh_api file-download --server-port "${C_BOX_HOSTNAME_FQHN}:${C_SSH_PORT}" --group-user root:root --remote-path "${remote_files_path}" --local-path "${BACKUP_PATH}/${C_BOX_HOSTNAME_FQHN}_system_backup"
+    retval=$?
+    if [ "${retval}" -eq 0 ]; then
+      _echo "$(msg green)Success, file ${remote_files_path} downloaded into ${BACKUP_PATH}/system_backup$(msg end)" --name
+    else
+      _echo "$(msg red)Error, something is wrong when trying to download remote file$(msg end)" --name
+    fi
+    exit 0
+    break
+    ;;
+
     # ./maxinet ssh-login <optional_hostname> <optional_port> <optional_user>
     # If hostname or port are not provided, they will use the default ones from config file
   generate-port)
