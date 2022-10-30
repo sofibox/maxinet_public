@@ -1,0 +1,10 @@
+# You can run full backup from host by running the following command:
+# maxinet backup-server --path "/etc /home"
+# OR
+# maxinet backup-server
+# to make full backup of generic path
+
+# Now you can also write backup exclusion path
+# eg:
+# /var/etc/mysecret
+# the file mysecret will not be backed up

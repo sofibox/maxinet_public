@@ -5,7 +5,7 @@
 # remote OS tested: debian 11
 _APP_SPECIFIC_NAME="Maxinet"
 # Note that some minor versions are not published
-_APP_VERSION="0.8.7"
+_APP_VERSION="0.8.9"
 _APP_STATUS="alpha"
 _APP_VERSION_STATUS="${_APP_VERSION}-${_APP_STATUS}"
 
@@ -1862,7 +1862,7 @@ init_server() {
 ssh_api() {
   local action argnum options long_opts retval key_path group user comment server_label server port destination rsa_key \
     linode_label local_script_path remote_script_path remote_path local_path push_iso_write_script push_shutdown_script push_reboot_script \
-    push_maxinet_setup_script password local_files silent_push silent
+    push_maxinet_setup_script password local_files silent_push silent options
 
   action="$1"
   argnum="$#"
@@ -1874,7 +1874,7 @@ ssh_api() {
   #fi
   long_opts="help,key-path:,group:,user:,comment:,server-label:,server:,port:,destination:,without-prompt,rsa-key:,linode-label:, \
   local-script-path:,remote-script-path:,remote-path:,local-path:,local-files:,push-iso-write-script,push-shutdown-script,push-reboot-script,push-maxinet-setup-script, \
-  sp:,server-port:,gu:,group-user:,password:,silent-push,silent"
+  sp:,server-port:,gu:,group-user:,password:,silent-push,silent,options:"
   options=$(getopt -o '' --long "${long_opts}" -n "${FUNCNAME[0]} in ${SCRIPT_NAME}" -- "$@")
   retval=$?
   if [ ${retval} != 0 ]; then
@@ -1908,6 +1908,7 @@ ssh_api() {
   password=""
   silent_push=false
   silent=false
+  options=""
   while true; do
     case "$1" in
     --help)
@@ -2027,6 +2028,10 @@ ssh_api() {
       password="$2"
       shift 2
       ;;
+    --options)
+      options="$2"
+      shift 2
+      ;;
     --silent-push)
       silent_push=true
       shift
@@ -2055,19 +2060,28 @@ ssh_api() {
   # Example of downloading log file from the remote to local path/log
   # ssh_api file-download --server-port test.server.com:444 --group-user root:root --remote-path ~/maxinet.log --local-path "${SCRIPT_PATH}/log"
   if [[ "${action}" == "file-download" || "${action}" == "download-files" || "${action}" == "get-files" || "${action}" == "get-file" || "${action}" == "file-retrieve" || "${action}" == "files-retrieve" ]]; then
-    local private_key_name private_key_file
+    local private_key_name private_key_file extra_options
+
     if [ -z "${rsa_key}" ]; then
       private_key_name="${group}_${user}_${server}.id_rsa"
       private_key_file="/root/.ssh/${private_key_name}"
       rsa_key="${private_key_file}"
     fi
 
+    # Make default options if it is empty
+    if [ "${options}" ]; then
+      #-x, --one-file-system = do not cross filesystem boundaries
+      #-v, --verbose increase verbosity
+      #-a, --archive = archive mode; equals -rlptgoD (no -H,-A,-X)
+      #--stats = give some file-transfer stats
+      options="-avx --stats"
+    fi
+
     # Do not quote local_path to enable multiple file transfers
     _echo "$(msg cyan)Getting remote files(s) from remote path ${remote_path} to ${local_path} via SSH ...$(msg end)" --name
-
-    rsync -og --chown=root:root -Pav -e "ssh -q -o 'StrictHostKeyChecking no' -i '${rsa_key}' -p '${port}'" "${user}@${server}:${remote_path}" ${local_path}
+    rsync ${options} -e "ssh -q -o 'StrictHostKeyChecking no' -i '${rsa_key}' -p '${port}'" "${user}@${server}:${remote_path}" ${local_path}
     retval=$?
-
+    echo "File download status is ${retval}"
     if [ "${retval}" -ne 0 ]; then
       # I do not like using SCP to download because it does not have incremental feature, comment it
       # scp -r -o "StrictHostKeyChecking no" -P "${port}" -i "${rsa_key}" "${user}@${server}:${remote_path}" ${local_path} 2> >(grep -v 'Permanently' 1>&2)
@@ -2075,7 +2089,7 @@ ssh_api() {
       _echo "$(msg cyan)Warning, failed to use rsync to download files from remote $(msg end)" --name
       _exit "${retval}"
     fi
-    echo "File download status is ${retval}"
+
   elif [[ "${action}" == "file-upload" || "${action}" == "upload-files" || "${action}" == "transfer-files" || "${action}" == "transfer-file" || "${action}" == "file-transfer" || "${action}" == "files-transfer" ]]; then
     # ssh_api transfer-files/file-transfer/transfer-file --server-port ${C_BOX_HOSTNAME_FQHN}:${C_SSH_PORT} --group-user root:${C_ROOT_USERNAME}
     # --local-files "/tmp/file1 /var/file2" --remote-path ~/
@@ -2100,6 +2114,7 @@ ssh_api() {
     rsync -og --chown=root:root -Pav --delete -e "ssh -q -o 'StrictHostKeyChecking no' -i '${rsa_key}' -p '${port}'" ${local_files} "${user}@${server}:${remote_path}"
     retval=$?
 
+    # This is an alternative method if rsync failed
     if [ "${retval}" -ne 0 ]; then
       _echo "$(msg cyan)Warning, failed to use rsync to transfer file. Transferring using scp method ... $(msg end)" --name
       _echo "$(msg cyan)Transferring file local files(s) [ ${local_files} ] into remote SSH ${remote_path} using scp ...$(msg end)" --name
@@ -8692,7 +8707,7 @@ da_api_admin() {
   elif [ "${action}" == "restore-user-backup" ]; then
     local cmd_api data method da_api_exec has_success has_error max_wait_restore
     cmd_api="CMD_API_ADMIN_BACKUP"
-    data="where=local&when=now&ftp_ip=&ftp_username=&ftp_password=&ftp_path=%2F&ftp_port=21&ftp_secure=no&local_path=${backup_path}&ip_choice=file&ip=${backup_ip}&action=restore&create_user_home_override=&encryption_password=${backup_password}&select0=${backup_file_name}"
+    data="where=local&when=now&ftp_ip=&ftp_username=&ftp_password=&ftp_path=%2F&ftp_port=21&ftp_secure=no&local_path=${backup_path}&ip_choice=file&ip=${backup_ip}&action=restore&create_user_home_override=&encryption_password=${backup_password}&select0=${backup_file_name}&type=sse"
     method="POST"
     da_api_exec=$(curl --silent --request "${method}" --user "${da_api_username}":"${da_api_password}" --data "${data}" "${ssl_protocol}://${C_BOX_HOSTNAME_FQHN}:${port}/${cmd_api}")
     has_success=$(echo "${da_api_exec}" | grep -w '^error=0')
@@ -12732,10 +12747,12 @@ configure_da_sql() {
         # Appending the config, because password did not exist
         _echo "$(msg cyan)Updating new SQL root password in ${my_cnf_db_root} under [client] section ...$(msg end)" --name
         sed -i "s|\[client\]|&\npassword=${C_DA_ROOT_SQLPASS}|" "${my_cnf_db_root}"
+        get_status_message "$?"
       else
         _echo "$(msg cyan)Updating new SQL username root in ${my_cnf_db_root} ...$(msg end)" --name
         # Password already exist, we just replace
         sed -i "/\[client\]/,/^\[/ s/password=.*/password=${C_DA_ROOT_SQLPASS}/" "${my_cnf_db_root}"
+        get_status_message "$?"
       fi
       echo ""
       grep_count=$(grep -ic '^user=.*\|^user.*=.*' "${my_cnf_db_root}")
@@ -12744,10 +12761,12 @@ configure_da_sql() {
         #sleep 1
         # Append under client because did not exist
         sed -i 's|\[client\]|&\nuser=root|' "${my_cnf_db_root}"
+        get_status_message "$?"
       else
         _echo "$(msg cyan)Updating SQL user to root in ${my_cnf_db_root} ...$(msg end)" --name
         # Already exist, so we replace
         sed -i "/\[client\]/,/^\[/ s/user=.*/user=root/" "${my_cnf_db_root}"
+        get_status_message "$?"
       fi
       echo ""
 
@@ -12756,10 +12775,32 @@ configure_da_sql() {
         _echo "$(msg cyan)Writing new config to disable mysql remote access in ${my_cnf_db_root} under [mysqld] section ...$(msg end)" --name
         # Append under client because not exist
         sed -i 's|\[mysqld\]|&\nbind-address=127.0.0.1|' "${my_cnf_db_root}"
+        get_status_message "$?"
       else
         _echo "$(msg cyan)Updating config to disable remote access in ${my_cnf_db_root} under [mysqld] section ...$(msg end)" --name
         # Already exist, but we replace
         sed -i "/\[mysqld\]/,/^\[/ s/bind-address=.*/bind-address=127.0.0.1/" "${my_cnf_db_root}"
+        get_status_message "$?"
+      fi
+
+      echo ""
+      # This fix the following error: mysqldump error output: mysqldump: Error: 'Can't create/write to file '/tmp/#sql-temptable
+      # From my old guide: https://stackoverflow.com/a/57609881/841677
+      _echo "$(msg cyan)Creating msql temp folder with mysql:mysql permission ...$(msg end)" --name
+      mkdir -p /var/lib/mysql/tmp
+      chown mysql:mysql /var/lib/mysql/tmp
+      echo ""
+      grep_count=$(grep -ic '^tmpdir=.*\|^tmpdir.*=.*' "${my_cnf_db_root}")
+      if [ "${grep_count}" = 0 ]; then
+        _echo "$(msg cyan)Writing new config to fix mysql temporary folder issue in ${my_cnf_db_root} under [mysqld] section ...$(msg end)" --name
+        # Append under client because not exist
+        sed -i 's|\[mysqld\]|&\ntmpdir=\/var\/lib\/mysql\/tmp|' "${my_cnf_db_root}"
+        get_status_message "$?"
+      else
+        _echo "$(msg cyan)Updating new config to fix mysql temporary folder issue in ${my_cnf_db_root} under [mysqld] section ...$(msg end)" --name
+        # Already exist, but we replace
+        sed -i "/\[mysqld\]/,/^\[/ s/tmpdir=.*/tmpdir=\/var\/lib\/mysql\/tmp/" "${my_cnf_db_root}"
+        get_status_message "$?"
       fi
     else
       _echo "$(msg red)Error, the file ${my_cnf_db_root} is missing. It should exist in that location if mysql is installed through directadmin$(msg end)" --name
@@ -12769,20 +12810,25 @@ configure_da_sql() {
 
     _echo "$(msg cyan)Removing unsecured anonymous users from database ...$(msg end)" --name
     ${mysql_granted} "DELETE FROM mysql.user WHERE user='';"
+    get_status_message "$?"
     echo ""
     _echo "$(msg cyan)Removing root users from non-localhost for security ...$(msg end)" --name
     ${mysql_granted} "DELETE FROM mysql.user WHERE User='root' AND Host NOT IN ('localhost', '127.0.0.1', '::1');"
+    get_status_message "$?"
     echo ""
     _echo "$(msg cyan)Removing test database if exist for security ...$(msg end)" --name
     ${mysql_granted} "DROP DATABASE IF EXISTS test;"
+    get_status_message "$?"
     echo ""
     _echo "$(msg cyan)Flushing mysql privileges ...$(msg end)" --name
     ${mysql_granted} "FLUSH PRIVILEGES;"
+    get_status_message "$?"
     echo ""
     # There is no recommendation to change da_admin sql username to something else at this moment,
     # so ignore username change for sql, just change password.
     _echo "$(msg cyan)Changing Directadmin da_admin default SQL password ...$(msg end)" --name
     ${mysql_granted} "ALTER USER 'da_admin'@'localhost' IDENTIFIED BY '${C_DA_ADMIN_SQLPASS}';"
+    get_status_message "$?"
     echo ""
     _echo "$(msg cyan)Updating da_admin SQL authentication information at ${mysql_conf_db_da_admin} ...$(msg end)" --name
     if [ -s ${mysql_conf_db_da_admin} ]; then
@@ -12847,11 +12893,13 @@ configure_da_sql() {
         break
       fi
     done
+
+    echo ""
     # Warning only use cookie authentication for development
     _echo "$(msg cyan)Setting phpMyAdmin authentication from http to cookie in config.inc.php to enable page login and httpd protection ...$(msg end)" --name
     replace_pma_authtype="\$cfg['Servers'][\$i]['auth_type'] = 'cookie';"
     sed -i "s/\$cfg\['Servers'\]\[\$i\]\['auth_type'\] = 'http';/${replace_pma_authtype}/" /var/www/html/phpMyAdmin/config.inc.php
-
+    get_status_message "$?"
     echo ""
 
     # We can setup theme for directadmin here.
@@ -12909,6 +12957,7 @@ configure_da_sql() {
       echo "[Skipped]: Note check if this distribution ID ${DISTRO_ID} has mysql symlink to /home/mysql if it has issue with sql system backup?"
       _confirm
     fi
+
     echo ""
     check_finish_reboot "${func_name}"
   else
@@ -19863,7 +19912,7 @@ setup_post() {
       # Install speedtest-cli
       curl -s https://packagecloud.io/install/repositories/ookla/speedtest-cli/script.deb.sh | sudo bash
       apt-get install speedtest
-      apt-get -y install ncdu htop gpg vim mutt
+      apt-get -y install ncdu htop gpg vim mutt retry
     else
       echo "Warning, check the setup_post installation for ${DISTRO_ID}, it's only available for debian!"
     fi
@@ -19899,6 +19948,71 @@ setup_post() {
   fi
 
   # TODO note, at the end of setup_post, must put PermitRootLogin to no to maximum security, previously PermitRootLogin was prohibited-password
+}
+
+# syntax: maxinet clean full
+
+clean_setup_files() {
+  local full_clean="$2"
+  if [ "${EXECUTION_ENV}" == "local" ]; then
+    _echo "Error, cannot execute this action because the execution environment file ${SCRIPT_PATH}/execution_env is not set as remote"
+    _echo "This is a dangerous function and can be only run on remote server"
+    _exit 147
+  fi
+  if [[ "${full_clean}" == "full" || "${full_clean}" == "all" ]]; then
+    full_clean="full"
+    _confirm "Warning! This will remove everything including setup config files and logs. You will not be able to resume script installation and view previous logs!! Continue? [Y/y] or Cancel [CTRL +C]:"
+  fi
+  # Destroy the setup config deeply
+  if [ "${C_AUTO_DESTROY_CONFIG}" == "true" ]; then
+    _echo "Warning, destroying setup configuration information in ${CONFIG_FILE} within 120 seconds ..."
+    _pause 120
+    shred -uvz "${CONFIG_FILE}"
+    get_status_message "$?"
+  else
+    _echo "Warning, C_AUTO_DESTROY_CONFIG is not set to auto destroy config file. Please manually backup and destroy the setup configuration information in ${CONFIG_FILE}"
+    sleep 5
+  fi
+
+  # Remove all setup information except CONF_PATH because CONF_PATH and CODE_PATH
+  echo ""
+  _echo "Cleaning installation log files"
+  rm -vrf "${DATA_PATH}"
+  # CODE_PATH contains autogenerated file/script ending with _ag.extension (but can be removed if triggering setup)
+  rm -vrf "${CODE_PATH}"
+  rm -vrf "${TEMP_PATH}"
+  rm -vrf "${INST_TEMP_DIR}"
+  rm -vrf "${SECURE_PATH}"
+  rm -vrf "${STORAGE_PATH}"
+  rm -vrf "${ISO_PATH}"
+  rm -vrf "${SSL_PATH}"
+  rm -vrf "${DOWNLOAD_PATH}"
+  rm -vrf "${BACKUP_PATH}"
+  if [ "${full_clean}" == "full" ]; then
+    rm -vrf "${CONF_PATH}"
+    rm -vrf "${LOG_PATH}"
+  fi
+
+  # extra remove temp files in root folders
+  rm -vrf "${SCRIPT_PATH}/admin_backups"
+  rm -vrf "${SCRIPT_PATH}/gpg"
+  rm -vrf "${SCRIPT_PATH}/maxinet.log"
+  rm -vrf "${SCRIPT_PATH}/readme.txt"
+  rm -vrf "${SCRIPT_PATH}/os_initialize.sh"
+  rm -vrf "${SCRIPT_PATH}/execution_env"
+  rm -vrf "${SCRIPT_PATH}/user_${C_SSH_USERNAME}_${C_BOX_HOSTNAME_FQHN}.id_rsa.pub"
+  rm -vrf "${SCRIPT_PATH}/maxiaide"
+
+  echo ""
+  # Clear bash history
+  _echo "Cleaning bash history"
+  history -c
+  get_status_message "$?"
+  echo ""
+
+  _echo "Destroying main script at ${SCRIPT_PATH}/${SCRIPT_NAME} ..."
+  rm -vf "${SCRIPT_PATH}/${SCRIPT_NAME}"
+  echo "######### DONE ! #########"
 }
 
 #############################
@@ -20149,48 +20263,7 @@ setup() {
     _echo "$(msg green)========== Installation Completed ==========$(msg end)" --plain
     echo ""
 
-    # Destroy the setup config deeply
-    if [ "${C_AUTO_DESTROY_CONFIG}" == "true" ]; then
-      _echo "$(msg yellow)Warning, destroying setup configuration information in ${CONFIG_FILE} within 120 seconds ...$(msg end)" --name
-      _pause 120
-      shred -uvz "${CONFIG_FILE}"
-      get_status_message "$?"
-    else
-      _echo "$(msg yellow)Warning, C_AUTO_DESTROY_CONFIG is not set to auto destroy config file. Please manually backup and destroy the setup configuration information in ${CONFIG_FILE}$(msg end)" --name
-      sleep 5
-    fi
-    # Remove all setup information except CONF_PATH because CONF_PATH and CODE_PATH
-    echo ""
-    _echo "$(msg cyan)Cleaning installation log files$(msg end)" --name
-    # CONF_PATH contains setup step information
-    #rm -rf "${CONF_PATH}"
-    rm -rf "${DATA_PATH}"
-    # CODE_PATH contains autogenerated file/script ending with _ag.extension (but can be removed if triggering setup)
-    rm -rf "${CODE_PATH}"
-    rm -rf "${TEMP_PATH}"
-    rm -rf "${INST_TEMP_DIR}"
-    rm -rf "${SECURE_PATH}"
-    rm -rf "${STORAGE_PATH}"
-    rm -rf "${ISO_PATH}"
-    rm -rf "${SSL_PATH}"
-    rm -rf "${DOWNLOAD_PATH}"
-    # extra remove temp files in root folders
-    rm -rf "/root/admin_backups"
-    rm -rf "/root/gpg"
-    rm -f "/root/maxinet.log"
-    rm -f "/root/readme.txt"
-    rm -f "/root/os_initialize.sh"
-    rm -f "/root/execution_env"
-    rm -f "/root/user_${C_SSH_USERNAME}_${C_BOX_HOSTNAME_FQHN}.id_rsa.pub"
-    echo ""
-    # Clear bash history
-    _echo "$(msg cyan)Cleaning bash history$(msg end)" --name
-    history -c
-    get_status_message "$?"
-    echo ""
-    _echo "$(msg cyan)Destroying main script at ${SCRIPT_PATH}/${SCRIPT_NAME} ...$(msg end)" --name
-    rm -f "${SCRIPT_PATH}/${SCRIPT_NAME}"
-    echo "######### DONE ! #########"
+    clean_setup_files
   fi
   return 0
 }
@@ -20482,13 +20555,7 @@ fi
 # because the first argument can be treated as normal action without -- or -
 while [ "$#" -gt 0 ]; do
   case "${ACTION}" in
-  # test-script
-  --clear-setup-files | --remove-setup-files)
-    exit 0
-    break
-    ;;
   -t | --test)
-    configure_maxinis --run-force-exit
     exit 0
     break
     ;;
@@ -20519,15 +20586,9 @@ while [ "$#" -gt 0 ]; do
     break
     exit 0
     ;;
-  # Clear all paths (dangerous)
-  --cls | --clear)
-    rm -rf "${LOG_PATH}"
-    rm -rf "${CONF_PATH}"
-    rm -rf "${DATA_PATH}"
-    rm -rf "${CODE_PATH}"
-    rm -rf "${TEMP_PATH}"
-    rm -rf "${INST_TEMP_DIR}"
-    echo "[${SCRIPT_NAME}]: Program path cleaned"
+    # Clear all paths (dangerous)
+  clear | clean | --clear | --clean)
+    clean_setup_files "$@"
     exit 0
     break
     ;;
@@ -20695,6 +20756,7 @@ ENDSSH
 
   # maxinet backup-server "/opt /usr/local/maxicode"
   backup-server | server-backup | backup-full-server)
+    # TODO check backup exclusion list, might not work properly
     ensure_internet_connected
     ensure_domain_server_resolved
     ensure_fqhn_server_resolved
@@ -20703,8 +20765,11 @@ ENDSSH
     if [ -z "${remote_files_path}" ]; then
       remote_files_path="/home /boot /etc /root /usr /var /mnt /media /opt /srv"
     fi
+    echo ""
+    set_linux_crlf "${SECURE_PATH}/backup/backup_exclude_list.txt"
     echo "Downloading file(s) from ${remote_files_path} into ${BACKUP_PATH}/system_backup ..."
-    ssh_api file-download --server-port "${C_BOX_HOSTNAME_FQHN}:${C_SSH_PORT}" --group-user root:root --remote-path "${remote_files_path}" --local-path "${BACKUP_PATH}/${C_BOX_HOSTNAME_FQHN}_system_backup"
+    echo ""
+    ssh_api file-download --options "-avx --exclude-from '${SECURE_PATH}/backup/backup_exclude_list.txt'" --server-port "${C_BOX_HOSTNAME_FQHN}:${C_SSH_PORT}" --group-user root:root --remote-path "${remote_files_path}" --local-path "${BACKUP_PATH}/${C_BOX_HOSTNAME_FQHN}_system_backups"
     retval=$?
     if [ "${retval}" -eq 0 ]; then
       _echo "$(msg green)Success, file ${remote_files_path} downloaded into ${BACKUP_PATH}/system_backup$(msg end)" --name
