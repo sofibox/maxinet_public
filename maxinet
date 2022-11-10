@@ -5,7 +5,7 @@
 # remote OS tested: debian 11
 _APP_SPECIFIC_NAME="Maxinet"
 # Note that some minor versions are not published
-_APP_VERSION="0.8.9"
+_APP_VERSION="0.9"
 _APP_STATUS="alpha"
 _APP_VERSION_STATUS="${_APP_VERSION}-${_APP_STATUS}"
 
@@ -1764,7 +1764,7 @@ init_server() {
     ssh_api transfer-files --server-port "${C_BOX_HOSTNAME_FQHN}:${C_SSH_PORT}" --group-user "${C_ROOT_USERGROUP}:${C_ROOT_USERNAME}" --local-files "${file_to_transfer}" --remote-path "${remote_path_to_receive}"
     echo ""
     # SSL cert to update
-    file_to_transfer="${SECURE_PATH}/ssl/.lego/*"
+    file_to_transfer="${SECURE_PATH}/ssl/*"
     remote_path_to_receive="${HOME}/ssl/"
     ssh_api mkdir --server-port ${C_BOX_HOSTNAME_FQHN}:${C_SSH_PORT} --group-user ${C_ROOT_USERGROUP}:${C_ROOT_USERNAME} --remote-path "${remote_path_to_receive}"
     ssh_api transfer-files --server-port "${C_BOX_HOSTNAME_FQHN}:${C_SSH_PORT}" --group-user "${C_ROOT_USERGROUP}:${C_ROOT_USERNAME}" --local-files "${file_to_transfer}" --remote-path "${remote_path_to_receive}"
@@ -10740,7 +10740,7 @@ install_da_pre() {
     #Root email will use this one
     echo "${C_ROOT_EMAIL}" >/root/.email.txt
     echo ""
-    # TODO Untested
+    # TODO Test this
     _echo "$(msg cyan)Writing new email aliases at /etc/aliases ...$(msg end)" --name
     #Root email will use this one
     {
@@ -12959,6 +12959,10 @@ configure_da_sql() {
     fi
 
     echo ""
+    _echo "$(msg cyan)Restarting mysqld ...$(msg end)" --name
+    systemctl restart mysqld
+    get_status_message "$?"
+    echo ""
     check_finish_reboot "${func_name}"
   else
     _echo "$(msg yellow)[Skipped by system]: $(msg magenta)${func_name}$(msg end) $(msg yellow)with current option ${run_mode} has ran before $(msg end)" --name
@@ -13984,7 +13988,7 @@ configure_da_settings() {
     fi
 
     # This will enable hsts for hostname on login port only
-    # Important, this will not work until SSL certificate is requested by calling configure_da_host_domain_ssl()
+    # Important, this will not work until SSL certificate is requested by calling configure_da_hostname_ssl()
     if [[ "${C_DA_ENABLE_HOST_HSTS}" != "false" ]]; then
       ${da_bin} set hsts "${C_DA_ENABLE_HOST_HSTS}"
       # The document also recommend to enable force_hostname (this was done on top)
@@ -14313,7 +14317,9 @@ configure_da_dns_templates() {
     else
       _echo "$(msg yellow)Warning, current DNS config has been tested with directadmin ${dns_compatible_version} but directadmin version is ${da_current_version}$(msg end)" --name
       # Whether to continue or not without changing the variable dns_compatible_version
-      _confirm
+      # _confirm
+      # Probably is working fine no need to have confirmation
+      _pause 10
     fi
 
     touch "${da_template_custom}/dns_txt.conf"
@@ -15153,8 +15159,8 @@ configure_da_ssl_pre() {
   #+ cp -f /usr/local/directadmin/conf/cacert.pem /etc/httpd/conf/ssl.crt/server.crt
   #+ cp -f /usr/local/directadmin/conf/carootcert.pem /etc/httpd/conf/ssl.crt/server.ca
 
-  # Must run this functions (configure_da_host_domain_ssl) after running CSF because we need to make sure all appropriate ports are opened to request certs
-  # Warning do not overused configure_da_host_domain_ssl function because when requesting the same cert for the same domain 7 times for a week, you will get blocked.
+  # Must run this functions (configure_da_hostname_ssl) after running CSF because we need to make sure all appropriate ports are opened to request certs
+  # Warning do not overused configure_da_hostname_ssl function because when requesting the same cert for the same domain 7 times for a week, you will get blocked.
   # This will set the hosting to SSL:
   # It's best to call SSL after domain propagation few hours later.
 
@@ -15182,36 +15188,43 @@ configure_da_ssl_pre() {
 
     #https://help.directadmin.com/item.php?id=629
     #1) Make sure enable_ssl_sni=1 in directadmin.conf (internal value is already default to 1, so if enable_ssl_sni has no entry this code does nothing)
-    _echo "$(msg cyan):Enabling enable_ssl_sni=1 in directadmin.conf config...$(msg end)" --name
-    ${da_bin} set enable_ssl_sni 1
-    echo ""
+    # _echo "$(msg cyan):Enabling enable_ssl_sni=1 in directadmin.conf config...$(msg end)" --name
+    # ${da_bin} set enable_ssl_sni 1
+    # get_status_message "$?"
+    # echo ""
     #2) Make sure letsencrypt=1 is set in directadmin.conf to install letsencrypt
     _echo "$(msg cyan)Setting letsencrypt=1 in directadmin.conf config ...$(msg end)" --name
     ${da_bin} set letsencrypt 1
+    get_status_message "$?"
     echo ""
     # (OPTIONAL) This option is to enable wildcard certificate
     _echo "$(msg cyan)Setting directadmin dns_ttl=1 to enable wildcard certificate at directadmin.conf ...$(msg end)" --name
-    ${da_bin} set dns_ttl ${C_DA_DNS_TTL}
+    ${da_bin} set dns_ttl "${C_DA_DNS_TTL}"
+    get_status_message "$?"
     echo ""
 
     # Disable ssl=0. This one fixed issue where you cannot request cert using ssl=1.
     # only enable ssl=1 after request certificate success. From my notes few years, I disabled this first before renew else it wont work.
     _echo "$(msg cyan)Disabling ssl=0 in directadmin.conf config...$(msg end)" --name
     ${da_bin} set ssl 0
+    get_status_message "$?"
     echo ""
 
     _echo "$(msg cyan)Enabling ECC_CERTIFICATE for highest SSL encryption key ...$(msg end)" --name
     ${da_bin} set ecc_certificates 1
+    get_status_message "$?"
     echo ""
 
     _echo "$(msg cyan)Installing lego certificate management ...$(msg end)" --name
     ${da_cb_bin} lego
+    get_status_message "$?"
     echo ""
 
     # Install letsencrypt latest version at pre function
     # install the latest letsencrypt here (this will only get the latest letsencrypt.sh)
     _echo "$(msg cyan)Installing the latest letsencrypt.sh for Directadmin ...$(msg end)" --name
     ${da_cb_bin} letsencrypt
+    get_status_message "$?"
     echo ""
 
     # Enable zerossl based on config file
@@ -15800,7 +15813,7 @@ configure_da_user_domain_ssl() {
 }
 # Note latest DA installer gave letsencrypt SSL certificate for hostname
 # Use below to have the ability to use another certificate like zerossl
-configure_da_host_domain_ssl() {
+configure_da_hostname_ssl() {
   # OLD NOTES:
   # Interesting answer: https://serverfault.com/questions/602700/debian-ipv6-is-not-asssigned-to-interface
   # Nice reading: https://www.agwa.name/blog/post/beware_the_ipv6_dad_race_condition
@@ -15817,7 +15830,7 @@ configure_da_host_domain_ssl() {
   [[ "${SKIP_RUN}" == "true" ]] && return 0
   if [[ ! -f "${CONF_PATH}/${func_name}_executed" && "${FUNCTION_RUN}" == "true" ]]; then
     if [ "${C_ENABLE_DA_HOST_SSL}" == "true" ]; then
-      local da_bin da_cb_bin dataskq da_conf task_queue da_script_path lego_data_path retry_count max_retry
+      local da_bin da_cb_bin dataskq da_conf task_queue da_script_path lego_data_path retry_count max_retry is_ssl_enable
       max_retry=10
       da_bin="/usr/local/directadmin/directadmin"
       da_cb_bin="/usr/local/directadmin/custombuild/build"
@@ -15838,8 +15851,7 @@ configure_da_host_domain_ssl() {
       # echo "[${SCRIPT_NAME}]: Setting ssl_redirect_host to ${LABEL_C_BOX_HOSTNAME_FQHN} in directadmin.conf config ..."
       # ${da_bin} set ssl_redirect_host "${C_BOX_HOSTNAME_FQHN}"
 
-      # TODO recheck this for compatibility with the latest DA installer (check letsencrypt.sh)
-
+      # TODO recheck this: The first method is restore based on certificate offline file
       if [ "${C_DA_ENABLE_HOSTNAME_SSL_RESTORE}" == "true" ]; then
 
         # Note there is another script that can also use to restore previous certificate forked from Porallix here:
@@ -16040,134 +16052,191 @@ configure_da_host_domain_ssl() {
         ${dataskq} --custombuild
 
       else
-        retry_count=0
-        # Below for requesting new certificate with staging test request first
-        _echo "$(msg cyan)Enabling ssl=1 in directadmin.conf config...$(msg end)" --name
-        ${da_bin} set ssl 1
-        echo ""
-        _echo "$(msg cyan)Enabling cacert in directadmin.conf config...$(msg end)" --name
-        ${da_bin} set cacert /usr/local/directadmin/conf/cacert.pem
-        echo ""
-        _echo "$(msg cyan)Enabling cakey in directadmin.conf config...$(msg end)" --name
-        ${da_bin} set cakey /usr/local/directadmin/conf/cakey.pem
-        echo ""
-        # Add wellknown-alias by rewrite_confs
-        _echo "$(msg cyan)Creating dummy acme-challenge texts through custombuild rewrite_confs ...$(msg end)" --name
-        ${da_cb_bin} rewrite_confs
-        echo ""
-
-        # Make sure IP and domain are resolved
-        ensure_domain_server_resolved
-        ensure_fqhn_server_resolved
-
-        echo ""
-        # Staging call first
-        has_ecc_certificates=$(grep "^ecc_certificates=" "${da_conf}" | cut -d= -f2)
-        while :; do
-          _echo "$(msg cyan)Staging request SSL certificate for ${LABEL_C_BOX_HOSTNAME_FQHN} ...$(msg end)" --name
-
-          if [ -n "${has_ecc_certificates}" ]; then
-            staging=yes ${da_script_path}/letsencrypt.sh request_single "${C_BOX_HOSTNAME_FQHN}" "${C_DA_CERTIFICATE_SIZE}"
-          else
-            staging=yes ${da_script_path}/letsencrypt.sh request_single "${C_BOX_HOSTNAME_FQHN}"
-          fi
-          retval=$?
-
-          echo "Return value for certificate staging request is: ${retval}"
-
-          if [ "${retval}" -eq 0 ]; then
-            _echo "$(msg green)OK, certificate staging request test return success code$(msg end)" --name
-            break
-          else
-            ((retry_count++))
-            _echo "$(msg red)Error, certificate staging request does not return success code!$(msg end)" --name
-            _echo "$(msg cyan)Retrying for the $(get_ordinal ${retry_count}) time(s) within 1 minute ...$(msg end)" --name
-            _pause 60
-            if [ "${retry_count}" -ge ${max_retry} ]; then
-              _echo "$(msg red)Error, certificate staging request does not return success code for the $(get_ordinal ${max_retry}) time(s)!$(msg end)" --name
-              _exit 147
+        # If the site is valid ssl, then we skip
+        if is_valid ssl_site "${C_BOX_HOSTNAME_FQHN}:${C_DA_PORT}"; then
+          _echo "$(msg cyan)Notice, skipped requesting new certificate because the SSL for hostname is valid! ...$(msg end)" --
+          _pause 5
+          _echo "$(msg cyan)Enabling ssl=1 in directadmin.conf config...$(msg end)" --name
+          ${da_bin} set ssl 1
+          _echo "$(msg cyan)Restarting directadmin after changing directadmin.conf ...$(msg end)" --name
+          restart_da
+          echo ""
+          # Ensure everything is working after requesting certificate
+          while :; do
+            local test_login
+            _echo "$(msg cyan)Testing login into directadmin API using the main admin username ...$(msg end)" --name
+            # shellcheck disable=SC2046
+            test_login=$(da_api_admin test-login --username $(get_current_da_owner_username) --scripting | grep "error=0")
+            if [ -n "${test_login}" ]; then
+              _echo "$(msg green) OK$(msg end)" --plain
+              break
+            else
+              _echo "$(msg red) FAILED$(msg end)" --plain
+              ensure_internet_connected
+              ensure_domain_server_resolved
+              ensure_fqhn_server_resolved
+              echo ""
+              _echo "$(msg cyan)Retrying login into directadmin API using the main admin username ...$(msg end)" --name
             fi
+            sleep 3
+          done
 
-          fi
+        else
 
-        done
+          retry_count=0
+          # Below for requesting new certificate with staging test request first
+          echo ""
+          _echo "$(msg cyan)Enabling cacert in directadmin.conf config...$(msg end)" --name
+          ${da_bin} set cacert /usr/local/directadmin/conf/cacert.pem
+          echo ""
+          _echo "$(msg cyan)Enabling cakey in directadmin.conf config...$(msg end)" --name
+          ${da_bin} set cakey /usr/local/directadmin/conf/cakey.pem
+          echo ""
+          # Add wellknown-alias by rewrite_confs
+          _echo "$(msg cyan)Creating dummy acme-challenge texts through custombuild rewrite_confs ...$(msg end)" --name
+          ${da_cb_bin} rewrite_confs
+          echo ""
 
-        echo ""
-        #7) Now let's request the real certificate after staging is completed without error
+          # Make sure IP and domain are resolved
+          ensure_domain_server_resolved
+          ensure_fqhn_server_resolved
 
-        has_ecc_certificates=$(grep "^ecc_certificates=" "${da_conf}" | cut -d= -f2)
-        retry_count=0
-        while :; do
-          _echo "$(msg cyan)Requesting SSL certificate for ${LABEL_C_BOX_HOSTNAME_FQHN} ...$(msg end)" --name
-          if [ -n "${has_ecc_certificates}" ]; then
-            ${da_script_path}/letsencrypt.sh request_single "${C_BOX_HOSTNAME_FQHN}" "${C_DA_CERTIFICATE_SIZE}"
-          else
-            ${da_script_path}/letsencrypt.sh request_single "${C_BOX_HOSTNAME_FQHN}"
-          fi
+          echo ""
+          # Staging call first
+          has_ecc_certificates=$(grep "^ecc_certificates=" "${da_conf}" | cut -d= -f2)
+          while :; do
+            _echo "$(msg cyan)Staging request SSL certificate for ${LABEL_C_BOX_HOSTNAME_FQHN} ...$(msg end)" --name
 
-          retval=$?
-          echo "Return value for real certificate request is: ${retval}"
-          if [ "${retval}" -eq 0 ]; then
-            _echo "$(msg green)OK, certificate request return success code$(msg end)" --name
-            echo ""
-            _echo "$(msg cyan)Enabling ssl=1 in directadmin.conf config...$(msg end)" --name
-            ${da_bin} set ssl 1
-            echo ""
+            if [ -n "${has_ecc_certificates}" ]; then
+              staging=yes ${da_script_path}/letsencrypt.sh request_single "${C_BOX_HOSTNAME_FQHN}" "${C_DA_CERTIFICATE_SIZE}"
+            else
+              staging=yes ${da_script_path}/letsencrypt.sh request_single "${C_BOX_HOSTNAME_FQHN}"
+            fi
+            retval=$?
 
-            # This fixed http protocol problem if cert has been requested as I reported here https://forum.directadmin.com/threads/might-be-bug-api-http-protocol-is-not-working-after-requesting-certificate.64408/
-            # I also have another workaround to let the script select http or https (if available). To use this workaround enable this setting:
-            # C_DA_AUTO_SELECT_API_PROTOCOL=true (remember this is beta feature. When directadmin released bug fixed, this feature will be disabled by default)
+            echo "Return value for certificate staging request is: ${retval}"
 
-            # If I disable ssl below (set ssl=0 in directadmin.conf and restart), I can use both http and https on API for host domain:
-            # BUT at this point, I decided to use my workaround using C_DA_AUTO_SELECT_API_PROTOCOL=true (so, I don't have to disable ssl option below. Only uncomment below if this failed)
-            #_echo "$(msg cyan)Disabling ssl=0 in directadmin.conf config...$(msg end)" --name
-            #${da_bin} set ssl 0
+            if [ "${retval}" -eq 0 ]; then
+              _echo "$(msg green)OK, certificate staging request test return success code$(msg end)" --name
+              break
+            else
+              ((retry_count++))
+              _echo "$(msg red)Error, certificate staging request does not return success code!$(msg end)" --name
 
-            # This is to redirect hostname automatically to https
-            _echo "$(msg cyan)Setting redirect_host_https yes in Directadmin options.conf config ...$(msg end)" --name
-            ${da_cb_bin} set redirect_host_https yes
-            echo ""
-            # if you want everyone to be redirected on hostname use this
-            _echo "$(msg cyan)Setting use_hostname_for_alias yes in Directadmin options.conf config ...$(msg end)" --name
-            ${da_cb_bin} set use_hostname_for_alias yes
-            echo ""
-            # Always a good idea to restart directadmin after changing directadmin.conf
-            _echo "$(msg cyan)Restarting directadmin after changing directadmin.conf ...$(msg end)" --name
-            restart_da
-            echo ""
-            # Ensure everything is working after requesting certificate
-            while :; do
-              local test_login
-              _echo "$(msg cyan)Testing login into directadmin API using the main admin username ...$(msg end)" --name
-              # shellcheck disable=SC2046
-              test_login=$(da_api_admin test-login --username $(get_current_da_owner_username) --scripting | grep "error=0")
-              if [ -n "${test_login}" ]; then
-                _echo "$(msg green) OK$(msg end)" --plain
-                break
-              else
-                _echo "$(msg red) FAILED$(msg end)" --plain
-                ensure_internet_connected
-                ensure_domain_server_resolved
-                ensure_fqhn_server_resolved
+              # The new directadmin installer automatically called letsencrypt for hostname and it then enables the ssl=1
+              # The problem is when ssl=1, we cannot request certificate, we have to check if the option is enable, we disable it
+              # This fixed a hung status acme: Trying to solve HTTP-01
+              is_ssl_enable=$(${da_bin} config | grep '^ssl=')
+              if [ "${is_ssl_enable}" == "ssl=1" ]; then
+                _echo "$(msg cyan)Found ssl=1 in directadmin.conf config. Setting ssl=0 before requesting certificate ...$(msg end)" --name
+                ${da_bin} set ssl 0
+                get_status_message "$?"
                 echo ""
-                _echo "$(msg cyan)Retrying login into directadmin API using the main admin username ...$(msg end)" --name
+                _echo "$(msg cyan)Restarting directadmin after changing directadmin.conf ...$(msg end)" --name
+                restart_da
+                echo ""
               fi
-              sleep 3
-            done
-            break
-          else
+              _echo "$(msg cyan)Retrying for the $(get_ordinal "${retry_count}") time(s) within 1 minute ...$(msg end)" --name
+              _pause 60
+              if [ "${retry_count}" -ge ${max_retry} ]; then
+                _echo "$(msg red)Error, certificate staging request does not return success code for the $(get_ordinal ${max_retry}) time(s)!$(msg end)" --name
+                _exit 147
+              fi
 
-            ((retry_count++))
-            _echo "$(msg red)Error, certificate request does not return success code!$(msg end)" --name
-            _echo "$(msg cyan)Retrying for the $(get_ordinal ${retry_count}) time(s) within 1 minute ...$(msg end)" --name
-            _pause 60
-            if [ "${retry_count}" -ge ${max_retry} ]; then
-              _echo "$(msg red)Error, certificate request does not return success code for the $(get_ordinal ${max_retry}) time(s)!$(msg end)" --name
-              _exit 147
             fi
-          fi
 
-        done
+          done
+
+          echo ""
+          #7) Now let's request the real certificate after staging is completed without error
+
+          has_ecc_certificates=$(grep "^ecc_certificates=" "${da_conf}" | cut -d= -f2)
+          retry_count=0
+          while :; do
+            _echo "$(msg cyan)Requesting SSL certificate for ${LABEL_C_BOX_HOSTNAME_FQHN} ...$(msg end)" --name
+            if [ -n "${has_ecc_certificates}" ]; then
+              ${da_script_path}/letsencrypt.sh request_single "${C_BOX_HOSTNAME_FQHN}" "${C_DA_CERTIFICATE_SIZE}"
+            else
+              ${da_script_path}/letsencrypt.sh request_single "${C_BOX_HOSTNAME_FQHN}"
+            fi
+
+            retval=$?
+            echo "Return value for real certificate request is: ${retval}"
+            if [ "${retval}" -eq 0 ]; then
+              _echo "$(msg green)OK, certificate request return success code$(msg end)" --name
+              echo ""
+              _echo "$(msg cyan)Enabling ssl=1 in directadmin.conf config...$(msg end)" --name
+              ${da_bin} set ssl 1
+              echo ""
+
+              # This fixed http protocol problem if cert has been requested as I reported here https://forum.directadmin.com/threads/might-be-bug-api-http-protocol-is-not-working-after-requesting-certificate.64408/
+              # I also have another workaround to let the script select http or https (if available). To use this workaround enable this setting:
+              # C_DA_AUTO_SELECT_API_PROTOCOL=true (remember this is beta feature. When directadmin released bug fixed, this feature will be disabled by default)
+
+              # If I disable ssl below (set ssl=0 in directadmin.conf and restart), I can use both http and https on API for host domain:
+              # BUT at this point, I decided to use my workaround using C_DA_AUTO_SELECT_API_PROTOCOL=true (so, I don't have to disable ssl option below. Only uncomment below if this failed)
+              #_echo "$(msg cyan)Disabling ssl=0 in directadmin.conf config...$(msg end)" --name
+              #${da_bin} set ssl 0
+
+              # This is to redirect hostname automatically to https
+              _echo "$(msg cyan)Setting redirect_host_https yes in Directadmin options.conf config ...$(msg end)" --name
+              ${da_cb_bin} set redirect_host_https yes
+              echo ""
+              # if you want everyone to be redirected on hostname use this
+              _echo "$(msg cyan)Setting use_hostname_for_alias yes in Directadmin options.conf config ...$(msg end)" --name
+              ${da_cb_bin} set use_hostname_for_alias yes
+              echo ""
+              # Always a good idea to restart directadmin after changing directadmin.conf
+              _echo "$(msg cyan)Restarting directadmin after changing directadmin.conf ...$(msg end)" --name
+              restart_da
+              echo ""
+              # Ensure everything is working after requesting certificate
+              while :; do
+                local test_login
+                _echo "$(msg cyan)Testing login into directadmin API using the main admin username ...$(msg end)" --name
+                # shellcheck disable=SC2046
+                test_login=$(da_api_admin test-login --username $(get_current_da_owner_username) --scripting | grep "error=0")
+                if [ -n "${test_login}" ]; then
+                  _echo "$(msg green) OK$(msg end)" --plain
+                  break
+                else
+                  _echo "$(msg red) FAILED$(msg end)" --plain
+                  ensure_internet_connected
+                  ensure_domain_server_resolved
+                  ensure_fqhn_server_resolved
+                  echo ""
+                  _echo "$(msg cyan)Retrying login into directadmin API using the main admin username ...$(msg end)" --name
+                fi
+                sleep 3
+              done
+              break
+            else
+
+              ((retry_count++))
+              _echo "$(msg red)Error, certificate request does not return success code!$(msg end)" --name
+
+              # This fixed a hung status acme: Trying to solve HTTP-01 if ssl=0 is set automatically by DA
+              is_ssl_enable=$(${da_bin} config | grep '^ssl=')
+              if [ "${is_ssl_enable}" == "ssl=1" ]; then
+                _echo "$(msg cyan)Found ssl=1 in directadmin.conf config. Setting ssl=0 before requesting certificate ...$(msg end)" --name
+                ${da_bin} set ssl 0
+                get_status_message "$?"
+                echo ""
+                _echo "$(msg cyan)Restarting directadmin after changing directadmin.conf ...$(msg end)" --name
+                restart_da
+                echo ""
+              fi
+              _echo "$(msg cyan)Retrying for the $(get_ordinal ${retry_count}) time(s) within 1 minute ...$(msg end)" --name
+              _pause 60
+              if [ "${retry_count}" -ge ${max_retry} ]; then
+                _echo "$(msg red)Error, certificate request does not return success code for the $(get_ordinal ${max_retry}) time(s)!$(msg end)" --name
+                _exit 147
+              fi
+            fi
+
+          done
+        fi
+
       fi
     else
       _echo "$(msg yellow)Warning, skipped requesting certificate for ${LABEL_C_BOX_HOSTNAME_FQHN} because C_ENABLE_DA_HOST_SSL is not set to true $(msg end)" --name
@@ -20164,7 +20233,7 @@ setup() {
         # " -- host --"
         configure_da_fqhn_server --run
         configure_da_ssl_pre --run
-        configure_da_host_domain_ssl --run
+        configure_da_hostname_ssl --run
         # " -- owner --"
         configure_da_owner_accounts --run
         # " -- admin --"
@@ -20231,7 +20300,7 @@ setup() {
         # " -- host --"
         configure_da_fqhn_server --run
         configure_da_ssl_pre --run
-        configure_da_host_domain_ssl --run
+        configure_da_hostname_ssl --run
       fi
     elif [[ "${C_SERVER_TYPE}" == "general" ]]; then
       install_da_pre --run
@@ -20556,6 +20625,7 @@ fi
 while [ "$#" -gt 0 ]; do
   case "${ACTION}" in
   -t | --test)
+    configure_da_hostname_ssl --run-force-exit
     exit 0
     break
     ;;
@@ -20642,7 +20712,7 @@ while [ "$#" -gt 0 ]; do
     echo ""
 
     # SSL cert to update
-    FILE_TO_TRANSFER="${SECURE_PATH}/ssl/.lego/*"
+    FILE_TO_TRANSFER="${SECURE_PATH}/ssl/*"
     REMOTE_PATH_TO_RECEIVE="${HOME}/ssl/"
     ssh_api mkdir --server-port ${C_BOX_HOSTNAME_FQHN}:${C_SSH_PORT} --group-user ${C_ROOT_USERGROUP}:${C_ROOT_USERNAME} --remote-path "${REMOTE_PATH_TO_RECEIVE}"
     ssh_api transfer-files --server-port "${C_BOX_HOSTNAME_FQHN}:${C_SSH_PORT}" --group-user "${C_ROOT_USERGROUP}:${C_ROOT_USERNAME}" --local-files "${FILE_TO_TRANSFER}" --remote-path "${REMOTE_PATH_TO_RECEIVE}"
@@ -20755,6 +20825,11 @@ ENDSSH
     ;;
 
   # maxinet backup-server "/opt /usr/local/maxicode"
+  # Make admin_backup here
+  # maxinet backup-server admin_backup
+  # 1) It will put all user sites in maintenance mode
+  # 2) It will use da admin backup function, (must be an API or something to check the status of backup)
+  # 3) It will download the backup
   backup-server | server-backup | backup-full-server)
     # TODO check backup exclusion list, might not work properly
     ensure_internet_connected
