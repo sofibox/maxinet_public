@@ -5,7 +5,7 @@
 # remote OS tested: debian 11
 _APP_SPECIFIC_NAME="Maxinet"
 # Note that some minor versions are not published
-_APP_VERSION="0.9"
+_APP_VERSION="0.9.2"
 _APP_STATUS="alpha"
 _APP_VERSION_STATUS="${_APP_VERSION}-${_APP_STATUS}"
 
@@ -1083,14 +1083,18 @@ configure_dropbox_cli() {
   else
     # Create a new authentication for dropbox_uploader automatically based on config file
 
+    # if this file does not exist, then probably, the OS is new and we need to reauthenticate
     if ! [ -f "/root/.dropbox_uploader" ]; then
-      touch "/root/.dropbox_uploader"
-      {
-        echo "CONFIGFILE_VERSION=${C_DROPBOX_CONFIGFILE_VERSION}"
-        echo "OAUTH_APP_KEY=${C_DROPBOX_OAUTH_APP_KEY}"
-        echo "OAUTH_APP_SECRET=${C_DROPBOX_OAUTH_APP_SECRET}"
-        echo "OAUTH_REFRESH_TOKEN=${C_DROPBOX_OAUTH_REFRESH_TOKEN}"
-      } >"/root/.dropbox_uploader"
+      _echo "$(msg yellow)Warning, dbxcli authentication file is missing!$(msg end)" --name
+      # Manually insert information by running dbxcli binary:
+      dbxcli
+      # touch "/root/.dropbox_uploader"
+      # {
+      #  echo "CONFIGFILE_VERSION=${C_DROPBOX_CONFIGFILE_VERSION}"
+      #  echo "OAUTH_APP_KEY=${C_DROPBOX_OAUTH_APP_KEY}"
+      #  echo "OAUTH_APP_SECRET=${C_DROPBOX_OAUTH_APP_SECRET}"
+      #  echo "OAUTH_REFRESH_TOKEN=${C_DROPBOX_OAUTH_REFRESH_TOKEN}"
+      #} >"/root/.dropbox_uploader"
     fi
 
     mkdir -p /tmp
@@ -1574,6 +1578,16 @@ init_server() {
   apt-get -y update
   apt-get -y upgrade
   echo ""
+  _echo "$(msg yellow)Testing dropbox account ...$(msg end)" --name
+  echo ""
+  _echo "Note fill in below if prompted by dbxcli:"
+  _echo "App key = C_DROPBOX_OAUTH_APP_KEY"
+  _echo "Secret key = C_DROPBOX_OAUTH_APP_SECRET"
+  echo ""
+  # Test dropbox account if config missing, prompt to enter account information (this cannot be automated due to dropbox security)
+  dropbox_api test-account
+  get_status_message "$?"
+  echo ""
   _echo "$(msg cyan)Initializing a new server for ${LABEL_C_BOX_HOSTNAME_FQHN} ...$(msg end)" --name
 
   echo "Server Physical Information:"
@@ -1666,7 +1680,7 @@ init_server() {
       _pause 5
       _echo "$(msg cyan)Creating ISO file ...$(msg end)" --name
       # Create ISO type for Hard disk boot, pull from web, upload to dropbox and write an automation script for installation
-      # TODO seems like delete ISO after using, make the download faster. Maybe dropbox limit download for specific file.
+      # From my finding, it seems like delete ISO after using it many times, make the download faster. Maybe dropbox limit download for specific file.
       if [ "${backup}" == "true" ]; then
         iso_api create-os-iso --iso-type hdd-boot --iso-base web --upload-to-dropbox --write-script --backup
       else
@@ -2049,6 +2063,10 @@ ssh_api() {
       ;;
     esac
   done
+
+  # Added required packages
+  required "debian@@apt:ssh,netcat" "ubuntu@@apt:ssh,netcat"
+
   # ssh_api login --server sun.sofibox.com --port 893 --group root --user root
   # This is equivalent to the above:
   # ssh_api login -sp sun.sofibox.com:893 --gu root:root
@@ -3505,7 +3523,7 @@ show_time() {
 # Note: When this script runs for the first time, the global variable EXEC_START is calculated as current timestamp. So, no need to call exec_time start for the first time
 exec_time() {
   local option runtime days hours minutes seconds title
-  required "debian@@apt:bc"
+  required "debian@@apt:bc" "ubuntu@@apt:bc"
   option=$1
   title=$2
   if [ "${option}" == "start" ]; then
@@ -4020,7 +4038,7 @@ create_file() {
         # Copy and run os_initialize.sh (this file contain initial script such as configuration of /etc/fstab)
         echo "cp /cdrom/os_initialize.sh /target/root/os_initialize.sh; \\"
         echo "in-target chmod +x /root/os_initialize.sh; \\"
-        # TODO fix this (this is just a place holder but make sure it is executed for next feature)
+        # TODO check this in-target file script. This is just a place holder at this moment and make sure it is executed for next release
         echo "in-target /root/os_initialize.sh; \\"
         # Configuring SSH
         echo "chmod -R go-rwx /target/root/.ssh; \\"
@@ -4658,9 +4676,6 @@ iso_api() {
           fi
           echo ""
           _echo "$(msg cyan)Uploading local file ${debian_isofile_final} into dropbox remote location /files/${debian_isofile_final_base_name} ...$(msg end)" --name
-
-          # Test dropbox
-          dropbox_api test-account
 
           # Uploading to dropbox and generating link
           dropbox_api upload --source "${debian_isofile_final}" --destination "/files/$(basename -- "${debian_isofile_final}")"
@@ -10739,16 +10754,6 @@ install_da_pre() {
     _echo "$(msg cyan)Writing email ${LABEL_C_ROOT_EMAIL} into /root/.email.txt to override system email ...$(msg end)" --name
     #Root email will use this one
     echo "${C_ROOT_EMAIL}" >/root/.email.txt
-    echo ""
-    # TODO Test this
-    _echo "$(msg cyan)Writing new email aliases at /etc/aliases ...$(msg end)" --name
-    #Root email will use this one
-    {
-      echo "diradmin: :blackhole:" >>/etc/aliases
-      echo "root:${C_ROOT_EMAIL}" >>/etc/aliases
-    } >>/etc/aliases
-    get_status_message $?
-    newaliases
 
     echo ""
 
@@ -11292,6 +11297,31 @@ install_da_post() {
 
     echo ""
 
+    # I add this here because this needs exim to be installed first
+    _echo "$(msg cyan)Writing new email aliases at /etc/aliases ...$(msg end)" --name
+    #Root email will use this one
+    {
+      echo "diradmin: :blackhole:" >>/etc/aliases
+      echo "root:${C_ROOT_EMAIL}" >>/etc/aliases
+    } >>/etc/aliases
+    get_status_message $?
+    _echo "$(msg cyan)Running newaliases command ... $(msg end)" --name
+    newaliases
+    get_status_message "$?"
+    echo ""
+
+    # Restart exim if exim binary is found
+    if command -v exim &>/dev/null; then
+      _echo "$(msg cyan)Restarting exim ... $(msg end)" --name
+      systemctl restart exim
+      echo ""
+    fi
+    # Restart postfix if postfix binary is found
+    if command -v postfix &>/dev/null; then
+      _echo "$(msg cyan)Restarting postfix ... $(msg end)" --name
+      systemctl restart postfix
+      echo ""
+    fi
     # Rebuilding DA packages to fix some issues .
     _echo "$(msg cyan)Updating directadmin custombuild to the new version...$(msg end)" --name
     ${da_cb_bin} update
@@ -13446,12 +13476,13 @@ configure_server_security() {
   fi
   [[ "${SKIP_RUN}" == "true" ]] && return 0
   if [[ ! -f "${CONF_PATH}/${func_name}_executed" && "${FUNCTION_RUN}" == "true" ]]; then
-    local httpd_alias_conf httpd_include_conf httpd_default_conf
+    local httpd_alias_conf httpd_include_conf httpd_default_conf httpd_info_conf
     httpd_alias_conf="/etc/httpd/conf/extra/httpd-alias.conf"
     httpd_include_conf="/etc/httpd/conf/extra/httpd-includes.conf"
     httpd_default_conf="/etc/httpd/conf/extra/httpd-default.conf"
+    httpd_info_conf="/etc/httpd/conf/extra/httpd-info.conf"
 
-    check_path "${httpd_alias_conf}" "${httpd_include_conf}" "${httpd_default_conf}"
+    check_path "${httpd_alias_conf}" "${httpd_include_conf}" "${httpd_default_conf}" "${httpd_info_conf}"
 
     _echo "$(msg cyan)Backing up original httpd-alias.conf at /etc/httpd/ as httpd-alias.conf_backup_original_${DATE_TIME_NOW} ...$(msg end)" --name
     cp -p "${httpd_alias_conf}" "${httpd_alias_conf}_backup_original_${DATE_TIME_NOW}"
@@ -13497,6 +13528,12 @@ configure_server_security() {
         # Don't supply -c for next user (if supply -c, it will replace the previous one), this will produce sensitive output with standard error, hide with 2>
         htpasswd -b /etc/httpd/.htpasswd "${C_HTTPASSWD_ROUNDCUBE_USERNAME}" "${C_HTTPASSWD_ROUNDCUBE_PASS}" 2>/dev/null
         echo ""
+        # For restricting server-info and server-status page
+        _echo "$(msg cyan)Creating httpasswd for restricting server-info and server-status page ... $(msg end)" --name
+        # Don't supply -c for next user (if supply -c, it will replace the previous one), this will produce sensitive output with standard error, hide with 2>
+        htpasswd -b /etc/httpd/.htpasswd "${C_APACHE_SERVER_ROUTE_USERNAME}" "${C_APACHE_SERVER_ROUTE_PASS}" 2>/dev/null
+        echo ""
+
         _echo "$(msg cyan)Correcting the permission of /etc/httpd/.htpasswd ... $(msg end)" --name
         chown apache:apache /etc/httpd/.htpasswd
         chmod +r /etc/httpd/.htpasswd
@@ -13560,6 +13597,37 @@ configure_server_security() {
     sed -i 's|^ServerTokens .*|ServerTokens Prod|' ${httpd_default_conf}
     sed -i 's|^ServerSignature .*|ServerSignature Off|' ${httpd_default_conf}
     echo ""
+
+    _echo "$(msg cyan)Backing up original httpd-info.conf at ${httpd_info_conf} as ${httpd_info_conf}_backup_original_${DATE_TIME_NOW} ...$(msg end)" --name
+    cp -p "${httpd_info_conf}" "${httpd_info_conf}_backup_original_${DATE_TIME_NOW}"
+    echo ""
+
+    server_status_route=$(echo "${C_APACHE_SERVER_STATUS_ROUTE}" | sed 's/^\///')
+    server_info_route=$(echo "${C_APACHE_SERVER_INFO_ROUTE}" | sed 's/^\///')
+
+    {
+      echo "# ==============================================="
+      echo "# This configuration file was generated by ${SCRIPT_NAME}"
+      echo "# Author: ${C_ADMIN_NAME} | Email: ${C_ADMIN_EMAIL} | Web: ${C_BOX_DOMAIN}"
+      echo "# ==============================================="
+      echo "<location /${server_status_route}>"
+      echo "SetHandler server-status"
+      echo "AuthType basic"
+      echo "AuthName \"Apache server status\""
+      echo "AuthUserFile /etc/httpd/.htpasswd"
+      echo "Require valid-user"
+      echo "</location>"
+      echo ""
+      echo "ExtendedStatus Off"
+      echo ""
+      echo "<location /${server_info_route}>"
+      echo "SetHandler server-info"
+      echo "AuthType basic"
+      echo "AuthName \"Apache server info\""
+      echo "AuthUserFile /etc/httpd/.htpasswd"
+      echo "Require valid-user"
+      echo "</location>"
+    } >${httpd_info_conf}
     # Restarting web server based on config file ( do not rewrite_confs because that command will replace everything to default )
     # Warning, do not run rewrite_confs at this point until configure_da_custom_configs() is called.
     _echo "$(msg cyan)Requesting to restart web server ...$(msg end)" --name
@@ -13593,7 +13661,7 @@ configure_da_custom_configs() {
   [[ "${SKIP_RUN}" == "true" ]] && return 0
   if [[ ! -f "${CONF_PATH}/${func_name}_executed" && "${FUNCTION_RUN}" == "true" ]]; then
     # This will build custom config for DA with secured settings
-    local da_conf da_bin da_cb_bin da_cb_custom_conf_path httpd_alias_conf httpd_include_conf phpmyadmin_path roundcube_path
+    local da_conf da_bin da_cb_bin da_cb_custom_conf_path httpd_alias_conf httpd_include_conf httpd_info_conf phpmyadmin_path roundcube_path
 
     da_bin="/usr/local/directadmin/directadmin"
     da_cb_bin="/usr/local/directadmin/custombuild/build"
@@ -13602,13 +13670,14 @@ configure_da_custom_configs() {
     httpd_alias_conf="/etc/httpd/conf/extra/httpd-alias.conf"
     httpd_include_conf="/etc/httpd/conf/extra/httpd-includes.conf"
     httpd_default_conf="/etc/httpd/conf/extra/httpd-default.conf"
+    httpd_info_conf="/etc/httpd/conf/extra/httpd-info.conf"
     phpmyadmin_path="/var/www/html/phpMyAdmin"
     roundcube_path="/var/www/html/roundcube"
 
     mkdir -p "${da_cb_custom_conf_path}"
 
     _echo "$(msg cyan)Checking required paths ...$(msg end)" --name
-    check_path "${da_bin}" "${da_cb_bin}" "${da_conf}" "${da_cb_custom_conf_path}" "${httpd_alias_conf}" "${httpd_include_conf}" "${httpd_default_conf}" "${phpmyadmin_path}" "${phpmyadmin_path}"
+    check_path "${da_bin}" "${da_cb_bin}" "${da_conf}" "${da_cb_custom_conf_path}" "${httpd_alias_conf}" "${httpd_include_conf}" "${httpd_default_conf}" "${httpd_info_conf}" "${phpmyadmin_path}" "${phpmyadmin_path}"
     echo ""
 
     # For apache2 (ap2)
@@ -13625,6 +13694,10 @@ configure_da_custom_configs() {
 
     _echo "$(msg cyan)Copying httpd-default.conf into ${da_cb_custom_conf_path}/ap2/conf/extra/httpd-default.conf ...$(msg end)" --name
     cp -p "${httpd_default_conf}" "${da_cb_custom_conf_path}/ap2/conf/extra/httpd-default.conf"
+    echo ""
+
+    _echo "$(msg cyan)Copying httpd-info.conf into ${da_cb_custom_conf_path}/ap2/conf/extra/httpd-info.conf ...$(msg end)" --name
+    cp -p "${httpd_info_conf}" "${da_cb_custom_conf_path}/ap2/conf/extra/httpd-info.conf"
     echo ""
 
     # 2 For phpmyadmin custom config
@@ -19998,7 +20071,7 @@ setup_post() {
 
     # make the first AIDE scan using maxiaide
     if command -v maxiaide &>/dev/null; then
-      _echo "$(msg cyan)Scanning file system for the first time using the following command $(msgend)" --name
+      _echo "$(msg cyan)Scanning file system for the first time using the following command $(msg end)" --name
       _echo "$(msg cyan)maxiaide scan --update --verbose$(msg end)" --name
       maxiaide scan --update --verbose # or maxiaide scan -uv
     fi
@@ -20625,7 +20698,6 @@ fi
 while [ "$#" -gt 0 ]; do
   case "${ACTION}" in
   -t | --test)
-    configure_da_hostname_ssl --run-force-exit
     exit 0
     break
     ;;
