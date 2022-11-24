@@ -1,6 +1,7 @@
 # Configuration file for <script_name>.conf:
 # Author: Arafat Ali | Email: arafat@sofibox.com | Web: sofibox.com
 # =~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~="
+# 0) Create a file called execution_env file in this script path with the content 'local' if you are running this script as local system
 # 1) Fill appropriate variable in config file <script_name>.conf before running setup. Make sure this file is in the same path within the script.
 # 2) The file <script_name>.conf contains sensitive information, setup will auto destroy this file after you have finished installation for security.
 #    Do not run this script if you are running multiple users in the system because the information data from the config file might be leaked to other users
@@ -348,7 +349,8 @@ C_ENABLE_DA_HOST_SSL=true
 
 # This will restore the SSL certificate for hostname without requesting new
 # Only enable this, if you reached the hostname SSL limit request
-# By default should be disable
+# And also make sure the crt file is at ssl/certificates/hostname.crt
+# By default should be disable (if rate limit reached for all providers, then enable this)
 C_DA_ENABLE_HOSTNAME_SSL_RESTORE=false
 
 # This will use manual method to restore SSL certificate, if it failed it will use old method to request new certificate (requesting manually via letsencrypt.sh)
@@ -457,6 +459,8 @@ C_DA_PER_EMAIL_LIMIT=300
 # Default is -1 equal to rely on user file, 0 is unlimited, or specify value like 500
 C_DA_MAX_PER_EMAIL_SEND_LIMIT=0
 C_DA_USER_CAN_SET_EMAIL_LIMIT=1
+# What this does is, when I navigate to server.host.com/webmail it will redirect to server.host.com/C_DA_WEBMAIL_LINK
+# So better put dummy link
 C_DA_WEBMAIL_LINK=roundcube
 # Disable if don't use wildcard certificate
 C_DA_DNS_TTL=0
@@ -802,6 +806,10 @@ C_ROUNDCUBE_CUSTOM_NAME="MyMail"
 C_ROUNDCUBE_LOGIN_ROUTE="/mailprivate"
 C_HTTPASSWD_ROUNDCUBE_USERNAME="mailuser11"
 C_HTTPASSWD_ROUNDCUBE_PASS="PASSWORD"
+C_APACHE_SERVER_STATUS_ROUTE="/sofibox-status-private144"
+C_APACHE_SERVER_INFO_ROUTE="/server-info-private123"
+C_APACHE_SERVER_ROUTE_USERNAME="apserv11"
+C_APACHE_SERVER_ROUTE_PASS="xxxO123"
 # Can be either public repository or private repo
 C_SETUP_GIT_URL="https://token@github.com/sofibox/maxinet.git"
 C_GIT_TOKEN="TOKEN_KEY"
@@ -1003,3 +1011,17 @@ C_DROPBOX_CONFIGFILE_VERSION="2.0"
 C_DROPBOX_OAUTH_APP_KEY="KEY"
 C_DROPBOX_OAUTH_APP_SECRET="KEY"
 C_DROPBOX_OAUTH_REFRESH_TOKEN="TOKEN"
+
+# This is for system mail (use for notification, or reports)
+# Email username
+C_SMTP_SYSTEM_MAIL_USER="mailuser"
+# Mail domain
+C_SMTP_SYSTEM_MAIL_DOMAIN="gmail.com"
+# For gmail use app password
+C_SMTP_SYSTEM_MAIL_PASSWORD="mpsssepsousda2xx"
+# The smtp domain
+C_SMTP_SYSTEM_MAIL_SMTP_URL="smtp.gmail.com"
+# The authentication port
+C_SMTP_SYSTEM_MAIL_PORT="587"
+# Format email(<name_description>)
+C_SMTP_SYSTEM_MAIL_FROM="arafatx@gmail.com(Arafat)"

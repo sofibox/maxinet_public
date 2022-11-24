@@ -6,6 +6,22 @@ I focused a lot of security enhancements in this script for a new server deploym
 # Warning, you should not use this script if you don't know the purpose of this script. This script might contain bug (especially this public version)
 There is another private version without ```_public``` name URL that always have the latest code and features.
 
+# Maxinet - Automated Server Installation
+
+This script is used to automatically harden new server with best practices
+
+How to deploy?
+
+1) Create a file called `execution_env` in the script path and edit the file and put the following text:
+
+`local`
+
+This will prevent the script from running remote related functions
+
+2) To deploy a new server run the following command
+
+`maxinet create-server --rebuild-all 2>&1 | tee maxinet.log `
+
 Running example:
 
 ````
