@@ -235,559 +235,6 @@ C_ADMIN_NAME="Arafat Ali"
 # Various script functions will use this email such as for displaying script header, sending email in CSF, GPG key identifier and directadmin ticket notification
 C_ADMIN_EMAIL="admin@codegix.com"
 
-#################################################################################################
-############################# Start directadmin related configuration ###########################
-#################################################################################################
-
-# This should be always false, only use this if the directadmin installation has problem to finish
-# It will use some common known pre fixes before directadmin installation
-# This bug normally happen if a new software is released on directadmin side
-# Default should be false
-C_DA_ENABLE_PRE_INSTALL_TEMP_FIX=false
-
-#C_DA_AUTO_SELECT_API_PROTOCOL:
-# Automatically select https protocol if available to use with API
-# Note 1: This feature is beta (enable this if API has error with SSL.)
-C_DA_AUTO_SELECT_API_PROTOCOL=true
-
-# Note: Latest directadmin recommends to use auto switch for installation (the staff said it will give latest packages)
-# IMPORTANT ** NEW: The setup.sh has been updated to not accept interactive installation anymore! (but might be temporary)
-# New version will be released as mentioned here: https://forum.directadmin.com/threads/license-key-hashes-new-method-for-installs-setup-sh-and-getlicense-sh.65099/#post-339425
-# So the option 3 here does not work any more at this moment
-# C_DA_INSTALL_TYPE: is used to specify directadmin installation type. Currently it has 4 types:
-# 1) custom = use your own setting during DA installation (provide options.conf and php_extensions.conf),
-# 2) ori = let DA decide what to install default things providing some details using auto
-# 3) interactive = ask question what to install (require input from user) - Note this value does not work at this moment
-# 4) auto = Automated everything by directadmin as default packages (include CSF installation)
-# 5) auto-option= Install directadmin using automatic mode and during installation use options.conf based on config files
-# 6) auto-custom= Install directadmin using automatic mode when completed customize packages based on config file
-# Note, this script was designed to use custom type. Recommend to use auto-option for new version
-C_DA_INSTALL_TYPE="custom"
-
-# stable, current, beta, alpha
-C_DA_VERSION_CHANNEL="current"
-
-# C_DA_CLIENT_ID:
-# This is the directadmin client/user ID license obtained in the directadmin client area
-C_DA_CLIENT_ID="12345"
-
-# C_DA_LICENSE_ID:
-# This is the directadmin license ID obtained in the directadmin client area
-C_DA_LICENSE_ID="123456"
-
-# C_DA_LICENSE_KEY:
-# This is the directadmin license KEY and should be used for installation
-C_DA_LICENSE_KEY="*+awwwsdsdswwJwHwddAISswyHsCS9sBw="
-
-# C_DA_PORT:
-# This is the directadmin port. You should change this port to reduce bruteforce attack
-# The default port is 2222 which is less secure
-# Please note that if you use custom port other than 2222, you will lose the ability to use one click sign in feature in directadmin
-# because one click sign in feature only with 2222
-C_DA_PORT="2233"
-
-# C_DA_[ROLE]_HELPER:
-# This is used to set online help file in directadmin
-C_DA_ADMIN_HELPER="help.codegix.com/directadmin/admin"
-C_DA_RESELLER_HELPER="help.codegix.com/directadmin/reseller"
-C_DA_USER_HELPER="help.codegix.com/directadmin/user"
-
-# C_DA_INSTALL_REDIS:
-# This is used to enable and install redis cache
-C_DA_INSTALL_REDIS=true
-
-# C_DA_INSTALL_MEMCACHED:
-# This is used to enable and install memcached cache
-C_DA_INSTALL_MEMCACHED=true
-
-# C_DA_INSTALL_GEOIP:
-# This is used to enable and install geoip
-C_DA_INSTALL_GEOIP=true
-
-# C_DA_AUTO_ADD_IPV46_ENTRY:
-# This is a feature to add automatically ipv6 or ipv4 config file in directadmin.
-# When this option is enabled (true), we do not need to manually add IPv6 through directadmin GUI.
-# The script will automatically add IPv6 or IPv4 if they are missing.
-# Note that if this variable is set to false, the installation will generate directadmin login link and try to open directadmin port for you to keyin IPv6 IP address manually
-# So, if this option is set to false, the script will pause for user input to press enter
-C_DA_AUTO_ADD_IPV46_ENTRY=true
-
-# C_DA_AUTO_LINK_IP:
-# This variable is used to enable IPv4 and IPv6 linking automatically during installation.
-# Note that if you disable this option, the script will try to open directadmin port for you to link IPv6 and IPv4 manually through web interface
-# So, you are required an input to press enter
-C_DA_AUTO_LINK_IP=true
-
-# C_DA_LOGIN_METHOD:
-# This variable is used as login style method in directadmin. This login method is mentioned in the directadmin API documentation
-# Possible values are:
-# sign-as = This will use da login method with piping: "admin|client". Using this sign-as method, this will log as the client from admin by just by referring the username (benefit: no need to know the client passwords)
-# direct-login = login directly using username and password (disadvantage: need to know directadmin client username and password)
-C_DA_LOGIN_METHOD="sign-as"
-
-# Global variable for disabling all user backup restoration
-# To allow user backup restoration automatically put this value to true
-C_DA_ENABLE_USER_BACKUP_RESTORE=false
-
-# This is the directadmin backup password. Use to decrypt backup automatically
-C_DA_USER_BACKUP_PASSWORD="PASSWORD_HERE"
-
-# C_DA_ENABLE_DOMAIN_AUTO_SSL is used to enable or disable DA AUTO SSL feature
-# If this is enabled, all domains will be requested SSL certificate automatically in the background
-# Important note: At this moment the certificate that is being used is a server shared certificates
-# The shared certificate will not be restored via admin_backups tool if you did backup the certificate.
-# Only certificate created by pasting key or requested via letsencrypt checkbox through GUI can be restored.
-# By default Directadmin enable this AUTO SSL feature after installation.
-# In order to disable the feature put the value to false and the script will disable the AUTO SSL automatically after DA has finished installed
-# To allow domain to automatically request SSL, then put this variable to true
-# Another note: Directadmin AUTO SSL only work with user domain SLL not hostname SSL. For hostname SSL use C_ENABLE_DA_HOST_SSL
-# This config should be set to true by default unless have reason to stop auto SSL
-C_DA_ENABLE_DOMAIN_AUTO_SSL=false
-
-# C_ENABLE_DA_HOST_SSL is used to enable server/host domain SSL. Leave this this option enabled for security
-C_ENABLE_DA_HOST_SSL=true
-
-# This will restore the SSL certificate for hostname without requesting new
-# Only enable this, if you reached the hostname SSL limit request
-# And also make sure the crt file is at ssl/certificates/hostname.crt
-# By default should be disable (if rate limit reached for all providers, then enable this)
-C_DA_ENABLE_HOSTNAME_SSL_RESTORE=false
-
-# This will use manual method to restore SSL certificate, if it failed it will use old method to request new certificate (requesting manually via letsencrypt.sh)
-# To allow user domain SSL restoration put this to true but if C_DA_DISABLE_DOMAIN_AUTO_SSL is set to false, this setting has no effect
-# Only use this option if the users' backup files do not have SSL certificates and you really need the SSL restoration manually when you have the backup certificates
-# Regarding to the user backup restore, when C_DA_DISABLE_USER_BACKUP_RESTORE is set to false and each user backup config is enabled it will restore previous certificate (if exist)
-# That means if this is set to true, it will replace the backup SSL certificate (do not enable this without reason)
-C_DA_ENABLE_USER_DOMAIN_SSL_RESTORE=false
-
-# C_DA_ENABLE_ZEROSSL_CERTIFICATE is used to enable zerossl certificate for website which has more rate limit for big hosting.
-# This is a new test feature in directadmin
-# I have many dedicated servers so using letsencryppt is not enough for customers
-# If you don't want to use zerossl put this variable to false
-# Note if you enable this, the old method of requesting certificate via letsencrypt will be disabled and it will use zerossl instead.
-# To disable zerossl manually and revert to the old method just remove the file /root/.zerossl and that will revert to using letsencrypt for requesting ssl certificate
-C_DA_ENABLE_ZEROSSL_CERTIFICATE=true
-
-#------------------------------------------------------------------
-# Start directadmin.conf options ( Directadmin version: 1.63.1 )  #
-#------------------------------------------------------------------
-
-# Example, for directadmin certification group
-C_DA_SECURE_ACCESS_GROUP=access
-# Ability to generate debug output from tokenizer when running DA in debug mode
-C_DA_TOKENIZER_DEBUG=1
-# Directadmin execution timeout in second
-C_DA_TIMEOUT="120"
-# Directadmin session timeout in minutes
-C_DA_SESSION_MINUTES="2880"
-# Directadmin maxfilesize to upload in file manager in bytes
-C_DA_MAXFILESIZE="5368709120"
-# Directadmin maximum username (including sql username). Changing this requires MySQL 5.7.8+ or MariaDB 10.x+
-# default value is 14
-C_DA_MAX_USERNAME_LENGTH="30"
-# Enable directadmin security question for authentication purpose
-C_DA_SECURITY_QUESTIONS=1
-# Set login history total
-C_DA_LOGIN_HISTORY="10"
-# Force password creation to use hard password
-C_DA_ENFORCE_DIFFICULT_PASSWORDS=1
-# Allow backup encryption option
-C_DA_ALLOW_BACKUP_ENCRYPTION=1
-# Deprecated variable in the new DA version
-# C_DA_DISABLE_IPCHECK="1"
-C_DA_ALLOW_FOREIGN_KEY="0"
-# Default is 0
-C_DA_SIMPLE_DISK_USAGE="1"
-C_DA_ZIP="1"
-# Default is 0
-C_DA_AWSTATS="0"
-# Default is 0
-C_DA_WEBALIZER="0"
-# Default is 1
-C_DA_ROTATION="0"
-# Default is 0 (disable),
-# 1 Enable automatically when creating domain, 2 Enable DKIM option in UI for user
-C_DA_DKIM=2
-# Default is 1 (enable),
-C_DA_COUNT_POP_USAGE=0
-# Default is 0 (disabled)
-C_DA_PURGE_SPAM_DAYS=1
-# Default is 0 (disabled)
-C_DA_SKIP_HOMETARGZ_IN_BACKUPS=0
-# Default is 0 (disabled)
-C_DA_SKIP_DOMAINS_IN_BACKUPS=0
-# Default is 0 (disabled)
-C_DA_SKIP_IMAP_IN_BACKUPS=0
-# Default is 0 (disabled)
-C_DA_SKIP_DATABASES_IN_BACKUPS=0
-# Default is 1 (show all)
-C_DA_SHOW_DB_USAGE=0
-# Default is 1 (enabled)
-C_DA_SHOW_POINTERS_IN_LIST=1
-# Default is 1 (enabled)
-C_DA_CHECK_SUBDOMAIN_OWNER=1
-# Enable or disable bruteforce
-# UNLISTED variable for API using CMD_API_ADMIN_SETTINGS:
-C_DA_USER_BRUTECOUNT=100
-C_DA_BRUTEFORCE=1
-# This will hide or show bruteforce user count
-C_DA_USER_BRUTECOUNT=1
-C_DA_EXEMPT_LOCAL_BLOCK=1
-C_DA_BRUTE_FORCE_TIME_LIMIT=1200
-C_DA_CLEAR_BLACKLIST_IP_TIME=86400
-# This will hide bruteforce notification (will speed up ticket system)
-C_DA_HIDE_BRUTE_FORCE_NOTIFICATIONS=1
-C_DA_IP_BRUTECOUNT=100
-#  In days
-C_DA_CLEAR_BRUTE_LOG_ENTRY_TIME=4
-# In hours
-C_DA_CLEAR_BRUTE_LOG_TIME=24
-# In hours
-C_DA_UNBLOCK_BRUTE_IP_TIME=4320
-C_DA_BRUTE_FORCE_LOG_SCANNER=1
-C_DA_BRUTE_FORCE_SCAN_APACHE_LOGS=2
-C_DA_BRUTE_DOS_COUNT=100
-C_DA_CHECK_PARTITIONS=2
-C_DA_PARTITION_USAGE_THRESHOLD=95
-# 0 = .tar, 1 = tar.gz, 2 = .zstd (default is zstd)
-C_DA_BACKUP_GZIP=2
-C_DA_DEMODOCSROOT="./data/skins/evolution"
-C_DA_LOST_PASSWORD=0
-C_DA_RBL_ENABLED=1
-C_DA_VIRTUAL_LIMIT=1000
-C_DA_PER_EMAIL_LIMIT=300
-# Default is -1 equal to rely on user file, 0 is unlimited, or specify value like 500
-C_DA_MAX_PER_EMAIL_SEND_LIMIT=0
-C_DA_USER_CAN_SET_EMAIL_LIMIT=1
-# What this does is, when I navigate to server.host.com/webmail it will redirect to server.host.com/C_DA_WEBMAIL_LINK
-# So better put dummy link
-C_DA_WEBMAIL_LINK=roundcube
-# Disable if don't use wildcard certificate
-C_DA_DNS_TTL=0
-# This will enable the strongest SSL certificate:
-#keysize=prime256v1
-#keysize=secp384r1
-#keysize=secp521r1
-# Most secure key now is secp521r1 with sha256
-# But do note that secp521r1 is not supported by letsencrypt and most browser still don't support it so use secp384r1
-C_DA_ECC_CERTIFICATES=1
-# Choose the certificate size
-# 2048, 4096, prime256v1, secp384r1
-C_DA_CERTIFICATE_SIZE="secp384r1"
-# This is certificate encryption algorithm for the SSL certificate (most common is sha256 is enough)
-C_DA_CERTIFICATE_ENCRYPTION_ALGORITHM="sha256"
-
-# This will enable host hsts via directadmin
-# to disable just put false, to enable provide the value in second:
-C_DA_ENABLE_HOST_HSTS="31536000"
-
-# Deprecated variable
-# This will hide directadmin version and license ID (da v1.62 has internal default 0)
-# C_DA_SHOW_INFO_IN_HEADER=0
-
-# This will hide directadmin version in web title
-C_DA_SHOW_INFO_IN_TITLE=0
-
-# This will sync restore
-C_DA_TALLY_AFTER_RESTORE=2
-
-# This setting is for AUTO SSL (This is commented because C_DA_ENABLE_DOMAIN_AUTO_SSL will determine the value for this)
-# C_DA_ADMIN_SSL_CHECK_RETRIES=1
-
-# This will make imap backup faster: https://www.directadmin.com/features.php?id=1834
-C_DA_DIRECT_IMAP_BACKUP=1
-
-# Set the jailshell option based on this: https://www.directadmin.com/features.php?id=2740
-C_DA_JAIL=2
-
-# This will enable checkbox for list of subdomain to request SSL certificate
-C_DA_LETSENCRYPT_LIST="www:mail:ftp:pop:smtp"
-
-# This will check the checkbox automatically for list of subdomains to request SSL certificate
-C_DA_LETSENCRYPT_LIST_SELECTED="www:mail:ftp:pop:smtp"
-
-# This will send notification if renew success
-C_DA_LETSENCRYPT_RENEWAL_SUCCESS_NOTICE=0
-
-# Set php-fpm proceess
-C_PHP_FPM_MAX_CHILDREN_DEFAULT=15
-
-#---- End directadmin.conf settings ----
-#---------------------------------------
-
-#-------------------------------------------------------------------------
-# Start custombuild options.conf options ( Directadmin version: 1.62.7 ) #
-#-------------------------------------------------------------------------
-C_DA_CB_VERSION="2.0"
-C_DA_CB_FTP_SOFTWARE="pureftpd"
-C_DA_CB_EXIMCONF_RELEASE="4.5"
-# nginx, apache, nginx_apache, litespeed (litespeed is not tested)
-C_DA_CB_WEBSERVER_SOFTWARE="nginx_apache"
-# or owasp
-C_DA_CB_INSTALL_MODSECURITY="yes"
-C_DA_CB_MODSECURITY_RULESET="comodo"
-# Format <sql_type>-<sql_version>
-# or mysql-8.0
-C_DA_CB_SQL_VERSION="mariadb-10.6"
-# Format <7.3:php-fpm,7.4:php-fpm,8.0:php-fpm>
-# php7.3:php-fpm means php version 7.3 with FPM mode
-# the first order is the first PHP version (also used by directadmin system). Max is 4, extra argument will be ignored
-C_DA_CB_PHP_VERSION="8.0:php-fpm,7.4:php-fpm,7.3:php-fpm"
-# This for installing clamav
-C_DA_CB_INSTALL_CLAMAV="yes"
-# Put "latest" to install the latest version
-# or specify version number if the latest version has problem
-C_DA_CB_CLAMAV_VERSION="latest"
-# Enable / disable clamav service
-C_ENABLE_CLAMAV_SERVICE=false
-# Enable / disable user directory access
-C_DA_CB_USERDIR_ACCESS="no"
-# This will install bubblewrap/jailshell
-C_DA_CB_INSTALL_SANDBOX="yes"
-# This will use the mirror (files.directadmin.com should be the first to use)
-# or set fastest for the server to select faster server (might not get latest build)
-C_DA_CB_DOWNLOADSERVER=files.directadmin.com
-# Option to make proftpd password unified (enabled by default)
-C_DA_UNIFIED_FTP_PASSWORD_FILE=1
-#---- End custombuild options.conf settings ----
-#-----------------------------------------------
-
-#-------------------------------------------------
-# Start Directadmin OWNER account(s) information #
-#-------------------------------------------------
-
-C_DA_OWNER_CREATOR1="root"
-C_DA_OWNER_ROLE1="admin"
-# This variable use to restore directadmin owner backup
-C_DA_OWNER_RESTORE_USER_BACKUP1=true
-# C_DA_OWNER_NAME[N]:
-# This variable defined the directadmin owner full name. The owner full name is the initial admin installation created during directadmin installation
-# The last character of N from the variable C_DA_OWNER_NAMEN is the total number of user as owner. For example to define the second owner's full name the next variable will be: C_DA_OWNER_NAME2
-# However, you are not supposed to declare more than 1 owner user. Currently owner should only have 1 user in the directadmin system but admin and user should can have multiple users
-C_DA_OWNER_NAME1="Box Owner"
-# C_DA_OWNER_USERNAME[N]:
-# This variable defined directadmin owner username.
-# The default username in directadmin is admin which is not secure. Setup will change the default directadmin username from admin into this value.
-# You must set this variable other than admin, so directadmin will not contains any admin username for security reason
-C_DA_OWNER_USERNAME1="owner47"
-# DA_ADMIN_USERPASS is for DA admin dashboard password
-C_DA_OWNER_USERPASS1="PASSWORD"
-# DA owner email will use $ROOT_EMAIL variable above but we can declare here too for future reference
-C_DA_OWNER_SYSTEM_EMAIL1="owner@codegix.com"
-# Can be empty = ""
-C_DA_OWNER_SECURITY_QNA1=(\
-"Kau suka makan apa?|||budu" \
-"Kau punya hobi apa?|||programming" \
-)
-# Note 1: For security reason owner should not have domain or web interfaces (no domain = no email)
-# Note 2: There must be only one owner account in directadmin (that is the original admin account of directadmin)
-#         So, C_DA_OWNER must always have index of 1
-#---- End directadmin OWNER account(s) information  ----
-#-------------------------------------------------------
-
-#-------------------------------------------------
-# Start Directadmin ADMIN account(s) information #
-#-------------------------------------------------
-# Note 1: For security reason, admin should not have domain or web interfaces (no domain = no email)
-# Note 2: For security reason, only 1 admin should be created (even directadmin supports multiple admin creation).
-#         So, C_DA_ADMIN must always have index of 1
-# Note 3: So you actually have 2 admin accounts from C_DA_OWNER and C_DA_ADMIN
-# Creator can be username or specify variable
-C_DA_ADMIN_CREATOR1="${C_DA_OWNER_USERNAME1}"
-C_DA_ADMIN_ROLE1="admin"
-C_DA_ADMIN_RESTORE_USER_BACKUP1=true
-C_DA_ADMIN_NAME1="Box Admin"
-C_DA_ADMIN_USERNAME1="admin49"
-C_DA_ADMIN_USERPASS1="PASSWORD"
-C_DA_ADMIN_SYSTEM_EMAIL1="admin@codegix.com"
-C_DA_ADMIN_SECURITY_QNA1=(\
-"What is the purpose of life?|||answer here" \
-"Do you feel that vibration?|||answer 2 here" \
-)
-
-#---- End directadmin ADMIN account(s) information  ----
-#-------------------------------------------------------
-
-#----------------------------------------------------
-# Start Directadmin RESELLER account(s) information #
-#----------------------------------------------------
-# Note 1: This is the directadmin main reseller account. You must create at least one reseller here with index 1
-# Note 2: You can create another multiple resellers by using the next index number 2 ... N. eg: C_DA_RESELLER_UNAME2
-# Note 3: You can have unlimited directadmin reseller accounts creation (based on directadmin license) using this variable.
-C_DA_RESELLER_CREATOR1="${C_DA_ADMIN_USERNAME1}"
-C_DA_RESELLER_ROLE1="reseller"
-C_DA_RESELLER_RESTORE_USER_BACKUP1=true
-# This will check first if SSL is OK (from backup), then no need to restore SSL (also this is run when auto SSL is disable)
-C_DA_RESELLER_RESTORE_USER_DOMAIN_SSL1=true
-C_DA_RESELLER_NAME1="Masternom Corporation"
-C_DA_RESELLER_USERNAME1="maxi47"
-C_DA_RESELLER_USERPASS1="PASSWORD!@1"
-C_DA_RESELLER_SYSTEM_EMAIL1="webmaster@masternom.com"
-# This is the main reseller package
-C_DA_RESELLER_PACKAGE_NAME1="RESELLER_UNLIMITED"
-# Create user domain here, can declare multiple domains here. The first domain in array is the default domain
-# This variable required at least one domain (subdomain is optional)
-# You can add unlimited subdomain with format: <rootdomain>:<subdomain1.subdomain2>,<anothersubdomain>, ...
-# eg: C_DA_RESELLER_DOMAIN[N]=("maxibi.com:sales,login" "hacker32.com:secure,download,file" "arafatx.com")C_DA_RESELLER_DOMAIN1=("sofibox.com:sales,login,secure,svn,api,help,dashboard")
-# Put wildcard record for this domain. To disable just let this variable empty with ""
-# Format <domain.com>:<anotherdomain.com>:<anotheronedomain.com>: ...
-C_DA_RESELLER_DOMAIN1=("masternom.com" "sofinang.com")
-# Put wildcard record for this domain. To disable just let this variable empty with ""
-# Format <domain.com>:<anotherdomain.com>:<anotheronedomain.com>: ...
-C_DA_RESELLER_WILDCARD_DOMAIN1=("sofinang.com")
-# shared or assign - If shared, domain will use the main ip from the server. Whereas for assign, it will use one of the ips from resellers
-C_DA_RESELLER_IP_TYPE1="shared"
-C_DA_RESELLER_ENABLE_DOMAIN_SSL1="yes"
-# Below required + symbol
-C_DA_RESELLER_SSL_SUBDOMAIN1=("letsencrypt:masternom.com:www+ftp+mail+pop+smtp+sales+secure+login+svn+api+help+dashboard")
-
-C_DA_RESELLER_MAIL_ACCOUNT1=(\
-"webmaster@masternom.com|||PASSWORD" \
-"info@masternom.com|||PASSWORD" \
-)
-# Security question and answers. Can be empty with =""
-C_DA_RESELLER_SECURITY_QNA1=(\
-"What the heck?|||ok" \
-"Kaupehal?|||tak ada ape" \
-)
-
-#<domain_name>:<db_name>:<db_user>|||<db_password>
-C_DA_RESELLER_DB_ACCOUNT1=( \
-"masternom.com:wdbn:wuser|||PASSWORD" \
-"masternom.com:wdbn:wuser2|||PASSWORD" \
-)
-# Whether to enable or disable modsecurity for the subdomain
-C_DA_RESELLER_MODSEC1=("masternom.com:sales+OFF:login+ON")
-# Whether to enable domain hsts (provide value for max-age)
-C_DA_RESELLER_ENABLE_DOMAIN_HSTS1=true
-# Whether to restore SSL certificate from previous domain
-C_DA_RESELLER_RESTORE_PREVIOUS_DOMAIN_SSL1=true
-#------------------------------------------------------------
-# Create extra reseller here with ascending value starting from 2:
-# eg: C_DA_ADMIN_UNAME2
-
-
-#---- End directadmin RESELLER account(s) information  ----
-#----------------------------------------------------------
-
-#------------------------------------------------
-# Start Directadmin USER account(s) information #
-#------------------------------------------------
-# Note 1: This is the directadmin main user account. You must create at least one user here with index 1
-# Note 2: You can create another multiple users by using the next index number 2 ... N. eg: C_DA_USER_UNAME2
-# Note 3: You can have unlimited directadmin user accounts creation (based on directadmin license) using this variable.
-
-C_DA_USER_CREATOR1="${C_DA_RESELLER_USERNAME1}"
-C_DA_USER_ROLE1="user"
-# This will restore user profile from backup (this will auto restore SSL if exist)
-C_DA_USER_RESTORE_USER_BACKUP1=true
-C_DA_USER_RESTORE_USER_DOMAIN_SSL1=true
-# Create user full name / company name
-C_DA_USER_NAME1="Maxibi ICT Solutions"
-# Create the main username (minimum 2 character, script will check this condition including the maximum username)
-C_DA_USER_USERNAME1="maxi32"
-# Create user password, must be maximum of 64 characters and does not contain the plus character [+] (script will check)
-C_DA_USER_USERPASS1="PASSWORD"
-# Create user system email, where is used for DA to send email, system email should only have 1 email
-C_DA_USER_SYSTEM_EMAIL1="webmaster@maxibi.com"
-# Create user domain here, can declare multiple domains here. The first domain in array is the default domain
-# This variable required at least one domain (subdomain is optional)
-# You can add unlimited subdomain with format: <rootdomain>:<subdomain1.subdomain2>,<anothersubdomain>, ...
-# eg: C_DA_USER_DOMAIN[N]=("maxibi.com:sales,login" "hacker32.com:secure,download,file" "arafatx.com")
-C_DA_USER_DOMAIN1=("maxibi.com:sales,login")
-# Put wildcard record for the following domain(s). Specify in array form
-# To disable just let this variable empty with ""
-C_DA_USER_WILDCARD_DOMAIN1=("maxibi.com")
-# user package name, make sure this package name is created first by reseller (the code will check for you)
-C_DA_USER_PACKAGE_NAME1="USER_UNLIMITED"
-# enable/disable ssl certificate for all domains for this user enable="yes", disable="no"
-C_DA_USER_ENABLE_DOMAIN_SSL1="yes"
-# Define SSL provider for each domain here to request SSL certificate based on the provider
-# <ssl_provider>:<root_domain>:<subdomain1.subdomain2,subdomain2.subdomain3,unlimited.subdomain.other>
-# Note 1: ssl_provider can be letsencrypt, digicert etc.
-# Note 2: The root domain should be ssled by default
-C_DA_USER_SSL_SUBDOMAIN1=("letsencrypt:maxibi.com:www,ftp,mail,pop,smtp,sales")
-# Create user account email, separated with ||| between email and password
-# You can also leave this variable empty to disable this. eg: C_DA_USER_MAIL_ACCOUNT1=() or C_DA_USER_MAIL_ACCOUNT1=""
-C_DA_USER_MAIL_ACCOUNT1=(\
-"webmaster@maxibi.com|||PASSWORD" \
-"info@maxibi.com|||PASSWORD" \
-"sales@maxibi.com|||PASSWORD" \
-)
-# Add user security question and answer separated with ||| between question and answer. You can create unlimited security question and answer.
-# You can also leave this variable empty to disable this. eg: C_DA_USER_SECURITY_QNA1=() or C_DA_USER_SECURITY_QNA1=""
-C_DA_USER_SECURITY_QNA1=(\
-"Seronok?|||tak" \
-"Kaya?|||tak" \
-"Bahagia?|||ok" \
-)
-# Create user database here. If you specify the same database username (db_user), it will use existing database username to create new database
-# if the next database info has repeated username, you can leave the password empty
-#<domain_name>:<db_name>:<db_user>|||<db_password>
-C_DA_USER_DB_ACCOUNT1=( \
-"maxibi.com:wdb:wusr|||PASSWORD" \
-)
-# This option is to enable or disable MOD security for specific website
-C_DA_USER_MODSEC1=("maxibi.com:sales+OFF:login+ON") #TODO
-# This will automatically install website platform and configure recommend values based on the platform type and version
-# Format: <domain>:<platform_name>:<platform_version>
-# The first array before :, represents the main website
-C_DA_USER_CUSTOM_WEB_CONFIG1=("maxibi.com:wordpress:5.7") #TODO
-#------------------------------------------------------------
-# Create extra user here with assending value starting from 2:
-# eg: C_DA_USER_USERNAME2
-
-# User 2 variables:
-#C_DA_USER_CREATOR2=
-#C_DA_USER_ROLE2=
-#C_DA_USER_RESTORE_USER_BACKUP2=
-#C_DA_USER_RESTORE_USER_DOMAIN_SSL2=
-#C_DA_USER_NAME2=
-#C_DA_USER_USERNAME2=
-#C_DA_USER_USERPASS2=
-#C_DA_USER_SYSTEM_EMAIL2=
-#C_DA_USER_DOMAIN2=
-#C_DA_USER_WILDCARD_DOMAIN2=
-#C_DA_USER_PACKAGE_NAME2=
-#C_DA_USER_ENABLE_DOMAIN_SSL2=
-#C_DA_USER_SSL_SUBDOMAIN2=
-#C_DA_USER_MAIL_ACCOUNT2=
-#C_DA_USER_SECURITY_QNA2=
-#C_DA_USER_DB_ACCOUNT2=
-#C_DA_USER_MODSEC2=
-#C_DA_USER_CUSTOM_WEB_CONFIG2=
-
-# ----------------------
-
-#---- End directadmin USER account(s) information  ----
-#------------------------------------------------------
-
-# DA_ADMIN_SQLPASS is for DA sql password (eg: phpmyadmin login) Password cannot contains this character [ ] <> and )
-C_DA_ADMIN_SQLPASS="PASSWORD"
-# Remember cannot contains this character & for DA_ROOT_SQL_PASS
-C_DA_ROOT_SQLPASS="PASSWORD"
-# The roundcube database password
-C_DA_ROUNDCUBE_SQLPASS="PASSWORD"
-# Disable custom dangerous PHP functions in DA. Leave value empty "" to enable all PHP dangerous options (not recommend)
-C_DA_PHP_DISABLE_DANGEROUS_FUNCTION=( \
-"exec" "system" "passthru" "shell_exec" "dl" "popen" "show_source" "posix_kill" \
-"posix_mkfifo" "posix_getpwuid" "posix_setpgid" "posix_setsid" "posix_setuid" "posix_setgid" \
-"posix_seteuid" "posix_setegid" "posix_uname" \
-)
-# Enable WPCLI to install wordpress automatically when domain is created or modified (refer to tutorial how to install this) # TODO
-C_DA_WP_CLI_ENABLE=true
-# Disable or enable security header for all domain
-C_DA_ENABLE_DOMAIN_SECURITY_HEADER=true
-# Enable or disable hsts header. To disable put value to false
-# To enable globally for all domains put "global:<number_of_second>"
-# (Planned feature) To enable only specific domain just put <number_of_seconds>,then
-# the script will look at C_DA_<ROLE>_ENABLE_DOMAIN_HSTS=("domain.com")
-# this option required C_DA_ENABLE_DOMAIN_SECURITY_HEADER set to true
-C_DA_ENABLE_DOMAIN_HSTS="global:31536000"
-
-############################# End directadmin related configuration #############################
-#################################################################################################
-
 # Whether to run own DNS service (do not enable this if you only run external DNS)
 C_ENABLE_BIND=false
 # When enable secure the custom directory with password
@@ -1025,3 +472,621 @@ C_SMTP_SYSTEM_MAIL_SMTP_URL="smtp.gmail.com"
 C_SMTP_SYSTEM_MAIL_PORT="587"
 # Format email(<name_description>)
 C_SMTP_SYSTEM_MAIL_FROM="arafatx@gmail.com(Arafat)"
+
+#################################################################################################
+############################# Start directadmin related configuration ###########################
+#################################################################################################
+
+# This should be always false, only use this if the directadmin installation has problem to finish
+# It will use some common known pre fixes before directadmin installation
+# This bug normally happen if a new software is released on directadmin side
+# Default should be false
+C_DA_ENABLE_PRE_INSTALL_TEMP_FIX=false
+
+#C_DA_AUTO_SELECT_API_PROTOCOL:
+# Automatically select https protocol if available to use with API
+# Note 1: This feature is beta (enable this if API has error with SSL.)
+C_DA_AUTO_SELECT_API_PROTOCOL=true
+
+# Note: Latest directadmin recommends to use auto switch for installation (the staff said it will give latest packages)
+# IMPORTANT ** NEW: The setup.sh has been updated to not accept interactive installation anymore! (but might be temporary)
+# New version will be released as mentioned here: https://forum.directadmin.com/threads/license-key-hashes-new-method-for-installs-setup-sh-and-getlicense-sh.65099/#post-339425
+# So the option 3 here does not work any more at this moment
+# C_DA_INSTALL_TYPE: is used to specify directadmin installation type. Currently it has 4 types:
+# 1) custom = use your own setting during DA installation (provide options.conf and php_extensions.conf),
+# 2) ori = let DA decide what to install default things providing some details using auto
+# 3) interactive = ask question what to install (require input from user) - Note this value does not work at this moment
+# 4) auto = Automated everything by directadmin as default packages (include CSF installation)
+# 5) auto-option= Install directadmin using automatic mode and during installation use options.conf based on config files
+# 6) auto-custom= Install directadmin using automatic mode when completed customize packages based on config file
+# Note, this script was designed to use custom type. Recommend to use auto-option for new version
+C_DA_INSTALL_TYPE="custom"
+
+# stable, current, beta, alpha
+C_DA_VERSION_CHANNEL="current"
+
+# C_DA_CLIENT_ID:
+# This is the directadmin client/user ID license obtained in the directadmin client area
+C_DA_CLIENT_ID="12345"
+
+# C_DA_LICENSE_ID:
+# This is the directadmin license ID obtained in the directadmin client area
+C_DA_LICENSE_ID="123456"
+
+# C_DA_LICENSE_KEY:
+# This is the directadmin license KEY and should be used for installation
+C_DA_LICENSE_KEY="*+awwwsdsdswwJwHwddAISswyHsCS9sBw="
+
+# C_DA_PORT:
+# This is the directadmin port. You should change this port to reduce bruteforce attack
+# The default port is 2222 which is less secure
+# Please note that if you use custom port other than 2222, you will lose the ability to use one click sign in feature in directadmin
+# because one click sign in feature only with 2222
+C_DA_PORT="2233"
+
+# C_DA_[ROLE]_HELPER:
+# This is used to set online help file in directadmin
+C_DA_ADMIN_HELPER="help.codegix.com/directadmin/admin"
+C_DA_RESELLER_HELPER="help.codegix.com/directadmin/reseller"
+C_DA_USER_HELPER="help.codegix.com/directadmin/user"
+
+# C_DA_INSTALL_REDIS:
+# This is used to enable and install redis cache
+C_DA_INSTALL_REDIS=true
+
+# C_DA_INSTALL_MEMCACHED:
+# This is used to enable and install memcached cache
+C_DA_INSTALL_MEMCACHED=true
+
+# C_DA_INSTALL_GEOIP:
+# This is used to enable and install geoip
+C_DA_INSTALL_GEOIP=true
+
+# C_DA_AUTO_ADD_IPV46_ENTRY:
+# This is a feature to add automatically ipv6 or ipv4 config file in directadmin.
+# When this option is enabled (true), we do not need to manually add IPv6 through directadmin GUI.
+# The script will automatically add IPv6 or IPv4 if they are missing.
+# Note that if this variable is set to false, the installation will generate directadmin login link and try to open directadmin port for you to keyin IPv6 IP address manually
+# So, if this option is set to false, the script will pause for user input to press enter
+C_DA_AUTO_ADD_IPV46_ENTRY=true
+
+# C_DA_AUTO_LINK_IP:
+# This variable is used to enable IPv4 and IPv6 linking automatically during installation.
+# Note that if you disable this option, the script will try to open directadmin port for you to link IPv6 and IPv4 manually through web interface
+# So, you are required an input to press enter
+C_DA_AUTO_LINK_IP=true
+
+# C_DA_LOGIN_METHOD:
+# This variable is used as login style method in directadmin. This login method is mentioned in the directadmin API documentation
+# Possible values are:
+# sign-as = This will use da login method with piping: "admin|client". Using this sign-as method, this will log as the client from admin by just by referring the username (benefit: no need to know the client passwords)
+# direct-login = login directly using username and password (disadvantage: need to know directadmin client username and password)
+C_DA_LOGIN_METHOD="sign-as"
+
+# Global variable for disabling all user backup restoration
+# To allow user backup restoration automatically put this value to true
+C_DA_ENABLE_USER_BACKUP_RESTORE=false
+
+# This is the directadmin backup password. Use to decrypt backup automatically
+C_DA_USER_BACKUP_PASSWORD="PASSWORD_HERE"
+
+# C_DA_ENABLE_DOMAIN_AUTO_SSL is used to enable or disable DA AUTO SSL feature
+# If this is enabled, all domains will be requested SSL certificate automatically in the background
+# Important note: At this moment the certificate that is being used is a server shared certificates
+# The shared certificate will not be restored via admin_backups tool if you did backup the certificate.
+# Only certificate created by pasting key or requested via letsencrypt checkbox through GUI can be restored.
+# By default Directadmin enable this AUTO SSL feature after installation.
+# In order to disable the feature put the value to false and the script will disable the AUTO SSL automatically after DA has finished installed
+# To allow domain to automatically request SSL, then put this variable to true
+# Another note: Directadmin AUTO SSL only work with user domain SLL not hostname SSL. For hostname SSL use C_ENABLE_DA_HOST_SSL
+# This config should be set to true by default unless have reason to stop auto SSL
+C_DA_ENABLE_DOMAIN_AUTO_SSL=false
+
+# C_ENABLE_DA_HOST_SSL is used to enable server/host domain SSL. Leave this this option enabled for security
+C_ENABLE_DA_HOST_SSL=true
+
+# This will restore the SSL certificate for hostname without requesting new
+# Only enable this, if you reached the hostname SSL limit request
+# And also make sure the crt file is at ssl/certificates/hostname.crt
+# By default should be disable (if rate limit reached for all providers, then enable this)
+C_DA_ENABLE_HOSTNAME_SSL_RESTORE=false
+
+# This will use manual method to restore SSL certificate, if it failed it will use old method to request new certificate (requesting manually via letsencrypt.sh)
+# To allow user domain SSL restoration put this to true but if C_DA_DISABLE_DOMAIN_AUTO_SSL is set to false, this setting has no effect
+# Only use this option if the users' backup files do not have SSL certificates and you really need the SSL restoration manually when you have the backup certificates
+# Regarding to the user backup restore, when C_DA_DISABLE_USER_BACKUP_RESTORE is set to false and each user backup config is enabled it will restore previous certificate (if exist)
+# That means if this is set to true, it will replace the backup SSL certificate (do not enable this without reason)
+C_DA_ENABLE_USER_DOMAIN_SSL_RESTORE=false
+
+# C_DA_ENABLE_ZEROSSL_CERTIFICATE is used to enable zerossl certificate for website which has more rate limit for big hosting.
+# This is a new test feature in directadmin
+# I have many dedicated servers so using letsencryppt is not enough for customers
+# If you don't want to use zerossl put this variable to false
+# Note if you enable this, the old method of requesting certificate via letsencrypt will be disabled and it will use zerossl instead.
+# To disable zerossl manually and revert to the old method just remove the file /root/.zerossl and that will revert to using letsencrypt for requesting ssl certificate
+C_DA_ENABLE_ZEROSSL_CERTIFICATE=true
+
+# DA_ADMIN_SQLPASS is for DA sql password (eg: phpmyadmin login) Password cannot contains this character [ ] <> and )
+C_DA_ADMIN_SQLPASS="PASSWORD"
+# Remember cannot contains this character & for DA_ROOT_SQL_PASS
+C_DA_ROOT_SQLPASS="PASSWORD"
+# The roundcube database password
+C_DA_ROUNDCUBE_SQLPASS="PASSWORD"
+# Disable custom dangerous PHP functions in DA. Leave value empty "" to enable all PHP dangerous options (not recommend)
+C_DA_PHP_DISABLE_DANGEROUS_FUNCTION=( \
+"exec" "system" "passthru" "shell_exec" "dl" "popen" "show_source" "posix_kill" \
+"posix_mkfifo" "posix_getpwuid" "posix_setpgid" "posix_setsid" "posix_setuid" "posix_setgid" \
+"posix_seteuid" "posix_setegid" "posix_uname" \
+)
+# Enable WPCLI to install wordpress automatically when domain is created or modified (refer to tutorial how to install this) # TODO
+C_DA_WP_CLI_ENABLE=true
+# Disable or enable security header for all domain
+C_DA_ENABLE_DOMAIN_SECURITY_HEADER=true
+# Enable or disable hsts header. To disable put value to false
+# To enable globally for all domains put "global:<number_of_second>"
+# (Planned feature) To enable only specific domain just put <number_of_seconds>,then
+# the script will look at C_DA_<ROLE>_ENABLE_DOMAIN_HSTS=("domain.com")
+# this option required C_DA_ENABLE_DOMAIN_SECURITY_HEADER set to true
+C_DA_ENABLE_DOMAIN_HSTS="global:31536000"
+
+#------------------------------------------------------------------
+# Start directadmin.conf options ( Directadmin version: 1.63.1 )  #
+#------------------------------------------------------------------
+
+# Example, for directadmin certification group
+C_DA_SECURE_ACCESS_GROUP=access
+# Ability to generate debug output from tokenizer when running DA in debug mode
+C_DA_TOKENIZER_DEBUG=1
+# Directadmin execution timeout in second
+C_DA_TIMEOUT="120"
+# Directadmin session timeout in minutes
+C_DA_SESSION_MINUTES="2880"
+# Directadmin maxfilesize to upload in file manager in bytes
+C_DA_MAXFILESIZE="5368709120"
+# Directadmin maximum username (including sql username). Changing this requires MySQL 5.7.8+ or MariaDB 10.x+
+# default value is 14
+C_DA_MAX_USERNAME_LENGTH="30"
+# Enable directadmin security question for authentication purpose
+C_DA_SECURITY_QUESTIONS=1
+# Set login history total
+C_DA_LOGIN_HISTORY="10"
+# Force password creation to use hard password
+C_DA_ENFORCE_DIFFICULT_PASSWORDS=1
+# Allow backup encryption option
+C_DA_ALLOW_BACKUP_ENCRYPTION=1
+# Deprecated variable in the new DA version
+# C_DA_DISABLE_IPCHECK="1"
+C_DA_ALLOW_FOREIGN_KEY="0"
+# Default is 0
+C_DA_SIMPLE_DISK_USAGE="1"
+C_DA_ZIP="1"
+# Default is 0
+C_DA_AWSTATS="0"
+# Default is 0
+C_DA_WEBALIZER="0"
+# Default is 1
+C_DA_ROTATION="0"
+# Default is 0 (disable),
+# 1 Enable automatically when creating domain, 2 Enable DKIM option in UI for user
+C_DA_DKIM=2
+# Default is 1 (enable),
+C_DA_COUNT_POP_USAGE=0
+# Default is 0 (disabled)
+C_DA_PURGE_SPAM_DAYS=1
+# Default is 0 (disabled)
+C_DA_SKIP_HOMETARGZ_IN_BACKUPS=0
+# Default is 0 (disabled)
+C_DA_SKIP_DOMAINS_IN_BACKUPS=0
+# Default is 0 (disabled)
+C_DA_SKIP_IMAP_IN_BACKUPS=0
+# Default is 0 (disabled)
+C_DA_SKIP_DATABASES_IN_BACKUPS=0
+# Default is 1 (show all)
+C_DA_SHOW_DB_USAGE=0
+# Default is 1 (enabled)
+C_DA_SHOW_POINTERS_IN_LIST=1
+# Default is 1 (enabled)
+C_DA_CHECK_SUBDOMAIN_OWNER=1
+# Enable or disable bruteforce
+# UNLISTED variable for API using CMD_API_ADMIN_SETTINGS:
+C_DA_USER_BRUTECOUNT=100
+C_DA_BRUTEFORCE=1
+# This will hide or show bruteforce user count
+C_DA_USER_BRUTECOUNT=1
+C_DA_EXEMPT_LOCAL_BLOCK=1
+C_DA_BRUTE_FORCE_TIME_LIMIT=1200
+C_DA_CLEAR_BLACKLIST_IP_TIME=86400
+# This will hide bruteforce notification (will speed up ticket system)
+C_DA_HIDE_BRUTE_FORCE_NOTIFICATIONS=1
+C_DA_IP_BRUTECOUNT=100
+#  In days
+C_DA_CLEAR_BRUTE_LOG_ENTRY_TIME=4
+# In hours
+C_DA_CLEAR_BRUTE_LOG_TIME=24
+# In hours
+C_DA_UNBLOCK_BRUTE_IP_TIME=4320
+C_DA_BRUTE_FORCE_LOG_SCANNER=1
+C_DA_BRUTE_FORCE_SCAN_APACHE_LOGS=2
+C_DA_BRUTE_DOS_COUNT=100
+C_DA_CHECK_PARTITIONS=2
+C_DA_PARTITION_USAGE_THRESHOLD=95
+# 0 = .tar, 1 = tar.gz, 2 = .zstd (default is zstd)
+C_DA_BACKUP_GZIP=2
+C_DA_DEMODOCSROOT="./data/skins/evolution"
+C_DA_LOST_PASSWORD=0
+C_DA_RBL_ENABLED=1
+C_DA_VIRTUAL_LIMIT=1000
+C_DA_PER_EMAIL_LIMIT=300
+# Default is -1 equal to rely on user file, 0 is unlimited, or specify value like 500
+C_DA_MAX_PER_EMAIL_SEND_LIMIT=0
+C_DA_USER_CAN_SET_EMAIL_LIMIT=1
+# What this does is, when I navigate to server.host.com/webmail it will redirect to server.host.com/C_DA_WEBMAIL_LINK
+# So better put dummy link
+C_DA_WEBMAIL_LINK=roundcube
+# Disable if don't use wildcard certificate
+C_DA_DNS_TTL=0
+# This will enable the strongest SSL certificate:
+#keysize=prime256v1
+#keysize=secp384r1
+#keysize=secp521r1
+# Most secure key now is secp521r1 with sha256
+# But do note that secp521r1 is not supported by letsencrypt and most browser still don't support it so use secp384r1
+C_DA_ECC_CERTIFICATES=1
+# Choose the certificate size
+# 2048, 4096, prime256v1, secp384r1
+C_DA_CERTIFICATE_SIZE="secp384r1"
+# This is certificate encryption algorithm for the SSL certificate (most common is sha256 is enough)
+C_DA_CERTIFICATE_ENCRYPTION_ALGORITHM="sha256"
+
+# This will enable host hsts via directadmin
+# to disable just put false, to enable provide the value in second:
+C_DA_ENABLE_HOST_HSTS="31536000"
+
+# Deprecated variable
+# This will hide directadmin version and license ID (da v1.62 has internal default 0)
+# C_DA_SHOW_INFO_IN_HEADER=0
+
+# This will hide directadmin version in web title
+C_DA_SHOW_INFO_IN_TITLE=0
+
+# This will sync restore
+C_DA_TALLY_AFTER_RESTORE=2
+
+# This setting is for AUTO SSL (This is commented because C_DA_ENABLE_DOMAIN_AUTO_SSL will determine the value for this)
+# C_DA_ADMIN_SSL_CHECK_RETRIES=1
+
+# This will make imap backup faster: https://www.directadmin.com/features.php?id=1834
+C_DA_DIRECT_IMAP_BACKUP=1
+
+# Set the jailshell option based on this: https://www.directadmin.com/features.php?id=2740
+C_DA_JAIL=2
+
+# This will enable checkbox for list of subdomain to request SSL certificate
+C_DA_LETSENCRYPT_LIST="www:mail:ftp:pop:smtp"
+
+# This will check the checkbox automatically for list of subdomains to request SSL certificate
+C_DA_LETSENCRYPT_LIST_SELECTED="www:mail:ftp:pop:smtp"
+
+# This will send notification if renew success
+C_DA_LETSENCRYPT_RENEWAL_SUCCESS_NOTICE=0
+
+# Option to make proftpd password unified (enabled by default)
+C_DA_UNIFIED_FTP_PASSWORD_FILE=1
+
+# Set php-fpm process
+C_PHP_FPM_MAX_CHILDREN_DEFAULT=15
+
+# Option to enable or disable two step authentication
+C_DA_TWOSTEP_AUTH=1
+
+# Option to block 2 step authentication
+C_DA_BLOCK_IP_AFTER_FAILED_TWOSTEP_AUTH=1
+
+# Set max attempt for 2 step authentication
+C_DA_MAX_TWOSTEP_AUTH_ATTEMPTS=5
+
+C_DA_TWOSTEP_AUTH_DISCREPANCY=1
+
+C_DA_TWOSTEP_AUTH_TRUST_DAYS=30
+
+# Number of minutes between the refresh of apache log list, used if brute_force_scan_apache_logs set to 2. Missing logs are always removed from the list, but new logs won't start scanning for this amount of time.
+C_DA_BRUTE_FORCE_APACHE_LOG_LIST_UPDATE_INTERVAL=10
+
+# A path of blacklisted IPs to be used in Brute Force Monitor.
+C_DA_IP_BLACKLIST="/usr/local/directadmin/data/admin/ip_blacklist"
+
+# A path of whitelisted IPs to be used in Brute Force Monitor.
+C_DA_IP_WHITELIST="/usr/local/directadmin/data/admin/ip_whitelist"
+
+# To ignore all attempts on suspended accounts by Brute Force Monitor.
+C_DA_BRUTE_FORCE_IGNORE_ATTEMPTS_ON_SUSPENDED=1
+
+# 0 : BFM will create a notification in DA Message System
+# 1 : BFM will not create a ticket in DA Message System, but will only send an email notification to admin
+C_DA_BRUTE_FORCE_NOTIFICATIONS_EMAIL_ONLY=1
+
+# Option to include 2222 failed attempt in BFM blocks (CSF).
+C_DA_INCLUDE_DIRECTADMIN_PORT_IN_BRUTE_FIREWALL=0
+
+# A path to exim mainlog file to be scanned by Brute Force Monitor.
+C_DA_BRUTE_FORCE_EXIM_LOG="/var/log/exim/mainlog"
+
+# A path to exim paniclog file to be scanned by Brute Force Monitor. Not available in Debian clean install
+C_DA_BRUTE_FORCE_EXIM_PANIC_LOG="/var/log/exim/paniclog"
+
+# A path to exim rejectlog file to be scanned by Brute Force Monitor. Not available in Debian clean install
+C_DA_BRUTE_FORCE_EXIM_REJECT_LOG="/var/log/exim/rejectlog"
+
+# A path to main dovecot log file to be scanned by Brute Force Monitor. Not available in Debian clean install
+C_DA_BRUTE_FORCE_MAIL_LOG="/var/log/maillog"
+
+#A path to main system messages log file to be scanned by Brute Force Monitor.
+C_DA_BRUTE_FORCE_MESSAGES_LOG="/var/log/messages"
+
+#A path to main mysql log file to be scanned by Brute Force Monitor (for server with hostname 'server.hostname.tld').
+C_DA_BRUTE_FORCE_MYSQL_LOG="/var/lib/mysql/${C_BOX_HOSTNAME_FQHN}.err"
+
+#A path to PHPMyAdmin authentication log file to be scanned by Brute Force Monitor.
+C_DA_BRUTE_FORCE_PMA_LOG="/var/www/html/phpMyAdmin/log/auth.log"
+
+#A path to pureftpd log file to be scanned by Brute Force Monitor.
+C_DA_BRUTE_FORCE_PUREFTPD_LOG="/var/log/pureftpd.log"
+
+#A path to RoundCube log file to be scanned by Brute Force Monitor.
+C_DA_BRUTE_FORCE_ROUNDCUBE_LOG="/var/www/html/roundcube/logs/errors"
+
+#A path to OS secure log file to be scanned by Brute Force Monitor. Not available in Debian clean install
+C_DA_BRUTE_FORCE_SECURE_LOG="/var/log/secure"
+
+#---- End directadmin.conf settings ----
+#---------------------------------------
+
+#-------------------------------------------------------------------------
+# Start custombuild options.conf options ( Directadmin version: 1.62.7 ) #
+#-------------------------------------------------------------------------
+C_DA_CB_VERSION="2.0"
+C_DA_CB_FTP_SOFTWARE="pureftpd"
+C_DA_CB_EXIMCONF_RELEASE="4.5"
+# nginx, apache, nginx_apache, litespeed (litespeed is not tested)
+C_DA_CB_WEBSERVER_SOFTWARE="nginx_apache"
+# or owasp
+C_DA_CB_INSTALL_MODSECURITY="yes"
+C_DA_CB_MODSECURITY_RULESET="comodo"
+# Format <sql_type>-<sql_version>
+# or mysql-8.0
+C_DA_CB_SQL_VERSION="mariadb-10.6"
+# Format <7.3:php-fpm,7.4:php-fpm,8.0:php-fpm>
+# php7.3:php-fpm means php version 7.3 with FPM mode
+# the first order is the first PHP version (also used by directadmin system). Max is 4, extra argument will be ignored
+C_DA_CB_PHP_VERSION="8.0:php-fpm,7.4:php-fpm,7.3:php-fpm"
+# This for installing clamav
+C_DA_CB_INSTALL_CLAMAV="yes"
+# Put "latest" to install the latest version
+# or specify version number if the latest version has problem
+C_DA_CB_CLAMAV_VERSION="latest"
+# Enable / disable clamav service
+C_ENABLE_CLAMAV_SERVICE=false
+# Enable / disable user directory access
+C_DA_CB_USERDIR_ACCESS="no"
+# This will install bubblewrap/jailshell
+C_DA_CB_INSTALL_SANDBOX="yes"
+# This will use the mirror (files.directadmin.com should be the first to use)
+# or set fastest for the server to select faster server (might not get latest build)
+C_DA_CB_DOWNLOADSERVER=files.directadmin.com
+# Option to install CSF using directadmin custombuild
+C_DA_CB_INSTALL_CSF="yes"
+#---- End custombuild options.conf settings ----
+#-----------------------------------------------
+
+#-------------------------------------------------
+# Start Directadmin OWNER account(s) information #
+#-------------------------------------------------
+
+C_DA_OWNER_CREATOR1="root"
+C_DA_OWNER_ROLE1="admin"
+# This variable use to restore directadmin owner backup
+C_DA_OWNER_RESTORE_USER_BACKUP1=true
+# C_DA_OWNER_NAME[N]:
+# This variable defined the directadmin owner full name. The owner full name is the initial admin installation created during directadmin installation
+# The last character of N from the variable C_DA_OWNER_NAMEN is the total number of user as owner. For example to define the second owner's full name the next variable will be: C_DA_OWNER_NAME2
+# However, you are not supposed to declare more than 1 owner user. Currently owner should only have 1 user in the directadmin system but admin and user should can have multiple users
+C_DA_OWNER_NAME1="Box Owner"
+# C_DA_OWNER_USERNAME[N]:
+# This variable defined directadmin owner username.
+# The default username in directadmin is admin which is not secure. Setup will change the default directadmin username from admin into this value.
+# You must set this variable other than admin, so directadmin will not contains any admin username for security reason
+C_DA_OWNER_USERNAME1="owner47"
+# DA_ADMIN_USERPASS is for DA admin dashboard password
+C_DA_OWNER_USERPASS1="PASSWORD"
+# DA owner email will use $ROOT_EMAIL variable above but we can declare here too for future reference
+C_DA_OWNER_SYSTEM_EMAIL1="owner@codegix.com"
+# Can be empty = ""
+C_DA_OWNER_SECURITY_QNA1=(\
+"Kau suka makan apa?|||budu" \
+"Kau punya hobi apa?|||programming" \
+)
+# Note 1: For security reason owner should not have domain or web interfaces (no domain = no email)
+# Note 2: There must be only one owner account in directadmin (that is the original admin account of directadmin)
+#         So, C_DA_OWNER must always have index of 1
+#---- End directadmin OWNER account(s) information  ----
+#-------------------------------------------------------
+
+#-------------------------------------------------
+# Start Directadmin ADMIN account(s) information #
+#-------------------------------------------------
+# Note 1: For security reason, admin should not have domain or web interfaces (no domain = no email)
+# Note 2: For security reason, only 1 admin should be created (even directadmin supports multiple admin creation).
+#         So, C_DA_ADMIN must always have index of 1
+# Note 3: So you actually have 2 admin accounts from C_DA_OWNER and C_DA_ADMIN
+# Creator can be username or specify variable
+C_DA_ADMIN_CREATOR1="${C_DA_OWNER_USERNAME1}"
+C_DA_ADMIN_ROLE1="admin"
+C_DA_ADMIN_RESTORE_USER_BACKUP1=true
+C_DA_ADMIN_NAME1="Box Admin"
+C_DA_ADMIN_USERNAME1="admin49"
+C_DA_ADMIN_USERPASS1="PASSWORD"
+C_DA_ADMIN_SYSTEM_EMAIL1="admin@codegix.com"
+C_DA_ADMIN_SECURITY_QNA1=(\
+"What is the purpose of life?|||answer here" \
+"Do you feel that vibration?|||answer 2 here" \
+)
+
+#---- End directadmin ADMIN account(s) information  ----
+#-------------------------------------------------------
+
+#----------------------------------------------------
+# Start Directadmin RESELLER account(s) information #
+#----------------------------------------------------
+# Note 1: This is the directadmin main reseller account. You must create at least one reseller here with index 1
+# Note 2: You can create another multiple resellers by using the next index number 2 ... N. eg: C_DA_RESELLER_UNAME2
+# Note 3: You can have unlimited directadmin reseller accounts creation (based on directadmin license) using this variable.
+C_DA_RESELLER_CREATOR1="${C_DA_ADMIN_USERNAME1}"
+C_DA_RESELLER_ROLE1="reseller"
+C_DA_RESELLER_RESTORE_USER_BACKUP1=true
+# This will check first if SSL is OK (from backup), then no need to restore SSL (also this is run when auto SSL is disable)
+C_DA_RESELLER_RESTORE_USER_DOMAIN_SSL1=true
+C_DA_RESELLER_NAME1="Masternom Corporation"
+C_DA_RESELLER_USERNAME1="maxi47"
+C_DA_RESELLER_USERPASS1="PASSWORD!@1"
+C_DA_RESELLER_SYSTEM_EMAIL1="webmaster@masternom.com"
+# This is the main reseller package
+C_DA_RESELLER_PACKAGE_NAME1="RESELLER_UNLIMITED"
+# Create user domain here, can declare multiple domains here. The first domain in array is the default domain
+# This variable required at least one domain (subdomain is optional)
+# You can add unlimited subdomain with format: <rootdomain>:<subdomain1.subdomain2>,<anothersubdomain>, ...
+# eg: C_DA_RESELLER_DOMAIN[N]=("maxibi.com:sales,login" "hacker32.com:secure,download,file" "arafatx.com")C_DA_RESELLER_DOMAIN1=("sofibox.com:sales,login,secure,svn,api,help,dashboard")
+# Put wildcard record for this domain. To disable just let this variable empty with ""
+# Format <domain.com>:<anotherdomain.com>:<anotheronedomain.com>: ...
+C_DA_RESELLER_DOMAIN1=("masternom.com" "sofinang.com")
+# Put wildcard record for this domain. To disable just let this variable empty with ""
+# Format <domain.com>:<anotherdomain.com>:<anotheronedomain.com>: ...
+C_DA_RESELLER_WILDCARD_DOMAIN1=("sofinang.com")
+# shared or assign - If shared, domain will use the main ip from the server. Whereas for assign, it will use one of the ips from resellers
+C_DA_RESELLER_IP_TYPE1="shared"
+C_DA_RESELLER_ENABLE_DOMAIN_SSL1="yes"
+# Below required + symbol
+C_DA_RESELLER_SSL_SUBDOMAIN1=("letsencrypt:masternom.com:www+ftp+mail+pop+smtp+sales+secure+login+svn+api+help+dashboard")
+
+C_DA_RESELLER_MAIL_ACCOUNT1=(\
+"webmaster@masternom.com|||PASSWORD" \
+"info@masternom.com|||PASSWORD" \
+)
+# Security question and answers. Can be empty with =""
+C_DA_RESELLER_SECURITY_QNA1=(\
+"What the heck?|||ok" \
+"Kaupehal?|||tak ada ape" \
+)
+
+#<domain_name>:<db_name>:<db_user>|||<db_password>
+C_DA_RESELLER_DB_ACCOUNT1=( \
+"masternom.com:wdbn:wuser|||PASSWORD" \
+"masternom.com:wdbn:wuser2|||PASSWORD" \
+)
+# Whether to enable or disable modsecurity for the subdomain
+C_DA_RESELLER_MODSEC1=("masternom.com:sales+OFF:login+ON")
+# Whether to enable domain hsts (provide value for max-age)
+C_DA_RESELLER_ENABLE_DOMAIN_HSTS1=true
+# Whether to restore SSL certificate from previous domain
+C_DA_RESELLER_RESTORE_PREVIOUS_DOMAIN_SSL1=true
+#------------------------------------------------------------
+# Create extra reseller here with ascending value starting from 2:
+# eg: C_DA_ADMIN_UNAME2
+
+
+#---- End directadmin RESELLER account(s) information  ----
+#----------------------------------------------------------
+
+#------------------------------------------------
+# Start Directadmin USER account(s) information #
+#------------------------------------------------
+# Note 1: This is the directadmin main user account. You must create at least one user here with index 1
+# Note 2: You can create another multiple users by using the next index number 2 ... N. eg: C_DA_USER_UNAME2
+# Note 3: You can have unlimited directadmin user accounts creation (based on directadmin license) using this variable.
+
+C_DA_USER_CREATOR1="${C_DA_RESELLER_USERNAME1}"
+C_DA_USER_ROLE1="user"
+# This will restore user profile from backup (this will auto restore SSL if exist)
+C_DA_USER_RESTORE_USER_BACKUP1=true
+C_DA_USER_RESTORE_USER_DOMAIN_SSL1=true
+# Create user full name / company name
+C_DA_USER_NAME1="Maxibi ICT Solutions"
+# Create the main username (minimum 2 character, script will check this condition including the maximum username)
+C_DA_USER_USERNAME1="maxi32"
+# Create user password, must be maximum of 64 characters and does not contain the plus character [+] (script will check)
+C_DA_USER_USERPASS1="PASSWORD"
+# Create user system email, where is used for DA to send email, system email should only have 1 email
+C_DA_USER_SYSTEM_EMAIL1="webmaster@maxibi.com"
+# Create user domain here, can declare multiple domains here. The first domain in array is the default domain
+# This variable required at least one domain (subdomain is optional)
+# You can add unlimited subdomain with format: <rootdomain>:<subdomain1.subdomain2>,<anothersubdomain>, ...
+# eg: C_DA_USER_DOMAIN[N]=("maxibi.com:sales,login" "hacker32.com:secure,download,file" "arafatx.com")
+C_DA_USER_DOMAIN1=("maxibi.com:sales,login")
+# Put wildcard record for the following domain(s). Specify in array form
+# To disable just let this variable empty with ""
+C_DA_USER_WILDCARD_DOMAIN1=("maxibi.com")
+# user package name, make sure this package name is created first by reseller (the code will check for you)
+C_DA_USER_PACKAGE_NAME1="USER_UNLIMITED"
+# enable/disable ssl certificate for all domains for this user enable="yes", disable="no"
+C_DA_USER_ENABLE_DOMAIN_SSL1="yes"
+# Define SSL provider for each domain here to request SSL certificate based on the provider
+# <ssl_provider>:<root_domain>:<subdomain1.subdomain2,subdomain2.subdomain3,unlimited.subdomain.other>
+# Note 1: ssl_provider can be letsencrypt, digicert etc.
+# Note 2: The root domain should be ssled by default
+C_DA_USER_SSL_SUBDOMAIN1=("letsencrypt:maxibi.com:www,ftp,mail,pop,smtp,sales")
+# Create user account email, separated with ||| between email and password
+# You can also leave this variable empty to disable this. eg: C_DA_USER_MAIL_ACCOUNT1=() or C_DA_USER_MAIL_ACCOUNT1=""
+C_DA_USER_MAIL_ACCOUNT1=(\
+"webmaster@maxibi.com|||PASSWORD" \
+"info@maxibi.com|||PASSWORD" \
+"sales@maxibi.com|||PASSWORD" \
+)
+# Add user security question and answer separated with ||| between question and answer. You can create unlimited security question and answer.
+# You can also leave this variable empty to disable this. eg: C_DA_USER_SECURITY_QNA1=() or C_DA_USER_SECURITY_QNA1=""
+C_DA_USER_SECURITY_QNA1=(\
+"Seronok?|||tak" \
+"Kaya?|||tak" \
+"Bahagia?|||ok" \
+)
+# Create user database here. If you specify the same database username (db_user), it will use existing database username to create new database
+# if the next database info has repeated username, you can leave the password empty
+#<domain_name>:<db_name>:<db_user>|||<db_password>
+C_DA_USER_DB_ACCOUNT1=( \
+"maxibi.com:wdb:wusr|||PASSWORD" \
+)
+# This option is to enable or disable MOD security for specific website
+C_DA_USER_MODSEC1=("maxibi.com:sales+OFF:login+ON") #TODO
+# This will automatically install website platform and configure recommend values based on the platform type and version
+# Format: <domain>:<platform_name>:<platform_version>
+# The first array before :, represents the main website
+C_DA_USER_CUSTOM_WEB_CONFIG1=("maxibi.com:wordpress:5.7") #TODO
+#------------------------------------------------------------
+# Create extra user here with assending value starting from 2:
+# eg: C_DA_USER_USERNAME2
+
+# User 2 variables:
+#C_DA_USER_CREATOR2=
+#C_DA_USER_ROLE2=
+#C_DA_USER_RESTORE_USER_BACKUP2=
+#C_DA_USER_RESTORE_USER_DOMAIN_SSL2=
+#C_DA_USER_NAME2=
+#C_DA_USER_USERNAME2=
+#C_DA_USER_USERPASS2=
+#C_DA_USER_SYSTEM_EMAIL2=
+#C_DA_USER_DOMAIN2=
+#C_DA_USER_WILDCARD_DOMAIN2=
+#C_DA_USER_PACKAGE_NAME2=
+#C_DA_USER_ENABLE_DOMAIN_SSL2=
+#C_DA_USER_SSL_SUBDOMAIN2=
+#C_DA_USER_MAIL_ACCOUNT2=
+#C_DA_USER_SECURITY_QNA2=
+#C_DA_USER_DB_ACCOUNT2=
+#C_DA_USER_MODSEC2=
+#C_DA_USER_CUSTOM_WEB_CONFIG2=
+
+# ----------------------
+
+#---- End directadmin USER account(s) information  ----
+#------------------------------------------------------
+
+############################# End directadmin related configuration #############################
+#################################################################################################
