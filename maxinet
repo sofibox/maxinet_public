@@ -5,7 +5,7 @@
 # remote OS tested: debian 11
 _APP_SPECIFIC_NAME="Maxinet"
 # Note that some minor versions are not published
-_APP_VERSION="0.9.7"
+_APP_VERSION="0.9.8"
 _APP_STATUS="alpha"
 _APP_VERSION_STATUS="${_APP_VERSION}-${_APP_STATUS}"
 
@@ -11431,16 +11431,86 @@ install_da_post() {
     fi
 
     # Install maldetect only if clamav is set to install
+    # clamav is installed through custombuild command
     if [ "${C_DA_CB_INSTALL_CLAMAV}" == "yes" ]; then
-      _echo "$(msg cyan)Installing maldetect from source ...$(msg end)" --name
+      local maldet_version
+      _echo "$(msg cyan)Removing existing maldetect installation ...$(msg end)" --name
+      # This is based on the uninstall.sh from maldet (but without interaction)
+      if [ "$OSTYPE" != "FreeBSD" ]; then
+        if test $(cat /proc/1/comm) = "systemd"; then
+          systemctl disable maldet.service
+          systemctl stop maldet.service
+          rm -f /usr/lib/systemd/system/maldet.service
+          systemctl daemon-reload
+        else
+          maldet -k
+          if [ -f /etc/redhat-release ]; then
+            /sbin/chkconfig maldet off
+            /sbin/chkconfig maldet --del
+          elif [ -f /etc/debian_version ] || [ -f /etc/lsb-release ]; then
+            update-rc.d -f maldet remove
+          elif [ -f /etc/gentoo-release ]; then
+            rc-update del maldet default
+          elif [ -f /etc/slackware-version ]; then
+            rm -f /etc/rc.d/rc3.d/S70maldet
+            rm -f /etc/rc.d/rc4.d/S70maldet
+            rm -f /etc/rc.d/rc5.d/S70maldet
+          else
+            /sbin/chkconfig maldet off
+            /sbin/chkconfig maldet --del
+          fi
+          rm -f /etc/init.d/maldet
+        fi
+      fi
+      rm -rf /usr/local/maldetect* /etc/cron.d/maldet_pub /etc/cron.daily/maldet /usr/local/sbin/maldet /usr/local/sbin/lmd
+      clamav_paths="/usr/local/cpanel/3rdparty/share/clamav/ /var/lib/clamav/ /var/clamav/ /usr/share/clamav/ /usr/local/share/clamav"
+      for cpath in $clamav_paths; do
+        rm -f $cpath/rfxn.* $cpath/lmd.user.*
+      done
+      echo "Linux Malware Detect has been uninstalled."
+      # End of maldet uninstall.sh script
+
+      echo ""
       echo "[${SCRIPT_NAME}]: Removing previous downloaded file ..."
       rm -fv "${INST_TEMP_DIR}/maldetect-current.tar.gz"
       navigate_path "${INST_TEMP_DIR}"
       echo "[${SCRIPT_NAME}]: Downloading and extracting maldetect file in ${INST_TEMP_DIR} ..."
       curl -SL http://www.rfxn.com/downloads/maldetect-current.tar.gz | tar -xzf -
+      echo ""
       # Now after extracted we have csf folder, let's enter to this path
       cd "${INST_TEMP_DIR}"/maldetect-* || exit 0
+      _echo "$(msg cyan)Installing maldetect from official website ...$(msg end)" --name
       bash ./install.sh
+      echo ""
+
+      if ! command -v maldet &>/dev/null; then
+        _echo "$(msg red)Error, maldet was not successfully installed because the binary file is missing!$(msg end)" --name
+        exit 147
+      fi
+
+      # This is a temporary patch for maldet service that does not run properly. This patch only work with maldet 1.6.4:
+      # https://serverfault.com/questions/1077310/update-from-debian-10-to-debian-11-gone-wrong
+      # Note this patch will be overwritten if maldet is updated with the same version or never version
+      # To keep applying the patch if maldet is updated, see this:
+      # https://github.com/rfxn/linux-malware-detect/issues/395
+      maldet_version=$(maldet -V | head -1 | cut -d" " -f 4)
+      _echo "$(msg cyan)Maldet version is: ${maldet_version}$(msg end)" --name
+      if [[ "${maldet_version}" == "v1.6.4" && "${DISTRO_ID}" == "debian" && "${DISTRO_CODENAME}" == "bullseye" ]]; then
+        _echo "$(msg cyan)Patching known bug for maldet 1.6.4 service to run on Debian 11 properly ...$(msg end)" --name
+        sed -i 's#/boot/System.map#/lib/debug/boot/System.map#' /usr/local/maldetect/internals/functions
+        get_status_message "$?"
+        echo ""
+        _echo "$(msg cyan)Restarting maldet service ...$(msg end)" --name
+        systemctl restart maldet
+        echo ""
+        _echo "$(msg cyan)Checking maldet running status ...$(msg end)" --name
+        systemctl is-active --quiet maldet
+        get_status_message "$?"
+      fi
+      echo ""
+      _echo "$(msg cyan)Running maldet -V command ...$(msg end)" --name
+      maldet -V
+      get_status_message "$?"
     fi
 
     # ClamAV and exim rebuild
@@ -12097,6 +12167,10 @@ install_da_csf() {
     if [[ "${C_DA_INSTALL_TYPE}" == "auto" ]]; then
       _echo "$(msg yellow)[Skipped]: Directadmin installation type is set to AUTO which already included CSF installation$(msg end)" --name
     elif [[ "${C_DA_CB_INSTALL_CSF}" == "yes" ]]; then
+      _echo "$(msg cyan)Setting CSF installation in custombuild option ...$(msg end)" --name
+      "${da_cb_bin}" set csf yes
+      get_status_message "$?"
+      echo ""
       _echo "$(msg cyan)Installing CSF based on custombuild option set in config file ...$(msg end)" --name
       "${da_cb_bin}" csf
       get_status_message "$?"
@@ -17224,8 +17298,6 @@ configure_maxinance() {
 }
 
 configure_maxiaide() {
-  # It stays there because this is a sensitive file that contains password
-
   local run_mode func_name
   run_mode="$1"
   extra_option="$2"
@@ -17244,7 +17316,11 @@ configure_maxiaide() {
     apt-get -y purge aide-common
     required "debian@@apt:aide" "ubuntu@@apt:aide"
     maxiaide_bin="/usr/local/maxicode/maxiaide/maxiaide"
-
+    # After AIDE has installed, we do not need this daily script because we will have maxiaide scan --cronjob to run it
+    if [ -f /etc/cron.daily ]; then
+      _echo "$(msg cyan)Removing AIDE daily cron job at /etc/cron.daily ...$(msg end)" --name
+      rm -fv /etc/cron.daily/aide
+    fi
     _echo "$(msg cyan)Removing previous maxiaide symlink shortcut in /usr/local/bin ...$(msg end)" --name
     rm -f /usr/local/bin/maxiaide
     if [ -f ${maxiaide_bin} ]; then
@@ -17263,6 +17339,7 @@ configure_maxiaide() {
       maxiaide_custom_rules="${SCRIPT_PATH}/maxiaide/custom_rules"
       check_path "${maxiaide_custom_rules}"
       echo ""
+
       # Copy custom_rules from secure folder:
       _echo "$(msg cyan)Copying AIDE custom_rules from secure folder into /usr/local/maxicode/maxiaide/conf/custom_rules ...$(msg end)" --name
       cp "${maxiaide_custom_rules}" /usr/local/maxicode/maxiaide/conf/custom_rules
@@ -17520,6 +17597,7 @@ configure_maxirbl() {
   fi
 }
 
+# This maxiclam will manage both clamav and maldet
 configure_maxiclam() {
   local run_mode func_name
   run_mode="$1"
@@ -20643,7 +20721,7 @@ setup() {
         configure_maxipass --run
         configure_maxidb --run
         configure_maxify --skip  # (skipped deprecated)
-        configure_maxiclam --run #
+        configure_maxiclam --run
         configure_logs --skip    #-- skip temporarily
         configure_maxicron --run
         # Still need to add more based on lynis suggestion
