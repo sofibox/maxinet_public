@@ -373,12 +373,15 @@ C_GPG_PASSPHRASE="GPG_PASSWORD_HERE"
 C_GPG_USE_EXISTING_KEY=false
 C_GPG_CACHE_DURATION="34560000" #34560000
 
-# =~=~ For maxiwall / suricata =~=~#
-# The URL. Need to modify this if they change this URL like the v2 to v3
-# Select version for suricata. Best is to use version 6+ because version 6 has new different packages need to include:
-# Working = 6.0.1 | version 6.0.2 (both version required rustup. current rustup version has bug with Debian). Using backport temporarily
-# SURICATA_SELECT_VERSION=backport: This will use the latest backport version which is easier to maintain (especially for debian)
-# value can be version number, backport or distro. Version number is limited.
+# =~=~ For maxiwall / suricata / AIPDB =~=~
+# Select version for suricata. Best is to use version 6 and above because version 6 has a new different packages need to include
+# Working = 6.0.1 | version 6.0.2 (both version required rustup.
+# SURICATA_SELECT_VERSION=backport: This will use the latest backport version that is more up to date
+# The latest version of suricata on Debian bullseye is 6.0.1 the backport version is 6.0.9
+# The variable assignment can be a version number or a text backport, latest, current or distro.
+# For version number, it will not work if the version number specified is still in beta released due to the different download URL
+# Note version 6.0.9 has a small bug that it show error about kernel compatibility when not running as daemon but it is working fine
+# distro is stable but lack of features
 C_SURICATA_SELECT_VERSION="distro"
 C_MAXIWALL_AIPDB_CHECK_URL="https://api.abuseipdb.com/api/v2/check"
 C_MAXIWALL_AIPDB_REPORT_URL="https://api.abuseipdb.com/api/v2/report"
@@ -419,8 +422,9 @@ C_LINODE_LABEL="${C_BOX_HOSTNAME_FQHN}"
 
 # For OVH configuration
 
-# Alternative packages version
-C_INSTALL_RUSTC_VERSION="1.52.0"
+# Put latest or or alternative version number of rustc (example to downgrade to 1.52.0)
+# Latest version of rustc is 1.65 on 3rd December 2022
+C_INSTALL_RUSTC_VERSION="latest"
 
 # Or set to false to disable yq installation
 # Latest: 4.3.12
@@ -698,6 +702,8 @@ C_DA_BRUTE_FORCE_TIME_LIMIT=1200
 C_DA_CLEAR_BLACKLIST_IP_TIME=86400
 # This will hide bruteforce notification (will speed up ticket system)
 C_DA_HIDE_BRUTE_FORCE_NOTIFICATIONS=1
+# forward email attack:
+C_DA_ALTERNATE_EMAIL="youremail@gmail.com"
 C_DA_IP_BRUTECOUNT=100
 #  In days
 C_DA_CLEAR_BRUTE_LOG_ENTRY_TIME=4

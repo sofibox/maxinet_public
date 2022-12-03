@@ -10,10 +10,8 @@
     <select />
   </component>
   <component name="ChangeListManager">
-    <list default="true" id="113c828c-9a32-4b24-ab1e-978ce50c6320" name="Default Changelist" comment="New version update">
-      <change afterPath="$PROJECT_DIR$/files/mail_tester.JPG" afterDir="false" />
+    <list default="true" id="113c828c-9a32-4b24-ab1e-978ce50c6320" name="Default Changelist" comment="Updated maxiaide binary to fix some issues&#10;Updated maldet installation and fixed issue with maldet startup service bug on Debian 11&#10;Fixed issue with csf installation with custombuild options.conf&#10;Updated configure_maxiaide() function to remove maldet cron.daily as this will be managed by the maxiaide scan --cronjob automatically.">
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/readme.md" beforeDir="false" afterPath="$PROJECT_DIR$/readme.md" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -34,6 +32,9 @@
     <setting file="file://$PROJECT_DIR$/maxinet.log" root0="FORCE_HIGHLIGHTING" />
   </component>
   <component name="JupyterTrust" id="8557b86d-6a50-45db-ace0-04efaf79add5" />
+  <component name="MarkdownSettingsMigration">
+    <option name="stateVersion" value="1" />
+  </component>
   <component name="ProjectId" id="1n4BxEHbbfffUetR8AIQOCKdrFr" />
   <component name="ProjectViewState">
     <option name="autoscrollFromSource" value="true" />
@@ -42,16 +43,15 @@
     <option name="showMembers" value="true" />
     <option name="showVisibilityIcons" value="true" />
   </component>
-  <component name="PropertiesComponent">
-    <property name="RunOnceActivity.OpenProjectViewOnStart" value="true" />
-    <property name="RunOnceActivity.ShowReadmeOnStart" value="true" />
-    <property name="WebServerToolWindowFactoryState" value="false" />
-    <property name="aspect.path.notification.shown" value="true" />
-    <property name="last_opened_file_path" value="$PROJECT_DIR$" />
-    <property name="project.structure.last.edited" value="Project" />
-    <property name="project.structure.proportion" value="0.0" />
-    <property name="project.structure.side.proportion" value="0.0" />
-  </component>
+  <component name="PropertiesComponent">{
+  &quot;keyToString&quot;: {
+    &quot;RunOnceActivity.OpenProjectViewOnStart&quot;: &quot;true&quot;,
+    &quot;RunOnceActivity.ShowReadmeOnStart&quot;: &quot;true&quot;,
+    &quot;WebServerToolWindowFactoryState&quot;: &quot;false&quot;,
+    &quot;last_opened_file_path&quot;: &quot;C:/Users/arafa/IdeaProjects/maxinet_public&quot;,
+    &quot;nodejs_package_manager_path&quot;: &quot;npm&quot;
+  }
+}</component>
   <component name="RecentsManager">
     <key name="CopyFile.RECENT_KEYS">
       <recent name="C:\Users\Maxibi\IdeaProjects\maxinet_public" />
@@ -244,90 +244,29 @@
       <workItem from="1634462901628" duration="844000" />
       <workItem from="1634475098666" duration="22000" />
       <workItem from="1634485845051" duration="726000" />
-    </task>
-    <task id="LOCAL-00098" summary="Added ability to download remote file installation log by triggering this simple command:&#10;&#10;maxinet --get-remote-log&#10;&#10;By default this log file is stored at &lt;script_path&gt;/log/">
-      <created>1627107314324</created>
-      <option name="number" value="00098" />
-      <option name="presentableId" value="LOCAL-00098" />
-      <option name="project" value="LOCAL" />
-      <updated>1627107314324</updated>
-    </task>
-    <task id="LOCAL-00099" summary="Update and improvement&#10;&#10;Improved required() function to be portable&#10;&#10;Example of the call:&#10;&#10;required &quot;ubuntu@@apt:dos2unix,htop,nano+make:xxx,test,ok&quot; \&#10;  &quot;centos@@dnf:dos2unix,nano&quot; &quot;debian@@apt:dos2unix,htop&quot;&#10;&#10;required &quot;ubuntu@@apt:nano,htop,vim&quot; \&#10;  &quot;centos@@dnf:dos2unix,nano&quot; &quot;debian@@apt:dos2unix,htop,git,x&quot;">
-      <created>1627146508194</created>
-      <option name="number" value="00099" />
-      <option name="presentableId" value="LOCAL-00099" />
-      <option name="project" value="LOCAL" />
-      <updated>1627146508194</updated>
-    </task>
-    <task id="LOCAL-00100" summary="New update and improvement">
-      <created>1627157804805</created>
-      <option name="number" value="00100" />
-      <option name="presentableId" value="LOCAL-00100" />
-      <option name="project" value="LOCAL" />
-      <updated>1627157804805</updated>
-    </task>
-    <task id="LOCAL-00101" summary="New update and improvement">
-      <created>1627193243088</created>
-      <option name="number" value="00101" />
-      <option name="presentableId" value="LOCAL-00101" />
-      <option name="project" value="LOCAL" />
-      <updated>1627193243088</updated>
-    </task>
-    <task id="LOCAL-00102" summary="New update and improvement">
-      <created>1627231615591</created>
-      <option name="number" value="00102" />
-      <option name="presentableId" value="LOCAL-00102" />
-      <option name="project" value="LOCAL" />
-      <updated>1627231615591</updated>
-    </task>
-    <task id="LOCAL-00103" summary="New update and improvement">
-      <created>1627268437415</created>
-      <option name="number" value="00103" />
-      <option name="presentableId" value="LOCAL-00103" />
-      <option name="project" value="LOCAL" />
-      <updated>1627268437415</updated>
-    </task>
-    <task id="LOCAL-00104" summary="Huge update and improvement. Added code comments especially on the Config File">
-      <created>1627311975129</created>
-      <option name="number" value="00104" />
-      <option name="presentableId" value="LOCAL-00104" />
-      <option name="project" value="LOCAL" />
-      <updated>1627311975129</updated>
-    </task>
-    <task id="LOCAL-00105" summary="Updated configure_grub and configure_net (Fixed old bug)&#10;&#10;Other updates and improvements">
-      <created>1627362087346</created>
-      <option name="number" value="00105" />
-      <option name="presentableId" value="LOCAL-00105" />
-      <option name="project" value="LOCAL" />
-      <updated>1627362087346</updated>
-    </task>
-    <task id="LOCAL-00106" summary="New update and improvement">
-      <created>1627434332932</created>
-      <option name="number" value="00106" />
-      <option name="presentableId" value="LOCAL-00106" />
-      <option name="project" value="LOCAL" />
-      <updated>1627434332932</updated>
-    </task>
-    <task id="LOCAL-00107" summary="New update and improvement">
-      <created>1627563827754</created>
-      <option name="number" value="00107" />
-      <option name="presentableId" value="LOCAL-00107" />
-      <option name="project" value="LOCAL" />
-      <updated>1627563827754</updated>
-    </task>
-    <task id="LOCAL-00108" summary="Improved restart_da() function.&#10;&#10;Changed change_da_auth to secure_da_auth(), fixed change username small bug&#10;&#10;Combining both function link_da_ipv6() and add_da_ipv6_ip() into configure_da_ips() and this new function is faster than the previous one. The IP linking and adding is less than approximately 2-5 seconds (previous was more than 10 seconds).&#10;&#10;Other updates and improvement">
-      <created>1627642417452</created>
-      <option name="number" value="00108" />
-      <option name="presentableId" value="LOCAL-00108" />
-      <option name="project" value="LOCAL" />
-      <updated>1627642417452</updated>
-    </task>
-    <task id="LOCAL-00109" summary="Added new checking for is_valid() function to validate ipv6 subnet prefix /1 - /64, if IPv6 is being passed to add IP in directadmin API&#10;&#10;Added the ability to check if directadmin API can be accessed using https, it will automatically select the https protocol (if available), else it will select http protocol. This validation also works with other URL and port such as phpMyAdmin with other port.&#10;&#10;Big changes to how Directadmin API is implemented. Previous method was using temporary authentication file. Now we do not need that anymore. We just need to pass --sign-as option. For example to add an IP 1.1.1.1 with subnet 255.255.255.0 as a user arafatx, you could do the following&#10;&#10;da_api_admin add-ip --sign-as arafatx --ip-address 1.1.1.1 --netmask 255.255.255.0&#10;&#10;If you omit the option --sign-as, the default user would be the first owner of the system. You can also use --sign-as option to specify role of the first user instead of their usernames. For example, to add an IP for the first owner you could do the following:&#10;&#10;1) maxinet --da-api add-ip --sign-as owner1 --ip-address 1.1.1.1 --netmask 255.255.255.0&#10;&#10;the script will try to find out the first owner of the system's username and its password to use with API. In config file, this owner has the index of 1 (eg: C_DA_OWNER_USERNAME1). &#10;&#10;These are the reserved roles that cannot be used as directadmin username:&#10;&#10;owner1, admin1, reseller1, user1&#10;&#10;Minor change to configure_mysql() function. Added mysqltuner installation&#10;&#10;Updated configure_da_mail(), fixed minor bug when cloning should remove the existing folder&#10;&#10;Update configure_da_ftp()&#10;&#10;Updated configure_nginx_apache()&#10;&#10;New function build_da_custom_settings(), an improvement function from deprecated function build_da_custom_conf()&#10;&#10;New function configure_web_apps() updated. This was renamed from configure_web_apps_html()&#10;&#10;New variables:&#10;&#10;C_DA_FTP_SOFTWARE=&quot;pureftpd&quot; # or proftpd&#10;C_DA_CUSTOMBUILD_VERSION=&quot;2.0&quot;&#10;&#10;Other update and improvement">
-      <created>1627883818826</created>
-      <option name="number" value="00109" />
-      <option name="presentableId" value="LOCAL-00109" />
-      <option name="project" value="LOCAL" />
-      <updated>1627883818826</updated>
+      <workItem from="1664472031536" duration="118000" />
+      <workItem from="1666397389645" duration="841000" />
+      <workItem from="1666630859704" duration="1135000" />
+      <workItem from="1666681519184" duration="1404000" />
+      <workItem from="1666787888307" duration="1615000" />
+      <workItem from="1666830644704" duration="1151000" />
+      <workItem from="1666897582651" duration="27000" />
+      <workItem from="1666897616528" duration="19000" />
+      <workItem from="1667005990307" duration="1142000" />
+      <workItem from="1667075409429" duration="1093000" />
+      <workItem from="1667118265401" duration="941000" />
+      <workItem from="1667184911973" duration="202000" />
+      <workItem from="1668053106701" duration="1201000" />
+      <workItem from="1668229060416" duration="1578000" />
+      <workItem from="1668284673842" duration="6000" />
+      <workItem from="1669131079393" duration="647000" />
+      <workItem from="1669319225392" duration="292000" />
+      <workItem from="1669744510050" duration="1737000" />
+      <workItem from="1669763667783" duration="1433000" />
+      <workItem from="1669819755671" duration="1298000" />
+      <workItem from="1669875590431" duration="10000" />
+      <workItem from="1669914798068" duration="206000" />
+      <workItem from="1670080624866" duration="601000" />
     </task>
     <task id="LOCAL-00110" summary="Added new installation for gotify. Enable server push notification (eg: can receive notification in Android phone when system is in bruteforce attack or an IP is blocked). This gotify push notification can be used with _echo or echo function such as:&#10;&#10;_echo &quot;$(msg red)Warning suspicious login detected$(msg end)&quot; | gotify&#10;&#10;# If you have gotify client installed in phone, you will receive this message.&#10;&#10;Updated directadmin API call&#10;Updated repair_services function, applying 1st and 2nd fix for lfd that does not start automatically&#10;Removed directadmin duplicated ports added in CSF&#10;&#10;Other updates and improvement&#10;&#10;New variables:&#10;C_DA_INSTALL_GEOIP=true&#10;&#10;# GOTIFY configuration&#10;C_GOTIFY_SYSTEM_USERNAME=&quot;gotify&quot;&#10;C_GOTIFY_SYSTEM_GROUP=&quot;gotify&quot;&#10;C_GOTIFY_INSTALLATION=true&#10;C_GOTIFY_VERSION=&quot;2.0.23&quot;&#10;C_GOTIFY_PLATFORM=&quot;linux-amd64&quot;&#10;C_GOTIFY_PORT=&quot;8222&quot;&#10;C_GOTIFY_USERNAME=&quot;admin&quot;&#10;C_GOTIFY_PASSWORD=&quot;newpassword&quot;&#10;C_GOTIFY_APP_NAME=&quot;test.server.com&quot;&#10;# This variable C_GOTIFY_APP_DESCRIPTION is optional and be empty&#10;C_GOTIFY_APP_DESCRIPTION=&quot;&quot;&#10;C_GOTIFY_CLI_VERSION=&quot;2.2.0&quot;">
       <created>1628008125417</created>
@@ -588,7 +527,91 @@
       <option name="project" value="LOCAL" />
       <updated>1634463141385</updated>
     </task>
-    <option name="localTasksCounter" value="147" />
+    <task id="LOCAL-00147" summary="Updated dropbox_cli installation on local OS&#10;Added command to update local OS before starting initial server deployment&#10;Added file checker before uploading to remote to prevent errors&#10;Added comment about app scope creation for dropbox_api()&#10;Fixed error during directadmin installation. The latest installer terminated if /etc/hosts are read-only&#10;By default, the new Directadmin installer does not show up custombuild progress. Added, an environment variable A_FOREGROUND_CUSTOMBUILD=&quot;yes&quot; to fix this issue&#10;Removed ListOptions -a from proftpd.conf. It is a deprecated option.&#10;In the new installer, we can automatically add the admin (owner) username and password during installation at the function configure_da_owner_accounts(). Added TODO.">
+      <created>1666631050958</created>
+      <option name="number" value="00147" />
+      <option name="presentableId" value="LOCAL-00147" />
+      <option name="project" value="LOCAL" />
+      <updated>1666631050958</updated>
+    </task>
+    <task id="LOCAL-00148" summary="&#10;Added new directadmin API add-hostname&#10;# da_api_admin add-hostname --hostname server.domain.com --ip-address 123.123.123.123 --nameserver1 ns1.domain.com --nameserver2 ns2.domain.com&#10;&#10;Removed directadmin.conf deprecated variables&#10;add new variable C_PHP_FPM_MAX_CHILDREN_DEFAULT&#10;&#10;Added new command to create hostname before creating dkim&#10;&#10;Added new action dadebug&#10;&#10;run: maxinet dadebug &#10;&#10;to enable directadmin debug mode automatically in terminal&#10;&#10;Updated sample config file">
+      <created>1666681706436</created>
+      <option name="number" value="00148" />
+      <option name="presentableId" value="LOCAL-00148" />
+      <option name="project" value="LOCAL" />
+      <updated>1666681706436</updated>
+    </task>
+    <task id="LOCAL-00149" summary="Updated www webapps on root server domain to display server information. Webapps code are not available in public repo for security reason&#10;Fixed bug missing dnsutils, curl and genisoimage packages for local OS Debian and Ubuntu&#10;Added dropbox account test before upload files to remote server&#10;Wrote missing 2 variables template for custombuild options.conf (for Directadmin): csf=no, redis=yes&#10;Improved .htaccess entries on root webapps in /var/www/html/.htaccess (include nice UI for errordocs)&#10;Fixed directadmin version comparison that warned about creation DNS template&#10;Fixed issue on directadmin new installer that prevents of creation DKIM for hostname. New installer did not automatically create hostname DNS record.&#10;Added gotify as service in directadmin service monitor to be able to manually stop this service in web GUI&#10;Fixed speedtest-cli installation using new repository (old repository has outdated key that can't be installed)&#10;Fixed issue on web maintenance mode. After everything is installed using this script, make sure all websites are not in maintenance mode (might be in maintenance mode using my previous dacli script). Added a command to turn them on after restoration using dacli">
+      <created>1666788147986</created>
+      <option name="number" value="00149" />
+      <option name="presentableId" value="LOCAL-00149" />
+      <option name="project" value="LOCAL" />
+      <updated>1666788147986</updated>
+    </task>
+    <task id="LOCAL-00150" summary="Gave an extra time for linode server to start after remote unlock from 5 to 10 seconds. This to prevent error during file transfer after remote unlock.&#10;Sometimes SSL certificate request has latency issue. Added retry for both staging and real SSL request so that that installation will not halt for this small issue.">
+      <created>1666815076393</created>
+      <option name="number" value="00150" />
+      <option name="presentableId" value="LOCAL-00150" />
+      <option name="project" value="LOCAL" />
+      <updated>1666815076393</updated>
+    </task>
+    <task id="LOCAL-00151" summary="Update maxiaide new custom_rules. It will always have the latest custom rules from /secure/maxiaide/custom_rules&#10;Fixed permission /var/www/html/redirect.php that was belonged to root. It should belong to webapps&#10;Copy webapps automatically from storage folder and fix the permission&#10;Fixed file permission /etc/virtual/$(hostname)&#10;Run maxiaide after finished install to generate the first database">
+      <created>1666830731083</created>
+      <option name="number" value="00151" />
+      <option name="presentableId" value="LOCAL-00151" />
+      <option name="project" value="LOCAL" />
+      <updated>1666830731083</updated>
+    </task>
+    <task id="LOCAL-00152" summary="Updated help section (there are more)&#10;Added new API to monitor user backup (required further testing as it is a new API)&#10;Added rsync for file download in order to have incremental backup features&#10;Added email before directadmin installation at /etc/aliases&#10;Added get_status_message line before downloading directadmin setup.ssh. At this moment we need to stop the script if the directadmin script site is down.&#10;Added get_status_message when changing /etc/hosts permission attribute to halt the script if it's not working&#10;Added maldetect installer if clamav is installed to speedup virus scan in server&#10;Fixed phpmyadmin blowfish secret key length generation&#10;Added lynis binary at configure_maxinis() function&#10;Enable AIDE scan at setup_post function to generate first database&#10;Added new script backup folder automatically to store backup files (such as server backup files)&#10;Added new command to back up server files into local OS. To trigger backup use the following command:&#10;&#10;maxinet backup-server /remote_path1 /remote_path2&#10;&#10;or&#10;&#10;maxinet backup-server&#10;&#10;to backup the full system.">
+      <created>1667006540027</created>
+      <option name="number" value="00152" />
+      <option name="presentableId" value="LOCAL-00152" />
+      <option name="project" value="LOCAL" />
+      <updated>1667006540027</updated>
+    </task>
+    <task id="LOCAL-00153" summary="Updated ssh_api function, to create external options arguments for rsync&#10;Updated configure_da_sql function to fix mysql temp folder that cannot be used to write sql backup file&#10;Added function clean_setup_files() that can be used to clean all setup files manually:&#10;&#10;maxinet clean (to clean everything except log and conf files); can still resume installation.&#10;&#10;or &#10;&#10;maxinet clean full (to clean everything including log and conf folders); cannot resume installation.&#10;Added backup exclusion list for backup-server">
+      <created>1667118611650</created>
+      <option name="number" value="00153" />
+      <option name="presentableId" value="LOCAL-00153" />
+      <option name="project" value="LOCAL" />
+      <updated>1667118611650</updated>
+    </task>
+    <task id="LOCAL-00154" summary="Fixed SSL file transfer path from secure folder to remote server&#10;&#10;Added restart mysqld after changing setting at configure_da_sql function. This fixed issue mysql did not use newly created config during setup.&#10;&#10;Updated configure_da_dns_templates function to not ask for confirmation if DA version is newest and the config is verified for old version. This config always work as verified many releases of DA. Just gave a warning with _pause command within 10 seconds&#10;&#10;Renamed function configure_da_host_domain_ssl() to configure_da_hostname_ssl()&#10;&#10;Skipped asking question to configure DNS template at function configure_da_dns_templates() but add 10 seconds notice delay. It seems the template always work.&#10;&#10;&#10;Commented the option enable_ssl_sni in configure_da_ssl_pre() function because this option is not recognized and is not used anymore by Directadmin.&#10;&#10;&#10;Added get_status_message call function for some directadmin set command to halt script if something is wrong. A minor issue with this command without return success from directadmin will halt the script, so that I can check what is going on.&#10;&#10;Added fix ssl=0 again where in the new directadmin installation it will automatically request SSL for hostname and add ssl=1 automatically. I don't know when it happens as there was no clue how it was done internally. So add a condition if the SSL staging and production request failed, we also check this value to make sure ssl=0.&#10;&#10;Added SSL request retry for both staging and production&#10;&#10;Fixed a hung status for the following message when requesting SSL:&#10;&#10;acme: Trying to solve HTTP-01">
+      <created>1668053715381</created>
+      <option name="number" value="00154" />
+      <option name="presentableId" value="LOCAL-00154" />
+      <option name="project" value="LOCAL" />
+      <updated>1668053715381</updated>
+    </task>
+    <task id="LOCAL-00155" summary="Fixed dbxcli prompt for authentication not to use wrong invalid config. If /root/.dropbox_uploader does not exist, we call dbxcli to authenticate manually for the first time (for new OS)&#10;&#10;Added dropbox_api test-account before initialize server&#10;&#10;Added missing package bc for ubuntu&#10;&#10;Fixed command newaliases not found. Must use it after DA installation because DA needs to install exim or postfix first before using command newaliases. Also added restart exim and postfix&#10;&#10;Added apache server-status and server-info route protection. To prevent abuser/hacker to sneak info about the server when the default route is not changed. Added custom password that can be defined in config file for these routes.&#10;&#10;Fixed wrong variable C_DA_APACHE_SERVER_STATUS_ROUTE and C_DA_APACHE_SERVER_INFO_ROUTE. They should be C_APACHE_SERVER_STATUS_ROUTE and C_APACHE_SERVER_INFO_ROUTE&#10;&#10;Fixed typo on echo $(msgend) should be $(msg end)">
+      <created>1668229323654</created>
+      <option name="number" value="00155" />
+      <option name="presentableId" value="LOCAL-00155" />
+      <option name="project" value="LOCAL" />
+      <updated>1668229323654</updated>
+    </task>
+    <task id="LOCAL-00156" summary="Fixed writing new email aliases duplication&#10;Fixed mail command not found&#10;Fixed .htaccess was not copied from webapps&#10;Added SMTP configuration with mail test&#10;Removed ./build bubblewrap just use ./build jailshell&#10;Fixed mysql command not found&#10;Added maxiclam installation. This CLI can manage both maldet and clamAV&#10;&#10;&#10;Updated maxinet.conf.sample&#10;&#10;New variables from maxinet.con.sample:&#10;&#10;# This is for system mail (use for notification, or reports)&#10;# Email username&#10;C_SMTP_SYSTEM_MAIL_USER=&quot;mailuser&quot;&#10;# Mail domain&#10;C_SMTP_SYSTEM_MAIL_DOMAIN=&quot;gmail.com&quot;&#10;# For gmail use app password&#10;C_SMTP_SYSTEM_MAIL_PASSWORD=&quot;mpsssepsousda2xx&quot;&#10;# The smtp domain&#10;C_SMTP_SYSTEM_MAIL_SMTP_URL=&quot;smtp.gmail.com&quot;&#10;# The authentication port&#10;C_SMTP_SYSTEM_MAIL_PORT=&quot;587&quot;&#10;# Format email(&lt;name_description&gt;)&#10;C_SMTP_SYSTEM_MAIL_FROM=&quot;arafatx@gmail.com(Arafat)&quot;">
+      <created>1669319450643</created>
+      <option name="number" value="00156" />
+      <option name="presentableId" value="LOCAL-00156" />
+      <option name="project" value="LOCAL" />
+      <updated>1669319450643</updated>
+    </task>
+    <task id="LOCAL-00157" summary="Added transfer maxiclam excluded list files from secure folder&#10;&#10;Added bsd-mailx package installation for Debian&#10;&#10;Another fixed mail command not found after DA has finished installation (we use bsd-mailx)&#10;&#10;Fixed smtp config file at /root/.mailrc&#10;&#10;Added CSF installation using DA build command&#10;&#10;Added various security configs from DA&#10;&#10;Updated configure_maxiclam() configuration&#10;&#10;Added command to remote / clean up maxiclam files after setup&#10;&#10;Updated maxinet.conf.sample">
+      <created>1669749581459</created>
+      <option name="number" value="00157" />
+      <option name="presentableId" value="LOCAL-00157" />
+      <option name="project" value="LOCAL" />
+      <updated>1669749581459</updated>
+    </task>
+    <task id="LOCAL-00158" summary="Updated maxiaide binary to fix some issues&#10;Updated maldet installation and fixed issue with maldet startup service bug on Debian 11&#10;Fixed issue with csf installation with custombuild options.conf&#10;Updated configure_maxiaide() function to remove maldet cron.daily as this will be managed by the maxiaide scan --cronjob automatically.">
+      <created>1669914998489</created>
+      <option name="number" value="00158" />
+      <option name="presentableId" value="LOCAL-00158" />
+      <option name="project" value="LOCAL" />
+      <updated>1669914998489</updated>
+    </task>
+    <option name="localTasksCounter" value="159" />
     <servers />
   </component>
   <component name="TypeScriptGeneratedFilesManager">
@@ -604,21 +627,8 @@
         </entry>
       </map>
     </option>
-    <option name="oldMeFiltersMigrated" value="true" />
   </component>
   <component name="VcsManagerConfiguration">
-    <MESSAGE value="New: Update information (Fixed missing assignment): &#10; &#10;debian_release=&quot;stable&quot;&#10;&#10;Script is now fully compatible with latest debian version, &#10;&#10;You can change the version of Debian like this (if you know the version number and code name):&#10;&#10;C_DEBIAN_OS_SELECT_VERSION=&quot;11.0.0&quot;&#10;C_DEBIAN_OS_CODE_NAME=&quot;bullseye&quot;&#10;&#10;or if you don't care, you can set this variable to download latest version of Debian (will ignore the above 2 variables), for example if Debian 12 is released, it will download this one and you don't have to do anything. Just set this to true:&#10;&#10;USE_LATEST_ISO=true&#10;&#10;New variables:&#10;C_DEBIAN_OS_SELECT_VERSION=&quot;11.0.0&quot;&#10;C_DEBIAN_OS_CODE_NAME=&quot;bullseye&quot;" />
-    <MESSAGE value="Fixed bug when using _echo() function with --plain option it did not hide output if verbosity level is turn off or has lower value&#10;&#10;Other updates and improvement&#10;&#10;Added new variable C_GOTIFY_PUSH_PRIORITY in config file, to set push notification level on phone&#10;&#10;# 0 (No notification) , 1-3 (Icon in notification bar)&#10;# 4-7 (Icon in notification bar + Sound), 8-10 (Icon in notification bar +  Sound + Vibration)&#10;# Using 10 is has the highest sound and vibration.&#10;&#10;Modify script_header() function to include info on date_time and execution environment&#10;&#10;Modify help() function to correct the syntax how to create server from scratch&#10;&#10;Separated short and long options in getopt variable_api()&#10;&#10;Created separated functions to rebuild server config called init_server_rebuild_config(); and to rebuild partition called init_server_rebuild_partition(). These functions can be executed by using other execution parameters such as --force-run. for example in init_server_rebuild_config(), when using --force-run parameter it will force the external DNS to rebuild config file.&#10;&#10;Separated long and short options in init_server() function, and change ARGNUM to lowercase to represent local variable&#10;&#10;In init_server() function, the reboot option has been moved to the line after rebuild config is done&#10;&#10;Add countdown time to wait for server installation before restart in init_server()&#10;&#10;Fixed bug in ssh_api public-keys did not copy because of wrong check&#10;&#10;Added new function check_file_path() and check_folder_path() to check existence of file and folder respectively&#10;&#10;Renamed C_DEBIAN_OS_CODE_NAME variable to generic name C_OS_CODE_NAME (we might have another OS support in the future not just debian)&#10;&#10;Added resolvconf installation in debian preseed file creation. This resolvconf will manage resolv.conf&#10;&#10;Fixed small error in debian preseed file when host was trying to bypass local setting LANG LC_ and show error. This setting is stored in /etc/ssh/sshd_config&#10;&#10;Removed this source /etc/network/interfaces.d/ from /etc/network/interfaces through debian preseed file. This line is not needed.&#10;&#10;Added missing dns-nameservers for IPv4 debian preseed file&#10;&#10;Fixed the nightmare bug in debian preseed file which prevented IPv6 from working properly. I discovered that in line 3343, I got a syntax error there where I did not declare gateway but address&#10;&#10;Fixed, nameserver for resolv.conf should be declared in here /target/etc/resolvconf/resolv.conf.d/base to prevent overwrite&#10;&#10;Added a new dropbox cli installation forked from @andreafabrizi/Dropbox-Uploader. I'm going to help him maintain this source code.&#10;&#10;Separated short and long options for getopt in dropbox_api() function&#10;&#10;Added share action for dropbox_api()&#10;&#10;Separated long and short options for getopt in iso_api()&#10;&#10;Changed variable iso_os to have value C_BOX_ISO_OS_NAME not type in iso_api()&#10;&#10;Fixed quote problem and hide iso download output in iso_api()&#10;&#10;Added extra checking whether iso file is bootable before upload to dropbox (only valid iso is uploaded)&#10;&#10;Separated short option from getopt in linode_api_admin()&#10;&#10;Added extra validation record to include wildcard character * inside is_valid() function that is used in linode_api_admin()&#10;&#10;&#10;There many other changes (lazy to write it down) ..." />
-    <MESSAGE value="Add ipv4 and ipv6 validation in is_valid() function, check whether they are resolved with domain. Usage:&#10;&#10;is_valid ipv4_resolved &lt;IPv4&gt; &lt;DOMAIN&gt;, return 0 if true&#10;is_valid ipv6_resolved &lt;IPv6&gt; &lt;DOMAIN&gt;, return 0 if true&#10;&#10;Fixed IPv6 netmask regex did not accept /128 in is_valid() function. Previous regex only accepted maximum /64.&#10;&#10;Changed forked source code from arafatx/Dropbox_Uploader to sofibox/Dropbox_Uploader The original source belongs to andreafabrizi/Dropbox_Uploader (I'm going to maintain his code from sofibox/Dropbox repository and push for him from here).&#10;&#10;Added function ensure_host_domain_ip_resolved() to make sure IPv4 and IPv6 addresses are resolved with the hostname. This was on TODO list&#10;&#10;Fixed linode_api_admin MX record_value validation.&#10;&#10;Updated linode API to include CNAME record creation&#10;&#10;Added new option --scripting for da_api_admin() function to suppress error or logs, we only need final result.&#10;&#10;Added new API for da_api_admin() function to get dns-records by type for specific domain.&#10;&#10;Added new API for da_api_admin() function to reset-dns-records for specific domain&#10;&#10;Fixed DA port missing in directadmin.conf after installation. Added the DA port in secure_da_auth() function&#10;&#10;Added an extra option argument --init in configure_da_ips() function. The purpose of this option is to remove previous IPv6 configuration and linked information between IPv6 and IPv4. Technically, the --init option is used to re-create IPv6 server IP file in directadmin.&#10;&#10;Fixed IPv6 passed in configure_da_ips(). The IPv6 that must be passed should be in uncompressed from (directadmin requirement).&#10;&#10;Added new setting and check to enable DNS CAA record in directadmin. This DNS CAA record option need to have bind version 9.9.6 and above. The script has this validation and will automatically enabled this option if the requirement is met.&#10;&#10;Changed function configure_da_server_domains() to configure_da_host_domain(), this function is used to configure the main host server domain. In this function, the script will scan every records that the host server domain has and automatically add all of them in external DNS.&#10;&#10;Changed variable C_DA_CONFIG_VERSION to C_CONFIG_VERSION because C_DA_ is only for directadmin related variable.&#10;&#10;mariadb version is upgraded to 10.6" />
-    <MESSAGE value="Added server file monitoring aide handle by maxida script&#10;&#10;---&#10;added check for debian 11 to have wait time 300s and other OS default to 120 seconds when installing operating system&#10;&#10;---&#10;Renamed C_DA_WEB_SERVER_SOFTWARE to C_DA_CB_WEB_SERVER_SOFTWARE because it is a custombuild related options.&#10;&#10;---&#10;&#10;Now we can select multiple PHP version from config file&#10;&#10;C_DA_CB_PHP_VERSION=&lt;php_version1&gt;-&lt;php_mode&gt;,&lt;php_version2&gt;-&lt;php_mod&gt;, ... &lt;php_version4&gt;-&lt;php_mod&gt;&#10;&#10;Example: This will set the first PHP version as 7.3 (with mode FPM)and the second version as 8.0 with mode FPM&#10;C_DA_CB_PHP_VERSION=&quot;7.4-fpm,8.0-fpm&quot;&#10;&#10;Note the first order is the first PHP version (also used by directadmin system). Max is 4 PHP versions, extra argument will be ignored&#10;&#10;---&#10;Now it is possible to select which sql type and version to install. Just use the following variable format in config file:&#10;&#10;C_DA_CB_SQL_VERSION=&quot;&lt;sql_type&gt;-&lt;sql_version&gt;&quot;&#10;&#10;Example: This will install mariadb version 10.6&#10;C_DA_CB_SQL_VERSION=&quot;mariadb-10.6&quot;&#10;&#10;Example: This will install mysql version 5.8&#10;C_DA_CB_SQL_VERSION=&quot;mysql-5.8&quot;&#10;---&#10;&#10;Now it is possible to enable or disable mod security installation from config file:&#10;&#10;C_DA_CB_ENABLE_MODSECURITY=&quot;yes&quot; # or no&#10;C_DA_CB_MODSECURITY_RULESET=&quot;comodo&quot; # or owasp&#10;---&#10;&#10;Now it is possible to enable or disable clamav installation from config file:&#10;&#10;# This is for installing clamav&#10;C_DA_CB_ENABLE_CLAMAV=&quot;yes&quot;&#10;# Enable / disable clamav service&#10;C_ENABLE_CLAMAV_SERVICE=false (Testing)&#10;---&#10;&#10;The install_da() function will validate if directadmin installation return OK status, then print out login information (if HIDE_SENSITIVE_LABEL is set false) &#10;---&#10;&#10;Removed rebuild directadmin packages in install_da_post(). This packages were set to rebuild because it had bug. With the new version of directadmin, these rebuild commands are not needed.&#10;---&#10;&#10;Renamed C_DA_MODSECURITY_RULESET to C_DA_CB_MODSECURITY_RULESET because it is a custombuild related option&#10;&#10;---&#10;&#10;Improved mysql authentication check in configure_da_sql and added mysqltuner security checking&#10;---&#10;&#10;Renamed C_DA_FTP_SOFTWARE to C_DA_CB_FTP_SOFTWARE because it is a related custombuild option&#10;&#10;---&#10;&#10;Added a new function configure_os_services(), this function will configure operating system processes (testing)&#10;&#10;---" />
-    <MESSAGE value="New updated" />
-    <MESSAGE value="Update information:&#10;&#10;Fixed directadmin SSL auto detection whether to use http or https for API in is_valid() function&#10;&#10;Linode now has TTL lower than 5 minutes: 2 minutes and 30 seconds. record_ttl and domain_ttl is updated in is_valid() function.&#10;&#10;Decreased time to check hostname and IP is resolved from 120 seconds to 30 seconds in ensure_host_domain_ip_resolved() function&#10;&#10;Added new function copy_local_dns_to_external_dns(), this is a reusable function to add local DNS record into external DNS record (amazonaws, cloudflare, linode, digitalocean and more). Currently only linode is supported.&#10;&#10;Updated da_api_admin() to add email and database and create record for admin&#10;&#10;The DNS record creation code has been reduced a lot.&#10;&#10;Various update and improvement. The code is about to be in beta state." />
-    <MESSAGE value="Update information:&#10;&#10;Fixed is_valid() site_ssl return success even site does not have ssl enabled.&#10;&#10;Fixed is_valid() ipv4 and ipv6 validation (removed ip route get method because this method requires IP is reachable)&#10;&#10;Fixed missing git dependencies before installing dropbox-cli in configure_dropbox_cli() function&#10;&#10;Improved ensure_host_domain_ip_resolved() function, add extra check for root host domain name (test.com). Automatically add missing domain and hostdomain together with its DNS A and AAAA record if missing for external DNS (only linode is supported right now)&#10;&#10;Improved ssh_api() function, add 2 method to transfer file via SSH (rsync and scp), first would be using rsync (but this requires rsync installed in remote server). If using rsync is failed, automatically use scp which is more portable but slower than rsync&#10;&#10;Directadmin API call is now using http only as described by directadmin documentation this protocol is not important and directadmin will try handle this on its own.&#10;&#10;Display selected port for debug mode in directadmin API call. For API call, the directadmin port is now obtained from directadmin.conf instead of config file.&#10;&#10;Added net-tools package for network troubleshooting&#10;&#10;In secure_os() function, allowed port 80 and 443 using ufw (for debian) and added reload ufw firewall to reload rules&#10;&#10;Added call ensure_host_domain_ip_resolved to make sure all IPs with domain are reachable before installing directadmin.&#10;&#10;Added letsencrypt staging call to prevent API call limit before requesting real certificate (for host domain name)&#10;&#10;Added new SSL key to use ECC certificate for security. New variables: &#10;&#10;C_DA_ECC_CERTIFIACTES=1&#10;C_DA_CERTIFICATE_SIZE=&quot;secp384r1&quot;&#10;&#10;Improved configure_da_user_emails() function, make it compatible with the new API call.&#10;&#10;Improved configure_da_user_databases() function, make it compatible with the new API call.&#10;&#10;Added call ensure_host_domain_ip_resolved before creating a server from scratch in setup() function" />
-    <MESSAGE value="Update information&#10;&#10;Updated validate_config() function, add extra config directadmin config validation before installing.&#10;&#10;Fixed restart_da() function did not reset counter due to source function called only once per script, Solution is to create new local variable to hold second value instead of using global variable.&#10;&#10;Fixed mysql authentication did not return correct output at configure_da_sql() function&#10;&#10;Improved configure_da_&lt;role&gt;_security() to use only one variable of array. To key in security question and answer, we only need one variable. Introduced new variable (available for all roles). Question and answer is separated with triple |||:&#10;&#10;C_DA_&lt;ROLE&gt;_SECURITY_QNA&lt;INDEX_NUMBER&gt;=(\&#10;&quot;Bila nak habis covid?|||entah ler&quot; \&#10;&quot;Kau tengah buat ape?|||entah ler&quot; \&#10;)&#10;&#10;Improved configure_da_&lt;role&gt;_emails() now renamed to configure_da_&lt;role&gt;_email_accounts. Same like security question and answer, email accounts only need one variable. Email and password is separated with triple |||:&#10;&#10;C_DA_&lt;ROLE&gt;_MAIL_ACCOUNT&lt;INDEX_NUMBER&gt;=(\&#10;&quot;webmaster@kakispy.com|||12321aa&quot; \&#10;&quot;info@kakispy.com|||12321aa&quot; \&#10;)&#10;&#10;Improved configure_da_&lt;role&gt;_databases(). Separate between Database username, name domain and database password with triple |||:&#10;&#10;C_DA_&lt;ROLE&gt;_DB_ACCOUNT&lt;INDEX_NUMBER&gt;=( \&#10;&quot;kakispy.com:dbname:dbusr|||Xdsadsadsadsadsa&quot; \&#10;)&#10;&#10;Some changes to the config file (added new documentation)&#10;&#10;Other update and improvement" />
-    <MESSAGE value="Update information&#10;&#10;Fixed ssl_site check (added a new method to check site ssl is available using curl). Previous method was using openssl which failed at specific time. SSL site does not even need to care about port. So no need to pass port.&#10;&#10;Added error checking in da_api_admin, if port does not exist in directadmin.conf, show an error (because this option must be in there).&#10;&#10;Added a new package installation rsync in setup_pre() function. This package will be used to backup system or transfer file. Rsync file transfer is better than scp.&#10;&#10;Fixed missing variable wait_count in output at restart_da() function &#10;&#10;Fixed get_current_da_owner_username() function did not return correct username if username is more than 2 (it should break if first valid user is found because there is only one owner (original admin username) in directadmin)&#10;&#10;Added a new function show_time() that converts second to time display in format of: d (day) h (hour) m (minute) s (second).&#10;&#10;Added a new feature to install directadmin in background (with spinning wheel and time elapsed output), but still get the original return code from the installer. So, during directadmin installation, we would not see messy output like php compiling output (which by the way the useless output for server admin to stare with for nothing). When the installation halt, it will printout the last 10 error message from the log file (we can fix the error, and re-run the script to continue but it would start from 0 second). This feature is only available for directadmin auto, original and custom installation mode. This is not available for directadmin interactive installation at it requires input from user such as to select software packages. The full log file will be stored in /log/da-install.log&#10;&#10;Added a new option AUTO_SELECT_DA_API_PROTOCOL, for API to choose whether to select https or http protocol for API based on the site SSL availability. This is a beta feature but it works perfectly up until now.&#10;&#10;Added a new API test-login after requesting certificate in configure_da_host_domain_ssl(). This is to make sure that the API is working perfectly for the new (SSL site) before proceeding." />
-    <MESSAGE value="Forgot to comment out echo statement in is_valid ssl_site (which breaks the site ssl check)&#10;&#10;---&#10;&#10;Added a very important check ensure_linode_label_ipv4_valid(), to make sure IPv4 and hostname match with linode server info. If an IPv4 or multiple IPv4s from config file do not exist in linode, the script will halt (ask to correct the IP, probably typo). If the linode label does not match hostname, it will automatically rename the label to represent a full qualified host name.&#10;&#10;---&#10;&#10;Added a very important chek ensure_linode_rdns_resolved(), to make sure that the linode external DNS has its reverse DNS match with the current hostname in config file. If it does not match, it will automatically update the reverse DNS.&#10;&#10;---&#10;Fixed bug if use previous ISO file (it did not write the OS in rescue mode) by adding delay 7 seconds:&#10;&#10;The script is able to reuse previous ISO to install server operating system (without creating a new ISO). To do this, instead of using the command --rebuild-all or --rebuild-iso&#10;&#10;we can use this without the options:&#10;&#10;maxinet --create-server --rebuild-partition --rebuild-config (previously did not work now it is working perfectly)&#10;&#10;&#10;New variable:&#10;&#10;C_LINODE_LABEL&#10;&#10;Other updates ..." />
-    <MESSAGE value="Added extra check for IPv6 reverse DNS and auto update based on full qualified host name.&#10;&#10;Added a new maxicode_admin() function, use to update maxicode binary remotely via SSH. The usage is:&#10;&#10;SYNTAX:&#10;maxinet manage-maxicode &lt;action&gt; &lt;--options&gt;&#10;&#10;EXAMPLE:&#10;&#10;maxinet manage-maxicode update --app-name maxigpg --distro-name &quot;debian&quot;&#10;&#10;The command above will grab the latest debian code for maxigpg and update its binary in remote server.&#10;&#10;Other updates" />
-    <MESSAGE value="Display extra information when installing directadmin in install_da() function&#10;&#10;Rewrite configure_maxigpg function, install a bash CLI wrapper called maxigpg. More information here: https://github.com/sofibox/maxigpg_public. &#10;&#10;In configure_maxigpg, the function can either use existing gpg key or generate the new one based on the config variable C_GPG_USE_EXISTING_KEY. It is important that in order to sucessfully imported existing key, the C_GPG_OWNER_EMAIL variable must have email set correctly same as the username for the previous certificate. The script also has the ability to test the cache duration automatically.&#10;&#10;Other update and improvement (maxigpg, maxigpg-ag)" />
     <MESSAGE value="Updated manage-maxicode action to push maxiaide script via SSH&#10;&#10;Updated configure_maxiaide function" />
     <MESSAGE value="Update information:&#10;&#10;&#10;Fixed set_linux_crlf small error&#10;Renamed all DROPBOX_* config variables to C_DROPBOX_* to represent they are coming from config file&#10;&#10;Renamed ensure_host_resolved to ensure_domain_server_resolved(), this is only for host domain checker, added extra fix to recreate host domain and increase propagation duration check when it is failed&#10;&#10;Added new function ensure_fqhn_server_resolved(), similar to ensure_domain_server_resolved() but this is for full qualified host name&#10;&#10;Added new option to disable PHP dangerous function based on config file&#10;&#10;Added new installation for Wordpress CLI in configure_wpcli()&#10;&#10;Other updates" />
     <MESSAGE value="Update information&#10;&#10;Updated MaxiAIDE&#10;&#10;Ignored domain recreate for IPv6 when checking propagation in ensure_domain_server_resolved() function&#10;&#10;Fixed small error record value contains . (dot) character for NS record in function copy_local_dns_to_external_dns()&#10;&#10;Added dos2unix installation at setup_pre() function&#10;&#10;Fixed typo name server assignment duplicated in configure_da_settings() function ... line 12055&#10;&#10;Renamed configure_da_host_domain() to configure_da_fqhn_server() for more readable function&#10;&#10;Renamed configure_da_host_domain_ssl() to configure_da_fqhn_server_ssl() for more readable function&#10;&#10;Other updates ..." />
@@ -632,6 +642,18 @@
     <MESSAGE value="New update and bug fixed" />
     <MESSAGE value="New update" />
     <MESSAGE value="New version update" />
-    <option name="LAST_COMMIT_MESSAGE" value="New version update" />
+    <MESSAGE value="Updated dropbox_cli installation on local OS&#10;Added command to update local OS before starting initial server deployment&#10;Added file checker before uploading to remote to prevent errors&#10;Added comment about app scope creation for dropbox_api()&#10;Fixed error during directadmin installation. The latest installer terminated if /etc/hosts are read-only&#10;By default, the new Directadmin installer does not show up custombuild progress. Added, an environment variable A_FOREGROUND_CUSTOMBUILD=&quot;yes&quot; to fix this issue&#10;Removed ListOptions -a from proftpd.conf. It is a deprecated option.&#10;In the new installer, we can automatically add the admin (owner) username and password during installation at the function configure_da_owner_accounts(). Added TODO." />
+    <MESSAGE value="&#10;Added new directadmin API add-hostname&#10;# da_api_admin add-hostname --hostname server.domain.com --ip-address 123.123.123.123 --nameserver1 ns1.domain.com --nameserver2 ns2.domain.com&#10;&#10;Removed directadmin.conf deprecated variables&#10;add new variable C_PHP_FPM_MAX_CHILDREN_DEFAULT&#10;&#10;Added new command to create hostname before creating dkim&#10;&#10;Added new action dadebug&#10;&#10;run: maxinet dadebug &#10;&#10;to enable directadmin debug mode automatically in terminal&#10;&#10;Updated sample config file" />
+    <MESSAGE value="Updated www webapps on root server domain to display server information. Webapps code are not available in public repo for security reason&#10;Fixed bug missing dnsutils, curl and genisoimage packages for local OS Debian and Ubuntu&#10;Added dropbox account test before upload files to remote server&#10;Wrote missing 2 variables template for custombuild options.conf (for Directadmin): csf=no, redis=yes&#10;Improved .htaccess entries on root webapps in /var/www/html/.htaccess (include nice UI for errordocs)&#10;Fixed directadmin version comparison that warned about creation DNS template&#10;Fixed issue on directadmin new installer that prevents of creation DKIM for hostname. New installer did not automatically create hostname DNS record.&#10;Added gotify as service in directadmin service monitor to be able to manually stop this service in web GUI&#10;Fixed speedtest-cli installation using new repository (old repository has outdated key that can't be installed)&#10;Fixed issue on web maintenance mode. After everything is installed using this script, make sure all websites are not in maintenance mode (might be in maintenance mode using my previous dacli script). Added a command to turn them on after restoration using dacli" />
+    <MESSAGE value="Gave an extra time for linode server to start after remote unlock from 5 to 10 seconds. This to prevent error during file transfer after remote unlock.&#10;Sometimes SSL certificate request has latency issue. Added retry for both staging and real SSL request so that that installation will not halt for this small issue." />
+    <MESSAGE value="Update maxiaide new custom_rules. It will always have the latest custom rules from /secure/maxiaide/custom_rules&#10;Fixed permission /var/www/html/redirect.php that was belonged to root. It should belong to webapps&#10;Copy webapps automatically from storage folder and fix the permission&#10;Fixed file permission /etc/virtual/$(hostname)&#10;Run maxiaide after finished install to generate the first database" />
+    <MESSAGE value="Updated help section (there are more)&#10;Added new API to monitor user backup (required further testing as it is a new API)&#10;Added rsync for file download in order to have incremental backup features&#10;Added email before directadmin installation at /etc/aliases&#10;Added get_status_message line before downloading directadmin setup.ssh. At this moment we need to stop the script if the directadmin script site is down.&#10;Added get_status_message when changing /etc/hosts permission attribute to halt the script if it's not working&#10;Added maldetect installer if clamav is installed to speedup virus scan in server&#10;Fixed phpmyadmin blowfish secret key length generation&#10;Added lynis binary at configure_maxinis() function&#10;Enable AIDE scan at setup_post function to generate first database&#10;Added new script backup folder automatically to store backup files (such as server backup files)&#10;Added new command to back up server files into local OS. To trigger backup use the following command:&#10;&#10;maxinet backup-server /remote_path1 /remote_path2&#10;&#10;or&#10;&#10;maxinet backup-server&#10;&#10;to backup the full system." />
+    <MESSAGE value="Updated ssh_api function, to create external options arguments for rsync&#10;Updated configure_da_sql function to fix mysql temp folder that cannot be used to write sql backup file&#10;Added function clean_setup_files() that can be used to clean all setup files manually:&#10;&#10;maxinet clean (to clean everything except log and conf files); can still resume installation.&#10;&#10;or &#10;&#10;maxinet clean full (to clean everything including log and conf folders); cannot resume installation.&#10;Added backup exclusion list for backup-server" />
+    <MESSAGE value="Fixed SSL file transfer path from secure folder to remote server&#10;&#10;Added restart mysqld after changing setting at configure_da_sql function. This fixed issue mysql did not use newly created config during setup.&#10;&#10;Updated configure_da_dns_templates function to not ask for confirmation if DA version is newest and the config is verified for old version. This config always work as verified many releases of DA. Just gave a warning with _pause command within 10 seconds&#10;&#10;Renamed function configure_da_host_domain_ssl() to configure_da_hostname_ssl()&#10;&#10;Skipped asking question to configure DNS template at function configure_da_dns_templates() but add 10 seconds notice delay. It seems the template always work.&#10;&#10;&#10;Commented the option enable_ssl_sni in configure_da_ssl_pre() function because this option is not recognized and is not used anymore by Directadmin.&#10;&#10;&#10;Added get_status_message call function for some directadmin set command to halt script if something is wrong. A minor issue with this command without return success from directadmin will halt the script, so that I can check what is going on.&#10;&#10;Added fix ssl=0 again where in the new directadmin installation it will automatically request SSL for hostname and add ssl=1 automatically. I don't know when it happens as there was no clue how it was done internally. So add a condition if the SSL staging and production request failed, we also check this value to make sure ssl=0.&#10;&#10;Added SSL request retry for both staging and production&#10;&#10;Fixed a hung status for the following message when requesting SSL:&#10;&#10;acme: Trying to solve HTTP-01" />
+    <MESSAGE value="Fixed dbxcli prompt for authentication not to use wrong invalid config. If /root/.dropbox_uploader does not exist, we call dbxcli to authenticate manually for the first time (for new OS)&#10;&#10;Added dropbox_api test-account before initialize server&#10;&#10;Added missing package bc for ubuntu&#10;&#10;Fixed command newaliases not found. Must use it after DA installation because DA needs to install exim or postfix first before using command newaliases. Also added restart exim and postfix&#10;&#10;Added apache server-status and server-info route protection. To prevent abuser/hacker to sneak info about the server when the default route is not changed. Added custom password that can be defined in config file for these routes.&#10;&#10;Fixed wrong variable C_DA_APACHE_SERVER_STATUS_ROUTE and C_DA_APACHE_SERVER_INFO_ROUTE. They should be C_APACHE_SERVER_STATUS_ROUTE and C_APACHE_SERVER_INFO_ROUTE&#10;&#10;Fixed typo on echo $(msgend) should be $(msg end)" />
+    <MESSAGE value="Fixed writing new email aliases duplication&#10;Fixed mail command not found&#10;Fixed .htaccess was not copied from webapps&#10;Added SMTP configuration with mail test&#10;Removed ./build bubblewrap just use ./build jailshell&#10;Fixed mysql command not found&#10;Added maxiclam installation. This CLI can manage both maldet and clamAV&#10;&#10;&#10;Updated maxinet.conf.sample&#10;&#10;New variables from maxinet.con.sample:&#10;&#10;# This is for system mail (use for notification, or reports)&#10;# Email username&#10;C_SMTP_SYSTEM_MAIL_USER=&quot;mailuser&quot;&#10;# Mail domain&#10;C_SMTP_SYSTEM_MAIL_DOMAIN=&quot;gmail.com&quot;&#10;# For gmail use app password&#10;C_SMTP_SYSTEM_MAIL_PASSWORD=&quot;mpsssepsousda2xx&quot;&#10;# The smtp domain&#10;C_SMTP_SYSTEM_MAIL_SMTP_URL=&quot;smtp.gmail.com&quot;&#10;# The authentication port&#10;C_SMTP_SYSTEM_MAIL_PORT=&quot;587&quot;&#10;# Format email(&lt;name_description&gt;)&#10;C_SMTP_SYSTEM_MAIL_FROM=&quot;arafatx@gmail.com(Arafat)&quot;" />
+    <MESSAGE value="Added transfer maxiclam excluded list files from secure folder&#10;&#10;Added bsd-mailx package installation for Debian&#10;&#10;Another fixed mail command not found after DA has finished installation (we use bsd-mailx)&#10;&#10;Fixed smtp config file at /root/.mailrc&#10;&#10;Added CSF installation using DA build command&#10;&#10;Added various security configs from DA&#10;&#10;Updated configure_maxiclam() configuration&#10;&#10;Added command to remote / clean up maxiclam files after setup&#10;&#10;Updated maxinet.conf.sample" />
+    <MESSAGE value="Updated maxiaide binary to fix some issues&#10;Updated maldet installation and fixed issue with maldet startup service bug on Debian 11&#10;Fixed issue with csf installation with custombuild options.conf&#10;Updated configure_maxiaide() function to remove maldet cron.daily as this will be managed by the maxiaide scan --cronjob automatically." />
+    <option name="LAST_COMMIT_MESSAGE" value="Updated maxiaide binary to fix some issues&#10;Updated maldet installation and fixed issue with maldet startup service bug on Debian 11&#10;Fixed issue with csf installation with custombuild options.conf&#10;Updated configure_maxiaide() function to remove maldet cron.daily as this will be managed by the maxiaide scan --cronjob automatically." />
   </component>
 </project>

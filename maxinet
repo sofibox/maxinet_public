@@ -5,13 +5,12 @@
 # remote OS tested: debian 11
 _APP_SPECIFIC_NAME="Maxinet"
 # Note that some minor versions are not published
-_APP_VERSION="0.9.8"
+_APP_VERSION="1.0"
 _APP_STATUS="alpha"
 _APP_VERSION_STATUS="${_APP_VERSION}-${_APP_STATUS}"
 
 ### START TEMPORARY NOTE
 # TODO configure cloudflare IP in CSF
-# TODO reconfigure DA redis
 # TODO note for new domain of users to have custom .html edit this :/home/reseller_username/domains/default/index.html
 # TODO switch to sftp using proftpd (working fine using this tutorial https://forum.directadmin.com/threads/how-to-set-up-your-proftpd-ftp-server-to-support-the-secure-protocols-while-disabling-insecure-ftp.65025/ and make sure to use port 23 as mentioned in doc)
 # TODO check log for proftpd
@@ -11488,6 +11487,10 @@ install_da_post() {
         exit 147
       fi
 
+      if [ -f /etc/cron.daily/maldet ]; then
+        _echo "$(msg cyan)Removing maldet daily cronjob at /etc/cron.daily/maldet ...$(msg end)" --name
+        rm -fv /etc/cron.daily/maldet
+      fi
       # This is a temporary patch for maldet service that does not run properly. This patch only work with maldet 1.6.4:
       # https://serverfault.com/questions/1077310/update-from-debian-10-to-debian-11-gone-wrong
       # Note this patch will be overwritten if maldet is updated with the same version or never version
@@ -11496,12 +11499,17 @@ install_da_post() {
       maldet_version=$(maldet -V | head -1 | cut -d" " -f 4)
       _echo "$(msg cyan)Maldet version is: ${maldet_version}$(msg end)" --name
       if [[ "${maldet_version}" == "v1.6.4" && "${DISTRO_ID}" == "debian" && "${DISTRO_CODENAME}" == "bullseye" ]]; then
+        if ! command -v inotifywait &>/dev/null; then
+          _echo "$(msg cyan)Installing required package(s) ...$(msg end)" --name
+          apt-get -y install inotify-tools
+        fi
         _echo "$(msg cyan)Patching known bug for maldet 1.6.4 service to run on Debian 11 properly ...$(msg end)" --name
         sed -i 's#/boot/System.map#/lib/debug/boot/System.map#' /usr/local/maldetect/internals/functions
         get_status_message "$?"
         echo ""
         _echo "$(msg cyan)Restarting maldet service ...$(msg end)" --name
         systemctl restart maldet
+        get_status_message "$?"
         echo ""
         _echo "$(msg cyan)Checking maldet running status ...$(msg end)" --name
         systemctl is-active --quiet maldet
@@ -14539,13 +14547,13 @@ configure_da_memcached() {
     systemctl --no-pager status memcached
     get_status_message "$?"
     echo ""
-    echo "[${SCRIPT_NAME}]: Installing memcached for php-extension using Poralix script ..."
-
+    # echo "[${SCRIPT_NAME}]: Installing memcached for php-extension using Poralix script ..."
     echo "[${SCRIPT_NAME}]: Removing previous php-extension.sh ..."
     rm -f "php-extension.sh"
     # cp "${DATA_PATH}/maxinet/storage/os/${DISTRO_ID}/usr/local/directadmin/install_scripts/php_extension.sh" "${INST_TEMP_DIR}/php_extension.sh"
     echo "[${SCRIPT_NAME}]: Downloading php-extension.sh into ${INST_TEMP_DIR}/php-extension.sh ..."
     wget -O ${INST_TEMP_DIR}/php-extension.sh https://raw.githubusercontent.com/sofibox/directadmin-utils/master/php/php-extension.sh
+    set_linux_crlf "${INST_TEMP_DIR}/php-extension.sh"
     echo ""
     echo "[${SCRIPT_NAME}]: Making php-extension.sh executable ..."
     chmod +x "${INST_TEMP_DIR}/php-extension.sh"
@@ -14554,7 +14562,8 @@ configure_da_memcached() {
     # /bin/sh ./php-extension.sh status memcached
     echo ""
     echo "[${SCRIPT_NAME}]: Installing php-memcached for all PHP versions ..."
-    sh "${INST_TEMP_DIR}"/php-extension.sh install memcached
+    "${INST_TEMP_DIR}/php-extension.sh" install memcached
+    get_status_message "$?"
     echo ""
     check_finish_reboot "${func_name}"
   else
@@ -17317,8 +17326,8 @@ configure_maxiaide() {
     required "debian@@apt:aide" "ubuntu@@apt:aide"
     maxiaide_bin="/usr/local/maxicode/maxiaide/maxiaide"
     # After AIDE has installed, we do not need this daily script because we will have maxiaide scan --cronjob to run it
-    if [ -f /etc/cron.daily ]; then
-      _echo "$(msg cyan)Removing AIDE daily cron job at /etc/cron.daily ...$(msg end)" --name
+    if [ -f /etc/cron.daily/aide ]; then
+      _echo "$(msg cyan)Removing AIDE daily cronjob at /etc/cron.daily/aide ...$(msg end)" --name
       rm -fv /etc/cron.daily/aide
     fi
     _echo "$(msg cyan)Removing previous maxiaide symlink shortcut in /usr/local/bin ...$(msg end)" --name
@@ -17529,14 +17538,14 @@ configure_maxicron() {
     fi
 
     # Stopping some services to reduce memory usage like clamav:
-    maxicron --stop-some-services
-    # TODO add this:
+    # This is not needed anymore because configure_services() function will manage this
+    # maxicron stop-some-services
 
     # 23 */12 * * * /usr/local/subcode/centmin/csfcf.sh csf >/dev/null 2>&1
     # Add the above command in crontab so it will run on startup
     {
-      echo "# Stop some high memory processes 180 seconds (3 minutes) after reboot"
-      echo "@reboot sleep 180 && maxicron --stop-some-services"
+      echo "# Stop some high memory processes 180 seconds (or 3 minutes) for each system reboot"
+      echo "@reboot sleep 180 && maxicron stop-some-services"
     } >>/etc/crontab
 
     echo ""
@@ -17711,6 +17720,7 @@ configure_maxiclam() {
   fi
 }
 
+# This will configure maxiwall and suricata installation
 configure_maxiwall() {
   #Fixed bug from this helpful solution:
   #https://forum.suricata.io/t/latest-suricata-6-0-2-with-rustc-has-trouble-installing-with-error-could-not-compile-lexical-core/1461/3
@@ -17725,26 +17735,36 @@ configure_maxiwall() {
   fi
   [[ "${SKIP_RUN}" == "true" ]] && return 0
   if [[ ! -f "${CONF_PATH}/${func_name}_executed" && "${FUNCTION_RUN}" == "true" ]]; then
-    local latest_suricata_version suricata_preferred_version rustup_preferred_version maxiwall_bin rblscan_bin # suricata_conf suricata_service is_masked
+    local latest_suricata_version suricata_installed_version suricata_preferred_version rustup_preferred_version maxiwall_bin rblscan_bin suricata_log_file suricata_config_file \
+      suricata_compatible_version found_compatible rustup_install_status retval # suricata_conf suricata_service is_masked
 
+    suricata_log_file="/var/log/suricata/suricata.log"
+    suricata_config_file="/etc/suricata/suricata.yaml"
+
+    # This will get the latest version of suricata from the official website (including beta version)
+    latest_suricata_version=$(curl 'https://www.openinfosecfoundation.org/download/' | grep -oP 'href="suricata-\K[0-9]+\.[0-9]+\.[0-9]+' | sort -t. -rn -k1,1 -k2,2 -k3,3 | head -1)
+
+    # Put suricata compatible version here as array. Script will check if no version is specify here, then it will ask a confirmation to continue setup for compatibilty notice
+    suricata_compatible_version=("6.0.1" "6.0.9")
+
+    # This blcheck command will be obtained after the configuration of function configure_maxirbl()
+    # In case that this command is missing, then we will use rblscan (same as blcheck)
     if ! command -v blcheck &>/dev/null; then
       rblscan_bin="/usr/local/maxicode/maxiwall/rblscan"
-
       if [ -f ${rblscan_bin} ]; then
-        echo "[${SCRIPT_NAME}]: Creating symlink and executable for ${rblscan_bin} ..."
+        _echo "$(msg cyan)Creating symlink and executable for ${rblscan_bin} ...$(msg end)" --name
         chmod +x ${rblscan_bin}
         # Symbolic name
         ln -s ${rblscan_bin} /usr/local/bin
       else
-        echo "[${SCRIPT_NAME}]: Warning, rblscan doesn't exist in /usr/local/maxicode !"
+        _echo "$(msg red)Warning, rblscan doesn't exist in /usr/local/maxicode!$(msg end)" --name
         _exit 147
       fi
     fi
 
     # Must write config first because maxiwall -V needs this
     # Writing a new maxiwall.conf file (all sensitive variables should be declared in maxinet.conf and pass here)
-    echo "[${SCRIPT_NAME}]: Writing default maxiwall.conf config file ..."
-    sleep 1
+    _echo "$(msg cyan)Writing a default maxiwall.conf config file ...$(msg end)" --name
     {
       echo "# CONFIG VERSION:"
       echo "CONFIG_VERSION=\"1.0\""
@@ -17822,10 +17842,8 @@ configure_maxiwall() {
     rm -f /usr/local/bin/maxiwall
 
     maxiwall_bin="/usr/local/maxicode/maxiwall/maxiwall"
-
     if [ -f ${maxiwall_bin} ]; then
-
-      echo "[${SCRIPT_NAME}]: Creating symlink and executable for ${maxiwall_bin} ..."
+      _echo "$(msg cyan)Creating symlink and executable for ${maxiwall_bin} ...$(msg end)" --name
       chmod +x ${maxiwall_bin}
       # Symbolic name
       ln -s ${maxiwall_bin} /usr/local/bin
@@ -17837,12 +17855,17 @@ configure_maxiwall() {
       _exit 147
     fi
 
+    # This part is the uninstallation part of suricata (full remove)
+
     # Remove built-in package of rustc
     _echo "$(msg cyan)Removing rustc existing installation (with purge command)...$(msg end)" --name
     apt -y remove --purge rustc
     echo ""
     _echo "$(msg cyan)Removing cargo existing installation ...$(msg end)" --name
     apt -y remove cargo
+    echo ""
+    _echo "$(msg cyan)Removing rustup-init installation at ${INST_TEMP_DIR}/rustup-init...$(msg end)" --name
+    rm -rf ${INST_TEMP_DIR}/rustup-init
     echo ""
     # Removing suricata compiled source:
     _echo "$(msg cyan)Removing suricata existing installation, log and service files ...$(msg end)" --name
@@ -17852,72 +17875,56 @@ configure_maxiwall() {
     apt -y autoremove
     echo ""
     _echo "$(msg cyan)Purging suricata ...$(msg end)" --name
-
     apt -y purge suricata
     echo ""
     _echo "$(msg cyan)Removing suricata leftover files ...$(msg end)" --name
-
     # Removing leftover files:
-    rm -rf /usr/share/suricata
-    rm -rf /etc/suricata
-    rm -rf /var/lib/suricata
-    rm -rf /var/log/suricata
-    rm -f /usr/local/bin/suricata
-    rm -f /etc/default/suricata
-    rm -f /etc/init.d/suricata
-    rm -f /etc/systemd/system/suricata.service
+    rm -rfv /usr/share/suricata
+    rm -rfv /etc/suricata
+    rm -rfv /var/lib/suricata
+    rm -rfv /var/log/suricata
+    rm -fv /usr/bin/suricata
+    rm -fv /usr/local/bin/suricata
+    rm -fv /etc/default/suricata
+    rm -fv /etc/init.d/suricata
+    rm -fv /etc/systemd/system/suricata.service
+    rm -fv /lib/systemd/system/suricata.service
     echo ""
 
+    _echo "$(msg cyan)Removing rustup/cargo leftover files ...$(msg end)" --name
+    # This file was created by rustup installation (removing at this point is safe for clean install)
+    rm -rf ${HOME}/.cargo
+    echo ""
+
+    # Only uninstall if the command exist
     if command -v rustup &>/dev/null; then
       _echo "$(msg cyan)Removing rustup using rustup self uninstall command ...$(msg end)" --name
       rustup self uninstall -y
       echo ""
     fi
-    _echo "Reloading systemctl daemon service after making changes to systemd service ..."
+
+    _echo "$(msg cyan)Reloading systemctl daemon service after making changes to systemd service ...$(msg end)" --name
     systemctl daemon-reload
     echo ""
 
-    # What version should be installed
+    # What version should be installed. The options are:
+    # backport, distro, latest, or version_number (set from config file)
+
     suricata_preferred_version="${C_SURICATA_SELECT_VERSION}"
+
+    # change to current version from official website if the config says current
+    if [ "${suricata_preferred_version}" == "current" ]; then
+      suricata_preferred_version="${latest_suricata_version}"
+    fi
     rustup_preferred_version="${C_INSTALL_RUSTC_VERSION}"
 
     if [ "${suricata_preferred_version}" == "distro" ]; then
       if [ ${DISTRO_CODENAME} == "bullseye" ]; then
-        local suricata_log_file suricata_config_file retval
-        suricata_log_file="/var/log/suricata/suricata.log"
-        suricata_config_file="/etc/suricata/suricata.yaml"
-
         _echo "$(msg cyan)Installing suricata version on Debian Bullseye using distro package ...$(msg end)" --name
         apt -y install suricata
-        sleep 3
-        echo ""
-        # Check the path after install suricata
-        check_path "${suricata_log_file}" "${suricata_config_file}"
-        echo ""
-
-        # This will update all the code
-        maxiwall update-scripts
-        # This will add extra rules (3rd party)
-        maxiwall add-extra-rules
-        # This will initialize and run suricata with rule update
-        maxiwall init
-
-        # The rule file must exist:
-        check_path "/var/lib/suricata/rules/suricata.rules"
-        echo ""
-
-        _echo "$(msg cyan)Checking whether suricata log file contains <Warning> line ...$(msg end)" --name
-        grep "<Warning>" "${suricata_log_file}"
-        retval=$?
-        if [ "${retval}" -eq 0 ]; then
-          _echo "$(msg red)Error, there is a <Warning> log in ${suricata_log_file}. Please inspect the log file$(msg end)" --name
-          _exit 147
-        else
-          _echo "$(msg green)OK$(msg end)" --name
-        fi
+        # Do something required components here
         echo ""
       else
-
         _echo "$(msg yellow)Warning, this distro is not supported code name ${C_OS_SET_CODE_NAME}.$(msg end)" --name
         _exit 147
       fi
@@ -17927,19 +17934,25 @@ configure_maxiwall() {
           _echo "Installing suricata backport version on Debian Buster..."
           echo "deb http://http.debian.net/debian buster-backports main" >/etc/apt/sources.list.d/backports.list
           apt-get -y install suricata -t buster-backports
+        elif [ ${DISTRO_CODENAME} == "bullseye" ]; then
+          # This backport version is compatible with suricata 6.0.9
+          _echo "Installing suricata backport version on Debian Bullseye..."
+          echo "deb http://http.debian.net/debian bullseye-backports main" >/etc/apt/sources.list.d/backports.list
+          apt-get -y install suricata -t bullseye-backports
         else
-          _echo "$(msg yellow)Warning, this backport is not supported in this debian code name ${DISTRO_CODENAME}.$(msg end)" --name
+          _echo "$(msg yellow)Warning, this backport installation is not supported in this debian code name ${DISTRO_CODENAME}.$(msg end)" --name
           echo "Please go to suricata website to get the new instruction how to install the backport for debian!"
           _exit 147
         fi
       else
-        _echo "Invalid DISTRO_ID selection. This DISTRO ${DISTRO_ID} is not supported in ${SCRIPT_NAME} to install suricata!"
+        _echo "Invalid DISTRO_ID selection. This DISTRO ${DISTRO_ID} is not supported in ${SCRIPT_NAME} to install suricata in backport mode!"
         _exit 147
       fi
-    else # This one compatible with suricata 6.0.2
+    else
+      # This one compatible with suricata 6.0.2
       if [ "${latest_suricata_version}" != "${suricata_preferred_version}" ]; then
-        _echo "Warning, suricata latest version is: ${latest_suricata_version} but selected version in config file is ${C_SURICATA_SELECT_VERSION}"
-        _pause 5
+        _echo "$(msg yellow)Warning, suricata latest version is: ${latest_suricata_version} but selected version in config file is ${C_SURICATA_SELECT_VERSION}$(msg end)" --name
+        _pause 10
       fi
 
       # suricata_conf="/etc/suricata/suricata.yaml"
@@ -17951,11 +17964,13 @@ configure_maxiwall() {
       apt-get install make autoconf automake libtool
       echo ""
       _echo "$(msg cyan)Installing suricata required components ...$(msg end)" --name
-      apt-get -y install libpcre3 libpcre3-dbg libpcre3-dev build-essential libpcap-dev \
-        libnet1-dev libyaml-0-2 libyaml-dev pkg-config zlib1g zlib1g-dev liblz4-dev \
-        libcap-ng-dev libcap-ng0 libmagic-dev libjansson-dev libnspr4-dev \
-        libnss3-dev libgeoip-dev liblua5.1-dev libhiredis-dev libevent-dev \
-        python-yaml python3-distutils python3-pip #rustc cargo
+      # For Debian 11 change python-yaml to python3-yaml (not documented in official docs). Still I dont install rustc and cargo on debian (do manual)
+      # Added extra jq package to enable to read jq
+      required "debian@@apt:jq,libpcre3,libpcre3-dbg,libpcre3-dev,build-essential,libpcap-dev,\
+      libnet1-dev,libyaml-0-2,libyaml-dev,pkg-config,zlib1g,zlib1g-dev,liblz4-dev,libcap-ng-dev,\
+      libcap-ng0,libmagic-dev,libjansson-dev,libnspr4-dev,libnss3-dev,libgeoip-dev,liblua5.1-0-dev,\
+      libhiredis-dev,libevent-dev,python3-yaml,python3-distutils,python3-pip"
+
       echo ""
       _echo "$(msg cyan)Installing suricata python required library...$(msg end)" --name
       pip3 install PyYAML
@@ -17970,15 +17985,12 @@ configure_maxiwall() {
       # Do not use apt to install. Currently Debian package uses old version 4.1.2 but the latest is 6.0.2
       # For CentOS rpm package will install only version 5. So the best is to compile from source using this trick:
 
-      latest_suricata_version=$(curl 'https://www.openinfosecfoundation.org/download/' | grep -oP 'href="suricata-\K[0-9]+\.[0-9]+\.[0-9]+' | sort -t. -rn -k1,1 -k2,2 -k3,3 | head -1)
-
       _echo "Installing the latest rustc package manually ..."
-      rustup_install=$(curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y 2>&1 | grep 'likely because of mounting /tmp')
+      rustup_install_status=$(curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y 2>&1 | grep 'likely because of mounting /tmp')
       # If the error message of 'likely because of mounting /tmp' is shown, then we need to get the location of the mentioned file in tmp
-      if [ -n "${rustup_install}" ]; then
-
-        rustup_tmp_init=$(echo "${rustup_install}" | awk '{ print $3 }')
-        _echo "Error found. Resolving error of message of: ${rustup_install} ..."
+      if [ -n "${rustup_install_status}" ]; then
+        rustup_tmp_init=$(echo "${rustup_install_status}" | awk '{ print $3 }')
+        _echo "Error found. Resolving error of message of: ${rustup_install_status} ..."
         _echo "The rustup-init file is at this location: ${rustup_tmp_init}"
         #sleep 2
         cp "${rustup_tmp_init}" "${INST_TEMP_DIR}/rustup-init"
@@ -17989,49 +18001,119 @@ configure_maxiwall() {
         #source "$HOME/.profile"
         #export PATH="$HOME/.cargo/bin:$PATH"
       else
-        _echo green "OK, rustup installation directory is writeable"
+        _echo "OK, rustup installation directory is writeable"
       fi
+      echo ""
 
-      _echo "Changing rustup version to ${rustup_preferred_version} ..."
-      rustup install "${rustup_preferred_version}"
-      export RUSTUP_TOOLCHAIN="${rustup_preferred_version}"
+      if [[ "${rustup_preferred_version}" == "latest" || "${rustup_preferred_version}" == "current" || "${rustup_preferred_version}" == "backport" ]]; then
+        :
+      else
+        # Only downgrade rustup version if specified version number in config file (this is only needed if installation has bug due to rustup version)
+        _echo "Changing rustup version to ${rustup_preferred_version} ..."
+        rustup install "${rustup_preferred_version}"
+        get_status_message "$?"
+        echo ""
 
+        _echo "Exporting variable RUSTUP_TOOLCHAIN=${rustup_preferred_version} ..."
+        export RUSTUP_TOOLCHAIN="${rustup_preferred_version}"
+        get_status_message "$?"
+        echo ""
+
+      fi
       # Need to source once in order to use rustrc  source "$HOME/.cargo/env"
       _echo "Sourcing cargo env file ..."
-      source "$HOME/.cargo/env"
-
+      source "${HOME}/.cargo/env"
+      get_status_message "$?"
+      echo ""
       _echo "Removing suricata downloaded file suricata-${suricata_preferred_version}.tar.gz ..."
       rm -f "${INST_TEMP_DIR}/suricata-${suricata_preferred_version}.tar.gz"
       get_status_message "$?"
+      echo ""
       _echo "Downloading suricata latest version-${suricata_preferred_version} ..."
       wget --no-verbose "https://www.openinfosecfoundation.org/download/suricata-${suricata_preferred_version}.tar.gz"
-      _echo "Extracting suricata version-${suricata_preferred_version} ..."
-      tar xzvf "suricata-${suricata_preferred_version}.tar.gz"
       get_status_message "$?"
+      echo ""
+      _echo "Extracting suricata version-${suricata_preferred_version} ..."
+      tar xzf "suricata-${suricata_preferred_version}.tar.gz"
+      get_status_message "$?"
+      echo ""
       navigate_path "suricata-${suricata_preferred_version}/"
+      echo ""
+      if [[ "${suricata_preferred_version}" == "6.0.9" && "${DISTRO_ID}" == "debian" && "${DISTRO_CODENAME}" == "bullseye" ]]; then
+        echo "This suricata version has non critical bug from https://redmine.openinfosecfoundation.org/issues/3419"
+        echo "This bug only affected when running suricata in test mode using my script maxiwall test-mode. But it still work"
+
+      fi
       _echo "Configuring script for getting ready to build suricata ... "
       # Dont enable IPS because we will integrate blocking with CSF (using my script called maxicode/maxiwall)
-      ./configure --libdir=/usr/lib64 --prefix=/usr/local --sysconfdir=/etc --localstatedir=/var --datarootdir=/usr/local/share --enable-lua --enable-rust
-      #make
-      #sudo make install
-      _echo "Installing suricata with make install-full ... "
-      sudo RUSTUP_TOOLCHAIN="${C_INSTALL_RUSTC_VERSION}" make install-full
+      # Note the distro and backport version install suricata in local folder (make sure no local folder is specify here)
+      # Note --enable-geoip is not supported. Will have error when compile
+      ./configure --libdir=/usr/lib --prefix=/usr/ --sysconfdir=/etc --localstatedir=/var --datarootdir=/usr/share --enable-lua --enable-rust
+      echo ""
 
+      _echo "Installing suricata with make install-full ... "
+
+      if [[ "${rustup_preferred_version}" == "latest" || "${rustup_preferred_version}" == "current" || "${rustup_preferred_version}" == "backport" ]]; then
+        make install-full
+      else
+        RUSTUP_TOOLCHAIN="${rustup_preferred_version}" make install-full
+      fi
+      get_status_message "$?"
       # Use this ldconfig to prevent error described here:
       # https://stackoverflow.com/questions/65330382/building-suricata-could-not-compile-der-parser
       # sudo ldconfig
       # suricata -V
-      # Backport latest version as for now is 6.0.1
+      # Backport latest version as for now is 6.0.9 for Debian bullseye
     fi
 
+    echo ""
+    # End of installation method
+
+    # Now we check the suricata installation and compatibility
     if command -v suricata &>/dev/null; then
+      suricata_installed_version=$(suricata -V | cut -d' ' -f5)
+      found_compatible=$(echo "${suricata_compatible_version[@]}" | grep "${suricata_installed_version}")
       _echo "Suricata is installed with the following details: "
       suricata -V
-      sleep 2
+      echo ""
+      if [ -z "${found_compatible}" ]; then
+        local compatible_versions_format
+        echo "[${SCRIPT_NAME}]: Warning, only the following suricata version is compatible:"
+        compatible_versions_format=$(printf ",%s" "${suricata_compatible_version[@]}")
+        echo "${compatible_versions_format:1}"
+        echo "[${SCRIPT_NAME}]: Your suricata version is ${suricata_installed_version}"
+        _confirm "It might work 100% but it is good to inspect what has changed. Continue? [Y/y] or Cancel [CTRL +C]:"
+      fi
     else
       _echo "Warning, no suricata binary is found! Please inspect the log file why"
       _exit 147
     fi
+
+    echo ""
+
+    # NOTE at this point suricata has been installed successfully
+
+    # This will update all the code for maxiwall
+    maxiwall update-scripts
+    # This will add extra rules for maxiwall (3rd party)
+    maxiwall add-extra-rules
+    # This will initialize and run suricata with rule update
+    maxiwall init
+
+    # Check the path after install suricata (just to make sure they exist)
+    check_path "${suricata_log_file}" "${suricata_config_file}" "/var/lib/suricata/rules/suricata.rules"
+    echo ""
+    _echo "$(msg cyan)Checking whether suricata log file is free from a warning line ...$(msg end)" --name
+    grep "<Warning>" "${suricata_log_file}"
+    retval=$?
+    if [ "${retval}" -eq 0 ]; then
+      _echo "$(msg red)Error, there is a <Warning> line found in ${suricata_log_file} file. Please inspect the log file$(msg end)" --name
+      _exit 147
+    else
+      _echo "$(msg green)OK, no warning line found in ${suricata_log_file} file!$(msg end)" --name
+    fi
+    echo ""
+
     # Maxiwall --init will do all the commented below (already have this function long time ago).
 
     # Then Create the service file
@@ -18117,7 +18199,6 @@ configure_maxiwall() {
     # Maxiwall --initfull will do all the commented above (already have this function long time ago).
     # Must have maxiwall.conf file first before running --initfull
     echo "[${SCRIPT_NAME}]: Running maxiwall init ..."
-    sleep 1
     maxiwall init
 
     echo ""
@@ -20188,6 +20269,7 @@ configure_os_services() {
   ##===================#
 
 }
+# This will enable and disable services
 configure_services() {
   local run_mode func_name
   run_mode="$1"
@@ -20200,28 +20282,19 @@ configure_services() {
   fi
   [[ "${SKIP_RUN}" == "true" ]] && return 0
   if [[ ! -f "${CONF_PATH}/${func_name}_executed" && "${FUNCTION_RUN}" == "true" ]]; then
-    local da_service_status service_names grep_find
-    da_service_status="/usr/local/directadmin/data/admin/services.status"
-    check_path "${da_service_status}"
-    # By using this method, we will receive notification if the service goes down
-    # Add service here, if it is turned off, it will be enabled.
-    service_names=("rsyslog" "csf" "suricata" "rspamd" "sshd" "mysqld" "gotify")
-    _echo "$(msg cyan)Adding and enabling extra services: ${service_names} ...$(msg end)" --name
-    echo ""
-    for service_name in "${service_names[@]}"; do
-      _echo "$(msg cyan)Checking service status for ${service_name} ...$(msg end)" --name
-      grep_find=$(grep -m1 "^${service_name}=" ${da_service_status})
-      if [ -n "${grep_find}" ]; then
-        _echo "$(msg cyan)Turning on service ${service_name} ...$(msg end)" --name
-        sed -i "s|^${service_name}\=.*|${service_name}=ON|" ${da_service_status}
-      else
-        _echo "$(msg cyan)Adding new extra service ${service_name} ...$(msg end)" --name
-        echo "${service_name}=ON" >>${da_service_status}
-      fi
-      get_status_message "$?"
+    maxicron_bin="/usr/local/maxicode/maxicron/maxicron"
+
+    if [ -x "${maxicron_bin}" ]; then
+      _echo "$(msg cyan)Enabling some system services ...$(msg end)" --name
+      maxicron enable-services "lfd" "rsyslog" "csf" "suricata" "rspamd" "sshd" "mysqld" "gotify" "maldet"
       echo ""
-    done
-    echo ""
+      _echo "$(msg cyan)Disabling some system services ...$(msg end)" --name
+      maxicron disable-services "clamd" "clamav-daemon" "freshclam" "clamav-freshclam" "da-popb4smtp" "pure-ftpd" "memcached"
+      echo ""
+    else
+      _echo "$(msg red)Error, could not execute maxicron binary!$(msg end)" --name
+      _exit 147
+    fi
     check_finish_reboot "${func_name}"
   else
     _echo "$(msg yellow)[Skipped by system]: $(msg magenta)${func_name}$(msg end) $(msg yellow)with current option ${run_mode} has ran before $(msg end)" --name
@@ -20236,7 +20309,6 @@ configure_services() {
 }
 
 # This is used to get A+ rating for SSL and increase security
-# TODO Warning, the next DA version 1.63 will release this hsts header for specific domain via ui, check this for compatibility on next version
 configure_da_domain_security() {
   local run_mode func_name
   run_mode="$1"
@@ -20720,13 +20792,13 @@ setup() {
         configure_maxicloud --run
         configure_maxipass --run
         configure_maxidb --run
-        configure_maxify --skip  # (skipped deprecated)
+        configure_maxify --skip # (skipped deprecated)
         configure_maxiclam --run
-        configure_logs --skip    #-- skip temporarily
+        configure_logs --skip #-- skip temporarily
         configure_maxicron --run
         # Still need to add more based on lynis suggestion
         harden_with_lynis --run
-        # This will disable some services
+        # This will manage da service.status
         configure_services --run
         setup_post --run
       elif [[ "${C_DA_INSTALL_TYPE}" == "auto" ]]; then
@@ -21143,6 +21215,17 @@ while [ "$#" -gt 0 ]; do
     ensure_internet_connected
     init_server "$@"
     exit 0
+    break
+    ;;
+  update-script-only)
+    ensure_internet_connected
+    ensure_domain_server_resolved
+    ensure_fqhn_server_resolved
+    shift
+
+    FILE_TO_TRANSFER="${SCRIPT_PATH}/maxinet ${SCRIPT_PATH}/maxinet.conf ${SCRIPT_PATH}/readme.txt"
+    REMOTE_PATH_TO_RECEIVE="${HOME}/"
+    ssh_api transfer-files --server-port "${C_BOX_HOSTNAME_FQHN}:${C_SSH_PORT}" --group-user "${C_ROOT_USERGROUP}:${C_ROOT_USERNAME}" --local-files "${FILE_TO_TRANSFER}" --remote-path "${REMOTE_PATH_TO_RECEIVE}"
     break
     ;;
   update-maxinet-remote-script | update-remote-scripts | update-remote-script | update-remote-code | push-script | update-script | update-scripts)
