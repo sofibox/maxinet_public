@@ -1,11 +1,11 @@
 #!/bin/bash
 # =~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~="
 # Author: Arafat Ali | Email: webmaster@sofibox.com | Website: sofibox.com
-# new local OS tested: ubuntu
-# remote OS tested: debian 11
+# local OS fully tested: ubuntu | local OS partially tested: debian,
+# remote OS fully tested: debian 11 | remote OS partially tested: Almalinux
 _APP_SPECIFIC_NAME="Maxinet"
 # Note that some minor versions are not published
-_APP_VERSION="1.0"
+_APP_VERSION="1.1"
 _APP_STATUS="alpha"
 _APP_VERSION_STATUS="${_APP_VERSION}-${_APP_STATUS}"
 
@@ -15,7 +15,6 @@ _APP_VERSION_STATUS="${_APP_VERSION}-${_APP_STATUS}"
 # TODO switch to sftp using proftpd (working fine using this tutorial https://forum.directadmin.com/threads/how-to-set-up-your-proftpd-ftp-server-to-support-the-secure-protocols-while-disabling-insecure-ftp.65025/ and make sure to use port 23 as mentioned in doc)
 # TODO check log for proftpd
 # TODO trigger admin backup from directadmin automatically before deploy a new server (also create validation if the file restoration success first). So we will always have working restoration file.
-
 ### END TEMPORARY NOTE
 
 # This is a personal project that I wrote for server automation to reduce server configuration time.
@@ -1800,6 +1799,13 @@ init_server() {
     # maxiclam / maxiclam exclude scan files
     file_to_transfer="${SECURE_PATH}/maxiclam/*"
     remote_path_to_receive="${HOME}/maxiclam/"
+    ssh_api mkdir --server-port ${C_BOX_HOSTNAME_FQHN}:${C_SSH_PORT} --group-user ${C_ROOT_USERGROUP}:${C_ROOT_USERNAME} --remote-path "${remote_path_to_receive}"
+    ssh_api transfer-files --server-port "${C_BOX_HOSTNAME_FQHN}:${C_SSH_PORT}" --group-user "${C_ROOT_USERGROUP}:${C_ROOT_USERNAME}" --local-files "${file_to_transfer}" --remote-path "${remote_path_to_receive}"
+    echo ""
+
+    # add directadmin custom hook scripts
+    file_to_transfer="${SECURE_PATH}/directadmin/custom_scripts/*"
+    remote_path_to_receive="${HOME}/directadmin/custom_scripts"
     ssh_api mkdir --server-port ${C_BOX_HOSTNAME_FQHN}:${C_SSH_PORT} --group-user ${C_ROOT_USERGROUP}:${C_ROOT_USERNAME} --remote-path "${remote_path_to_receive}"
     ssh_api transfer-files --server-port "${C_BOX_HOSTNAME_FQHN}:${C_SSH_PORT}" --group-user "${C_ROOT_USERGROUP}:${C_ROOT_USERNAME}" --local-files "${file_to_transfer}" --remote-path "${remote_path_to_receive}"
     echo ""
@@ -11639,7 +11645,6 @@ install_da_post() {
     # _echo "$(msg cyan)Creating ip_whitelist file in /usr/local/directadmin/data/admin/ip_whitelist ...$(msg end)" --name
     #touch /usr/local/directadmin/data/admin/ip_whitelist
     #echo ""
-
     # _echo "$(msg cyan)Fixing file permission of /usr/local/directadmin/data/admin/ip_whitelist ...$(msg end)" --name
     # chown diradmin.diradmin /usr/local/directadmin/data/admin/ip_whitelist
     #echo ""
@@ -11667,6 +11672,121 @@ install_da_post() {
     end_execute_options "${run_mode}" "${func_name}"
   fi
 }
+
+# This will create directadmin custom scripts
+configure_da_scripts() {
+  local run_mode func_name
+  run_mode="$1"
+  extra_option="$2"
+  func_name="${FUNCNAME[0]}"
+  if [[ "${extra_option}" == "--silent-if-executed" ]]; then
+    start_execute_options "${run_mode}" "${func_name}" &>/dev/null
+  else
+    start_execute_options "${run_mode}" "${func_name}"
+  fi
+  [[ "${SKIP_RUN}" == "true" ]] && return 0
+  if [[ ! -f "${CONF_PATH}/${func_name}_executed" && "${FUNCTION_RUN}" == "true" ]]; then
+    local da_conf da_sql_type da_sql_version da_install_log da_bin da_cb_bin da_script_path grep_count
+    da_conf="/usr/local/directadmin/conf/directadmin.conf"
+    da_bin="/usr/local/directadmin/directadmin"
+    da_cb_bin="/usr/local/directadmin/custombuild/build"
+    da_script_path="/usr/local/directadmin/scripts"
+    da_custom_script_path="/usr/local/directadmin/scripts/custom"
+    aa_scripts_path="/usr/local/directadmin/scripts/custom/aa_hook_scripts"
+    aa_da_scripts_path="${aa_scripts_path}/scripts"
+    aa_main_script_template="/usr/local/directadmin/scripts/custom/aa_hook_scripts/templates/aa_main.sh"
+
+    # Add da hook script name here to install automatically
+    da_setup_hook_scripts=("all_backups_post" "all_backups_pre" "all_restores_post" "autoresponder_delete_pre" "autoresponder_set_post"
+      "autoresponder_set_pre" "backup_save_pre" "brute_force_notify_pre" "check_letsencrypt_expiries_post" "check_partitions_notice_post" "cmd_site_backup_pre"
+      "cmd_user_backup_pre" "connection_info_post" "cron_set_post" "cron_set_pre" "database_create_post" "database_create_pre" "database_delete_post" "database_delete_pre"
+      "database_destroy_user_post" "database_user_create_post" "database_user_password_change_post" "database_user_password_change_pre" "dkim_create_post" "dns_create_post"
+      "dns_delete_post" "dns_raw_save_post" "dns_write_post" "dnssec_sign_post" "domain_change_post" "domain_change_pre" "domain_create_post" "domain_create_pre" "domain_destroy_post"
+      "domain_destroy_pre" "domain_modify_post" "domain_modify_pre" "domain_pointer_create_post" "domain_pointer_create_pre" "domain_pointer_destroy_post" "domain_pointer_destroy_pre"
+      "email_change_pass_post" "email_change_pass_pre" "email_create_post" "email_create_pre" "email_destroy_post" "email_destroy_pre" "email_filter_write_post" "email_filter_write_pre"
+      "file_manage_upload_post" "filemanager_pre" "forwarder_create_post" "forwarder_create_pre" "forwarder_delete_post" "forwarder_delete_pre" "ftp_change_pass_post" "ftp_change_pass_pre"
+      "ftp_create_post" "ftp_delete_post" "ftp_modify_post" "ip_change_post" "ip_change_pre" "ipsconf_write_post" "lestencrypt_post" "letsencrypt_pre" "load_spike_notice_post" "load_spike_notice_pre"
+      "login_key_create_post" "login_key_modify_post" "lost_password_pre" "mailing_list_save_post" "named_action_post" "notifyAdmins_post" "one_click_pma_login_post" "other_disk_usage" "overusage_notice_post"
+      "overusage_notice_pre" "package_copy_post" "package_copy_pre" "package_delete_post" "package_delete_pre" "package_rename_post" "package_rename_pre" "package_write_post" "package_write_pre"
+      "public_html_link_set_post" "public_html_link_set_pre" "reseller_destroy_pre" "reseller_modify_post" "reseller_modify_pre" "rotate_log_post" "rspamd_destroy_pre" "rspamd_edit_post" "rspamd_edit_pre"
+      "sendmail_pre" "sendSystemMessage_post" "sendSystemMessage_pre" "service_down_notice" "session_create_pre" "session_destroy_pre" "spam_script_chmod_0_post" "spamassassin_destroy_pre" "spamassassin_edit_post"
+      "spamassassin_edit_pre" "ssl_save_post" "ssl_save_pre" "subdomain_create_post" "subdomain_create_pre" "subdomain_destroy_post" "subdomain_destroy_pre" "tally_post" "tally_pre" "tally_rotation_post" "tally_user_post"
+      "taskq_dns_post" "update_post" "user_activate_post" "user_activate_pre" "user_backup_compress_pre" "user_backup_failed" "user_backup_post" "user_backup_pre" "user_backup_success" "user_create_post" "user_create_post_confirmed"
+      "user_create_pre" "user_destroy_post" "user_destroy_pre" "user_httpd_write_post" "user_httpd_write_pre" "user_info_modify_post" "user_modify_post" "user_modify_pre" "user_password_change_post" "user_password_change_pre"
+      "user_restore_fail_post" "user_restore_post" "user_restore_post_pre_cleanup" "user_restore_pre" "user_suspend_post" "user_suspend_pre" "vacation_set_post" "vacation_set_pre")
+
+    _echo "$(msg cyan)Checking directadmin path ... $(msg end)" --name
+    check_path "${da_bin}" "${da_cb_bin}" "${da_conf}" "${da_script_path}" "${da_custom_script_path}"
+
+    if [ ! -d "${SCRIPT_PATH}/directadmin" ]; then
+      _echo "$(msg red)Error, directadmin folder is missing from ${SCRIPT_PATH}/directadmin. The folder should exist!$(msg end)" --name
+      _exit 147
+    fi
+
+    echo ""
+
+    # This will only remove.sh file type (we don't want to remove another file such as README file)
+    # _echo "$(msg cyan)Removing existing directadmin custom scripts from ${da_custom_script_path} ...$(msg end)" --name
+    #find "${da_custom_script_path}" -name "*.sh" -type f -delete
+    # echo ""
+
+    # This will copy the main template into custom hook script
+    _echo "$(msg cyan)Removing custom hook script scripts from ${da_custom_script_path}/aa_hook_scripts ...$(msg end)" --name
+    rm -rf "${da_custom_script_path}/aa_hook_scripts"
+    get_status_message "$?"
+    echo ""
+    _echo "$(msg cyan)Copying custom hook script from ${SCRIPT_PATH}/directadmin/custom_scripts/aa_hook_scripts into ${da_custom_script_path}/ ...$(msg end)" --name
+    cp -r "${SCRIPT_PATH}/directadmin/custom_scripts/aa_hook_scripts" ${da_custom_script_path}/
+    get_status_message "$?"
+    echo ""
+
+    # Make sure the main hook script template exist
+    check_path "${aa_main_script_template}"
+
+    echo ""
+
+    for da_setup_hook_script in ${da_setup_hook_scripts[*]}; do
+      _echo "$(msg cyan)Removing existing custom hook script ${da_setup_hook_script} ...$(msg end)" --name
+      rm -rf "${da_custom_script_path}/${da_setup_hook_script}"
+      get_status_message "$?"
+      echo ""
+
+      #[OPTIONAL] This create hook_script at /usr/local/directadmin/scripts/custom/aa_hook_scripts/scripts/<hook_scripts_list>
+      # This is not important but just to make sure that the folders matched inside directadmin custom hook script
+      _echo "$(msg cyan)Creating aa custom hook script ${da_setup_hook_script} in ${aa_da_scripts_path}/${da_setup_hook_script}... $(msg end)" --name
+      mkdir -p "${aa_da_scripts_path}/${da_setup_hook_script}"
+      get_status_message "$?"
+      echo ""
+
+      # This will create hook_script at /usr/local/directadmin/scripts/custom/<hook_scripts_list>
+      _echo "$(msg cyan)Creating da custom hook script ${da_setup_hook_script} in ${da_custom_script_path}/${da_setup_hook_script} ... $(msg end)" --name
+      mkdir -p "${da_custom_script_path}/${da_setup_hook_script}"
+      get_status_message "$?"
+      echo ""
+      _echo "$(msg cyan)Copying aa_main.sh template into custom hook script ${da_setup_hook_script} in ${da_custom_script_path}/${da_setup_hook_script}/aa_main.sh ... $(msg end)" --name
+      cp "${aa_main_script_template}" "${da_custom_script_path}/${da_setup_hook_script}/aa_main.sh"
+      get_status_message "$?"
+      echo ""
+      _echo "$(msg cyan)Making the main hook script aa_main.sh inside ${da_setup_hook_script} executable in ${da_custom_script_path}/${da_setup_hook_script}/aa_main.sh ... $(msg end)" --name
+      chmod +x "${da_custom_script_path}/${da_setup_hook_script}/aa_main.sh"
+      get_status_message "$?"
+      echo ""
+
+    done
+
+    check_finish_reboot "${func_name}"
+  else
+    _echo "$(msg yellow)[Skipped by system]: $(msg magenta)${func_name}$(msg end) $(msg yellow)with current option ${run_mode} has ran before $(msg end)" --name
+    _echo "$(msg yellow)=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=$(msg end)" --plain
+  fi
+
+  if [[ "${extra_option}" == "--silent-if-executed" ]]; then
+    end_execute_options "${run_mode}" "${func_name}" &>/dev/null
+  else
+    end_execute_options "${run_mode}" "${func_name}"
+  fi
+}
+
 # This will change da related authentication.
 # It also has more options to secure DA installation. Example maybe this one we can create 2 step authentication
 configure_da_auth() {
@@ -14367,6 +14487,10 @@ configure_da_settings() {
     echo ""
 
     ${da_bin} set brute_force_secure_log "${C_DA_BRUTE_FORCE_SECURE_LOG}"
+    echo ""
+
+    _echo "$(msg cyan)Setting directadmin custom hook script to be able to pass custom variables ...$(msg end)" --name
+    ${da_bin} set hook_custom_vars "${C_DA_HOOK_CUSTOM_VARS}"
     echo ""
 
     # A lot of setting have been changed, now we need to restart directadmin
@@ -17966,11 +18090,7 @@ configure_maxiwall() {
       _echo "$(msg cyan)Installing suricata required components ...$(msg end)" --name
       # For Debian 11 change python-yaml to python3-yaml (not documented in official docs). Still I dont install rustc and cargo on debian (do manual)
       # Added extra jq package to enable to read jq
-      required "debian@@apt:jq,libpcre3,libpcre3-dbg,libpcre3-dev,build-essential,libpcap-dev,\
-      libnet1-dev,libyaml-0-2,libyaml-dev,pkg-config,zlib1g,zlib1g-dev,liblz4-dev,libcap-ng-dev,\
-      libcap-ng0,libmagic-dev,libjansson-dev,libnspr4-dev,libnss3-dev,libgeoip-dev,liblua5.1-0-dev,\
-      libhiredis-dev,libevent-dev,python3-yaml,python3-distutils,python3-pip"
-
+      required "debian@@apt:jq,libpcre3,libpcre3-dbg,libpcre3-dev,build-essential,libpcap-dev,libnet1-dev,libyaml-0-2,libyaml-dev,pkg-config,zlib1g,zlib1g-dev,liblz4-dev,libcap-ng-dev,libcap-ng0,libmagic-dev,libjansson-dev,libnspr4-dev,libnss3-dev,libgeoip-dev,liblua5.1-0-dev,libhiredis-dev,libevent-dev,python3-yaml,python3-distutils,python3-pip"
       echo ""
       _echo "$(msg cyan)Installing suricata python required library...$(msg end)" --name
       pip3 install PyYAML
@@ -18053,7 +18173,7 @@ configure_maxiwall() {
 
       _echo "Installing suricata with make install-full ... "
 
-      if [[ "${rustup_preferred_version}" == "latest" || "${rustup_preferred_version}" == "current" || "${rustup_preferred_version}" == "backport" ]]; then
+      if [[ "${rustup_preferred_version}" == "latest" ]]; then
         make install-full
       else
         RUSTUP_TOOLCHAIN="${rustup_preferred_version}" make install-full
@@ -20597,6 +20717,7 @@ clean_setup_files() {
   rm -vrf "${SCRIPT_PATH}/user_${C_SSH_USERNAME}_${C_BOX_HOSTNAME_FQHN}.id_rsa.pub"
   rm -vrf "${SCRIPT_PATH}/maxiaide"
   rm -vrf "${SCRIPT_PATH}/maxiclam"
+  rm -vrf "${SCRIPT_PATH}/directadmin"
   echo ""
   # Clear bash history
   _echo "Cleaning bash history"
@@ -20734,6 +20855,7 @@ setup() {
         install_da_pre --run
         install_da --run
         install_da_post --run
+        configure_da_scripts --run
         configure_da_auth --run
         configure_bind --run
         install_da_csf --run
@@ -20805,6 +20927,7 @@ setup() {
         install_da_pre --run
         install_da --run
         install_da_post --run
+        configure_da_scripts --run
         configure_da_auth --run
         configure_bind --run
         configure_csf --run
@@ -21228,6 +21351,17 @@ while [ "$#" -gt 0 ]; do
     ssh_api transfer-files --server-port "${C_BOX_HOSTNAME_FQHN}:${C_SSH_PORT}" --group-user "${C_ROOT_USERGROUP}:${C_ROOT_USERNAME}" --local-files "${FILE_TO_TRANSFER}" --remote-path "${REMOTE_PATH_TO_RECEIVE}"
     break
     ;;
+  update-da-script | update-da-scripts)
+    ensure_internet_connected
+    ensure_domain_server_resolved
+    ensure_fqhn_server_resolved
+    shift
+    FILE_TO_TRANSFER="${SECURE_PATH}/directadmin/custom_scripts/*"
+    REMOTE_PATH_TO_RECEIVE="${HOME}/directadmin/custom_scripts"
+    ssh_api mkdir --server-port ${C_BOX_HOSTNAME_FQHN}:${C_SSH_PORT} --group-user ${C_ROOT_USERGROUP}:${C_ROOT_USERNAME} --remote-path "${REMOTE_PATH_TO_RECEIVE}"
+    ssh_api transfer-files --server-port "${C_BOX_HOSTNAME_FQHN}:${C_SSH_PORT}" --group-user "${C_ROOT_USERGROUP}:${C_ROOT_USERNAME}" --local-files "${FILE_TO_TRANSFER}" --remote-path "${REMOTE_PATH_TO_RECEIVE}"
+    break
+    ;;
   update-maxinet-remote-script | update-remote-scripts | update-remote-script | update-remote-code | push-script | update-script | update-scripts)
     ensure_internet_connected
     ensure_domain_server_resolved
@@ -21272,6 +21406,13 @@ while [ "$#" -gt 0 ]; do
     ssh_api mkdir --server-port ${C_BOX_HOSTNAME_FQHN}:${C_SSH_PORT} --group-user ${C_ROOT_USERGROUP}:${C_ROOT_USERNAME} --remote-path "${REMOTE_PATH_TO_RECEIVE}"
     ssh_api transfer-files --server-port "${C_BOX_HOSTNAME_FQHN}:${C_SSH_PORT}" --group-user "${C_ROOT_USERGROUP}:${C_ROOT_USERNAME}" --local-files "${FILE_TO_TRANSFER}" --remote-path "${REMOTE_PATH_TO_RECEIVE}"
     echo ""
+
+    # add directadmin custom hook scripts
+    FILE_TO_TRANSFER="${SECURE_PATH}/directadmin/custom_scripts/*"
+    REMOTE_PATH_TO_RECEIVE="${HOME}/directadmin/custom_scripts"
+    ssh_api mkdir --server-port ${C_BOX_HOSTNAME_FQHN}:${C_SSH_PORT} --group-user ${C_ROOT_USERGROUP}:${C_ROOT_USERNAME} --remote-path "${REMOTE_PATH_TO_RECEIVE}"
+    ssh_api transfer-files --server-port "${C_BOX_HOSTNAME_FQHN}:${C_SSH_PORT}" --group-user "${C_ROOT_USERGROUP}:${C_ROOT_USERNAME}" --local-files "${FILE_TO_TRANSFER}" --remote-path "${REMOTE_PATH_TO_RECEIVE}"
+    break
 
     exit 0
     break

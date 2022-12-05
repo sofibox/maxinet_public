@@ -82,7 +82,7 @@ C_LOG_VERBOSITY_LEVEL="6"
 # If no action is taken during 120 seconds, it will execute a low level deletion using shred command to completely destroy the file (unrecoverable).
 # Make sure that you have the backup config file in a secure place before it is being destroyed.
 # Possible values are: true, false
-C_AUTO_DESTROY_CONFIG=false
+C_AUTO_DESTROY_CONFIG=true
 
 # C_HOST_PUBIC_IP:
 # This variable is used to store the current host public IP.
@@ -91,7 +91,7 @@ C_AUTO_DESTROY_CONFIG=false
 # If you leave this variable empty, it will automatically retrieve your current host public IP from the script.
 # possible values are any IPv6 or IPv4 host public IP
 # Important note: Known issue, if this variable is not supplied, it might slow down script.
-C_HOST_PUBLIC_IP="1.2.3.4"
+C_HOST_PUBLIC_IP="123.123.123.123"
 
 # C_SPIN_PROGRESS:
 # This variable is used to display progress bar animation within the function _echo().
@@ -154,7 +154,7 @@ C_SERVER_TYPE="directadmin"
 # By enabling this feature, this website test.com will have its own configuration.
 # Currently, this feature only compatible with private repo
 # Possible values are: true, false
-C_USE_CUSTOM_WEB_CONFIG=true
+C_USE_CUSTOM_WEB_CONFIG=false
 
 # C_DISK_ENCRYPTION is used to create full disk encryption or use normal partition during OS installation.
 # The encryption will use LUKS method. This option should be enabled for VPS that support full disk encryption such as linode
@@ -245,21 +245,21 @@ C_PHPMYADMIN_SECURE_ROUTE="false"
 C_PHPMYADMIN_CUSTOM_NAME="MyDB"
 C_PHPMYADMIN_LOGIN_ROUTE="/dbprivate"
 C_HTTPASSWD_PHPMYADMIN_USERNAME="dbuser51"
-C_HTTPASSWD_PHPMYADMIN_PASS="PASSWORD"
+C_HTTPASSWD_PHPMYADMIN_PASS="putsecurephpmyhttpdpassword_here"
 # If set to true, it will not create temporary custom login for roundcube
 C_ROUNDCUBE_SECURE_ROUTE="false"
 # Create roundcube custom route here instead of using /roundcube, begin with /: eg /mailx123
 C_ROUNDCUBE_CUSTOM_NAME="MyMail"
 C_ROUNDCUBE_LOGIN_ROUTE="/mailprivate"
 C_HTTPASSWD_ROUNDCUBE_USERNAME="mailuser11"
-C_HTTPASSWD_ROUNDCUBE_PASS="PASSWORD"
+C_HTTPASSWD_ROUNDCUBE_PASS="putsecureroundcubehttpdpasswordhere"
 C_APACHE_SERVER_STATUS_ROUTE="/sofibox-status-private144"
 C_APACHE_SERVER_INFO_ROUTE="/server-info-private123"
 C_APACHE_SERVER_ROUTE_USERNAME="apserv11"
-C_APACHE_SERVER_ROUTE_PASS="xxxO123"
+C_APACHE_SERVER_ROUTE_PASS="xxxO123_long_passwordhere"
 # Can be either public repository or private repo
 C_SETUP_GIT_URL="https://token@github.com/sofibox/maxinet.git"
-C_GIT_TOKEN="TOKEN_KEY"
+C_GIT_TOKEN="The github TOKEN_KEY to access private repo for various scripts. Public repo will be available soon"
 # To reduce server bot attack on SSH, you must change this SSH PORT
 C_RESCUE_SSH_PORT="833"
 C_SSH_PORT="892"
@@ -270,7 +270,7 @@ C_SSH_USERPASS="*long-secured-password*"
 # You can leave this empty, or do anything because the script has its own ssh key, if script has trouble finding key file then it will use this:
 C_SSH_PUBLIC_KEY="ssh-rsa AAAAWEUjt3Wm414*****k7PDKne/3dQ== sun.codegix.com-auth"
 # Planned feature
-C_SSH_PASSPHRASE="**SSH_PASSPHRASE***"
+C_SSH_PASSPHRASE="PUT_SSH_PASSPHRASE_HERE"
 
 # C_USE_LATEST_ISO:
 # This variable is used to enable the --create-iso option to use latest ISO file from the web to create OS server automated installation.
@@ -304,13 +304,13 @@ C_BOX_SWAP_SIZE="4096"
 # -1 = largest available size (put last so can expand easier), -1 means infinity
 C_BOX_HOME_SIZE="-1" #"size-in-MB" # or put -1 for infinity
 C_BOX_RAM="32GB"
-C_BOX_DOMAIN="test.com"
+C_BOX_DOMAIN="sofihost.com"
 # C_BOX_HOSTNAME_FQHN:
 # This is an important variable to define a full qualified host name for a server
 # This value also is a reference to the variable to other external DNS such as C_LINODE_LABEL
 # It must be a full qualified host name value, else the script will ask to correct this.
 # The external server will have this unique label name and will rename automatically as this host name
-C_BOX_HOSTNAME_FQHN="server.test.com"
+C_BOX_HOSTNAME_FQHN="server.sofihost.com"
 # OPTIONAL variable, if not specified it will take the host name from C_BOX_HOSTNAME_FQHN
 # this is sensitive variable must be declared as empty even it is autogenerate value
 C_BOX_HOSTNAME=""
@@ -347,7 +347,8 @@ C_NAME_SERVER1="123.11.11.5"
 C_NAME_SERVER2="123.11.14.5"
 C_NAME_SERVER3="112.33.21.5"
 #interactive=user need to press enter, auto=forced reboot (no user interaction), disabled - no reboot
-C_ENABLE_SETUP_REBOOT="interactive"
+# Script will check if reboot is required during installation, you can manually press enter or use auto to auto reboot
+C_ENABLE_SETUP_REBOOT="auto"
 #OSSEC_INS_TYPE="agent" #or local or hybrid
 # ====== CSF SETTING ==========
 # CSF port setting: Remember, no space. This variable can be empty string
@@ -383,6 +384,7 @@ C_GPG_CACHE_DURATION="34560000" #34560000
 # Note version 6.0.9 has a small bug that it show error about kernel compatibility when not running as daemon but it is working fine
 # distro is stable but lack of features
 C_SURICATA_SELECT_VERSION="distro"
+# Need to modify this API URL if they change this like from v2 to v3
 C_MAXIWALL_AIPDB_CHECK_URL="https://api.abuseipdb.com/api/v2/check"
 C_MAXIWALL_AIPDB_REPORT_URL="https://api.abuseipdb.com/api/v2/report"
 # The main abuseAIPDB key
@@ -400,8 +402,8 @@ C_DNS_PROVIDER_USER=""
 # Normally this is used to speed up directadmin user creation and you have confirmed the local DNS records match the external records
 # This option also effect the hostname external DNS record whether to copy from local DNS or not
 C_AUTO_CREATE_EXTERNAL_DNS_RECORD=true
-# C_ENABLE_DNS_PROPAGATION_CHECKER is use to enable the main domain and hostname propagation. Leave this enabled unless you have reason
-C_ENABLE_DNS_PROPAGATION_CHECKER=false
+# C_ENABLE_DNS_PROPAGATION_CHECKER is use to enable the main domain and hostname propagation. Leave this enabled unless you have reason to disable
+C_ENABLE_DNS_PROPAGATION_CHECKER=true
 # Format <provider_name>:<provider_username>:<api_key>
 # If you change the API key, remove this file /root/.config/linode-cli, and linode will re-add the new key automatically
 C_LINODE_API="LINODE_API_TOKEN_HERE"
@@ -439,7 +441,7 @@ C_YQ_VERSION=false
 C_ENABLE_DNSSEC=false
 
 # GOTIFY configuration
-# Temporarily disable to enable SSL first later and check for vulnerabilities:
+# Temporarily disable to enable SSL certificate later and check for vulnerabilities:
 C_GOTIFY_INSTALLATION=false
 C_GOTIFY_SYSTEM_USERNAME="gotify"
 C_GOTIFY_SYSTEM_GROUP="gotify"
@@ -507,7 +509,7 @@ C_DA_AUTO_SELECT_API_PROTOCOL=true
 C_DA_INSTALL_TYPE="custom"
 
 # stable, current, beta, alpha
-C_DA_VERSION_CHANNEL="current"
+C_DA_VERSION_CHANNEL="stable"
 
 # C_DA_CLIENT_ID:
 # This is the directadmin client/user ID license obtained in the directadmin client area
@@ -530,9 +532,9 @@ C_DA_PORT="2233"
 
 # C_DA_[ROLE]_HELPER:
 # This is used to set online help file in directadmin
-C_DA_ADMIN_HELPER="help.codegix.com/directadmin/admin"
-C_DA_RESELLER_HELPER="help.codegix.com/directadmin/reseller"
-C_DA_USER_HELPER="help.codegix.com/directadmin/user"
+C_DA_ADMIN_HELPER="codegix.com/directadmin/help/admin"
+C_DA_RESELLER_HELPER="codegix.com/directadmin/help/reseller"
+C_DA_USER_HELPER="codegix.com/directadmin/help/user"
 
 # C_DA_INSTALL_REDIS:
 # This is used to enable and install redis cache
@@ -568,10 +570,10 @@ C_DA_AUTO_LINK_IP=true
 C_DA_LOGIN_METHOD="sign-as"
 
 # Global variable for disabling all user backup restoration
-# To allow user backup restoration automatically put this value to true
+# To allow user backup restoration automatically put this value to true but you must have existing backup inside secure folder: secure/backup/admin_backups
 C_DA_ENABLE_USER_BACKUP_RESTORE=false
 
-# This is the directadmin backup password. Use to decrypt backup automatically
+# This is the directadmin backup password. Use to decrypt backup automatically during restoration
 C_DA_USER_BACKUP_PASSWORD="PASSWORD_HERE"
 
 # C_DA_ENABLE_DOMAIN_AUTO_SSL is used to enable or disable DA AUTO SSL feature
@@ -843,6 +845,10 @@ C_DA_BRUTE_FORCE_ROUNDCUBE_LOG="/var/www/html/roundcube/logs/errors"
 
 #A path to OS secure log file to be scanned by Brute Force Monitor. Not available in Debian clean install
 C_DA_BRUTE_FORCE_SECURE_LOG="/var/log/secure"
+
+# With this setting, it will allow custom hook script to pass custom variables between hook scripts
+
+C_DA_HOOK_CUSTOM_VARS=1
 
 #---- End directadmin.conf settings ----
 #---------------------------------------
