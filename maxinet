@@ -5,7 +5,7 @@
 # remote OS fully tested: debian 11 | remote OS partially tested: Almalinux
 _APP_SPECIFIC_NAME="Maxinet"
 # Note that some minor versions are not published
-_APP_VERSION="1.1"
+_APP_VERSION="1.2"
 _APP_STATUS="alpha"
 _APP_VERSION_STATUS="${_APP_VERSION}-${_APP_STATUS}"
 
@@ -1572,7 +1572,7 @@ init_server() {
     esac
   done
 
-  _confirm "Warning, this command will wipe the entire server because --rebuild-partition is supplied! Continue? [Y/y] or Cancel [CTRL +C]:"
+  [[ "${rebuild_partition}" == "true" ]] && _confirm "Warning, this command will wipe the entire server because --rebuild-partition is supplied! Continue? [Y/y] or Cancel [CTRL +C]:"
   echo ""
   _echo "$(msg yellow)Updating local system ...$(msg end)" --name
   apt-get -y update
@@ -1708,7 +1708,7 @@ init_server() {
     # Do not over call the API, use sleep 5 minutes (300 seconds). The installation approximate time is  + minutes.
     # For debian 11 installation time take more than 300 seconds .. so we wait at this duration
     if [[ "${C_BOX_ISO_OS_NAME}" == "debian" ]]; then
-      max_wait=300
+      max_wait=270
     else
       max_wait=120
     fi
@@ -4762,6 +4762,9 @@ iso_api() {
         echo ""
         _echo "$(msg cyan)Removing current preseed configuration file ...$(msg end)" --name
         rm -rf "${preseed_file}"
+
+        # Back to the original script path as the above path was deleted and can cause issue on rsync transfer later
+        navigate_path "${SCRIPT_PATH}"
 
       # My custom method
       else
@@ -11694,7 +11697,8 @@ configure_da_scripts() {
     da_custom_script_path="/usr/local/directadmin/scripts/custom"
     aa_scripts_path="/usr/local/directadmin/scripts/custom/aa_hook_scripts"
     aa_da_scripts_path="${aa_scripts_path}/scripts"
-    aa_main_script_template="/usr/local/directadmin/scripts/custom/aa_hook_scripts/templates/aa_main.sh"
+    aa_main_script_options_conf="${aa_scripts_path}/aa_options.conf"
+    aa_main_script_template="${aa_scripts_path}/templates/aa_main.sh"
 
     # Add da hook script name here to install automatically
     da_setup_hook_scripts=("all_backups_post" "all_backups_pre" "all_restores_post" "autoresponder_delete_pre" "autoresponder_set_post"
@@ -11725,11 +11729,6 @@ configure_da_scripts() {
 
     echo ""
 
-    # This will only remove.sh file type (we don't want to remove another file such as README file)
-    # _echo "$(msg cyan)Removing existing directadmin custom scripts from ${da_custom_script_path} ...$(msg end)" --name
-    #find "${da_custom_script_path}" -name "*.sh" -type f -delete
-    # echo ""
-
     # This will copy the main template into custom hook script
     _echo "$(msg cyan)Removing custom hook script scripts from ${da_custom_script_path}/aa_hook_scripts ...$(msg end)" --name
     rm -rf "${da_custom_script_path}/aa_hook_scripts"
@@ -11740,6 +11739,11 @@ configure_da_scripts() {
     get_status_message "$?"
     echo ""
 
+    # Disable hook script logging:
+    _echo "$(msg cyan)Disabling custom hook script logging at ${aa_main_script_options_conf}...$(msg end)" --name
+    sed -i "s|^AA_ENABLE_LOG\=.*|AA_ENABLE_LOG=ON|" ${aa_main_script_options_conf}
+    get_status_message "$?"
+    echo ""
     # Make sure the main hook script template exist
     check_path "${aa_main_script_template}"
 
@@ -11751,22 +11755,32 @@ configure_da_scripts() {
       get_status_message "$?"
       echo ""
 
-      #[OPTIONAL] This create hook_script at /usr/local/directadmin/scripts/custom/aa_hook_scripts/scripts/<hook_scripts_list>
-      # This is not important but just to make sure that the folders matched inside directadmin custom hook script
+      # This create hook_script at /usr/local/directadmin/scripts/custom/aa_hook_scripts/scripts/<hook_scripts_list>
+      # This is to make sure that the folders matched inside directadmin custom hook script
       _echo "$(msg cyan)Creating aa custom hook script ${da_setup_hook_script} in ${aa_da_scripts_path}/${da_setup_hook_script}... $(msg end)" --name
       mkdir -p "${aa_da_scripts_path}/${da_setup_hook_script}"
       get_status_message "$?"
       echo ""
+
+      # If options.conf file does not exist in the hook script folder, we create that file
+      if [ ! -f "${aa_da_scripts_path}/${da_setup_hook_script}/options.conf" ]; then
+        _echo "$(msg cyan)Creating aa custom hook script ${da_setup_hook_script} in ${aa_da_scripts_path}/${da_setup_hook_script}... $(msg end)" --name
+        echo "RUN_HOOK_SCRIPT_LIST=(\"\")" >"${aa_da_scripts_path}/${da_setup_hook_script}/options.conf"
+        get_status_message "$?"
+        echo ""
+      fi
 
       # This will create hook_script at /usr/local/directadmin/scripts/custom/<hook_scripts_list>
       _echo "$(msg cyan)Creating da custom hook script ${da_setup_hook_script} in ${da_custom_script_path}/${da_setup_hook_script} ... $(msg end)" --name
       mkdir -p "${da_custom_script_path}/${da_setup_hook_script}"
       get_status_message "$?"
       echo ""
+
       _echo "$(msg cyan)Copying aa_main.sh template into custom hook script ${da_setup_hook_script} in ${da_custom_script_path}/${da_setup_hook_script}/aa_main.sh ... $(msg end)" --name
       cp "${aa_main_script_template}" "${da_custom_script_path}/${da_setup_hook_script}/aa_main.sh"
       get_status_message "$?"
       echo ""
+
       _echo "$(msg cyan)Making the main hook script aa_main.sh inside ${da_setup_hook_script} executable in ${da_custom_script_path}/${da_setup_hook_script}/aa_main.sh ... $(msg end)" --name
       chmod +x "${da_custom_script_path}/${da_setup_hook_script}/aa_main.sh"
       get_status_message "$?"
