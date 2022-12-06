@@ -635,6 +635,72 @@ C_DA_ENABLE_DOMAIN_SECURITY_HEADER=true
 # this option required C_DA_ENABLE_DOMAIN_SECURITY_HEADER set to true
 C_DA_ENABLE_DOMAIN_HSTS="global:31536000"
 
+# START hook scripts related configs
+
+# This variable is used to output log file for each individual directadmin da custom hook script call. The file name of the log is <da_hook_name>.<script_name>.log
+# The individual da custom hook script log file will be placed at:
+# /usr/local/directadmin/scripts/custom/aa_hook_scripts/scripts/<da_hook_name>/<da_hook_name>.<script_name>.log
+C_AA_ENABLE_DA_HOOK_SCRIPT_LOG=true
+
+# This variable is used whether to combine the individual da custom hook script log file into a one file at this location:
+# /usr/local/directadmin/scripts/custom/aa_hook_scripts/all_hook_scripts.log
+# By using this option, you can watch all the custom hook script log using tail -f all_hook_scripts.log or using dacli command: dacli view-all-hookscript-log
+# This is similar to directadmin all_pre.sh and all_post.sh hook scripts except you have more control to select specific hook scripts to display output.
+# This options required C_DA_ENABLE_HOOK_SCRIPT_LOG = true, else it will show nothing
+C_AA_ENABLE_GLOBAL_HOOK_LOG=true
+
+# This option is used to install da custom hook script. When you enable this option for example filemanager_pre, the following files/folders will be created
+# 1) A da hook folder name will be created at:
+# /usr/local/directadmin/scripts/custom/aa_hook_scripts/scripts/filemanager_pre
+# 2) An individual custom hook script options.conf will be created if it does not exist here:
+# /usr/local/directadmin/scripts/custom/aa_hook_scripts/scripts/filemanager_pre/options.conf
+# If the file options.conf is a new file, it will have a default variable RUN_HOOK_SCRIPT_LIST=(""), in which you can use it to arrange da hook script execution order later
+# 3) A da hook folder name will be created at:
+# /usr/local/directadmin/scripts/custom/filemanager_pre
+# 4) A main da hook script file called aa_main.sh will be created here (with execution permission):
+# /usr/local/directadmin/scripts/custom/filemanager_pre/aa_main.sh
+C_AA_INSTALL_DA_HOOKS=("all_backups_post" "all_backups_pre" "all_pre" "all_post" "all_restores_post" "autoresponder_delete_pre" \
+"autoresponder_set_post" "autoresponder_set_pre" "backup_save_pre" "brute_force_notify_pre" "check_letsencrypt_expiries_post" \
+"check_partitions_notice_post" "cmd_site_backup_pre" "cmd_user_backup_pre" "connection_info_post" "cron_set_post" "cron_set_pre" \
+"database_create_post" "database_create_pre" "database_delete_post" "database_delete_pre" "database_destroy_user_post" \
+"database_user_create_post" "database_user_password_change_post" "database_user_password_change_pre" "dkim_create_post" \
+"dns_create_post" "dns_delete_post" "dns_raw_save_post" "dns_write_post" "dnssec_sign_post" "domain_change_post" "domain_change_pre" \
+"domain_create_post" "domain_create_pre" "domain_destroy_post" "domain_destroy_pre" "domain_modify_post" "domain_modify_pre" \
+"domain_pointer_create_post" "domain_pointer_create_pre" "domain_pointer_destroy_post" "domain_pointer_destroy_pre" \
+"email_change_pass_post" "email_change_pass_pre" "email_create_post" "email_create_pre" "email_destroy_post" "email_destroy_pre" \
+"email_filter_write_post" "email_filter_write_pre" "file_manage_upload_post" "filemanager_pre" "forwarder_create_post" \
+"forwarder_create_pre" "forwarder_delete_post" "forwarder_delete_pre" "ftp_change_pass_post" "ftp_change_pass_pre" "ftp_create_post" \
+"ftp_delete_post" "ftp_modify_post" "ip_change_post" "ip_change_pre" "ipsconf_write_post" "lestencrypt_post" "letsencrypt_pre" \
+"load_spike_notice_post" "load_spike_notice_pre" "login_key_create_post" "login_key_modify_post" "lost_password_pre" \
+"mailing_list_save_post" "named_action_post" "notifyAdmins_post" "one_click_pma_login_post" "other_disk_usage" \
+"overusage_notice_post" "overusage_notice_pre" "package_copy_post" "package_copy_pre" "package_delete_post" "package_delete_pre" \
+"package_rename_post" "package_rename_pre" "package_write_post" "package_write_pre" "public_html_link_set_post" \
+"public_html_link_set_pre" "reseller_destroy_pre" "reseller_modify_post" "reseller_modify_pre" "rotate_log_post" "rspamd_destroy_pre" \
+"rspamd_edit_post" "rspamd_edit_pre" "sendmail_pre" "sendSystemMessage_post" "sendSystemMessage_pre" "service_down_notice" \
+"session_create_pre" "session_destroy_pre" "spam_script_chmod_0_post" "spamassassin_destroy_pre" "spamassassin_edit_post" \
+"spamassassin_edit_pre" "ssl_save_post" "ssl_save_pre" "subdomain_create_post" "subdomain_create_pre" "subdomain_destroy_post" \
+"subdomain_destroy_pre" "tally_post" "tally_pre" "tally_rotation_post" "tally_user_post" "taskq_dns_post" "update_post" \
+"user_activate_post" "user_activate_pre" "user_backup_compress_pre" "user_backup_failed" "user_backup_post" "user_backup_pre" \
+"user_backup_success" "user_create_post" "user_create_post_confirmed" "user_create_pre" "user_destroy_post" "user_destroy_pre" \
+"user_httpd_write_post" "user_httpd_write_pre" "user_info_modify_post" "user_modify_post" "user_modify_pre" "user_password_change_post" \
+"user_password_change_pre" "user_restore_fail_post" "user_restore_post" "user_restore_post_pre_cleanup" "user_restore_pre" \
+"user_suspend_post" "user_suspend_pre" "vacation_set_post" "vacation_set_pre")
+
+# This will enable individual da hook script
+C_AA_ENABLE_DA_HOOKS=("user_restore_fail_post" "user_restore_post" "filemanager_pre")
+
+# This variable is for directadmin.conf. It will enable/disable the ability to pass custom variables between hook scripts
+C_DA_HOOK_CUSTOM_VARS=1
+
+# This variable is for directadmin.conf. It will enable/disable output script for dns_write_post hook even if no error appear
+C_DA_SPECIAL_EXIT_CODE=42
+
+# This variable is for directadmin.conf. It will enable/disable ENV variable output for all_pre and all_post scripts
+# Only enable for debugging because the output are useless for production
+C_DA_ALWAYS_LOAD_ALL_SCRIPT_ENV_VARS=0
+
+# END hook scripts related configs
+
 #------------------------------------------------------------------
 # Start directadmin.conf options ( Directadmin version: 1.63.1 )  #
 #------------------------------------------------------------------
@@ -845,10 +911,6 @@ C_DA_BRUTE_FORCE_ROUNDCUBE_LOG="/var/www/html/roundcube/logs/errors"
 
 #A path to OS secure log file to be scanned by Brute Force Monitor. Not available in Debian clean install
 C_DA_BRUTE_FORCE_SECURE_LOG="/var/log/secure"
-
-# With this setting, it will allow custom hook script to pass custom variables between hook scripts
-
-C_DA_HOOK_CUSTOM_VARS=1
 
 #---- End directadmin.conf settings ----
 #---------------------------------------

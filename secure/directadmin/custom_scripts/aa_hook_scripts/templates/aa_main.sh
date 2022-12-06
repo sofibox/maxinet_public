@@ -67,10 +67,17 @@ fi
 IS_HOOK_ENABLED=$(echo "${AA_ENABLE_HOOKS[@]}" | grep "${DA_HOOK_NAME}")
 
 # Check whether to separate log or use multi log
-if [ "${AA_ENABLE_GLOBAL_LOG}" == "yes" ]; then
+if [[ "${AA_ENABLE_GLOBAL_HOOK_LOG^^}" == "YES" || "${AA_ENABLE_GLOBAL_HOOK_LOG^^}" == "TRUE" || "${AA_ENABLE_GLOBAL_HOOK_LOG}" == "1" ]]; then
   REPORT_FILE="${AA_SCRIPT_PATH}/all_hook_scripts.log"
 else
   REPORT_FILE="${AA_DA_HOOK_SCRIPT_PATH}/${DA_HOOK_NAME}_${SCRIPT_NAME}.log"
+fi
+
+touch "${REPORT_FILE}"
+
+# check whether to disable file reporting completely
+if [[ ! ("${AA_ENABLE_HOOK_LOG^^}" = "YES" || "${AA_ENABLE_HOOK_LOG^^}" = "TRUE" || "${AA_ENABLE_HOOK_LOG}" = "1") ]]; then
+  REPORT_FILE=/dev/null
 fi
 
 if [ -n "${IS_HOOK_ENABLED}" ]; then
@@ -85,15 +92,7 @@ if [ -n "${IS_HOOK_ENABLED}" ]; then
     exit 1
   fi
 
-  # check whether to disable file reporting
-  if [ "${AA_ENABLE_LOG}" != "yes" ]; then
-    REPORT_FILE=/dev/null
-  fi
-
-  touch "${REPORT_FILE}"
-
   # This is the main script that will manage which script to execute in order
-
   {
     echo ""
     echo "[${DA_HOOK_NAME}->${SCRIPT_NAME}][${EXECUTION_TIME}]:" >>"${REPORT_FILE}"
