@@ -8,7 +8,7 @@ All custom scripts should end with .sh extension to distinguish between a normal
 
 All custom scripts inside the pre- and post-folder will be executed in alphabetical order.
 
-To reduce confusion on how the alphabetical oder execution work, only one main script should be placed in custom hook 
+To reduce confusion on how the alphabetical oder execution work, only one main script should be placed in custom hook
 folder called aa_main.sh
 
 The main script aa_main.sh may call one or multiple .sh custom scripts inside the folder at the following location

@@ -1,7 +1,10 @@
 # Configuration file for <script_name>.conf:
 # Author: Arafat Ali | Email: arafat@sofibox.com | Web: sofibox.com
 # =~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~="
-# 0) Create a file called execution_env file in this script path with the content 'local' if you are running this script as local system
+# 0) Very important!! Make sure the hostname at the remote server is set correctly before running this script.
+#    For remote server's hostname, it must match the variable C_BOX_HOSTNAME_FQHN in this config file.
+#    Warning, do not set your local OS' hostname same as your remote server's hostname beacuse the script might have the ability to repartition your local OS' disk drive;
+#    AKA destructive behavior. The script will not deploy a new server if the remote hostname does not match the variable C_BOX_HOSTNAME_FQHN in this config file.
 # 1) Fill appropriate variable in config file <script_name>.conf before running setup. Make sure this file is in the same path within the script.
 # 2) The file <script_name>.conf contains sensitive information, setup will auto destroy this file after you have finished installation for security.
 #    Do not run this script if you are running multiple users in the system because the information data from the config file might be leaked to other users
@@ -52,6 +55,22 @@
 # This variable is the version of this config file. This is the main variable used by script to determine if source contain valid value
 C_CONFIG_VERSION="1.0"
 
+
+# C_HOST_PUBLIC_IP:
+# This variable is used to store the current host public IP.
+# This IP address is useful for example to allow firewall to ignore this IP during setup
+# The possible values are any IPv4 or IPv6
+# You should leave this variable empty and let the script retrieve your current host public IP.
+# possible values are any IPv6 or IPv4 host public IP
+C_HOST_PUBLIC_IP=""
+
+
+# C_HOST_TYPE:
+# This variable is used to store the type of host (whether it is local or remote)
+# If you are unsure, please do not assign this value manually, let the script determine it automatically
+C_HOST_TYPE=""
+
+
 # C_HIDE_SENSITIVE_TEXT:
 # This variable is used to hide sensitive information on the terminal such as username, password, port.
 # The script will create a new template file in <script_name>/conf/sensitive_label that contains all variables from this config files based on the value of true or false
@@ -83,15 +102,6 @@ C_LOG_VERBOSITY_LEVEL="6"
 # Make sure that you have the backup config file in a secure place before it is being destroyed.
 # Possible values are: true, false
 C_AUTO_DESTROY_CONFIG=true
-
-# C_HOST_PUBIC_IP:
-# This variable is used to store the current host public IP.
-# This IP address is useful for example to allow firewall to ignore this IP during setup
-# The possible values are any IPv4 or IPv6
-# If you leave this variable empty, it will automatically retrieve your current host public IP from the script.
-# possible values are any IPv6 or IPv4 host public IP
-# Important note: Known issue, if this variable is not supplied, it might slow down script.
-C_HOST_PUBLIC_IP="123.123.123.123"
 
 # C_SPIN_PROGRESS:
 # This variable is used to display progress bar animation within the function _echo().
@@ -278,7 +288,7 @@ C_SSH_PASSPHRASE="PUT_SSH_PASSPHRASE_HERE"
 # Possible values are: true, false
 C_USE_LATEST_ISO=false
 C_BOX_ISO_OS_NAME="debian"
-C_OS_SELECT_VERSION="11.5.0"
+C_OS_SELECT_VERSION="11.6.0"
 # Useful for creating ISO
 C_OS_SET_CODE_NAME="bullseye"
 # possible value: cfq, noop, deadline
@@ -405,11 +415,20 @@ C_AUTO_CREATE_EXTERNAL_DNS_RECORD=true
 # C_ENABLE_DNS_PROPAGATION_CHECKER is use to enable the main domain and hostname propagation. Leave this enabled unless you have reason to disable
 C_ENABLE_DNS_PROPAGATION_CHECKER=true
 # Format <provider_name>:<provider_username>:<api_key>
-# If you change the API key, remove this file /root/.config/linode-cli, and linode will re-add the new key automatically
-C_LINODE_API="LINODE_API_TOKEN_HERE"
-C_DNS_PROVIDER_API1="linode:linode_username:LINODE_API_TOKEN_HERE"
-C_DNS_PROVIDER_TERMINAL_SERVER="lish-usa1.linode.com"
+
+# Can be aws, digitalocean, linode, local ...
+C_DNS_PROVIDER_NAME="linode"
 # For linode configuration
+# Linode API username is set here
+C_LINODE_API_USERNAME="maxibi"
+# If you change the API key, remove this file /root/.config/linode-cli, and linode will re-add the new key automatically
+C_LINODE_API_KEY="LINODE_API_KEY_HERE"
+C_LINODE_API_URL="https://api.linode.com/v4"
+C_LINODE_API_PORT="443"
+# Linode has a special terminal server called lish
+C_LINODE_TERMINAL_SERVER="lish-singapore.linode.com"
+
+# Disk and label related
 C_LINODE_OS_CONFIG_LABEL="OS_Config"
 C_LINODE_BOOT_CONFIG_LABEL="Boot_Config"
 C_LINODE_RESCUE_CONFIG_LABEL="Rescue_Config"
@@ -418,6 +437,7 @@ C_LINODE_BOOT_DISK_LABEL="Boot_Disk"
 C_LINODE_RESCUE_DISK_LABEL="Rescue_Disk"
 # For external DNS, the linode label should reference this.
 C_LINODE_LABEL="${C_BOX_HOSTNAME_FQHN}"
+
 # For amazonaws configuration
 
 # For digitalocean configuration
@@ -451,8 +471,9 @@ C_GOTIFY_PUSH_PRIORITY=10
 C_GOTIFY_VERSION="2.1.7" # Previous 2.0.23 (work)
 C_GOTIFY_PLATFORM="linux-amd64"
 C_GOTIFY_PORT="8722"
-C_GOTIFY_USERNAME="admin"
-C_GOTIFY_PASSWORD="gotifypassword++"
+C_GOTIFY_SSL_PORT="8907"
+C_GOTIFY_ADMIN_USERNAME="admin"
+C_GOTIFY_ADMIN_PASSWORD="gotifypassword++"
 C_GOTIFY_APP_NAME="test.server.com"
 # This variable C_GOTIFY_APP_DESCRIPTION is optional and be empty
 C_GOTIFY_APP_DESCRIPTION=""
@@ -463,7 +484,6 @@ C_GOTIFY_CLI_VERSION="2.2.2"
 C_DROPBOX_CONFIGFILE_VERSION="2.0"
 C_DROPBOX_OAUTH_APP_KEY="KEY"
 C_DROPBOX_OAUTH_APP_SECRET="KEY"
-C_DROPBOX_OAUTH_REFRESH_TOKEN="TOKEN"
 
 # This is for system mail (use for notification, or reports)
 # Email username
@@ -644,10 +664,16 @@ C_AA_ENABLE_DA_HOOK_SCRIPT_LOG=true
 
 # This variable is used whether to combine the individual da custom hook script log file into a one file at this location:
 # /usr/local/directadmin/scripts/custom/aa_hook_scripts/all_hook_scripts.log
-# By using this option, you can watch all the custom hook script log using tail -f all_hook_scripts.log or using dacli command: dacli view-all-hookscript-log
+# By using this option, you can watch all the custom hook script log using tail -f all_hook_scripts.log or using dacli command: dacli view-hookscript-log
 # This is similar to directadmin all_pre.sh and all_post.sh hook scripts except you have more control to select specific hook scripts to display output.
 # This options required C_DA_ENABLE_HOOK_SCRIPT_LOG = true, else it will show nothing
 C_AA_ENABLE_GLOBAL_HOOK_LOG=true
+
+# This variable will enable/disable log for disabled da hook
+# When a da hook is not enabled in AA_ENABLE_HOOKS list, it will show a small notice like below:
+# [brute_force_notify_pre->aa_main.sh][14:04:17.612942]: Skipped, this hook is not enabled in .... /aa_hook_scripts/aa_options.conf
+# To disable this notification set this variable to false. Set this to true/yes for hook script debugging purposes
+C_DA_AA_ENABLE_LOG_FOR_DISABLED_DA_HOOK=false
 
 # This option is used to install da custom hook script. When you enable this option for example filemanager_pre, the following files/folders will be created
 # 1) A da hook folder name will be created at:
@@ -740,7 +766,7 @@ C_DA_WEBALIZER="0"
 C_DA_ROTATION="0"
 # Default is 0 (disable),
 # 1 Enable automatically when creating domain, 2 Enable DKIM option in UI for user
-C_DA_DKIM=2
+C_DA_DKIM=1
 # Default is 1 (enable),
 C_DA_COUNT_POP_USAGE=0
 # Default is 0 (disabled)
