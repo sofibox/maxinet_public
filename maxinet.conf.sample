@@ -393,12 +393,26 @@ C_GPG_CACHE_DURATION="34560000" #34560000
 # For version number, it will not work if the version number specified is still in beta released due to the different download URL
 # Note version 6.0.9 has a small bug that it show error about kernel compatibility when not running as daemon but it is working fine
 # distro is stable but lack of features
-C_SURICATA_SELECT_VERSION="distro"
+C_SURICATA_SELECT_VERSION="6.0.10"
+
+# AIPDB CONFIGURATION
+C_ABUSEIPDB_REPORT_THRESHOLD=900
+C_ABUSEIPDB_OUTPUT_MAX_LIMIT=500
 # Need to modify this API URL if they change this like from v2 to v3
-C_MAXIWALL_AIPDB_CHECK_URL="https://api.abuseipdb.com/api/v2/check"
-C_MAXIWALL_AIPDB_REPORT_URL="https://api.abuseipdb.com/api/v2/report"
+C_ABUSEIPDB_API_CHECK_URL="https://api.abuseipdb.com/api/v2/check"
+C_ABUSEIPDB_API_REPORT_URL="https://api.abuseipdb.com/api/v2/report"
 # The main abuseAIPDB key
-C_MAXIWALL_AIPDB_API_KEY="AIPDB_API_TOKEN_HERE"
+C_ABUSEIPDB_API_KEY="TOKEN"
+
+# GREYNOISE CONFIGURATION
+C_GREYNOISE_OUTPUT_MAX_LIMIT=500
+C_GREYNOISE_API_CHECK_URL="https://api.greynoise.io/v3/community"
+C_GREYNOISE_API_KEY="TOKEN"
+
+# VIRUSTOTAL CONFIGURATION
+C_VIRUSTOTAL_OUTPUT_MAX_LIMIT=500
+C_VIRUSTOTAL_API_CHECK_URL="https://www.virustotal.com/api/v3/ip_addresses"
+C_VIRUSTOTAL_API_KEY="TOKEN"
 # =~=~ End maxiwall =~=~#
 
 # External/Internal DNS provider
@@ -646,8 +660,10 @@ C_DA_PHP_DISABLE_DANGEROUS_FUNCTION=( \
 )
 # Enable WPCLI to install wordpress automatically when domain is created or modified (refer to tutorial how to install this) # TODO
 C_DA_WP_CLI_ENABLE=true
+
 # Disable or enable security header for all domain
 C_DA_ENABLE_DOMAIN_SECURITY_HEADER=true
+
 # Enable or disable hsts header. To disable put value to false
 # To enable globally for all domains put "global:<number_of_second>"
 # (Planned feature) To enable only specific domain just put <number_of_seconds>,then
