@@ -5,7 +5,7 @@
 # remote OS fully tested: debian 11 | remote OS partially tested: Almalinux
 _APP_SPECIFIC_NAME="Maxinet"
 # Note that some minor versions are not published
-_APP_VERSION="1.8"
+_APP_VERSION="1.8.1"
 _APP_STATUS="alpha"
 _APP_VERSION_STATUS="${_APP_VERSION}-${_APP_STATUS}"
 
@@ -12266,7 +12266,8 @@ configure_da_dns_templates() {
       # Probably is working fine no need to have confirmation
       _pause 10
     fi
-
+    echo ""
+    msg "$(s cyan)Creating SPF, DKIM and DMARC DNS custom template for directadmin server ...$(e)" --caller="${SCRIPT_NAME}"
     touch "${da_template_custom}/dns_txt.conf"
     {
       # Note 1: since directadmin version 1.61.6 (unreleased) SPF is enabled by default (it has its own template): https://www.directadmin.com/features.php?id=2946
@@ -12285,12 +12286,15 @@ configure_da_dns_templates() {
 
     } >"${da_template_custom}/dns_txt.conf"
 
-    # Create MX record for root domain
+    echo ""
+
+    msg "$(s cyan)Creating DKIM DNS custom template for directadmin server ...$(e)" --caller="${SCRIPT_NAME}"
+    # Create MX record for root domain (required by mail-tester.com)
     touch "${da_template_custom}/dns_mx.conf"
 
     {
       echo "mail=10"
-      echo "|DOMAIN|.=\"MX 10 |DOMAIN|.\""
+      echo "|DOMAIN|.=10"
     } >"${da_template_custom}/dns_mx.conf"
 
     echo ""
@@ -12552,11 +12556,14 @@ configure_da_owner_accounts() {
       readarray -t da_domains <<<"$(grep -w "${da_owner_username}" "/etc/virtual/domainowners" | cut -d ":" -f 1)"
       echo ""
 
-      if [ -n "${da_domains}" ]; then
+      if [ -n "${da_domains[*]}" ]; then
         echo "Domains list for ${da_owner_username}:"
         echo "${da_domains[*]}"
         echo ""
         for da_domain in "${da_domains[@]}"; do
+          msg "$(s cyan)Restoring/resetting domain ${da_domain} DNS records to default state ...$(e)" --caller="${SCRIPT_NAME}"
+          da_api_admin restore-dns-record --domain "${da_domain}"
+          echo ""
           msg "$(s cyan)Writing all DNS record for domain ${da_domain} to external DNS ...$(e)" --caller="${SCRIPT_NAME}"
           copy_local_dns_to_external_dns "${da_domain}"
           echo ""
