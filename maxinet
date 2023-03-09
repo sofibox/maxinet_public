@@ -5,7 +5,7 @@
 # remote OS fully tested: debian 11 | remote OS partially tested: Almalinux
 _APP_SPECIFIC_NAME="Maxinet"
 # Note that some minor versions are not published
-_APP_VERSION="1.7"
+_APP_VERSION="1.8"
 _APP_STATUS="alpha"
 _APP_VERSION_STATUS="${_APP_VERSION}-${_APP_STATUS}"
 
@@ -2500,7 +2500,7 @@ lish_console() {
 # This function will validate if config is valid, if one of the variables missing, it will complain and exit
 # TODO update check with new variables
 validate_config() {
-  local count_user total_valid_user this_da_owner_name this_da_owner_uname this_da_owner_password this_da_owner_system_email this_da_owner_security_qna
+  local count_user total_valid_user this_da_owner_name this_da_owner_uname this_da_owner_password this_da_owner_system_email
   total_valid_user=0
   msg "$(s cyan)Checking directadmin users' variables ...$(e)" --caller="${SCRIPT_NAME}"
   #--------------------#
@@ -2511,7 +2511,6 @@ validate_config() {
   typeset -n "this_da_owner_uname=C_DA_OWNER_USERNAME1"
   typeset -n "this_da_owner_password=C_DA_OWNER_USERPASS1"
   typeset -n "this_da_owner_system_email=C_DA_OWNER_SYSTEM_EMAIL1"
-  typeset -n "this_da_owner_security_qna=C_DA_OWNER_SECURITY_QNA1"
 
   if [[ "${#this_da_owner_uname}" -lt 2 ]]; then
     msg "[Skipped]: Warning owner username length is ${#this_da_owner_uname} but the it should be more or equal to 2. Please check configuration file"
@@ -2540,12 +2539,6 @@ validate_config() {
   elif ! is_valid "email" "${this_da_owner_system_email}"; then
     msg "[Skipped]: Warning owner ${this_da_owner_uname} has invalid email [ ${this_da_owner_system_email} ] set in config file. Please check configuration file "
     exit 1
-  elif [[ -z "${this_da_owner_security_qna+x}" ]]; then
-    msg "[Skipped]: Warning owner ${this_da_owner_uname} doesn't have security question and answer set in config file (missing or invalid variable). Please check configuration file "
-    exit 1
-  elif [[ -n "${this_da_owner_security_qna}" && $(echo "${#this_da_owner_security_qna[@]}") -ne $(awk -F'\|\|\|' '{print NF-1}' <<<"${this_da_owner_security_qna[@]}") ]]; then
-    msg "[Skipped]: Warning admin ${this_da_owner_uname} has invalid security question and answer format set in config file (invalid separator). Please check configuration file "
-    exit 1
   else
     #msg "$(s green)OK, all variables for owner ${C_DA_OWNER_USERNAME1} are valid.$(e)" --caller="${SCRIPT_NAME}"
     ((total_valid_user++))
@@ -2555,7 +2548,7 @@ validate_config() {
   # Validate admin     #
   #--------------------#
   local da_admin_unames this_da_admin_uname this_da_admin_password this_da_admin_name \
-    this_da_admin_system_email this_da_admin_security_qna count_user
+    this_da_admin_system_email count_user
 
   da_admin_unames="${!C_DA_ADMIN_USERNAME@}"
   count_user=1
@@ -2564,7 +2557,6 @@ validate_config() {
     typeset -n "this_da_admin_password=C_DA_ADMIN_USERPASS${count_user}"
     typeset -n "this_da_admin_name=C_DA_ADMIN_NAME${count_user}"
     typeset -n "this_da_admin_system_email=C_DA_ADMIN_SYSTEM_EMAIL${count_user}"
-    typeset -n "this_da_admin_security_qna=C_DA_ADMIN_SECURITY_QNA${count_user}"
 
     if [[ "${#this_da_admin_uname}" -lt 2 ]]; then
       msg "[Skipped]: Warning admin username length is ${#this_da_admin_uname} but the it should be more or equal to 2. Please check configuration file"
@@ -2593,12 +2585,6 @@ validate_config() {
     elif ! is_valid "email" "${this_da_admin_system_email}"; then
       msg "[Skipped]: Warning admin ${this_da_admin_uname} has invalid email [ ${this_da_admin_system_email} ] set in config file. Please check configuration file "
       exit 1
-    elif [[ -z "${this_da_owner_security_qna+x}" ]]; then
-      msg "[Skipped]: Warning admin ${this_da_admin_uname} doesn't have security question and answer set in config file (missing or invalid variable). Please check configuration file "
-      exit 1
-    elif [[ -n "${this_da_admin_security_qna}" && $(echo "${#this_da_admin_security_qna[@]}") -ne $(awk -F'\|\|\|' '{print NF-1}' <<<"${this_da_admin_security_qna[@]}") ]]; then
-      msg "[Skipped]: Warning admin ${this_da_admin_uname} has invalid security question and answer format set in config file (invalid separator). Please check configuration file "
-      exit 1
     else
       # msg "$(s green)OK, all variables for admin ${this_da_admin_uname} are valid.$(e)" --caller="${SCRIPT_NAME}"
       ((total_valid_user++))
@@ -2611,8 +2597,7 @@ validate_config() {
   #--------------------#
   local this_da_reseller_uname this_da_reseller_password this_da_reseller_name this_da_reseller_system_email \
     this_da_reseller_package_name this_da_reseller_domains this_da_reseller_wildcard_domains \
-    this_c_da_reseller_ip_type this_da_reseller_enable_domain_ssl this_da_reseller_ssl_subdomains this_da_reseller_mail_accounts \
-    this_da_reseller_security_qna this_da_reseller_db_accounts
+    this_c_da_reseller_ip_type this_da_reseller_enable_domain_ssl this_da_reseller_ssl_subdomains this_da_reseller_mail_accounts this_da_reseller_db_accounts
 
   count_user=1
 
@@ -2629,7 +2614,6 @@ validate_config() {
     typeset -n "this_da_reseller_enable_domain_ssl=C_DA_RESELLER_ENABLE_DOMAIN_SSL${count_user}"
     typeset -n "this_da_reseller_ssl_subdomains=C_DA_RESELLER_SSL_SUBDOMAIN${count_user}"
     typeset -n "this_da_reseller_mail_accounts=C_DA_RESELLER_MAIL_ACCOUNT${count_user}"
-    typeset -n "this_da_reseller_security_qna=C_DA_RESELLER_SECURITY_QNA${count_user}"
     typeset -n "this_da_reseller_db_accounts=C_DA_RESELLER_DB_ACCOUNT${count_user}"
 
     if [[ "${#this_da_reseller_uname}" -lt 2 ]]; then
@@ -2685,12 +2669,6 @@ validate_config() {
     elif [[ -z "${this_da_reseller_ssl_subdomains+x}" ]]; then
       msg "[Skipped]: Warning reseller ${this_da_reseller_uname} doesn't have ssl subdomains set in config file (missing or invalid variable). Please check configuration file"
       exit 1
-    elif [[ -z "${this_da_reseller_security_qna+x}" ]]; then
-      msg "[Skipped]: Warning reseller ${this_da_reseller_uname} doesn't have security question and answer set in config file (missing or invalid variable). Please check configuration file"
-      exit 1
-    elif [[ -n "${this_da_reseller_security_qna}" && $(echo "${#this_da_reseller_security_qna[@]}") -ne $(awk -F'\|\|\|' '{print NF-1}' <<<"${this_da_reseller_security_qna[@]}") ]]; then
-      msg "[Skipped]: Warning reseller ${this_da_reseller_uname} has invalid security question and answer format set in config file (invalid separator). Please check configuration file"
-      exit 1
     elif [[ -z "${this_da_reseller_db_accounts+x}" ]]; then
       msg "[Skipped]: Warning reseller ${this_da_reseller_uname} doesn't have database account set in config file (missing or invalid variable). Please check configuration file "
       exit 1
@@ -2706,8 +2684,7 @@ validate_config() {
 
   local this_da_user_uname this_da_user_password this_da_user_name this_da_user_system_email \
     this_da_user_package_name this_da_user_domains this_da_user_wildcard_domains \
-    this_da_user_enable_domain_ssl this_da_user_ssl_subdomains this_da_user_mail_accounts \
-    this_da_user_security_qna this_da_user_db_accounts
+    this_da_user_enable_domain_ssl this_da_user_ssl_subdomains this_da_user_mail_accounts this_da_user_db_accounts
 
   count_user=1
 
@@ -2723,7 +2700,6 @@ validate_config() {
     typeset -n "this_da_user_enable_domain_ssl=C_DA_USER_ENABLE_DOMAIN_SSL${count_user}"
     typeset -n "this_da_user_ssl_subdomains=C_DA_USER_SSL_SUBDOMAIN${count_user}"
     typeset -n "this_da_user_mail_accounts=C_DA_USER_MAIL_ACCOUNT${count_user}"
-    typeset -n "this_da_user_security_qna=C_DA_USER_SECURITY_QNA${count_user}"
     typeset -n "this_da_user_db_accounts=C_DA_USER_DB_ACCOUNT${count_user}"
 
     if [[ "${#this_da_user_uname}" -lt 2 ]]; then
@@ -2775,12 +2751,6 @@ validate_config() {
       # TODO check extra this_da_user_ssl_subdomains for format
     elif [[ -z "${this_da_user_ssl_subdomains+x}" ]]; then
       msg "[Skipped]: Warning user ${this_da_user_uname} doesn't have ssl subdomains set in config file (missing or invalid variable). Please check configuration file"
-      exit 1
-    elif [[ -z "${this_da_user_security_qna+x}" ]]; then
-      msg "[Skipped]: Warning user ${this_da_user_uname} doesn't have security question and answer set in config file (missing or invalid variable). Please check configuration file"
-      exit 1
-    elif [[ -n "${this_da_user_security_qna}" && $(echo "${#this_da_user_security_qna[@]}") -ne $(awk -F'\|\|\|' '{print NF-1}' <<<"${this_da_user_security_qna[@]}") ]]; then
-      msg "[Skipped]: Warning user ${this_da_user_uname} has invalid security question and answer format set in config file (invalid separator). Please check configuration file"
       exit 1
     elif [[ -z "${this_da_user_db_accounts+x}" ]]; then
       msg "[Skipped]: Warning user ${this_da_user_uname} doesn't have database account set in config file (missing or invalid variable). Please check configuration file "
@@ -8226,10 +8196,10 @@ install_da_pre() {
         echo "#WEB Applications Settings"
         echo "phpmyadmin=yes"
         echo "phpmyadmin_public=yes"
-        echo "phpmyadmin_ver=5"
         echo "squirrelmail=no"
         echo "roundcube=yes"
         echo "webapps_inbox_prefix=no"
+        echo ""
         echo "#ClamAV-related Settings"
         echo "clamav=no"
         echo "clamav_exim=yes"
@@ -8239,15 +8209,14 @@ install_da_pre() {
         echo "suhosin_php_uploadscan=no"
         echo ""
         echo "#Mail Settings"
-        echo "exim=yes"
-        echo "eximconf=yes"
-        echo "eximconf_release=4.5"
-        echo "blockcracking=yes"
-        echo "easy_spam_fighter=yes"
+        echo "exim=no"
+        echo "eximconf=no"
+        echo "blockcracking=no"
+        echo "easy_spam_fighter=no"
         echo "spamd=rspamd"
         echo "sa_update=daily"
         echo "dovecot=yes"
-        echo "dovecot_conf=yes"
+        echo "dovecot_conf=no"
         echo "mail_compress=yes"
         echo "pigeonhole=yes"
         echo ""
@@ -8260,23 +8229,18 @@ install_da_pre() {
         echo "webalizer=no"
         echo ""
         echo "#CustomBuild Settings"
-        echo "custombuild=2.0"
-        echo "custombuild_plugin=yes"
-        echo "autover=yes"
         echo "bold=yes"
         echo "clean=yes"
-        echo "cleanapache=yes"
         echo "clean_old_tarballs=yes"
         echo "clean_old_webapps=yes"
-        echo "downloadserver=files.directadmin.com"
-        echo "unofficial_mirrors=no"
         echo ""
         echo "#Cronjob Settings"
         echo "cron=no"
         echo "cron_frequency=daily"
         echo "email=webmaster@sofibox.com"
         echo "notifications=yes"
-        echo "# Do not auto update directadmin"
+        echo ""
+        echo "#Updating Settings"
         echo "da_autoupdate=no"
         echo "updates=no"
         echo "webapps_updates=yes"
@@ -8288,7 +8252,6 @@ install_da_pre() {
         echo ""
         echo "#Advanced Settings"
         echo "# This option is used to install curl by directadmin. We will install curl by system first"
-        echo "curl=no"
         echo "ssl_configuration=intermediate"
         echo ""
         echo "#Other packages"
@@ -8424,8 +8387,8 @@ install_da_pre() {
       sed -i "s|^ftpd=.*|ftpd=${C_DA_CB_FTP_SOFTWARE}|" "${da_cb_options_conf}"
       echo ""
 
-      # Install lua5.1 first before install directadmin to fix modsecurity issue using custombuild (TEST)
-      maxibuild install lua5.1 --force
+      # Install lua5.1 first before install directadmin to fix modsecurity issue using custombuild. Also reinstall lua (as latest version) to make sure that its binary can be triggered
+      maxibuild install "lua5.1 lua5.4" --force
 
       # Note do not enable csf installation here.
 
@@ -8693,6 +8656,24 @@ install_da_post() {
     msg "$(s cyan)Checking directadmin path ... $(e)" --caller="${SCRIPT_NAME}"
     check_path "${da_bin}" "${da_cb_bin}" "${da_conf}" "${da_script_path}"
 
+    echo ""
+
+    # SpamBlocker install and extra modules
+    # TODO This resolved this issue (had to disable this first and rebuild here): https://forum.directadmin.com/threads/bug-new-installation-halt-for-the-second-time-regarding-to-exim-version-that-is-not-compatible.67957/#post-358733
+    msg "$(s cyan)Installing SpamBlocker ... $(e)" --caller="${SCRIPT_NAME}"
+    "${da_cb_bin}" update
+    "${da_cb_bin}" set eximconf yes
+    "${da_cb_bin}" set eximconf_release 4.5
+    "${da_cb_bin}" set blockcracking yes
+    "${da_cb_bin}" set easy_spam_fighter yes
+    "${da_cb_bin}" set spamd rspamd
+    "${da_cb_bin}" set exim yes
+    "${da_cb_bin}" exim
+    "${da_cb_bin}" set dovecot_conf yes
+    "${da_cb_bin}" dovecot_conf
+    "${da_cb_bin}" rspamd
+    "${da_cb_bin}" update
+    "${da_cb_bin}" exim_conf
     echo ""
 
     # I add this here because this needs exim to be installed first after da has been installed
@@ -9493,8 +9474,11 @@ configure_bind() {
       get_status_message "$?"
       msg "$(s cyan)Halting DNS service (named) from systemd startup  in /etc/systemd/system/named.service...$(e)" --caller="${SCRIPT_NAME}"
       # Original: ExecStart=/usr/sbin/named -f -u bind
-      sed -i "s/ExecStart=.*/ExecStart=echo -n ''/" /etc/systemd/system/named.service
-      get_status_message "$?"
+      if [ -f "/etc/systemd/system/named.service" ]; then
+        sed -i "s/ExecStart=.*/ExecStart=echo -n ''/" /etc/systemd/system/named.service
+        get_status_message "$?"
+      fi
+
       msg "$(s cyan)Reloading systemd startup ...$(e)" --caller="${SCRIPT_NAME}"
       systemctl daemon-reload
       get_status_message "$?"
@@ -11867,8 +11851,6 @@ configure_da_settings() {
     ${da_bin} set brute_force_scan_apache_logs "${C_DA_BRUTE_FORCE_SCAN_APACHE_LOGS}"
     # Don't bother the bruteforce count (increase performance for bruteforce page in directadmin)
     ${da_bin} set user_brutecount "${C_DA_USER_BRUTECOUNT}"
-    # Enable directadmin security question
-    ${da_bin} set security_questions "${C_DA_SECURITY_QUESTIONS}"
     # Check partition usage
     ${da_bin} set check_partitions "${C_DA_CHECK_PARTITIONS}"
     ${da_bin} set partition_usage_threshold "${C_DA_PARTITION_USAGE_THRESHOLD}"
@@ -12299,9 +12281,18 @@ configure_da_dns_templates() {
       # https://forum.directadmin.com/threads/possible-bug-when-using-dns_txt-conf-with-api-include-step-to-reproduce.63247/
       echo "_domainkey=\"o=~; r=webmaster@|DOMAIN|\""
 
-      # TODO Google site verification should be here
+      # TODO Google site verification should be here as a DNS text record
 
     } >"${da_template_custom}/dns_txt.conf"
+
+    # Create MX record for root domain
+    touch "${da_template_custom}/dns_mx.conf"
+
+    {
+      echo "mail=10"
+      echo "|DOMAIN|.=\"MX 10 |DOMAIN|.\""
+    } >"${da_template_custom}/dns_mx.conf"
+
     echo ""
     # rewrite_confs here so that dns_txt.conf is updated
     # Fixed DNS new record updated:
@@ -12581,8 +12572,6 @@ configure_da_owner_accounts() {
 
       # Running additional command for owner if no backup is restored
       configure_da_owner_skins --run
-      # TODO check this as this is deprecated
-      configure_da_owner_security --run
     fi
 
     check_finish_reboot "${func_name}"
@@ -12756,7 +12745,6 @@ configure_da_admin_accounts() {
 
       # Running additional command for admin if no backup is restored
       configure_da_admin_skins --run
-      configure_da_admin_security --run
     fi
     echo ""
     check_finish_reboot "${func_name}"
@@ -13096,7 +13084,6 @@ configure_da_reseller_accounts() {
       echo ""
       # Run additional step as we did not restore backup (this would be new setting for this reseller):
       configure_da_reseller_skins --run-force
-      configure_da_reseller_security --run-force
       configure_da_reseller_wildcard_domains --skip #(Skipped: Do not use wildcard for security purpose)
       configure_da_reseller_email_accounts --run-force
       configure_da_reseller_databases --run-force
@@ -14485,6 +14472,7 @@ configure_opencode() {
     configure_aipdb --run
     configure_greynoise --run
     configure_virustotal --run
+    configure_mysqltuner --run # TODO should create maxidb binary that manage this instead of mysqltuner
     echo ""
     check_finish_reboot "${func_name}"
   else
@@ -14565,49 +14553,18 @@ configure_maxicode() {
     configure_maxibox --run
     # TODO improve this script
     configure_maxinis --run
-    configure_maxiclam --run
+    configure_maxiclam --run # TODO this needs to be inside maxibuild
     configure_maxiwall --run
+
     echo "=====================TODO until here!!!!!! =============================="
     # TODO improve below scripts above script already improve a bit
-    configure_maxicli --skip   # skip first need to implement on github and also does not seems important
     configure_maxicloud --skip # skip first need to implement on github
     configure_maxipass --skip  # skip first need to implement on github
-    configure_maxidb --run     # TODO make sure change to github installation
-
-    configure_maxilog --run # TODO change the code make sure to use github
-
     configure_maxicron --run
 
-    # 1) Install aide and copy maxiaide files (make sure it works)
     # 2) Install rsync and copy maxinet files (make sure it works)
-    # 3) Install suricata and copy maxiwall files (make sure it works)
     # 4) Copy maxicbuild
 
-    #local ORI_PWD
-    #msg "Installing OSSEC ..."
-    #sleep 2
-    #msg "Creating directory /usr/src if doesn't exist ..."
-    #mkdir -p "${INST_TEMP_DIR}"
-    #msg "Removing previous download file ..."
-    #rm -fv "${INST_TEMP_DIR}/3.6.0.tar.gz"
-    #msg "Downloading and extracting OSSEC file ..."
-    #ORI_PWD="${PWD}"
-    #cd "${INST_TEMP_DIR}" || {
-    #  echo "Failed to enter into directory"
-    #  exit 1
-    #}
-    #wget https://github.com/ossec/ossec-hids/archive/3.6.0.tar.gz
-    #tar xzf 3.6.0.tar.gz
-
-    #cd ossec-hids-3.6.0/ || {
-    #  echo "Failed to enter into directory"
-    #  exit 1
-    #}
-    #sh "install.sh"
-    # If want to silent install follow this documentation: https://www.ossec.net/docs/manual/installation/install-source-unattended.html
-    # Need to change the config file (uncomment setting)
-    # Tip: To remove OSSEC use this
-    # /var/ossec/bin/ossec-control stop && rm -rf /var/ossec && rm /etc/init.d/*ossec* && rm /etc/ossec-init.conf
     echo ""
     check_finish_reboot "${func_name}"
   else
@@ -14989,48 +14946,6 @@ configure_wpcli() {
   fi
 }
 
-configure_maxicli() {
-  local run_mode func_name
-  run_mode="$1"
-  extra_option="$2"
-  func_name="${FUNCNAME[0]}"
-  if [[ "${extra_option}" == "--silent-if-executed" ]]; then
-    start_execute_options "${run_mode}" "${func_name}" &>/dev/null
-  else
-    start_execute_options "${run_mode}" "${func_name}"
-  fi
-  [[ "${SKIP_RUN}" == "true" ]] && return 0
-  if [[ ! -f "${OS_TEMP_PATH}/${C_BOX_HOSTNAME_FQHN}_${func_name}_executed" && "${FUNCTION_RUN}" == "true" ]]; then
-    local maxicli_bin
-    maxicli_bin="/usr/local/maxicode/maxicli/maxicli"
-    msg "$(s cyan)Removing previous maxicli symlink shortcut in /usr/local/bin ...$(e)" --caller="${SCRIPT_NAME}"
-    rm -f /usr/local/bin/maxicli
-    if [ -f ${maxicli_bin} ]; then
-      msg "$(s cyan)Setting ${maxicli_bin} script to have executable permission ...$(e)" --caller="${SCRIPT_NAME}"
-      chmod +x "${maxicli_bin}"
-      msg "$(s cyan)Creating symlink for ${maxicli_bin} ...$(e)" --caller="${SCRIPT_NAME}"
-      ln -s "${maxicli_bin}" /usr/local/bin
-      maxicli --version
-      echo ""
-    else
-      msg "$(s red)Warning, maxicli binary doesn't exist inside /usr/local/maxicode ...$(e)" --caller="${SCRIPT_NAME}"
-      exit 1
-    fi
-
-    echo ""
-    check_finish_reboot "${func_name}"
-  else
-    msg "$(s yellow)[Skipped by system]: $(s magenta)${func_name}$(e) $(s yellow)with current option ${run_mode} has ran before $(e)" --caller="${SCRIPT_NAME}"
-    msg "$(s yellow)=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=$(e)"
-  fi
-
-  if [[ "${extra_option}" == "--silent-if-executed" ]]; then
-    end_execute_options "${run_mode}" "${func_name}" &>/dev/null
-  else
-    end_execute_options "${run_mode}" "${func_name}"
-  fi
-}
-
 # maxida is used to manage directadmin functionalities including APIs.
 # This is a very important tool if installed with directadmin
 # the alias binary name is dacli
@@ -15140,6 +15055,7 @@ configure_maxicron() {
 }
 
 # This maxiclam will manage both clamav and maldet
+# TODO make this inside maxibuild
 configure_maxiclam() {
   local run_mode func_name
   run_mode="$1"
@@ -15219,7 +15135,9 @@ configure_maxiwall() {
     echo ""
 
     msg "$(s cyan)Testing maxiwall ...$(e)" --caller="${SCRIPT_NAME}"
+
     maxiwall --version
+
     retval=$?
     if [ ${retval} -eq 0 ]; then
       msg "$(s green)OK, maxiwall has been successfully installed!$(e)" --caller="${SCRIPT_NAME}"
@@ -15359,8 +15277,8 @@ configure_maxipass() {
   fi
 }
 
-# Configure database management tools
-configure_maxidb() {
+# Configure mysqltuner
+configure_mysqltuner() {
   local run_mode func_name
   run_mode="$1"
   extra_option="$2"
@@ -15372,19 +15290,12 @@ configure_maxidb() {
   fi
   [[ "${SKIP_RUN}" == "true" ]] && return 0
   if [[ ! -f "${OS_TEMP_PATH}/${C_BOX_HOSTNAME_FQHN}_${func_name}_executed" && "${FUNCTION_RUN}" == "true" ]]; then
-    mkdir -p /usr/local/maxicode/maxidb
-    msg "$(s cyan)Removing existing mysqltuner files from /usr/local/maxicode/maxidb/mysqltuner ...$(e)" --caller="${SCRIPT_NAME}"
-    rm -f /usr/local/maxicode/maxidb/mysqltuner
-    rm -f /usr/local/maxicode/maxidb/basic_passwords.txt
-    rm -f /usr/local/maxicode/maxidb/vulnerabilities.csv
-    rm -f /usr/local/sbin/mysqltuner
+    local script_install_path
+    script_install_path="/usr/local/opencode/mysqltuner"
+    msg "$(s cyan)Creating mysqltuner directory ...$(e)" --caller="${SCRIPT_NAME}"
+    maxibuild install mysqltuner
     echo ""
-    msg "$(s cyan)Downloading and setup mysqltuner ...$(e)" --caller="${SCRIPT_NAME}"
-    wget --no-verbose -O /usr/local/maxicode/maxidb/mysqltuner mysqltuner.pl
-    wget --no-verbose -O /usr/local/maxicode/maxidb/basic_passwords.txt https://raw.githubusercontent.com/major/MySQLTuner-perl/master/basic_passwords.txt
-    wget --no-verbose -O /usr/local/maxicode/maxidb/vulnerabilities.csv https://raw.githubusercontent.com/major/MySQLTuner-perl/master/vulnerabilities.csv
-    chmod 710 /usr/local/maxicode/maxidb/mysqltuner
-    ln -s /usr/local/maxicode/maxidb/mysqltuner /usr/local/sbin/mysqltuner
+
     if command -v mysqltuner &>/dev/null; then
       msg "$(s green)OK, mysqltuner has been installed$(e)" --caller="${SCRIPT_NAME}"
     else
@@ -15394,10 +15305,11 @@ configure_maxidb() {
     echo ""
 
     msg "$(s cyan)Checking mysqltuner related files ...$(e)" --caller="${SCRIPT_NAME}"
-    check_path "/usr/local/maxicode/maxidb/mysqltuner" "/usr/local/maxicode/maxidb/basic_passwords.txt" "/usr/local/maxicode/maxidb/vulnerabilities.csv"
+    check_path "/usr/local/opencode/mysqltuner" "/usr/local/opencode/mysqltuner/basic_passwords.txt" "/usr/local/opencode/mysqltuner/vulnerabilities.csv"
     echo ""
     msg "$(s cyan)Scanning mysqltuner ...$(e)" --caller="${SCRIPT_NAME}"
-    mysqltuner --passwordfile /usr/local/maxicode/maxidb/basic_passwords.txt --cvefile /usr/local/maxicode/maxidb/vulnerabilities.csv
+    mysqltuner --passwordfile "${script_install_path}/basic_passwords.txt" --cvefile "${script_install_path}/vulnerabilities.csv"
+
     # TODO will auto fix mysqltuner suggestion
     #  https://stackoverflow.com/questions/47082865/mariadb-optimization-and-mysqltuner-pl-ram-and-tuning
     #when you execute mysqltuner, you will get suggestion what to tweak for your sql.
@@ -15420,8 +15332,7 @@ configure_maxidb() {
   fi
 }
 
-# TODO configure log functions
-configure_maxilog() {
+configure_log() {
   local run_mode func_name
   run_mode="$1"
   extra_option="$2"
@@ -15550,81 +15461,6 @@ configure_da_owner_skins() {
       msg "$(s yellow)If you want to have this logo, just put it at ${logo_path}/dark_symbol.png$(e)" --caller="${SCRIPT_NAME}"
     fi
 
-    echo ""
-    check_finish_reboot "${func_name}"
-  else
-    msg "$(s yellow)[Skipped by system]: $(s magenta)${func_name}$(e) $(s yellow)with current option ${run_mode} has ran before $(e)" --caller="${SCRIPT_NAME}"
-    msg "$(s yellow)=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=$(e)"
-  fi
-
-  if [[ "${extra_option}" == "--silent-if-executed" ]]; then
-    end_execute_options "${run_mode}" "${func_name}" &>/dev/null
-  else
-    end_execute_options "${run_mode}" "${func_name}"
-  fi
-}
-
-# TODO check this if deprecated
-configure_da_owner_security() {
-  # Set owner security and answer questions:
-  # da_api_admin "set-security-qna" "Sekolah menengah dulu aliran apa ?" "sains"
-  local run_mode func_name
-  run_mode="$1"
-  extra_option="$2"
-  func_name="${FUNCNAME[0]}"
-  if [[ "${extra_option}" == "--silent-if-executed" ]]; then
-    start_execute_options "${run_mode}" "${func_name}" &>/dev/null
-  else
-    start_execute_options "${run_mode}" "${func_name}"
-  fi
-  [[ "${SKIP_RUN}" == "true" ]] && return 0
-  if [[ ! -f "${OS_TEMP_PATH}/${C_BOX_HOSTNAME_FQHN}_${func_name}_executed" && "${FUNCTION_RUN}" == "true" ]]; then
-    local da_owner_username da_owner_security_qna da_owner_security_qna_count owner_count question_count
-
-    da_owner_usernames_count=$(echo "${!C_DA_OWNER_USERNAME@}" | wc -w)
-    owner_count=1
-    while [ ${owner_count} -le "${da_owner_usernames_count}" ]; do
-      # Assign all variables from the config file as array index
-      typeset -n "da_owner_username=C_DA_OWNER_USERNAME${owner_count}"
-      typeset -n "da_owner_security_qna=C_DA_OWNER_SECURITY_QNA${owner_count}"
-      da_owner_security_qna_count="${#da_owner_security_qna[@]}"
-
-      msg "$(s newline)"
-      msg "$(s yellow)Warning this information contains sensitive data due to verbosity level was set to 7 or more$(e)" --caller="${SCRIPT_NAME}"
-      msg "$(s magenta)=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=$(e)" --caller="${SCRIPT_NAME}"
-      msg "Owner security question details:" --caller="${SCRIPT_NAME}"
-      msg "Owner count ${owner_count} out of ${da_owner_usernames_count}" --caller="${SCRIPT_NAME}"
-      msg "da_owner_username: ${da_owner_username}" --caller="${SCRIPT_NAME}"
-      msg "da_owner_security_qna  ${da_owner_security_qna[*]}" --caller="${SCRIPT_NAME}"
-      msg "da_owner_security_qna_count: ${da_owner_security_qna_count[*]}" --caller="${SCRIPT_NAME}"
-      msg "$(s newline)"
-
-      question_count=1
-      if [[ "${#da_owner_security_qna}" == 0 ]]; then
-        msg "[skipped]: Value defined for security_question for user ${da_owner_username} is empty"
-      else
-        while [ "${question_count}" -le ${da_owner_security_qna_count} ]; do
-          local security_question_answer security_question security_answer
-          security_question_answer=${da_owner_security_qna[question_count - 1]}
-          security_question="$(echo ${security_question_answer} | awk -F'\|\|\|' '{ print $1 }')"
-          security_answer="$(echo ${security_question_answer} | awk -F'\|\|\|' '{ print $2 }')"
-
-          msg "Security question count ${question_count} out of ${da_owner_security_qna_count}" --caller="${SCRIPT_NAME}"
-          msg "Security question for owner: ${da_owner_username}" --caller="${SCRIPT_NAME}"
-          msg "Security question_answer: ${security_question_answer}" --caller="${SCRIPT_NAME}"
-          msg "Security question: ${security_question}" --caller="${SCRIPT_NAME}"
-          msg "Security answer: ${security_answer}" --caller="${SCRIPT_NAME}"
-          msg "$(s magenta)=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=$(e)" --caller="${SCRIPT_NAME}"
-
-          msg "$(s cyan)Setting up security questions and answers for user ${da_owner_username}$(e)" --caller="${SCRIPT_NAME}"
-          da_api_admin set-security-qna --question "${security_question}" --answer "${security_answer}"
-          #echo ""
-          ((question_count++))
-        done
-
-      fi
-      ((owner_count++))
-    done
     echo ""
     check_finish_reboot "${func_name}"
   else
@@ -16467,7 +16303,6 @@ configure_da_user_accounts() {
     else
       # Run additional step because we don't restore from backup for this user
       # configure_da_user_skins --run-force (This user skin function does not exist but put this here and implement later if I need)
-      configure_da_user_security --run-force
       configure_da_user_wildcard_domains --skip #(Skipped: Do not use wildcard for security purpose)
       configure_da_user_email_accounts --run-force
       configure_da_user_databases --run-force
@@ -16740,233 +16575,6 @@ configure_da_user_emails() {
   else
     end_execute_options "${run_mode}" "${func_name}"
   fi
-}
-# TODO check this if deprecated
-configure_da_admin_security() {
-  # Set admin security and answer questions:
-  # da_api_admin "set-security-qna" "Sekolah menengah dulu aliran apa ?" "sains"
-  local run_mode func_name
-  run_mode="$1"
-  extra_option="$2"
-  func_name="${FUNCNAME[0]}"
-  if [[ "${extra_option}" == "--silent-if-executed" ]]; then
-    start_execute_options "${run_mode}" "${func_name}" &>/dev/null
-  else
-    start_execute_options "${run_mode}" "${func_name}"
-  fi
-  [[ "${SKIP_RUN}" == "true" ]] && return 0
-  if [[ ! -f "${OS_TEMP_PATH}/${C_BOX_HOSTNAME_FQHN}_${func_name}_executed" && "${FUNCTION_RUN}" == "true" ]]; then
-    local da_admin_username da_admin_security_qna da_admin_security_qna_count admin_count question_count
-
-    da_admin_usernames_count=$(echo "${!C_DA_ADMIN_USERNAME@}" | wc -w)
-    admin_count=1
-    while [ ${admin_count} -le "${da_admin_usernames_count}" ]; do
-      # Assign all variables from the config file as array index
-      typeset -n "da_admin_username=C_DA_ADMIN_USERNAME${admin_count}"
-      typeset -n "da_admin_security_qna=C_DA_ADMIN_SECURITY_QNA${admin_count}"
-      da_admin_security_qna_count="${#da_admin_security_qna[@]}"
-
-      msg "$(s newline)"
-      msg "$(s yellow)Warning this information contains sensitive data due to verbosity level was set to 7 or more$(e)" --caller="${SCRIPT_NAME}"
-      msg "$(s magenta)=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=$(e)" --caller="${SCRIPT_NAME}"
-      msg "Admin security question details:" --caller="${SCRIPT_NAME}"
-      msg "Admin count ${admin_count} out of ${da_admin_usernames_count}" --caller="${SCRIPT_NAME}"
-      msg "da_admin_username: ${da_admin_username}" --caller="${SCRIPT_NAME}"
-      msg "da_admin_security_qna  ${da_admin_security_qna[*]}" --caller="${SCRIPT_NAME}"
-      msg "da_admin_security_qna_count: ${da_admin_security_qna_count[*]}" --caller="${SCRIPT_NAME}"
-      msg "$(s newline)"
-
-      question_count=1
-      if [[ "${#da_admin_security_qna}" == 0 ]]; then
-        msg "[skipped]: Value defined for security_question for user ${da_admin_username} is empty"
-      else
-        while [ "${question_count}" -le ${da_admin_security_qna_count} ]; do
-          local security_question_answer security_question security_answer
-          security_question_answer=${da_admin_security_qna[question_count - 1]}
-          security_question="$(echo ${security_question_answer} | awk -F'\|\|\|' '{ print $1 }')"
-          security_answer="$(echo ${security_question_answer} | awk -F'\|\|\|' '{ print $2 }')"
-
-          msg "Security question count ${question_count} out of ${da_admin_security_qna_count}" --caller="${SCRIPT_NAME}"
-          msg "Security question for admin: ${da_admin_username}" --caller="${SCRIPT_NAME}"
-          msg "Security question_answer: ${security_question_answer}" --caller="${SCRIPT_NAME}"
-          msg "Security question: ${security_question}" --caller="${SCRIPT_NAME}"
-          msg "Security answer: ${security_answer}" --caller="${SCRIPT_NAME}"
-          msg "$(s magenta)=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=$(e)" --caller="${SCRIPT_NAME}"
-
-          msg "$(s cyan)Setting up security questions and answers for user ${da_admin_username}$(e)" --caller="${SCRIPT_NAME}"
-          da_api_admin set-security-qna --sign-as "${da_admin_username}" --question "${security_question}" --answer "${security_answer}"
-          echo ""
-          ((question_count++))
-        done
-
-      fi
-      ((admin_count++))
-    done
-    echo ""
-    check_finish_reboot "${func_name}"
-  else
-    msg "$(s yellow)[Skipped by system]: $(s magenta)${func_name}$(e) $(s yellow)with current option ${run_mode} has ran before $(e)" --caller="${SCRIPT_NAME}"
-    msg "$(s yellow)=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=$(e)"
-  fi
-
-  if [[ "${extra_option}" == "--silent-if-executed" ]]; then
-    end_execute_options "${run_mode}" "${func_name}" &>/dev/null
-  else
-    end_execute_options "${run_mode}" "${func_name}"
-  fi
-}
-
-# TODO check this if deprecated
-configure_da_reseller_security() {
-  # Set reseller security and answer questions:
-  # da_api_reseller "set-security-qna" "Sekolah menengah dulu aliran apa ?" "sains"
-  local run_mode func_name
-  run_mode="$1"
-  extra_option="$2"
-  func_name="${FUNCNAME[0]}"
-  if [[ "${extra_option}" == "--silent-if-executed" ]]; then
-    start_execute_options "${run_mode}" "${func_name}" &>/dev/null
-  else
-    start_execute_options "${run_mode}" "${func_name}"
-  fi
-  [[ "${SKIP_RUN}" == "true" ]] && return 0
-  if [[ ! -f "${OS_TEMP_PATH}/${C_BOX_HOSTNAME_FQHN}_${func_name}_executed" && "${FUNCTION_RUN}" == "true" ]]; then
-    local da_reseller_username da_reseller_security_qna da_reseller_security_qna_count reseller_count question_count
-
-    da_reseller_usernames_count=$(echo "${!C_DA_RESELLER_USERNAME@}" | wc -w)
-    reseller_count=1
-    while [ ${reseller_count} -le "${da_reseller_usernames_count}" ]; do
-      # Assign all variables from the config file as array index
-      typeset -n "da_reseller_username=C_DA_RESELLER_USERNAME${reseller_count}"
-      typeset -n "da_reseller_security_qna=C_DA_RESELLER_SECURITY_QNA${reseller_count}"
-      da_reseller_security_qna_count="${#da_reseller_security_qna[@]}"
-
-      msg "$(s newline)"
-      msg "$(s yellow)Warning this information contains sensitive data due to verbosity level was set to 7 or more$(e)" --caller="${SCRIPT_NAME}"
-      msg "$(s magenta)=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=$(e)" --caller="${SCRIPT_NAME}"
-      msg "Reseller security question details:" --caller="${SCRIPT_NAME}"
-      msg "Reseller count ${reseller_count} out of ${da_reseller_usernames_count}" --caller="${SCRIPT_NAME}"
-      msg "da_reseller_username: ${da_reseller_username}" --caller="${SCRIPT_NAME}"
-      msg "da_reseller_security_qna  ${da_reseller_security_qna[*]}" --caller="${SCRIPT_NAME}"
-      msg "da_reseller_security_qna_count: ${da_reseller_security_qna_count[*]}" --caller="${SCRIPT_NAME}"
-      msg "$(s newline)"
-
-      question_count=1
-      if [[ "${#da_reseller_security_qna}" == 0 ]]; then
-        msg "[skipped]: Value defined for security_question for user ${da_reseller_username} is empty"
-      else
-        while [ "${question_count}" -le ${da_reseller_security_qna_count} ]; do
-          local security_question_answer security_question security_answer
-          security_question_answer=${da_reseller_security_qna[question_count - 1]}
-          security_question="$(echo ${security_question_answer} | awk -F'\|\|\|' '{ print $1 }')"
-          security_answer="$(echo ${security_question_answer} | awk -F'\|\|\|' '{ print $2 }')"
-
-          msg "Security question count ${question_count} out of ${da_reseller_security_qna_count}" --caller="${SCRIPT_NAME}"
-          msg "Security question for reseller: ${da_reseller_username}" --caller="${SCRIPT_NAME}"
-          msg "Security question_answer: ${security_question_answer}" --caller="${SCRIPT_NAME}"
-          msg "Security question: ${security_question}" --caller="${SCRIPT_NAME}"
-          msg "Security answer: ${security_answer}" --caller="${SCRIPT_NAME}"
-          msg "$(s magenta)=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=$(e)" --caller="${SCRIPT_NAME}"
-
-          msg "$(s cyan)Setting up security questions and answers for user ${da_reseller_username}$(e)" --caller="${SCRIPT_NAME}"
-          da_api_admin set-security-qna --sign-as "${da_reseller_username}" --question "${security_question}" --answer "${security_answer}"
-          echo ""
-          ((question_count++))
-        done
-
-      fi
-      ((reseller_count++))
-    done
-    echo ""
-    check_finish_reboot "${func_name}"
-  else
-    msg "$(s yellow)[Skipped by system]: $(s magenta)${func_name}$(e) $(s yellow)with current option ${run_mode} has ran before $(e)" --caller="${SCRIPT_NAME}"
-    msg "$(s yellow)=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=$(e)"
-  fi
-
-  if [[ "${extra_option}" == "--silent-if-executed" ]]; then
-    end_execute_options "${run_mode}" "${func_name}" &>/dev/null
-  else
-    end_execute_options "${run_mode}" "${func_name}"
-  fi
-}
-
-# TODO check this if deprecated
-configure_da_user_security() {
-  # Set user security and answer questions:
-  # Don't use 2 step authentication yet because of this:
-  # https://forum.directadmin.com/threads/feature-request-dont-use-online-service-to-generate-otp-qr-code-for-security.63140/
-
-  local run_mode func_name
-  run_mode="$1"
-  extra_option="$2"
-  func_name="${FUNCNAME[0]}"
-  if [[ "${extra_option}" == "--silent-if-executed" ]]; then
-    start_execute_options "${run_mode}" "${func_name}" &>/dev/null
-  else
-    start_execute_options "${run_mode}" "${func_name}"
-  fi
-  [[ "${SKIP_RUN}" == "true" ]] && return 0
-  if [[ ! -f "${OS_TEMP_PATH}/${C_BOX_HOSTNAME_FQHN}_${func_name}_executed" && "${FUNCTION_RUN}" == "true" ]]; then
-    local da_user_username da_user_security_qna da_user_security_qna_count user_count question_count
-
-    da_user_usernames_count=$(echo "${!C_DA_USER_USERNAME@}" | wc -w)
-    user_count=1
-    while [ ${user_count} -le "${da_user_usernames_count}" ]; do
-      # Assign all variables from the config file as array index
-      typeset -n "da_user_username=C_DA_USER_USERNAME${user_count}"
-      typeset -n "da_user_security_qna=C_DA_USER_SECURITY_QNA${user_count}"
-      da_user_security_qna_count="${#da_user_security_qna[@]}"
-
-      msg "$(s newline)"
-      msg "$(s yellow)Warning this information contains sensitive data due to verbosity level was set to 7 or more$(e)" --caller="${SCRIPT_NAME}"
-      msg "$(s magenta)=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=$(e)" --caller="${SCRIPT_NAME}"
-      msg "User security question details:" --caller="${SCRIPT_NAME}"
-      msg "User count ${user_count} out of ${da_user_usernames_count}" --caller="${SCRIPT_NAME}"
-      msg "da_user_username: ${da_user_username}" --caller="${SCRIPT_NAME}"
-      msg "da_user_security_qna  ${da_user_security_qna[*]}" --caller="${SCRIPT_NAME}"
-      msg "da_user_security_qna_count: ${da_user_security_qna_count[*]}" --caller="${SCRIPT_NAME}"
-      msg "$(s newline)"
-
-      question_count=1
-      if [[ "${#da_user_security_qna}" == 0 ]]; then
-        msg "[skipped]: Value defined for security_question for user ${da_user_username} is empty"
-      else
-        while [ "${question_count}" -le ${da_user_security_qna_count} ]; do
-          local security_question_answer security_question security_answer
-          security_question_answer=${da_user_security_qna[question_count - 1]}
-          security_question="$(echo ${security_question_answer} | awk -F'\|\|\|' '{ print $1 }')"
-          security_answer="$(echo ${security_question_answer} | awk -F'\|\|\|' '{ print $2 }')"
-
-          msg "Security question count ${question_count} out of ${da_user_security_qna_count}" --caller="${SCRIPT_NAME}"
-          msg "Security question for user: ${da_user_username}" --caller="${SCRIPT_NAME}"
-          msg "Security question_answer: ${security_question_answer}" --caller="${SCRIPT_NAME}"
-          msg "Security question: ${security_question}" --caller="${SCRIPT_NAME}"
-          msg "Security answer: ${security_answer}" --caller="${SCRIPT_NAME}"
-          msg "$(s magenta)=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=~=$(e)" --caller="${SCRIPT_NAME}"
-
-          msg "$(s cyan)Setting up security questions and answers for user ${da_user_username}$(e)" --caller="${SCRIPT_NAME}"
-          da_api_admin set-security-qna --sign-as "${da_user_username}" --question "${security_question}" --answer "${security_answer}"
-          echo ""
-          ((question_count++))
-        done
-
-      fi
-      ((user_count++))
-    done
-    echo ""
-    check_finish_reboot "${func_name}"
-  else
-    msg "$(s yellow)[Skipped by system]: $(s magenta)${func_name}$(e) $(s yellow)with current option ${run_mode} has ran before $(e)" --caller="${SCRIPT_NAME}"
-    msg "$(s yellow)=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=$(e)"
-  fi
-
-  if [[ "${extra_option}" == "--silent-if-executed" ]]; then
-    end_execute_options "${run_mode}" "${func_name}" &>/dev/null
-  else
-    end_execute_options "${run_mode}" "${func_name}"
-  fi
-
 }
 
 # Function to create all user databases

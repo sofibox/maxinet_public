@@ -760,8 +760,6 @@ C_DA_MAXFILESIZE="5368709120"
 # Directadmin maximum username (including sql username). Changing this requires MySQL 5.7.8+ or MariaDB 10.x+
 # default value is 14
 C_DA_MAX_USERNAME_LENGTH="30"
-# Enable directadmin security question for authentication purpose
-C_DA_SECURITY_QUESTIONS=1
 # Set login history total
 C_DA_LOGIN_HISTORY="10"
 # Force password creation to use hard password
@@ -1016,11 +1014,6 @@ C_DA_OWNER_USERNAME1="owner47"
 C_DA_OWNER_USERPASS1="PASSWORD"
 # DA owner email will use $ROOT_EMAIL variable above but we can declare here too for future reference
 C_DA_OWNER_SYSTEM_EMAIL1="owner@codegix.com"
-# Can be empty = ""
-C_DA_OWNER_SECURITY_QNA1=(\
-"Kau suka makan apa?|||budu" \
-"Kau punya hobi apa?|||programming" \
-)
 # Note 1: For security reason owner should not have domain or web interfaces (no domain = no email)
 # Note 2: There must be only one owner account in directadmin (that is the original admin account of directadmin)
 #         So, C_DA_OWNER must always have index of 1
@@ -1042,10 +1035,6 @@ C_DA_ADMIN_NAME1="Box Admin"
 C_DA_ADMIN_USERNAME1="admin49"
 C_DA_ADMIN_USERPASS1="PASSWORD"
 C_DA_ADMIN_SYSTEM_EMAIL1="admin@codegix.com"
-C_DA_ADMIN_SECURITY_QNA1=(\
-"What is the purpose of life?|||answer here" \
-"Do you feel that vibration?|||answer 2 here" \
-)
 
 #---- End directadmin ADMIN account(s) information  ----
 #-------------------------------------------------------
@@ -1086,11 +1075,6 @@ C_DA_RESELLER_SSL_SUBDOMAIN1=("letsencrypt:masternom.com:www+ftp+mail+pop+smtp+s
 C_DA_RESELLER_MAIL_ACCOUNT1=(\
 "webmaster@masternom.com|||PASSWORD" \
 "info@masternom.com|||PASSWORD" \
-)
-# Security question and answers. Can be empty with =""
-C_DA_RESELLER_SECURITY_QNA1=(\
-"What the heck?|||ok" \
-"Kaupehal?|||tak ada ape" \
 )
 
 #<domain_name>:<db_name>:<db_user>|||<db_password>
@@ -1156,13 +1140,7 @@ C_DA_USER_MAIL_ACCOUNT1=(\
 "info@maxibi.com|||PASSWORD" \
 "sales@maxibi.com|||PASSWORD" \
 )
-# Add user security question and answer separated with ||| between question and answer. You can create unlimited security question and answer.
-# You can also leave this variable empty to disable this. eg: C_DA_USER_SECURITY_QNA1=() or C_DA_USER_SECURITY_QNA1=""
-C_DA_USER_SECURITY_QNA1=(\
-"Seronok?|||tak" \
-"Kaya?|||tak" \
-"Bahagia?|||ok" \
-)
+
 # Create user database here. If you specify the same database username (db_user), it will use existing database username to create new database
 # if the next database info has repeated username, you can leave the password empty
 #<domain_name>:<db_name>:<db_user>|||<db_password>
@@ -1194,7 +1172,6 @@ C_DA_USER_CUSTOM_WEB_CONFIG1=("maxibi.com:wordpress:5.7") #TODO
 #C_DA_USER_ENABLE_DOMAIN_SSL2=
 #C_DA_USER_SSL_SUBDOMAIN2=
 #C_DA_USER_MAIL_ACCOUNT2=
-#C_DA_USER_SECURITY_QNA2=
 #C_DA_USER_DB_ACCOUNT2=
 #C_DA_USER_MODSEC2=
 #C_DA_USER_CUSTOM_WEB_CONFIG2=
