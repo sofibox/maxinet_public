@@ -5,7 +5,7 @@
 # remote OS fully tested: debian 11 | remote OS partially tested: Almalinux
 _APP_SPECIFIC_NAME="Maxinet"
 # Note that some minor versions are not published
-_APP_VERSION="1.8.1"
+_APP_VERSION="1.8.2"
 _APP_STATUS="alpha"
 _APP_VERSION_STATUS="${_APP_VERSION}-${_APP_STATUS}"
 
@@ -1351,11 +1351,6 @@ ensure_fqhn_server_resolved() {
 init_server() {
   local argnum options retval rebuild_iso rebuild_partition rebuild_config rebuild_all backup max_wait wait_count
   argnum="$#"
-  # We should allow empty argument for creating server without rebuild or backup option
-  #if [ ${argnum} -eq 0 ]; then
-  #  echo "Error, no argument is supplied. Use [ ${SCRIPT_NAME} --init-server --help ] to see the valid options"
-  #  exit 1
-  #fi
   short_opts=""
   long_opts="help,rebuild-iso,rebuild-partition,rebuild-config,rebuild-all,backup"
   options=$(getopt -o "${short_opts}" --long "${long_opts}" -n "${FUNCNAME[0]} in ${SCRIPT_NAME}" -- "$@")
@@ -1417,7 +1412,7 @@ init_server() {
   [[ "${rebuild_partition}" == "true" ]] && _ask "Warning, this command will wipe the entire server because --rebuild-partition is supplied! Continue?"
   echo ""
 
-  # This will make sure that the hostname resolved
+  # This will make sure that the hostname resolved before continue
   ensure_internet_connected
   ensure_domain_server_resolved
   ensure_fqhn_server_resolved
@@ -1441,21 +1436,26 @@ init_server() {
     msg "$(s cyan)Disabling linode watchdog ...$(e)" --caller="${SCRIPT_NAME}"
     maxipi linode update-linode --for-linode-label "${C_BOX_HOSTNAME_FQHN}" --enable-watchdog no
     get_status_message "$?"
+    echo ""
+
+    # Server information
+    msg "$(s cyan)Getting linode server information ...$(e)" --caller="${SCRIPT_NAME}"
+    echo "IPv4 address: ${C_IPV4_ADD0}"
+    echo "IPv6 address: ${C_IPV6_ADD0}"
+    echo "============="
+    echo ""
+    #echo "Disk space: "
+    #echo "Memory/RAM: "
   else
     :
   fi
 
-  echo "IPv4 address: ${C_IPV4_ADD0}"
-  echo "IPv6 address: ${C_IPV6_ADD0}"
-  echo "============="
-  echo ""
-  #echo "Disk space: "
-  #echo "Memory/RAM: "
-
+  # Checking dropbox token
   msg "$(s yellow)Testing dropbox token permission ...$(e)" --caller="${SCRIPT_NAME}"
   dbxcli test
   get_status_message "$?"
   echo ""
+
   if [ ${backup} == "true" ]; then
     msg "$(s blue)Notice, the option --backup-all is set. The following backup events will be triggered automatically: $(e)" --caller="${SCRIPT_NAME}"
     msg "$(s blue)1) Previous iso image will be backed up automatically $(e)" --caller="${SCRIPT_NAME}"
@@ -1594,7 +1594,7 @@ init_server() {
     maxipi linode delete-config --for-linode "${C_BOX_HOSTNAME_FQHN}" --for-config-label "${C_LINODE_BOOT_CONFIG_LABEL}"
     get_status_message "$?"
     # Boot into the new OS
-    msg "Booting into operating ..." --caller="${SCRIPT_NAME}"
+    msg "Booting into a new Operating System ..." --caller="${SCRIPT_NAME}"
     maxipi linode boot-linode --for-linode-label "${C_BOX_HOSTNAME_FQHN}" --for-config-label "${C_LINODE_OS_CONFIG_LABEL}" --wait-for-busy-status --wait-until-linode-status online
     get_status_message "$?"
     # linode_api_admin boot-linode --linode-label "${C_BOX_HOSTNAME_FQHN}" --linode-config-label "${C_LINODE_OS_CONFIG_LABEL}"
@@ -3489,6 +3489,8 @@ create_file() {
           echo "#### Preseed preconfiguration file (for Debian buster)"
         elif [ "${C_OS_SET_CODE_NAME}" == "bullseye" ]; then
           echo "#### Preseed preconfiguration file (for Debian bullseye)"
+        elif [ "${C_OS_SET_CODE_NAME}" == "bookworm" ]; then
+          echo "#### Preseed preconfiguration file (for Debian bookworm)"
         fi
         echo "### Partman early command"
 
@@ -4317,7 +4319,7 @@ iso_api() {
             echo "# This script is used to write OS into /dev/sda"
             echo "# Author: ${C_ADMIN_NAME} | Email: ${C_ADMIN_EMAIL} | Web: ${C_BOX_DOMAIN}"
             echo "# ==============================================="
-            echo "wget -O mini.iso ${file_direct_link}"
+            echo "wget --show-progress -O mini.iso ${file_direct_link}"
             echo "dd if=mini.iso of=/dev/sda"
             # This is needed to force reboot especially for rescue mode.
             echo "reboot --poweroff --force"
@@ -4333,7 +4335,7 @@ iso_api() {
             echo "# Author: ${C_ADMIN_NAME} | Email: ${C_ADMIN_EMAIL} | Web: ${C_BOX_DOMAIN}"
             echo "# ==============================================="
             echo "# Download link available at:"
-            echo "wget -O mini.iso \"${file_direct_link}\""
+            echo "wget --show-progress -O mini.iso \"${file_direct_link}\""
             echo "# Operating system installation script available at:"
             echo "${CODE_PATH}/ssh_scripts/os_write_ag.sh"
             echo "dd if=mini.iso of=/dev/sda"
@@ -4343,7 +4345,7 @@ iso_api() {
           if [ ${write_script} == "true" ]; then
             msg "$(s red)==================================$(e)"
             msg "$(s newline)"
-            msg "$(s green)wget -O mini.iso \"${file_direct_link}\"$(e)"
+            msg "$(s green)wget --show-progress -O mini.iso \"${file_direct_link}\"$(e)"
             msg "$(s green)dd if=mini.iso of=/dev/sda$(e)"
             msg "$(s green)mkdir /mnt/iso$(e)"
             msg "$(s green)mount mini.iso /mnt/iso$(e)"
@@ -4566,9 +4568,9 @@ iso_api() {
     echo "Creating rescue disk script ..."
     msg "$(s red)==================================$(e)"
     echo ""
-    echo "wget -O mini.iso \"${file_direct_link}\"" >"$(dirname "${iso_output_path}")/install.txt"
+    echo "wget --show-progress -O mini.iso \"${file_direct_link}\"" >"$(dirname "${iso_output_path}")/install.txt"
     echo "dd if=mini.iso of=/dev/sda" >>"$(dirname "${iso_output_path}")/install.txt"
-    msg "$(s green)wget -O mini.iso \"${file_direct_link}\"$(e)"
+    msg "$(s green)wget --show-progress -O mini.iso \"${file_direct_link}\"$(e)"
     msg "$(s green)dd if=mini.iso of=/dev/sda$(e)"
     msg "$(s green)mkdir /mnt/iso$(e)"
     msg "$(s green)mount mini.iso /mnt/iso$(e)"
@@ -4580,7 +4582,7 @@ iso_api() {
     echo "Copying script into linode script ${SCRIPT_PATH}/dns/linode... "
     {
       echo "#!/bin/bash"
-      echo "wget -O mini.iso ${file_direct_link}"
+      echo "wget --show-progress -O mini.iso ${file_direct_link}"
       echo "dd if=mini.iso of=/dev/sda"
       # Need this option to reboot when reboot check
       echo "reboot -f"
@@ -4616,9 +4618,10 @@ copy_local_dns_to_external_dns() {
       aaaa_records=$(da_api_admin get-dns-records --domain "${domain}" --special-type "aaaa" --scripting)
       cname_records=$(da_api_admin get-dns-records --domain "${domain}" --special-type "cname" --scripting)
       txt_records=$(da_api_admin get-dns-records --domain "${domain}" --special-type "txt" --scripting)
-      ns_records=$(da_api_admin get-dns-records --domain "${domain}" --special-type "ns" --scripting)
       mx_records=$(da_api_admin get-dns-records --domain "${domain}" --special-type "mx" --scripting)
       # We are not interested with this record yet
+      # NOTE we don't use ns_record yet
+      #  ns_records=$(da_api_admin get-dns-records --domain "${domain}" --special-type "ns" --scripting)
       #  srv_records=$(da_api_admin get-dns-records --domain "${domain}" --special-type "srv" --scripting)
       #  caa_records=$(da_api_admin get-dns-records --domain "${domain}" --special-type "caa" --scripting)
       #  ptr_records=$(da_api_admin get-dns-records --domain "${domain}" --special-type "ptr" --scripting)
@@ -4628,11 +4631,6 @@ copy_local_dns_to_external_dns() {
       if [ -n "${a_records}" ]; then
         msg "$(s cyan)Adding all A records in linode ...$(e)" --caller="${SCRIPT_NAME}"
 
-        #echo "A record not empty"
-        #echo "a record: "
-        #echo "${a_records}"
-        #echo "record length: "
-        # total_record=$(echo "${a_records}" | jq -r ".type" | wc -w)
         # For record name
         readarray -t record <<<$(echo "${a_records}" | jq -r ".name")
         # For record value
@@ -8651,6 +8649,7 @@ install_da_post() {
     da_cb_bin="/usr/local/directadmin/custombuild/build"
     da_script_path="/usr/local/directadmin/scripts"
     da_install_log="${LOG_PATH}/da-install.log"
+    exim_custom="/etc/exim.variables.conf.custom"
     touch "${da_install_log}"
 
     msg "$(s cyan)Checking directadmin path ... $(e)" --caller="${SCRIPT_NAME}"
@@ -8658,6 +8657,25 @@ install_da_post() {
 
     echo ""
 
+    # Hide SMTP banner
+    msg "$(s cyan)Hiding SMTP banner ... $(e)" --caller="${SCRIPT_NAME}"
+
+    # Set the file path
+
+    # Set the banner, escaping the dollar signs with a backslash
+    smtp_banner="smtp_banner=\$smtp_active_hostname ESMTP Exim \$tod_full"
+    # Check if the banner exists in the file, and if not, append it
+
+    if ! grep -qF "^smtp_banner" "${exim_custom}"; then
+      echo "$smtp_banner" >>"${exim_custom}"
+      echo "Banner added to the file."
+    else
+      echo "Banner already exists in the file."
+    fi
+
+    echo ""
+
+    sed -i "s/^smtp_banner=.*/smtp_banner=\$smtp_active_hostname ESMTP Exim \$tod_full/" /etc/exim.variables.conf.custom
     # SpamBlocker install and extra modules
     # TODO This resolved this issue (had to disable this first and rebuild here): https://forum.directadmin.com/threads/bug-new-installation-halt-for-the-second-time-regarding-to-exim-version-that-is-not-compatible.67957/#post-358733
     msg "$(s cyan)Installing SpamBlocker ... $(e)" --caller="${SCRIPT_NAME}"
@@ -8673,6 +8691,9 @@ install_da_post() {
     "${da_cb_bin}" dovecot_conf
     "${da_cb_bin}" rspamd
     "${da_cb_bin}" update
+    echo ""
+    # Rebuilding exim_conf
+    msg "$(s cyan)Rebuilding exim_conf ... $(e)" --caller="${SCRIPT_NAME}"
     "${da_cb_bin}" exim_conf
     echo ""
 
@@ -8778,6 +8799,7 @@ install_da_post() {
     fi
 
     msg "$(s cyan)Testing sending mail...$(e)" --caller="${SCRIPT_NAME}"
+    # TODO: Add test here
     echo "If you can read this, that means the SMTP mail for ${C_BOX_HOSTNAME_FQHN} has been configured successfully for the following user: ${C_SMTP_SYSTEM_MAIL_USER}@${C_SMTP_SYSTEM_MAIL_DOMAIN}" | mail -s "SMTP mail testing from ${C_BOX_HOSTNAME_FQHN}" ${C_SMTP_SYSTEM_MAIL_USER}@${C_SMTP_SYSTEM_MAIL_DOMAIN}
     get_status_message "$?"
 
@@ -8866,22 +8888,27 @@ install_da_post() {
       # https://github.com/rfxn/linux-malware-detect/issues/395
       maldet_version=$(maldet -V | head -1 | cut -d" " -f 4)
       msg "$(s cyan)Maldet version is: ${maldet_version}$(e)" --caller="${SCRIPT_NAME}"
-      if [[ "${maldet_version}" == "v1.6.4" && "${DISTRO_ID}" == "debian" && "${DISTRO_CODENAME}" == "bullseye" ]]; then
-        if ! command -v inotifywait &>/dev/null; then
-          msg "$(s cyan)Installing required package(s) ...$(e)" --caller="${SCRIPT_NAME}"
-          apt-get -y install inotify-tools
+      if [[ "${maldet_version}" == "v1.6.4" && "${DISTRO_ID}" == "debian" ]]; then
+
+        if [[ "${DISTRO_CODENAME}" == "bullseye" || "${DISTRO_CODENAME}" == "bookworm" ]]; then
+
+          if ! command -v inotifywait &>/dev/null; then
+            msg "$(s cyan)Installing required package(s) ...$(e)" --caller="${SCRIPT_NAME}"
+            apt-get -y install inotify-tools
+          fi
+          msg "$(s cyan)Patching known bug for maldet 1.6.4 service to run on Debian 11 properly ...$(e)" --caller="${SCRIPT_NAME}"
+          sed -i 's#/boot/System.map#/lib/debug/boot/System.map#' /usr/local/maldetect/internals/functions
+          get_status_message "$?"
+          echo ""
+          msg "$(s cyan)Restarting maldet service ...$(e)" --caller="${SCRIPT_NAME}"
+          systemctl restart maldet
+          get_status_message "$?"
+          echo ""
+          msg "$(s cyan)Checking maldet running status ...$(e)" --caller="${SCRIPT_NAME}"
+          systemctl is-active --quiet maldet
+          get_status_message "$?"
+
         fi
-        msg "$(s cyan)Patching known bug for maldet 1.6.4 service to run on Debian 11 properly ...$(e)" --caller="${SCRIPT_NAME}"
-        sed -i 's#/boot/System.map#/lib/debug/boot/System.map#' /usr/local/maldetect/internals/functions
-        get_status_message "$?"
-        echo ""
-        msg "$(s cyan)Restarting maldet service ...$(e)" --caller="${SCRIPT_NAME}"
-        systemctl restart maldet
-        get_status_message "$?"
-        echo ""
-        msg "$(s cyan)Checking maldet running status ...$(e)" --caller="${SCRIPT_NAME}"
-        systemctl is-active --quiet maldet
-        get_status_message "$?"
       fi
       echo ""
       msg "$(s cyan)Running maldet -V command ...$(e)" --caller="${SCRIPT_NAME}"
@@ -9132,7 +9159,7 @@ configure_da_scripts() {
     # Add da hook script name here to install automatically
     if [ -n "${C_AA_INSTALL_DA_HOOKS}" ]; then
       # Get it from config file
-      da_setup_hook_scripts="${C_AA_INSTALL_DA_HOOKS[@]}"
+      da_setup_hook_scripts="${C_AA_INSTALL_DA_HOOKS[*]}"
     else
       # If config file does not exist, use this default hook script (all are defined here as on 6th December 2022):
       da_setup_hook_scripts=("all_backups_post" "all_backups_pre" "all_pre" "all_post" "all_restores_post" "autoresponder_delete_pre" "autoresponder_set_post"
@@ -9200,7 +9227,7 @@ configure_da_scripts() {
 
     for da_setup_hook_script in ${da_setup_hook_scripts[*]}; do
       msg "$(s cyan)Removing existing custom hook script ${da_setup_hook_script} ...$(e)" --caller="${SCRIPT_NAME}"
-      rm -rf "${da_custom_script_path}/${da_setup_hook_script}"
+      rm -rf "${da_custom_script_path:?}/${da_setup_hook_script:?}"
       get_status_message "$?"
       echo ""
 
@@ -9468,13 +9495,10 @@ configure_bind() {
       #  echo "#!/bin/bash"
       #  echo "exit 0;"
       #} >/etc/init.d/named
-      msg "$(s cyan)Halting DNS service (named) from systemd startup  in /usr/lib/systemd/system/named.service ...$(e)" --caller="${SCRIPT_NAME}"
-      # Original: ExecStart=/usr/sbin/named -f $OPTIONS
-      sed -i "s/ExecStart=.*/ExecStart=echo -n ''/" /usr/lib/systemd/system/named.service
-      get_status_message "$?"
-      msg "$(s cyan)Halting DNS service (named) from systemd startup  in /etc/systemd/system/named.service...$(e)" --caller="${SCRIPT_NAME}"
+
       # Original: ExecStart=/usr/sbin/named -f -u bind
       if [ -f "/etc/systemd/system/named.service" ]; then
+        msg "$(s cyan)Halting DNS service (named) from systemd startup  in /etc/systemd/system/named.service...$(e)" --caller="${SCRIPT_NAME}"
         sed -i "s/ExecStart=.*/ExecStart=echo -n ''/" /etc/systemd/system/named.service
         get_status_message "$?"
       fi
@@ -9770,7 +9794,7 @@ install_da_csf() {
     da_bin="/usr/local/directadmin/directadmin"
     da_cb_bin="/usr/local/directadmin/custombuild/build"
     da_conf="/usr/local/directadmin/conf/directadmin.conf"
-    csf_conf=/etc/csf/csf.conf
+    csf_conf="/etc/csf/csf.conf"
 
     # This fixed lfd cannot started
     maxibuild --include "libio-socket-inet6-perl"
@@ -9832,7 +9856,7 @@ install_da_csf() {
           echo ""
           ./install.directadmin.sh
           echo ""
-          if [ ! -s "${csf_conf}" ]; then
+          if [[ ! -s "${csf_conf}" ]]; then
             msg "$(s red)Error, cannot find ${csf_conf} after installation. Please inspect manually and re-run this script to continue$(e)" --caller="${SCRIPT_NAME}"
             exit 1
           fi
@@ -12276,7 +12300,7 @@ configure_da_dns_templates() {
       # echo "|DOMAIN|.=\"v=spf1 a mx ip4:|SERVER_IP||EXTRA_SPF| ~all\""
       # If ipv6
       echo "|DOMAIN|.=\"v=spf1 a mx ip4:|SERVER_IP||EXTRA_SPF||SPF_IPV6| ~all\""
-      echo "_dmarc=\"v=DMARC1; p=none; sp=none; rua=mailto:spam-reports@|DOMAIN|\""
+      echo "_dmarc=\"v=DMARC1; p=quarantine; sp=quarantine; rua=mailto:spam-reports@|DOMAIN|\""
       # Note 1: Directadmin currently have issue using this record '_domainkey' with API (only work with GUI). So the following echo lines does nothing on API
       # So, in API must manually add dns record for _domainkey
       # https://forum.directadmin.com/threads/possible-bug-when-using-dns_txt-conf-with-api-include-step-to-reproduce.63247/
@@ -12297,7 +12321,7 @@ configure_da_dns_templates() {
       echo "|DOMAIN|.=10"
     } >"${da_template_custom}/dns_mx.conf"
 
-    echo ""
+    # echo ""
     # rewrite_confs here so that dns_txt.conf is updated
     # Fixed DNS new record updated:
     msg "$(s cyan)Updating DNS template by executing custombuild rewrite_confs ...$(e)" --caller="${SCRIPT_NAME}"
@@ -12726,11 +12750,14 @@ configure_da_admin_accounts() {
       readarray -t da_domains <<<"$(grep -w "${da_admin_username}" "/etc/virtual/domainowners" | cut -d ":" -f 1)"
       echo ""
 
-      if [ -n "${da_domains}" ]; then
+      if [ -n "${da_domains[*]}" ]; then
         echo "Domains list for ${da_owner_username}:"
         echo "${da_domains[*]}"
         echo ""
         for da_domain in "${da_domains[@]}"; do
+          msg "$(s cyan)Restoring/resetting domain ${da_domain} DNS records to default state ...$(e)" --caller="${SCRIPT_NAME}"
+          da_api_admin restore-dns-record --domain "${da_domain}"
+          echo ""
           msg "$(s cyan)Writing all DNS record for domain ${da_domain} to external DNS ...$(e)" --caller="${SCRIPT_NAME}"
           copy_local_dns_to_external_dns "${da_domain}"
           echo ""
@@ -12964,11 +12991,14 @@ configure_da_reseller_accounts() {
         msg "$(s cyan) Getting list of all domains created from backup ...$(e)" --caller="${SCRIPT_NAME}"
         readarray -t da_domains <<<"$(grep -w "${da_reseller_uname}" "/etc/virtual/domainowners" | cut -d ":" -f 1)"
         echo ""
-        if [ -n "${da_domains}" ]; then
+        if [ -n "${da_domains[*]}" ]; then
           echo "Domains list for ${da_reseller_uname}:"
           echo "${da_domains[*]}"
           echo ""
           for da_domain in "${da_domains[@]}"; do
+            msg "$(s cyan)Restoring/resetting domain ${da_domain} DNS records to default state ...$(e)" --caller="${SCRIPT_NAME}"
+            da_api_admin restore-dns-record --domain "${da_domain}"
+            echo ""
             msg "$(s cyan)Writing all DNS record for domain ${da_domain} to external DNS ...$(e)" --caller="${SCRIPT_NAME}"
             copy_local_dns_to_external_dns "${da_domain}"
             echo ""
@@ -13006,13 +13036,13 @@ configure_da_reseller_accounts() {
         # Adding extra subdomain starting here for first domain
         # da_reseller_domain_first_subdomains_raw=$(echo ${da_reseller_domain_first_raw} | awk -F':' '{print $2}')
         local da_reseller_domain_first_sub_domains
-        readarray -t da_reseller_domain_first_sub_domains <<<"$(echo ${da_reseller_domain_first_raw} | awk -F':' '{print $2}' | awk -F',' '{for (i=1;i<=NF;i++)print $i}')"
+        readarray -t da_reseller_domain_first_sub_domains <<<"$(echo "${da_reseller_domain_first_raw}" | awk -F':' '{print $2}' | awk -F',' '{for (i=1;i<=NF;i++)print $i}')"
         #da_reseller_domain_first=$(echo "${da_reseller_domains[@]}" | awk '{ print $1 }' | awk -F':' '{print $1}')
 
         # echo "da_reseller_domain_first_subdomains_raw: ${da_reseller_domain_first_subdomains_raw}"
-        echo "da_reseller_domain_first_sub_domains: ${da_reseller_domain_first_sub_domains}"
+        echo "da_reseller_domain_first_sub_domains: ${da_reseller_domain_first_sub_domains[*]}"
 
-        if [ -n "${da_reseller_domain_first_sub_domains}" ]; then
+        if [ -n "${da_reseller_domain_first_sub_domains[*]}" ]; then
           for da_reseller_subdomain_first in "${da_reseller_domain_first_sub_domains[@]}"; do
             # echo "da_reseller_subdomain_first ${da_reseller_subdomain_first}"
             msg "$(s cyan)Creating reseller ${da_reseller_uname} subdomain ${da_reseller_subdomain_first}.${da_reseller_domain_first}$(e)" --caller="${SCRIPT_NAME}"
@@ -13058,7 +13088,7 @@ configure_da_reseller_accounts() {
             echo ""
 
             # Adding extra subdomains starting here
-            if [ -n "${extra_subdomains}" ]; then
+            if [ -n "${extra_subdomains[*]}" ]; then
               for extra_subdomain in "${extra_subdomains[@]}"; do
                 #  echo "extra_subdomain: ${extra_subdomain}"
                 msg "$(s cyan)Creating reseller ${da_reseller_uname} subdomain ${extra_subdomain}.${extra_domain}$(e)" --caller="${SCRIPT_NAME}"
@@ -13653,107 +13683,111 @@ configure_da_user_domain_ssl() {
         fi
 
         echo ""
+        echo "Looping through all users to request SSL certificate for their domains"
+        for da_user in "${da_user_path}"/*; do
+          while read -r root_domain; do
+            {
+              msg "$(s cyan)Configure new certificate for domain ${root_domain} (belongs to user ${da_user}) ...$(e)" --caller="${SCRIPT_NAME}"
+              if [ ! -e "${da_user_path}/${da_user}/domains/${root_domain}.cert" ] && [ -s "${da_user_path}/${da_user}/domains/${root_domain}.conf" ]; then
+                local all_domains challenge_test subdomain
+                # domain_list="${root_domain}"
+                all_domains="${root_domain}"
 
-        for da_user in $(ls ${da_user_path}); do
-          {
-            for root_domain in $(cat "${da_user_path}/${da_user}/domains.list"); do
-              {
-                msg "$(s cyan)Configure new certificate for domain ${root_domain} (belongs to user ${da_user}) ...$(e)" --caller="${SCRIPT_NAME}"
-                echo ""
-                if [ ! -e "${da_user_path}/${da_user}/domains/${root_domain}.cert" ] && [ -s "${da_user_path}/${da_user}/domains/${root_domain}.conf" ]; then
-                  local all_domains challenge_test subdomain
-                  # domain_list="${root_domain}"
-                  all_domains="${root_domain}"
-
-                  msg "$(s cyan)Requesting domain challenge test for domain ${root_domain} ...$(e)" --caller="${SCRIPT_NAME}"
-                  challenge_test=$(letsencrypt_challenge_check ${root_domain})
-                  get_status_message "${challenge_test}"
-                  if [ ${challenge_test} -ne 1 ]; then
-                    for extra_subdomain in ${letsencrypt_list_selected}; do
-                      # Note extra_subdomain is taken from directadmin.conf
-                      local list_extra_subdomain
-                      {
-                        list_extra_subdomain=${extra_subdomain}.${root_domain}
-                        msg "$(s cyan)Requesting domain challenge test for domain ${list_extra_subdomain} ...$(e)" --caller="${SCRIPT_NAME}"
-                        challenge_test=$(letsencrypt_challenge_check "${list_extra_subdomain}")
-                        get_status_message "${challenge_test}"
-                        if [ "${challenge_test}" -ne 1 ]; then
-                          all_domains="${all_domains},${list_extra_subdomain}"
-                        fi
-                      }
-                    done
-                    echo ""
-
-                    # Checking for subdomain for the domain if exist
-                    for sub_domain in $(cat /usr/local/directadmin/data/users/${da_user}/domains/${root_domain}.subdomains); do
-                      msg "$(s cyan)Requesting domain challenge test for domain ${sub_domain}.${root_domain} ...$(e)" --caller="${SCRIPT_NAME}"
-                      challenge_test=$(letsencrypt_challenge_check "${sub_domain}.${root_domain}")
+                msg "$(s cyan)Requesting domain challenge test for domain ${root_domain} ...$(e)" --caller="${SCRIPT_NAME}"
+                challenge_test=$(letsencrypt_challenge_check ${root_domain})
+                get_status_message "${challenge_test}"
+                if [ ${challenge_test} -ne 1 ]; then
+                  for extra_subdomain in ${letsencrypt_list_selected}; do
+                    # Note extra_subdomain is taken from directadmin.conf
+                    local list_extra_subdomain
+                    {
+                      list_extra_subdomain=${extra_subdomain}.${root_domain}
+                      msg "$(s cyan)Requesting domain challenge test for domain ${list_extra_subdomain} ...$(e)" --caller="${SCRIPT_NAME}"
+                      challenge_test=$(letsencrypt_challenge_check "${list_extra_subdomain}")
                       get_status_message "${challenge_test}"
-                      if [ ${challenge_test} -ne 1 ]; then
-                        all_domains="${all_domains},${sub_domain}.${root_domain}"
+                      if [ "${challenge_test}" -ne 1 ]; then
+                        all_domains="${all_domains},${list_extra_subdomain}"
                       fi
-                    done
-                    echo ""
-                    echo "List of all domains to be requested SSL: "
-                    echo "${all_domains}"
-                    echo ""
-                    # Duplicate code
-                    # challenge_test=$(letsencrypt_challenge_check ${root_domain})
-                    msg "$(s cyan)Checking for ECC certificate ...$(e)" --caller="${SCRIPT_NAME}"
-                    has_ecc_certificates=$(cat "${da_conf}" | grep "^ecc_certificates=" | cut -d= -f2)
-                    echo ""
-                    if echo "${all_domains}" | grep -m1 -q ','; then
-                      msg "$(s cyan)Requesting SSL certificate for multiple domains: ${all_domains} ...$(e)" --caller="${SCRIPT_NAME}"
-                      if [ -n "${has_ecc_certificates}" ]; then
-                        ${da_script_path}/letsencrypt.sh request ${all_domains} ${C_DA_CERTIFICATE_SIZE}
-                      else
-                        ${da_script_path}/letsencrypt.sh request ${all_domains} 4096
-                      fi
-                    else
-                      msg "$(s cyan)Requesting SSL certificate for single domain: ${root_domain} ...$(e)" --caller="${SCRIPT_NAME}"
-                      if [ -n "${has_ecc_certificates}" ]; then
-                        ${da_script_path}/letsencrypt.sh request_single ${root_domain} ${C_DA_CERTIFICATE_SIZE}
-                      else
-                        ${da_script_path}/letsencrypt.sh request_single ${root_domain} 4096
-                      fi
+                    }
+                  done
+                  echo ""
+
+                  echo "List of all subdomains to be requested SSL: "
+                  # Checking for subdomain for the domain if exist
+                  for sub_domain in $(cat /usr/local/directadmin/data/users/${da_user}/domains/${root_domain}.subdomains); do
+                    msg "$(s cyan)Requesting domain challenge test for domain ${sub_domain}.${root_domain} ...$(e)" --caller="${SCRIPT_NAME}"
+                    challenge_test=$(letsencrypt_challenge_check "${sub_domain}.${root_domain}")
+                    get_status_message "${challenge_test}"
+                    if [ ${challenge_test} -ne 1 ]; then
+                      all_domains="${all_domains},${sub_domain}.${root_domain}"
                     fi
-                    echo ""
+                  done
+
+                  echo ""
+                  echo "List of all domains to be requested SSL: "
+                  echo "${all_domains}"
+                  echo ""
+                  # Duplicate code
+                  # challenge_test=$(letsencrypt_challenge_check ${root_domain})
+                  msg "$(s cyan)Checking for ECC certificate ...$(e)" --caller="${SCRIPT_NAME}"
+                  has_ecc_certificates=$(cat "${da_conf}" | grep "^ecc_certificates=" | cut -d= -f2)
+                  echo ""
+                  if echo "${all_domains}" | grep -m1 -q ','; then
+                    msg "$(s cyan)Requesting SSL certificate for multiple domains: ${all_domains} ...$(e)" --caller="${SCRIPT_NAME}"
+                    if [ -n "${has_ecc_certificates}" ]; then
+                      ${da_script_path}/letsencrypt.sh request ${all_domains} ${C_DA_CERTIFICATE_SIZE}
+                    else
+                      ${da_script_path}/letsencrypt.sh request ${all_domains} 4096
+                    fi
+                  else
+                    msg "$(s cyan)Requesting SSL certificate for single domain: ${root_domain} ...$(e)" --caller="${SCRIPT_NAME}"
+                    if [ -n "${has_ecc_certificates}" ]; then
+                      ${da_script_path}/letsencrypt.sh request_single ${root_domain} ${C_DA_CERTIFICATE_SIZE}
+                    else
+                      ${da_script_path}/letsencrypt.sh request_single ${root_domain} 4096
+                    fi
                   fi
+                  echo ""
                 fi
-                msg "$(s cyan)Checking domain ${root_domain} cert at ${da_user_path}/${da_user}/domains/${root_domain}.cert ...$(e)" --caller="${SCRIPT_NAME}"
-                if [ -e "${da_user_path}/${da_user}/domains/${root_domain}.cert" ]; then
-                  rewrite=false
-                  if ! grep -m1 -q '^ssl=ON' "${da_user_path}/${da_user}/domains/${root_domain}.conf"; then
-                    msg "$(s cyan)Turning ssl=ON for ${da_user_path}/${da_user}/domains/${root_domain}.conf ...$(e)" --caller="${SCRIPT_NAME}"
-                    perl -pi -e 's|^ssl\=.*|ssl=ON|g' "${da_user_path}/${da_user}/domains/${root_domain}.conf"
-                    rewrite=true
-                    echo ""
-                  fi
-                  if ! grep -m1 -q '^ssl=ON' "${da_user_path}/${da_user}/domains/${root_domain}.conf"; then
-                    msg "$(s cyan)Writing ssl=ON for ${da_user_path}/${da_user}/domains/${root_domain}.conf ...$(e)" --caller="${SCRIPT_NAME}"
-                    echo 'ssl=ON' >>"${da_user_path}/${da_user}/domains/${root_domain}.conf"
-                    echo ""
-                  fi
-                  if ! grep -m1 -q '^SSLCACertificateFile=' "${da_user_path}/${da_user}/domains/${root_domain}.conf" && ! grep -m1 -q '^SSLCertificateFile=' ${da_user_path}/${da_user}/domains/${root_domain}.conf && ! grep -m1 -q '^SSLCertificateKeyFile=' ${da_user_path}/${da_user}/domains/${root_domain}.conf; then
-                    msg "$(s cyan)Adding certificate links for ${da_user_path}/${da_user}/domains/${root_domain}.conf ...$(e)" --caller="${SCRIPT_NAME}"
-                    perl -pi -e "s|^UseCanonicalName=|SSLCACertificateFile=${da_user_path}/${da_user}/domains/${root_domain}.cacert\nSSLCertificateFile=${da_user_path}/${da_user}/domains/${root_domain}.cert\nSSLCertificateKeyFile=${da_user_path}/${da_user}/domains/${root_domain}.key\nUseCanonicalName=|g" "${da_user_path}/${da_user}/domains/${root_domain}.conf"
-                    rewrite=true
-                  fi
-                  if ${rewrite}; then
-                    msg "$(s cyan)Writing rewrite values in task.queue ...$(e)" --caller="${SCRIPT_NAME}"
-                    echo "action=rewrite&value=httpd&user=${da_user}" >>/usr/local/directadmin/data/task.queue
-                    echo "action=rewrite&value=mail_sni&domain=${root_domain}" >>/usr/local/directadmin/data/task.queue
-                    echo ""
-                  fi
+              else
+                msg "$(s cyan)SSL certificate for domain ${root_domain} already exists. Skipping ...$(e)" --caller="${SCRIPT_NAME}"
+              fi
+              msg "$(s cyan)Checking domain ${root_domain} cert at ${da_user_path}/${da_user}/domains/${root_domain}.cert ...$(e)" --caller="${SCRIPT_NAME}"
+              if [ -e "${da_user_path}/${da_user}/domains/${root_domain}.cert" ]; then
+                rewrite=false
+                if ! grep -m1 -q '^ssl=ON' "${da_user_path}/${da_user}/domains/${root_domain}.conf"; then
+                  msg "$(s cyan)Turning ssl=ON for ${da_user_path}/${da_user}/domains/${root_domain}.conf ...$(e)" --caller="${SCRIPT_NAME}"
+                  perl -pi -e 's|^ssl\=.*|ssl=ON|g' "${da_user_path}/${da_user}/domains/${root_domain}.conf"
+                  rewrite=true
+                  echo ""
                 fi
-              }
-            done
-          }
+                if ! grep -m1 -q '^ssl=ON' "${da_user_path}/${da_user}/domains/${root_domain}.conf"; then
+                  msg "$(s cyan)Writing ssl=ON for ${da_user_path}/${da_user}/domains/${root_domain}.conf ...$(e)" --caller="${SCRIPT_NAME}"
+                  echo 'ssl=ON' >>"${da_user_path}/${da_user}/domains/${root_domain}.conf"
+                  echo ""
+                fi
+                if ! grep -m1 -q '^SSLCACertificateFile=' "${da_user_path}/${da_user}/domains/${root_domain}.conf" && ! grep -m1 -q '^SSLCertificateFile=' ${da_user_path}/${da_user}/domains/${root_domain}.conf && ! grep -m1 -q '^SSLCertificateKeyFile=' ${da_user_path}/${da_user}/domains/${root_domain}.conf; then
+                  msg "$(s cyan)Adding certificate links for ${da_user_path}/${da_user}/domains/${root_domain}.conf ...$(e)" --caller="${SCRIPT_NAME}"
+                  perl -pi -e "s|^UseCanonicalName=|SSLCACertificateFile=${da_user_path}/${da_user}/domains/${root_domain}.cacert\nSSLCertificateFile=${da_user_path}/${da_user}/domains/${root_domain}.cert\nSSLCertificateKeyFile=${da_user_path}/${da_user}/domains/${root_domain}.key\nUseCanonicalName=|g" "${da_user_path}/${da_user}/domains/${root_domain}.conf"
+                  rewrite=true
+                fi
+                if ${rewrite}; then
+                  msg "$(s cyan)Writing rewrite values in task.queue ...$(e)" --caller="${SCRIPT_NAME}"
+                  echo "action=rewrite&value=httpd&user=${da_user}" >>/usr/local/directadmin/data/task.queue
+                  echo "action=rewrite&value=mail_sni&domain=${root_domain}" >>/usr/local/directadmin/data/task.queue
+                  echo ""
+                fi
+              else
+                msg "$(s yellow)SSL certificate for domain ${root_domain} does not exist. Skipping ...$(e)" --caller="${SCRIPT_NAME}"
+              fi
+              echo ""
+            }
+          done <"${da_user}/domains.list"
+
         done
       fi
     else
       msg "$(s yellow)[Skipped]: Warning DA Auto SSL is not enabled. The SSL restoration is skipped$(e)"
-
     fi
 
     echo ""
@@ -16193,11 +16227,14 @@ configure_da_user_accounts() {
         msg "$(s cyan) Getting list of all domains created from backup ...$(e)" --caller="${SCRIPT_NAME}"
         readarray -t da_domains <<<"$(grep -w "${da_user_uname}" "/etc/virtual/domainowners" | cut -d ":" -f 1)"
         echo ""
-        if [ -n "${da_domains}" ]; then
+        if [ -n "${da_domains[*]}" ]; then
           echo "Domains list for ${da_user_uname}:"
           echo "${da_domains[*]}"
           echo ""
           for da_domain in "${da_domains[@]}"; do
+            msg "$(s cyan)Restoring/resetting domain ${da_domain} DNS records to default state ...$(e)" --caller="${SCRIPT_NAME}"
+            da_api_admin restore-dns-record --domain "${da_domain}"
+            echo ""
             msg "$(s cyan)Writing all DNS record for domain ${da_domain} to external DNS ...$(e)" --caller="${SCRIPT_NAME}"
             copy_local_dns_to_external_dns "${da_domain}"
             echo ""
@@ -16238,9 +16275,9 @@ configure_da_user_accounts() {
         local da_user_domain_first_sub_domains
         readarray -t da_user_domain_first_sub_domains <<<"$(echo ${da_user_domain_first_raw} | awk -F':' '{print $2}' | awk -F',' '{for (i=1;i<=NF;i++)print $i}')"
 
-        echo "da_user_domain_first_sub_domains: ${da_user_domain_first_sub_domains}"
+        echo "da_user_domain_first_sub_domains: ${da_user_domain_first_sub_domains[*]}"
 
-        if [ -n "${da_user_domain_first_sub_domains}" ]; then
+        if [ -n "${da_user_domain_first_sub_domains[*]}" ]; then
           for da_user_subdomain_first in "${da_user_domain_first_sub_domains[@]}"; do
             msg "$(s cyan)Creating user ${da_user_uname} subdomain ${da_user_subdomain_first}.${da_user_domain_first}$(e)" --caller="${SCRIPT_NAME}"
             da_api_admin create-user-subdomain --sign-as "${da_user_uname}" --domain "${da_user_domain_first}" --subdomain "${da_user_subdomain_first}"
@@ -16284,7 +16321,7 @@ configure_da_user_accounts() {
             da_api_admin create-dns-record --sign-as "${da_user_uname}" --domain "${extra_domain}" --record-type MX --record-domain "${extra_domain}." --record-priority "10" --record-subdomain "${da_reseller_domain_first}." --record-ttl 30 --affect-pointers yes
             echo ""
             # Adding extra subdomains starting here
-            if [ -n "${extra_subdomains}" ]; then
+            if [ -n "${extra_subdomains[*]}" ]; then
               for extra_subdomain in "${extra_subdomains[@]}"; do
                 #  echo "extra_subdomain: ${extra_subdomain}"
                 msg "$(s cyan)Creating user ${da_user_uname} subdomain ${extra_subdomain}.${extra_domain}$(e)" --caller="${SCRIPT_NAME}"
@@ -17734,8 +17771,6 @@ fi
 while [ "$#" -gt 0 ]; do
   case "${ACTION}" in
   -t | --test)
-    configure_gotify --run-force-exit
-    echo "test"
     exit 0
     break
     ;;
@@ -17793,7 +17828,7 @@ while [ "$#" -gt 0 ]; do
   #   :This will remove all existing partitions including rescue disk and profile. No rescue disk and profile is created
   # Note3: If you run like this (without argument): maxinet --init-server
   #   :This will remove and re-create system related partitions. It will not disturb the rescue option
-  init-server | deploy-server | build-server | create-server | setup-server)
+  init-server | deploy-server | build-server | create-server | setup-server | deploy)
     shift
     script_header
     # Make sure internet is OK

@@ -987,7 +987,7 @@ C_DA_CB_INSTALL_SANDBOX="yes"
 # This will use the mirror (files.directadmin.com should be the first to use)
 # or set fastest for the server to select faster server (might not get latest build)
 C_DA_CB_DOWNLOADSERVER=files.directadmin.com
-# Option to install CSF using directadmin custombuild
+# Option to install CSF using directadmin custombuild. If put no it will install manually from source
 C_DA_CB_INSTALL_CSF="yes"
 #---- End custombuild options.conf settings ----
 #-----------------------------------------------
